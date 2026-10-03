@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using DotNetAiCodeHygiene.Cli;
 
 namespace DotNetAiCodeHygiene.Cli.Tests;
 
@@ -87,16 +88,47 @@ public sealed class CliProcessTests
             ProcessResult first = await RunCliInAsync(repo, "check", "--output", "json");
             await Assert.That(first.ExitCode).IsEqualTo(0);
             using JsonDocument json = JsonDocument.Parse(first.StandardOutput);
-            string finding = json.RootElement.GetProperty("findings")[0].GetProperty("id").GetString()!;
+            JsonElement firstFinding = json.RootElement.GetProperty("findings")[0];
+            string finding = firstFinding.GetProperty("id").GetString()!;
             string run = json.RootElement.GetProperty("runId").GetString()!;
+            await Assert.That(firstFinding.TryGetProperty("path", out _)).IsTrue();
+            await Assert.That(firstFinding.TryGetProperty("line", out _)).IsTrue();
+            await Assert.That(firstFinding.TryGetProperty("column", out _)).IsTrue();
+            await Assert.That(firstFinding.TryGetProperty("fingerprint", out _)).IsFalse();
+            await Assert.That(first.StandardError).IsEmpty();
+            string latestPath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
+            string latestBeforeExplain = await File.ReadAllTextAsync(latestPath);
+            ProcessResult bareExplanation = await RunCliInAsync(repo, "explain", finding, "--output", "json");
+            await Assert.That(bareExplanation.ExitCode).IsEqualTo(0);
             ProcessResult explanation = await RunCliInAsync(repo, "explain", run + "/" + finding, "--output", "json");
             await Assert.That(explanation.ExitCode).IsEqualTo(0);
+            using (JsonDocument explanationJson = JsonDocument.Parse(explanation.StandardOutput))
+            {
+                JsonElement value = explanationJson.RootElement;
+                foreach (string field in new[] { "schemaVersion", "ruleId", "ruleVersion", "classification", "path", "line", "column", "observation", "reason", "suggestion", "constraint" })
+                    await Assert.That(value.TryGetProperty(field, out _)).IsTrue();
+            }
+            ProcessResult textExplanation = await RunCliInAsync(repo, "explain", finding);
+            await Assert.That(textExplanation.ExitCode).IsEqualTo(0);
+            await Assert.That(textExplanation.StandardOutput).Contains("Observation:");
+            await Assert.That(textExplanation.StandardOutput).Contains("Why:");
+            await Assert.That(textExplanation.StandardOutput).Contains("Suggestion:");
+            await Assert.That(textExplanation.StandardOutput).Contains("Constraint:");
+            await Assert.That(await File.ReadAllTextAsync(latestPath)).IsEqualTo(latestBeforeExplain);
             ProcessResult ignored = await RunCliInAsync(repo, "ignore", finding, "--reason", "Reviewed");
             await Assert.That(ignored.ExitCode).IsEqualTo(0);
             using (JsonDocument decisions = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(repo, ".hygiene", "decisions.json"))))
             {
                 await Assert.That(decisions.RootElement.TryGetProperty("schemaVersion", out _)).IsTrue();
-                await Assert.That(decisions.RootElement.GetProperty("decisions")[0].TryGetProperty("fingerprint", out _)).IsTrue();
+                JsonElement persistedDecision = decisions.RootElement.GetProperty("decisions")[0];
+                await Assert.That(persistedDecision.GetProperty("id").GetString()!.StartsWith("I-", StringComparison.Ordinal)).IsTrue();
+                await Assert.That(persistedDecision.GetProperty("ruleId").GetString()).IsEqualTo(firstFinding.GetProperty("ruleId").GetString());
+                await Assert.That(persistedDecision.GetProperty("ruleVersion").GetInt32()).IsEqualTo(1);
+                await Assert.That(persistedDecision.GetProperty("path").GetString()).IsEqualTo("src/Fixture.cs");
+                await Assert.That(persistedDecision.GetProperty("anchor").GetString()).IsNotEmpty();
+                await Assert.That(persistedDecision.GetProperty("fingerprint").GetString()!.Length).IsEqualTo(64);
+                await Assert.That(persistedDecision.GetProperty("reason").GetString()).IsEqualTo("Reviewed");
+                await Assert.That(DateTimeOffset.TryParse(persistedDecision.GetProperty("createdAt").GetString(), out _)).IsTrue();
             }
             ProcessResult second = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument after = JsonDocument.Parse(second.StandardOutput);
@@ -115,15 +147,23 @@ public sealed class CliProcessTests
             await Assert.That(staleHandle.ExitCode).IsEqualTo(3);
             ProcessResult text = await RunCliInAsync(repo, "check", "--output", "text");
             await Assert.That(text.ExitCode).IsEqualTo(0);
+            await Assert.That(text.StandardError).IsEmpty();
             await Assert.That(text.StandardOutput).Contains("Run R-");
             await Assert.That(text.StandardOutput).Contains("finding(s)");
             await Assert.That(text.StandardOutput).Contains("review-candidate");
+            await Assert.That(text.StandardOutput).Contains("F-");
+            await Assert.That(text.StandardOutput).Contains("readability.long-line.review");
+            await Assert.That(text.StandardOutput).Contains("src/Fixture.cs:");
+            await Assert.That(text.StandardOutput).Contains("Physical line exceeds 200 characters.");
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "readability.long-line.review")).ExitCode).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "readability.control-flow.visual-block")).ExitCode).IsEqualTo(0);
             ProcessResult empty = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument noFindings = JsonDocument.Parse(empty.StandardOutput);
+            await Assert.That(noFindings.RootElement.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
+            await Assert.That(noFindings.RootElement.GetProperty("runId").GetString()!.StartsWith("R-", StringComparison.Ordinal)).IsTrue();
             await Assert.That(noFindings.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(0);
+            await Assert.That(noFindings.RootElement.GetProperty("ignoredCount").GetInt32()).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             ProcessResult enabledAgain = await RunCliInAsync(repo, "check", "--output", "json");
@@ -143,8 +183,35 @@ public sealed class CliProcessTests
             ProcessResult badState = await RunCliInAsync(repo, "rules");
             await Assert.That(badState.ExitCode).IsEqualTo(3);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(malformedConfig);
+            File.Delete(configPath);
+            string decisionsPath = Path.Combine(repo, ".hygiene", "decisions.json");
+            const string malformedDecisions = "{\"schemaVersion\":99,\"decisions\":[]}";
+            await File.WriteAllTextAsync(decisionsPath, malformedDecisions);
+            badState = await RunCliInAsync(repo, "check", "--output", "json");
+            await Assert.That(badState.ExitCode).IsEqualTo(3);
+            await Assert.That(await File.ReadAllTextAsync(decisionsPath)).IsEqualTo(malformedDecisions);
         }
         finally { Directory.Delete(repo, true); }
+    }
+
+    [Test]
+    public async Task UnexpectedHandlerExceptionUsesInternalFailureExitCode()
+    {
+        int exitCode = Program.Run(() => throw new InvalidOperationException("synthetic internal failure"));
+        await Assert.That(exitCode).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task FormatAndNormalizeRemainNonFunctionalScaffolding()
+    {
+        ProcessResult format = await RunCliAsync("format");
+        ProcessResult normalize = await RunCliAsync("normalize");
+        await Assert.That(format.ExitCode).IsEqualTo(3);
+        await Assert.That(format.StandardOutput).IsEmpty();
+        await Assert.That(format.StandardError).Contains("format is not implemented");
+        await Assert.That(normalize.ExitCode).IsEqualTo(3);
+        await Assert.That(normalize.StandardOutput).IsEmpty();
+        await Assert.That(normalize.StandardError).Contains("normalize is not implemented");
     }
 
     private static async Task<ProcessResult> RunCliAsync(params string[] arguments)

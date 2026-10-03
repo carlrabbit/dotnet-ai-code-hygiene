@@ -200,6 +200,8 @@ Repository/directory discovery excludes `.git`, `.hygiene`, `bin`, and `obj`.
 
 Explicit/discovered C# files must belong to a discoverable SDK-style `.csproj`.
 
+Project membership and Roslyn context follow the MSBuild-evaluated project model, including evaluated `Compile` items, project references, compiler references/options, conditional symbols, linked source, and generated/project-provided files represented as compile inputs. Project discovery is bounded by the Git repository root; an ancestor project outside the repository cannot claim a repository target.
+
 The engine may read broader project/repository context than the selected targets, but findings are emitted only for selected files.
 
 A file included through multiple target expressions is analyzed once.

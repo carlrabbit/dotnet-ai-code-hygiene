@@ -2,10 +2,11 @@ using System.Security.Cryptography;
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Build.Locator;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -29,6 +30,7 @@ public sealed class HygieneEngine
     private readonly string hygiene;
     private readonly Action? beforeAtomicReplace;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = false };
+    private static readonly object WorkspaceRegistrationLock = new();
 
     public HygieneEngine(string? cwd = null) : this(cwd, null) { }
 
@@ -143,35 +145,100 @@ public sealed class HygieneEngine
             string rel = entry[3..]; if (rel.Contains(" -> ")) rel = rel[(rel.LastIndexOf(" -> ", StringComparison.Ordinal) + 4)..]; yield return Path.Combine(root, rel);
         }
     }
-    private static string? FindSdkProject(string file)
+    private string[] FindSdkProjects()
     {
-        for (string? dir = Path.GetDirectoryName(file); dir is not null; dir = Directory.GetParent(dir)?.FullName)
-        foreach (string project in Directory.EnumerateFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly))
-            if (File.ReadAllText(project).Contains("Sdk=\"", StringComparison.OrdinalIgnoreCase) || File.ReadAllText(project).Contains("<Sdk>", StringComparison.OrdinalIgnoreCase)) return project;
-        return null;
+        return EnumerateRepositoryFiles("*.csproj")
+            .Where(p => !Excluded(p))
+            .Order(StringComparer.Ordinal)
+            .Where(IsSdkStyleProject)
+            .ToArray();
+    }
+
+    private IEnumerable<string> EnumerateRepositoryFiles(string pattern)
+    {
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            string directory = pending.Pop();
+            foreach (string file in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)) yield return file;
+            foreach (string child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly))
+            {
+                FileAttributes attributes = File.GetAttributes(child);
+                if ((attributes & FileAttributes.ReparsePoint) != 0 || Excluded(child)) continue;
+                string full = Path.GetFullPath(child);
+                if (full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) pending.Push(full);
+            }
+        }
+    }
+
+    private static bool IsSdkStyleProject(string project)
+    {
+        try
+        {
+            var xml = System.Xml.Linq.XDocument.Load(project);
+            var element = xml.Root;
+            return element?.Attribute("Sdk") is not null || element?.Elements().Any(e => e.Name.LocalName == "Sdk") == true;
+        }
+        catch (System.Xml.XmlException) { return false; }
+    }
+
+    private static MSBuildWorkspace CreateWorkspace()
+    {
+        lock (WorkspaceRegistrationLock)
+        {
+            if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
+        }
+        return MSBuildWorkspace.Create(new Dictionary<string, string> { ["DesignTimeBuild"] = "true" });
     }
 
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true)
     {
         string[] targets = ResolveTargets(paths, changed);
-        var projectsByTarget = targets.ToDictionary(path => path, path => FindSdkProject(path), StringComparer.OrdinalIgnoreCase);
-        foreach ((string path, string? project) in projectsByTarget) if (project is null) throw new ProductException($"C# file is not associated with a discoverable SDK-style project: {Path.GetRelativePath(root, path)}");
+        string[] projectPaths = FindSdkProjects();
+        using MSBuildWorkspace workspace = CreateWorkspace();
+        var loadedProjects = new List<Project>();
+        foreach (string projectPath in projectPaths)
+        {
+            try
+            {
+                Project? existing = workspace.CurrentSolution.Projects.FirstOrDefault(p => Path.GetFullPath(p.FilePath ?? "").Equals(Path.GetFullPath(projectPath), StringComparison.OrdinalIgnoreCase));
+                Project loaded = existing ?? workspace.OpenProjectAsync(projectPath).GetAwaiter().GetResult();
+                loadedProjects.Add(workspace.CurrentSolution.GetProject(loaded.Id)!);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                throw new ProductException($"Unable to evaluate SDK-style project '{Path.GetRelativePath(root, projectPath)}': {e.Message}");
+            }
+        }
+        var projectsByTarget = new Dictionary<string, Project>(StringComparer.OrdinalIgnoreCase);
+        var directlyTargetedFiles = paths.Select(raw => Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw)))
+            .Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string target in targets)
+        {
+            Project? project = loadedProjects
+                .Where(p => p.Documents.Any(d => d.FilePath is not null && Path.GetFullPath(d.FilePath).Equals(target, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(p => Path.GetFullPath(p.FilePath!).Length)
+                .FirstOrDefault();
+            if (project is null)
+            {
+                if (directlyTargetedFiles.Contains(target)) throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Path.GetRelativePath(root, target)}");
+                continue;
+            }
+            projectsByTarget[target] = project;
+        }
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
         var candidates = new List<Finding>();
-        string[] references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? "").Split(Path.PathSeparator);
-        foreach (var projectGroup in projectsByTarget.GroupBy(item => item.Value!, StringComparer.OrdinalIgnoreCase))
+        foreach (var projectGroup in projectsByTarget.GroupBy(item => item.Value.Id))
         {
-            string projectPath = projectGroup.Key;
-            string projectRoot = Path.GetDirectoryName(projectPath)!;
-            string[] contextPaths = Directory.EnumerateFiles(projectRoot, "*.cs", SearchOption.AllDirectories).Where(p => !Excluded(p)).Order(StringComparer.Ordinal).ToArray();
-            var trees = contextPaths.Select(path => CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path)).ToArray();
+            Project project = workspace.CurrentSolution.GetProject(projectGroup.Key)!;
+            Compilation compilation = project.GetCompilationAsync().GetAwaiter().GetResult()
+                ?? throw new ProductException($"Roslyn did not produce a compilation for '{Path.GetRelativePath(root, project.FilePath!)}'.");
             var targetSet = projectGroup.Select(item => item.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var targetTrees = trees.Where(t => targetSet.Contains(Path.GetFullPath(t.FilePath))).ToArray();
-            var refs = references.Select(p => MetadataReference.CreateFromFile(p));
-            var compilation = CSharpCompilation.Create(Path.GetFileNameWithoutExtension(projectPath), trees, refs, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            foreach (SyntaxTree tree in targetTrees)
+            foreach (Document document in project.Documents.Where(d => d.FilePath is not null && targetSet.Contains(Path.GetFullPath(d.FilePath))))
             {
+            SyntaxTree tree = document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'.");
             string path = tree.FilePath;
             string text = File.ReadAllText(path); string rel = Path.GetRelativePath(root, path).Replace('\\', '/');
             var model = compilation.GetSemanticModel(tree);
@@ -246,13 +313,26 @@ public sealed class HygieneEngine
     private static bool SummaryEligible(ISymbol s) => s switch { INamedTypeSymbol => true, IPropertySymbol => true, IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.Ordinary } => true, _ => false };
     private static bool HasSummary(MemberDeclarationSyntax m)
     {
-        string docs = m.GetLeadingTrivia().ToFullString();
-        Match summary = Regex.Match(docs, "<summary(?:\\s[^>]*)?>(.*?)</summary>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        if (!summary.Success) return false;
-        string content = Regex.Replace(summary.Groups[1].Value, "<[^>]*>", "", RegexOptions.CultureInvariant);
-        content = Regex.Replace(content, @"(?m)^\s*///?\s?", "", RegexOptions.CultureInvariant);
-        return content.Any(c => !char.IsWhiteSpace(c));
+        foreach (SyntaxTrivia trivia in m.GetLeadingTrivia())
+        {
+            if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) && !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia)) continue;
+            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation) continue;
+            foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>())
+            {
+                if (summary.StartTag.Name.LocalName.ValueText != "summary") continue;
+                if (summary.Content.Any(HasDocumentationContent)) return true;
+            }
+        }
+        return false;
     }
+
+    private static bool HasDocumentationContent(SyntaxNode node) => node switch
+    {
+        XmlTextSyntax text => text.TextTokens.Any(token => token.ValueText.Any(c => !char.IsWhiteSpace(c))),
+        XmlEmptyElementSyntax => true,
+        XmlElementSyntax element => element.Content.Any(HasDocumentationContent),
+        _ => node.ChildNodes().Any(HasDocumentationContent)
+    };
     private static void SourceTextLines(string s, Action<string, int, int> action)
     {
         int start = 0, number = 1;

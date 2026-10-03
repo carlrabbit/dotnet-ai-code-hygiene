@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" Version="1.72.16" />
-    <ProjectReference Include="$(MSBuildProjectDirectory)\..\..\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(MSBuildProjectDirectory)\..\..\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyMetadata Include="CliAssemblyPath" Value="$(CliAssemblyPath)" />

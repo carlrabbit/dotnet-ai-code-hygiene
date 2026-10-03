@@ -45,7 +45,7 @@ internal static class Program
         root.Subcommands.Add(rules);
         return root;
     }
-    private static int Run(Func<int> action)
+    internal static int Run(Func<int> action)
     {
         try { return action(); }
         catch (ArgumentException e) { Console.Error.WriteLine(e.Message); return 2; }
