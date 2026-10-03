@@ -2,10 +2,10 @@
 
 ## M0001 — CLI Foundation
 
-**State:** ready  
+**State:** done  
 **Mode:** AI-executed, human-reviewed
 
-Establish the Windows-first .NET 11 CLI repository skeleton, TUnit testing, `System.CommandLine` command surface, process-level CLI contract, local engineering validation, and packable .NET tool artifact.
+Established the Windows-first .NET 11 CLI repository skeleton, TUnit testing, `System.CommandLine` command surface, process-level CLI contract, local engineering validation, and packable .NET tool artifact.
 
 Primary milestone:
 
@@ -15,29 +15,38 @@ docs/milestones/M0001-cli-foundation.md
 
 ## M0002 — Hygiene Vertical Slice
 
-**State:** planned
+**State:** ready  
+**Mode:** AI-executed, human-reviewed
 
-Prove the core product end-to-end:
+Implement the first complete useful hygiene loop:
 
 ```text
 target resolution
--> Roslyn analysis
--> deterministic rule order
+-> Roslyn project/source context
+-> deterministic ordered rules
 -> findings/review candidates
--> run/finding identities
--> SHA-256 rule-specific occurrence fingerprints
--> .hygiene/decisions.json
--> ignore/unignore
--> text/JSON result output
+-> run/finding handles
+-> text/JSON output
+-> explain
+-> persisted ignore decision
+-> later suppression
+-> stale detection
+-> unignore
 ```
 
-Initial representative rules are expected to cover:
+Initial rules:
 
-- German XML summary requirement;
-- >200-character review trigger;
-- control-flow visual-block separation.
+```text
+docs.summary.required
+readability.long-line.review
+readability.control-flow.visual-block
+```
 
-M0002 is not implementation authority until separately planned and marked ready.
+Primary milestone:
+
+```text
+docs/milestones/M0002-hygiene-vertical-slice.md
+```
 
 ## M0003 — Packaged Developer Tool
 

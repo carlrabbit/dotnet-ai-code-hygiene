@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>DotNetAiCodeHygiene.Core.Tests</AssemblyName></PropertyGroup>
+  <ItemGroup><PackageReference Include="TUnit" Version="1.72.16" /><ProjectReference Include="..\..\src\DotNetAiCodeHygiene.Core\DotNetAiCodeHygiene.Core.csproj" /></ItemGroup>
+</Project>

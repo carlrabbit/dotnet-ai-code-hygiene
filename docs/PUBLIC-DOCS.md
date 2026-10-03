@@ -1,31 +1,40 @@
 # Public Documentation
 
-The repository is public and the CLI is intended to become an externally consumable developer tool.
+The repository is public and the CLI is intended as an externally consumable developer tool.
 
-## Initial surface
+## Current public surface
 
-During M0001 the root `README.md` is the initial public documentation surface.
+The root `README.md` remains the primary public documentation surface during M0002.
 
-It must accurately state:
+Before M0002 completes, it must not claim that the hygiene engine is already available.
 
-- product purpose;
-- current maturity/status;
-- Windows-first support;
-- .NET 11 requirement;
-- command name;
-- which capabilities are not implemented yet.
+At M0002 completion, README documentation must include representative source-project invocations for:
 
-Do not publish examples that imply the M0002 hygiene engine or M0003 installed-tool validation already exists.
+```text
+hygiene check
+hygiene check <file>
+hygiene check --changed
+hygiene rules
+hygiene explain <finding>
+hygiene ignore <finding>
+hygiene ignores
+hygiene unignore <ignore-id>
+```
 
-## Later public documentation
+It must also state:
 
-When the corresponding capability exists, public documentation must cover:
+- findings do not imply non-zero exit;
+- `--output json` is the machine-readable automation surface;
+- `.hygiene/config.json` and `.hygiene/decisions.json` are CLI-owned state;
+- M0002 remains Windows-first;
+- `format` and `normalize` are not implemented until M0003.
 
-- .NET tool installation;
-- `hygiene --help`;
-- representative commands;
-- text and JSON output;
-- stable exit semantics relevant to automation;
-- project configuration/decision-store behavior users need to know.
+## Installation
 
-A dedicated `public-docs/` tree should be added only when there is enough real content to justify it. Do not create empty public-documentation scaffolding.
+Installed `.NET tool` usage and installation guidance remains deferred until M0003 proves the exact installed consumer surface.
+
+Do not document `dotnet tool install` as validated product behavior during M0002.
+
+## Dedicated public docs
+
+Do not create a `public-docs/` tree until enough public material justifies it.

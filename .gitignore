@@ -2,3 +2,6 @@
 **/obj/
 artifacts/
 TestResults/
+**/.hygiene/.state/
+**/bin/
+**/obj/
