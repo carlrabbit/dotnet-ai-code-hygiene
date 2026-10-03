@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>DotNetAiCodeHygiene.Cli.Tests</AssemblyName>
+    <RootNamespace>DotNetAiCodeHygiene.Cli.Tests</RootNamespace>
+    <CliAssemblyPath>$(MSBuildProjectDirectory)\..\..\src\DotNetAiCodeHygiene.Cli\bin\$(Configuration)\net11.0\DotNetAiCodeHygiene.Cli.dll</CliAssemblyPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.72.16" />
+    <ProjectReference Include="$(MSBuildProjectDirectory)\..\..\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="CliAssemblyPath" Value="$(CliAssemblyPath)" />
+  </ItemGroup>
+</Project>
