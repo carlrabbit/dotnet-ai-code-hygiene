@@ -188,7 +188,7 @@ Implementation fills this section before `COMPLETE`.
 | EC-07b | Version process case returned 0, wrote `0.1.0` to stdout, and left stderr empty. | VAL-01 | Pass |
 | EC-10a | Current package nuspec reports ID `DotNetAiCodeHygiene.Tool`, version `0.1.0`, type `DotnetTool`. | VAL-04 | Pass |
 | EC-10b | Current package `tools/net11.0/any/DotnetToolSettings.xml` declares command `hygiene` with the CLI DLL entry point. | VAL-04 | Pass |
-| REV-01 | Human reviewer decision for `REV-M0001-COMPLETION` has not yet been recorded. | VAL-06; project owner/delegate | Awaiting human review |
+| REV-01 | Project owner explicitly approved `REV-M0001-COMPLETION` on 2026-10-03 after reviewing the completion evidence summary. | VAL-06; project owner | Accepted |
 
 ## Human Review
 
@@ -213,4 +213,4 @@ The reviewer confirms M0001 is a coherent minimal foundation and the durable com
 
 Waiver: none unless project authority is explicitly changed through planning.
 
-Decision: pending. M0001 remains awaiting human review until the project owner or delegated reviewer accepts the completion evidence.
+Decision: accepted by the project owner on 2026-10-03 after reviewing the completion evidence summary in the Codex task. The review confirmed the CLI skeleton and packaging foundation without M0002/M0003 behavior.

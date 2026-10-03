@@ -26,7 +26,7 @@ The execution ledger may compress work. It must not compress obligations.
 | AC-12 | acceptance | The implementation adds no embedded AI/model dependency and does not implement M0002 hygiene-engine, persistence, fingerprinting, formatting, or normalization behavior beyond non-functional command scaffolding. | WP-02, WP-03 | Only CLI command/help scaffolding and process tests were added; dependencies are System.CommandLine and TUnit only. | VAL-03: source/project inspection confirmed no engine, persistence, fingerprinting, formatter, normalizer, or AI/model implementation. | done |
 | DOC-01 | documentation | `README.md` remains accurate after implementation: it states the product purpose, M0001 maturity, Windows-first support, .NET 11 requirement, command name, and does not imply that planned M0002/M0003 capabilities already exist. | WP-03 | `README.md` states current maturity, Windows 11, .NET 11, `hygiene`, help-only reserved commands, and deferred package consumer validation. | VAL-05: README compared with process/package evidence and milestone; claims match. | done |
 | DOC-02 | documentation | Project authority remains internally consistent with the implemented M0001 surface; any implementation-detail adjustment that materially changes a documented contract is reconciled through planning rather than silently rewriting project semantics. | WP-03 | Required authority documents remain unchanged; implementation decisions (MTP runner selection and parse-error mapping) preserve stated contracts. | VAL-03: authority-to-implementation inspection found no semantic contract changes. | done |
-| REV-01 | review | A human completion review confirms that the M0001 evidence demonstrates the agreed CLI skeleton and packaging foundation without pulling M0002/M0003 behavior forward. | WP-03 | Review subject and compact evidence reconciliation are recorded in the milestone; reviewer decision is pending. | VAL-06: awaiting explicit human completion review. | awaiting human review |
+| REV-01 | review | A human completion review confirms that the M0001 evidence demonstrates the agreed CLI skeleton and packaging foundation without pulling M0002/M0003 behavior forward. | WP-03 | Project owner approved `REV-M0001-COMPLETION` on 2026-10-03 after reviewing the milestone reconciliation. | VAL-06: explicit project-owner approval received in conversation on 2026-10-03. | done |
 
 ## Evidence Case Registry
 
@@ -58,19 +58,19 @@ The execution ledger may compress work. It must not compress obligations.
 | VAL-03 | `./eng/validate.ps1` plus repository inspection for negative constraints | complete repository / local Windows 11 + .NET 11 SDK + PowerShell | AC-01, AC-02, AC-03, AC-09, AC-11, AC-12, DOC-02 | pass | Windows 11 build `10.0.26200`; SDK `11.0.100-rc.1.26425.128`; restore/build/test/pack succeeded; repository/source/dependency/workflow inspection recorded above. |
 | VAL-04 | inspect current M0001 `.nupkg` output | package artifact / local Windows 11 + .NET 11 SDK | EC-10a, EC-10b | pass | `artifacts/packages/DotNetAiCodeHygiene.Tool.0.1.0.nupkg`; nuspec and `DotnetToolSettings.xml` inspected; ID/version/type/command match. |
 | VAL-05 | compare implemented surface with README | public documentation / local repository | DOC-01 | pass | README claims compared against CLI tests, package metadata, and M0001 scope. |
-| VAL-06 | human completion review | completion evidence / human reviewer | REV-01 | awaiting human review | Concrete review request is being presented with completion evidence; no review decision is recorded yet. |
+| VAL-06 | human completion review | completion evidence / human reviewer | REV-01 | pass | Project owner explicitly approved `REV-M0001-COMPLETION` on 2026-10-03 after review of the evidence summary. |
 
 ## Resume Point
 
 Last completed work package: WP-03
 
-Current work package: human review (VAL-06)
+Current work package: none
 
-Next concrete action: obtain project owner/delegated reviewer decision for `REV-M0001-COMPLETION`.
+Next concrete action: none; M0001 implementation and required review are complete.
 
 Known agent-resolvable gaps: none.
 
-External blockers or planning escalations: human completion review is required before `COMPLETE`.
+External blockers or planning escalations: none.
 
 ## Final Reconciliation
 
@@ -86,5 +86,5 @@ Before `COMPLETE`:
 - [x] verify each gate actually exercises the behavior it claims to prove;
 - [x] confirm every required gate has current evidence from the declared Windows 11 locus;
 - [x] confirm no agent-resolvable gap remains;
-- [ ] obtain the required human review;
+- [x] obtain the required human review; project owner approved `REV-M0001-COMPLETION` on 2026-10-03;
 - [x] write the compact durable completion reconciliation into the milestone before this ledger is eligible for cleanup.
