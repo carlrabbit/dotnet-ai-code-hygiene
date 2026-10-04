@@ -48,11 +48,11 @@
     "milestones",
     "specs",
     "architecture",
+    "research",
     "terminology",
     "public-docs"
   ],
   "inactiveDocumentationLayers": [
-    "research",
     "tbps",
     "issue-templates",
     "repository-guide-copies",
