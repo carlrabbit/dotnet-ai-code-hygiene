@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/DotNetAiCodeHygiene.Cli/DotNetAiCodeHygiene.Cli.csproj" />
+    <Project Path="src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DotNetAiCodeHygiene.Cli.Tests/DotNetAiCodeHygiene.Cli.Tests.csproj" />
+    <Project Path="tests/DotNetAiCodeHygiene.Core.Tests/DotNetAiCodeHygiene.Core.Tests.csproj" />
   </Folder>
 </Solution>

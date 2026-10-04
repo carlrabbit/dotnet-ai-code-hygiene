@@ -2,17 +2,12 @@
 
 ## Development baseline
 
-Authoritative initial development/validation environment:
-
 ```text
 Operating system: Windows 11
 SDK line: .NET 11
-Current bootstrap SDK: 11.0.100-rc.1
 Language version: SDK default
 Shell for repository engineering launchers: PowerShell
 ```
-
-The SDK is expected to move within the .NET 11 line, including to GA, without changing the architectural contract.
 
 Do not claim Linux or macOS support until representative process-level validation exists there.
 
@@ -20,136 +15,109 @@ Do not claim Linux or macOS support until representative process-level validatio
 
 - `System.CommandLine` is the required CLI parser/command library.
 - TUnit is the required test framework.
-- Roslyn compiler/workspace APIs are the intended foundation for C# analysis and formatting.
-- BCL `System.Security.Cryptography.SHA256` is the required fingerprint hash primitive when M0002 implements persistence matching.
+- Roslyn compiler/workspace APIs are the required C# analysis foundation.
+- BCL `System.Security.Cryptography.SHA256` is the fingerprint hash primitive.
+- Git is a required environment dependency only for `--changed`.
 
-Exact compatible package patch versions are implementation-maintained dependencies, not product semantics unless a future compatibility constraint requires pinning them.
+Exact compatible package patch versions remain implementation-maintained unless compatibility evidence requires stronger pinning.
 
 ## Repository shape
 
-M0001 should establish a conventional small .NET layout:
+M0002 may extend the repository to:
 
 ```text
 DotNetAiCodeHygiene.slnx
-global.json
-Directory.Build.props
 src/
   DotNetAiCodeHygiene.Cli/
+  DotNetAiCodeHygiene.Core/
 tests/
   DotNetAiCodeHygiene.Cli.Tests/
+  DotNetAiCodeHygiene.Core.Tests/
 eng/
   validate.ps1
 ```
 
-Additional projects require a concrete architectural reason; do not split into speculative layers during M0001.
+Do not create additional speculative layers/projects.
+
+`Core` is an internal implementation assembly, not a supported public library.
 
 ## Build quality
 
-All project code uses:
+All project code keeps:
 
 ```text
+TargetFramework=net11.0
 Nullable=enable
 ImplicitUsings=enable
 TreatWarningsAsErrors=true
 ```
 
-The CLI targets `net11.0`.
-
 ## Test strategy
 
-The project is process-boundary/integration-first for compatibility-sensitive CLI behavior.
+The project is process-boundary/integration-first for public CLI compatibility and uses focused Core tests where more exhaustive/diagnostic.
 
-TUnit tests may also exercise lower-level code when doing so is materially cheaper, more exhaustive, or more diagnostic.
+M0002 needs both:
 
-A passing handler/unit test does not replace representative process invocation for:
+- Core tests for rule semantics, targeting, fingerprinting, matching, persistence, and ordering;
+- CLI process tests for invocation, streams, exits, text/JSON, target modes, rules, explain, ignore, unignore, and ignores.
 
-- parsing;
-- help/version;
-- exit codes;
-- stdout/stderr;
-- path/process behavior.
+A Core test does not replace process-boundary evidence for public CLI behavior.
 
-Do not create unit-test requirements merely to satisfy a generic test pyramid.
+## Test fixtures
+
+Repository discovery, Git `--changed`, project association, persistence, and path semantics use isolated temporary fixture repositories rather than the real development repository.
+
+Fixture tests may initialize local Git repositories.
+
+No network service is required.
 
 ## Engineering command
-
-`eng/` is the stable repository engineering entry point.
-
-For M0001:
 
 ```powershell
 ./eng/validate.ps1
 ```
 
-must run the complete local milestone validation needed by ordinary development:
+remains the complete local repository validation entry point and includes M0002 restore/build/test/pack validation.
 
-```text
-restore
-build
-test
-pack
-```
-
-The PowerShell launcher must remain thin. If orchestration becomes complex, move semantics into tested application/tooling code rather than growing shell logic.
+The PowerShell launcher remains thin.
 
 ## Validation topology
 
 | Depth | Target | Locus | Platform/capability | Command | Evidence |
 |---|---|---|---|---|---|
-| Tier 1 | focused .NET tests / CLI process tests | local | Windows 11 + .NET 11 SDK | `dotnet test` with focused filter/target as appropriate | focused TUnit results |
-| Tier 2 | repository build/test/package | local | Windows 11 + .NET 11 SDK + PowerShell | `./eng/validate.ps1` | successful restore/build/test/pack and produced local package |
-| Tier 3 | external integration target | not applicable in M0001 | — | — | — |
-| Tier 4 | installed .NET tool consumer surface | deferred to M0003 | Windows 11 | later milestone contract | later evidence |
+| Tier 1 | Core rule/identity/persistence tests | local | Windows 11 + .NET 11 SDK | focused `dotnet test` | deterministic Core evidence |
+| Tier 1 | built CLI process | local | Windows 11 + .NET 11 SDK | CLI TUnit process tests | invocation/stream/exit/output evidence |
+| Tier 2 | complete repository | local | Windows 11 + .NET 11 SDK + PowerShell + Git | `./eng/validate.ps1` | restore/build/test/pack |
+| Tier 3 | isolated temporary .NET/Git fixture repositories | local | Windows 11 + .NET 11 SDK + Git | TUnit integration scenarios | real repository/project/Git/persistence behavior |
+| Tier 4 | installed `.NET tool` artifact | deferred to M0003 | Windows 11 | later milestone | later evidence |
 
-## CLI process contract
+## Process isolation
 
-M0001 validation must execute the built CLI process and verify representative:
+CLI integration tests invoke the built CLI process, not command handlers.
 
-- successful `--help`;
-- successful `--version`;
-- per-command help;
-- malformed/unknown invocation;
-- stable exit mapping;
-- stdout/stderr ownership.
+Fixture repositories isolate `.git`, `.hygiene`, sources, `.csproj`, and changed/untracked state.
 
-M0001 does not need to prove analysis, ignore persistence, formatting, or packaged-tool installation.
+Tests must not rely on global Git identity/configuration where fixture-local configuration can be used.
 
-## Package production
+## Persistence validation
 
-M0001 configures the CLI project as a .NET tool package:
+Tests directly prove:
 
-```text
-PackageId: DotNetAiCodeHygiene.Tool
-ToolCommandName: hygiene
-initial development version: 0.1.0
-```
+- first-write creation;
+- atomic replacement;
+- malformed committed state rejection;
+- conflicting external modification rejection;
+- cancellation does not commit partial state;
+- latest-run state is replaceable by a new successful check.
 
-`dotnet pack` must produce the current package locally.
-
-Successful packing is not consumer-surface acceptance. M0003 must install the exact current package through `dotnet tool` into an isolated tool path or local manifest and invoke the generated command/shim.
+Lower-level fault injection may prove race/cancellation mechanics when a process-level race would be unreliable, provided public behavior is also represented where practical.
 
 ## GitHub automation
 
-Do not add:
-
-```text
-.github/workflows/
-```
-
-or other repository-hosted CI/CD workflow definitions.
-
-Local Windows validation is authoritative for the initial milestones.
-
-## Cancellation and writes
-
-M0001 should pass `CancellationToken` through the CLI/application boundary where practical so future long-running analysis can cooperate with Ctrl+C.
-
-M0001 has no product-state writes beyond normal build/package outputs. Atomic decision-store writes belong to M0002.
+Do not add `.github/workflows/` or other repository-hosted CI/CD workflows.
 
 ## Documentation boundary
 
-Project authority lives in `docs/` and the active milestone.
+Project authority lives in `docs/` and active milestones.
 
-External guide-system documents are planning/migration/synchronization inputs only and are not runtime implementation authority.
-
-No research layer is active at initialization because the operative pre-project conclusions are promoted directly into project authority and no costly evidence corpus needs preservation.
+No research layer is required for M0002; implementation-affecting conclusions are already promoted into project authority.

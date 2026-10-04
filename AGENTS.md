@@ -2,45 +2,48 @@
 
 ## Authority
 
-Implementation agents use project-local authority only. Do not treat external guide repositories, planning chats, or research notes as implementation authority.
+Implementation agents use project-local authority only. Do not treat external guide repositories, planning chats, guide metadata, or research notes as implementation authority.
 
 For the active milestone, start with:
 
 ```text
-docs/milestones/M0001-cli-foundation.md
+docs/milestones/M0002-hygiene-vertical-slice.md
 ```
 
 Read only the project-authority documents explicitly required by that milestone.
 
 ## Execution
 
-M0001 is AI-executed and human-reviewed. Maintain the planning-seeded execution ledger:
+M0002 is AI-executed and human-reviewed. Maintain:
 
 ```text
-.execution/M0001-cli-foundation.md
+.execution/M0002-hygiene-vertical-slice.md
 ```
 
 Do not delete, merge, renumber, paraphrase, or replace planner-owned obligation or evidence-case rows.
 
-Implementation owns work packages, concrete evidence, validation results, resume state, and completion reconciliation.
+Implementation owns work packages, concrete implementation choices, evidence, validation results, resume state, and final reconciliation.
 
 ## Engineering constraints
 
-- Development and authoritative M0001 validation run on Windows 11.
+- Development and authoritative M0002 validation run on Windows 11.
 - Use the .NET 11 SDK line.
-- Use `System.CommandLine` for the CLI command/parser surface.
+- Use `System.CommandLine` for the public CLI surface.
 - Use TUnit for automated tests.
+- Roslyn is the C# syntax/semantic foundation.
 - Do not add GitHub Actions or other repository-hosted workflow files.
-- Keep all required validation locally invokable.
-- Do not add an embedded AI/model dependency for M0001.
-- Do not implement the M0002 hygiene-engine vertical slice early merely because command names are reserved in M0001.
+- Do not add an embedded AI/model dependency.
+- Do not implement deterministic `format` or `normalize` behavior; those remain M0003.
+- Do not introduce rule parameters, severity configuration, rule ordering configuration, per-file rule configuration, or inline suppression comments.
+- Do not require agents to parse or edit `.hygiene/*.json` directly.
 
 ## Completion
 
 Before claiming `COMPLETE`:
 
 1. reread the milestone;
-2. verify exact obligation/evidence-case set equality with the ledger;
-3. establish concrete evidence for every obligation;
+2. verify exact obligation and evidence-case set equality with the ledger;
+3. establish concrete evidence for every obligation/evidence case;
 4. run every required validation gate on the declared Windows 11 locus;
-5. preserve the compact durable completion evidence in the milestone.
+5. obtain the required human completion review;
+6. preserve compact durable completion evidence in the milestone.

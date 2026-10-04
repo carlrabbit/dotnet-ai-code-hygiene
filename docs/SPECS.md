@@ -2,22 +2,22 @@
 
 ## Product role
 
-`dotnet-ai-code-hygiene` is a standalone AI-first developer tool. Its primary supported surface is the `hygiene` command-line interface. It canonicalizes code where deterministic transformation is safe and identifies opinionated code-hygiene concerns for remediation by a coding agent or human.
+`dotnet-ai-code-hygiene` is a standalone AI-first developer tool. Its primary supported surface is the `hygiene` command-line interface.
 
-The repository does not initially expose a supported reusable .NET library/API surface.
+The repository does not currently expose a supported reusable .NET library/API surface.
 
 ## Product principles
 
 1. Deterministic tooling performs work that does not require model intelligence.
 2. Ordinary hygiene discovery does not require an embedded AI model.
 3. Rules are opinionated and parameterless.
-4. A rule is either enabled or disabled.
-5. Alternative policy choices are separate rules. Example: a German-summary rule and an English-summary rule are distinct rules.
+4. A rule can only be enabled or disabled.
+5. Alternative policy choices are separate rules rather than parameters.
 6. Enabled rules execute in one engine-defined deterministic order.
 7. The engine does not detect or resolve contradictions between enabled rules.
 8. Hygiene-set coherence is reviewed externally by a human or sufficiently capable agent.
-9. `check` is read-only; source modification belongs to deterministic formatting/normalization or to the caller performing remediation.
-10. Agents interact with persisted decisions through the CLI, not by parsing or editing the persistence JSON directly.
+9. `check` is read-only.
+10. Agents interact with persisted state through the CLI, not by editing persistence JSON.
 
 ## CLI product surface
 
@@ -27,7 +27,7 @@ The distributed command name is:
 hygiene
 ```
 
-The reserved top-level commands are:
+Top-level commands:
 
 ```text
 hygiene format
@@ -40,22 +40,22 @@ hygiene ignores
 hygiene rules
 ```
 
-M0001 establishes command discovery and parsing for this surface. Domain behavior for hygiene analysis and decision persistence is introduced by M0002; deterministic formatter behavior and packaged consumer validation are completed by M0003.
+M0002 makes `check`, `explain`, `ignore`, `unignore`, `ignores`, and `rules` functional.
 
-All important supported operations must have non-interactive forms. No required workflow may depend on an interactive terminal.
+`format` and `normalize` remain intentionally non-functional scaffolding until M0003.
+
+All supported operations have non-interactive forms.
 
 ## Standard streams
 
 - `stdout` is the command result/output channel.
 - `stderr` is the diagnostics/progress/failure channel.
-- Machine-readable stdout must never be contaminated by diagnostics or progress.
+- Machine-readable stdout must never contain diagnostics or progress.
 - Human console styling is not a compatibility contract unless explicitly promoted later.
 
 ## Structured output
 
-JSON is the supported machine-readable output representation for commands that return structured product data.
-
-The activation mechanism is:
+Commands that return structured product data support:
 
 ```text
 --output text
@@ -64,126 +64,218 @@ The activation mechanism is:
 
 `text` is the default.
 
-CLI JSON is a supported consumer contract. Internal persistence JSON is engine-owned state and is not the agent API.
+CLI JSON is a supported consumer contract. Internal `.hygiene/*.json` is engine-owned persistence and is not the agent API.
+
+Detailed M0002 hygiene behavior and JSON fields are defined by:
+
+```text
+docs/specs/HYGIENE.md
+```
 
 ## Exit semantics
 
-Stable public exit classes:
-
 | Code | Meaning |
 |---:|---|
-| 0 | Command executed successfully. Product findings, when later supported, do not by themselves make execution fail. |
+| 0 | Command executed successfully. Hygiene findings do not by themselves make execution fail. |
 | 1 | Unexpected internal failure. |
 | 2 | Invalid or malformed invocation. |
-| 3 | Invalid or unusable product input/target. |
+| 3 | Invalid/unusable product input, repository state, target, rule ID, finding handle, ignore ID, or persistence state. |
 | 4 | Required environment/dependency unavailable or unusable. |
 
-Framework/parser defaults must be translated to these public semantics where they differ.
+Parser/framework defaults must not leak as accidental public exit semantics.
 
-A future explicit gating option may turn findings into a non-success automation result, but gating is not the default behavior.
+## Repository and target contract
 
-## Help and version
+M0002 commands are repository-scoped. The repository root is discovered by walking upward from the current working directory until `.git` is found.
 
-- `hygiene --help` is the primary command-discovery entry point.
-- Per-command help must be available for every reserved top-level command.
-- `hygiene --version` reports the distributed product version.
-- Help/version behavior must not depend on repository source inspection.
+Targets must resolve within that repository.
 
-## Target semantics
+Relative target paths are repository-root-relative. Absolute paths are permitted only when they resolve inside the discovered repository.
 
-Future target-aware commands support:
+Supported `check` target forms:
 
 ```text
-repository default
---changed
-explicit files
-directories
+hygiene check
+hygiene check --changed
+hygiene check <file> [<file>...]
+hygiene check <directory> [<directory>...]
 ```
 
-Explicit target scope controls where results may be emitted or transformations applied. It does not prohibit broader read-only repository context.
+Explicit paths and `--changed` are mutually exclusive.
 
-Repository-aware operations discover the repository root by walking upward from the current working directory until `.git` is found. Repository-relative paths are anchored to the discovered repository root. Absolute paths remain absolute.
+`hygiene check` without targets checks repository C# source.
 
-`--changed` means Git working-tree/index changes relative to `HEAD`; it does not infer a remote or base branch.
+`--changed` means staged, unstaged, and untracked C# files relative to `HEAD`; it does not infer a remote/base branch. Deleted paths do not produce source targets.
 
-These semantics are product authority now but are implemented by M0002 unless M0001 needs small reusable primitives for its CLI skeleton.
+Broad repository/directory scans exclude:
 
-## Rule and occurrence identity
+```text
+.git
+.hygiene
+bin
+obj
+```
 
-Rule IDs are stable semantic identifiers, for example:
+M0002 supports C# files that belong to a discoverable SDK-style `.csproj`. An explicitly requested C# file that cannot be associated with a project is invalid input for this milestone.
+
+## Rule identity and ordering
+
+M0002 built-in canonical order:
+
+```text
+1. docs.summary.required
+2. readability.long-line.review
+3. readability.control-flow.visual-block
+```
+
+Rule version starts at `1` for all M0002 rules. Rule semantics and order are engine-defined and not configurable.
+
+## Rule configuration
+
+All built-in rules are enabled when `.hygiene/config.json` does not exist.
+
+The persistence model records only disabled rule IDs:
+
+```json
+{
+  "schemaVersion": 1,
+  "disabledRules": [
+    "readability.long-line.review"
+  ]
+}
+```
+
+Mutation commands:
+
+```text
+hygiene rules enable <rule-id>
+hygiene rules disable <rule-id>
+```
+
+`hygiene rules` lists canonical order, ID, version, classification, short purpose, and enabled state.
+
+No parameters, severity, ordering, path scopes, or other rule configuration exist.
+
+## Run, finding, and ignore identity
+
+Rule:
 
 ```text
 readability.long-line.review
 ```
 
-Concrete findings are run-scoped:
+Run:
 
 ```text
-R-8K3M/F-42
+R-7K2M9P
 ```
 
-Persistent ignores have separate identities:
+Finding handle:
+
+```text
+R-7K2M9P/F-2
+```
+
+Ignore decision:
 
 ```text
 I-17
 ```
 
-Persistent occurrence matching is based on:
+Finding numbers are deterministic ordinals within one completed ordered result set but have no persistent meaning across runs.
+
+A bare `F-2` refers only to the latest locally persisted run.
+
+M0002 persists only the latest run. A qualified handle whose run ID is not the latest available run must fail rather than resolve to a finding from another run.
+
+## Local run state
+
+The CLI owns:
 
 ```text
-rule ID
-+ rule version
-+ semantic anchor
-+ rule-specific canonical evidence fingerprint
-+ local discriminator when structurally identical occurrences require it
+.hygiene/.state/latest-run.json
 ```
 
-Repository-relative path is useful matching/disambiguation metadata but is not the sole identity.
+`.hygiene/.state/` is Git-ignored.
 
-The hash algorithm for evidence fingerprints is SHA-256. Rules own the canonical evidence definition for “the same finding.” Line numbers are never sufficient identity.
+The latest-run snapshot contains enough engine-owned state for `explain` and `ignore`. It is not a supported consumer schema.
 
-## Persistence direction
+Historical run retention is not part of M0002.
 
-Project decisions will be stored in:
+## Persistent ignore decisions
+
+Committed reviewed exceptions are stored in:
 
 ```text
 .hygiene/decisions.json
 ```
 
-Configuration for enabled/disabled rules will be stored separately, initially:
+Each decision has:
+
+- stable `I-*` identity;
+- rule ID and rule version;
+- repository-relative path metadata;
+- semantic anchor;
+- rule-specific SHA-256 evidence fingerprint;
+- local discriminator when required;
+- optional reason;
+- UTC creation timestamp.
+
+`createdBy` is not stored in M0002.
+
+`hygiene ignore <finding-handle>` revalidates that the referenced occurrence still exists in current source before committing the decision. If source relevant to the finding changed after the check, the command fails and instructs the caller to run `check` again.
+
+`hygiene unignore <ignore-id>` removes exactly that persistent decision.
+
+No source-code suppression comments are supported.
+
+## Occurrence fingerprinting
+
+Persistent occurrence matching uses:
 
 ```text
-.hygiene/config.json
+rule ID
++ rule version
++ semantic anchor
++ rule-specific canonical evidence
++ local discriminator when needed
 ```
 
-The CLI owns parsing, validation, migration, and writes. Source-code suppression comments are not part of the initial design.
+Evidence is hashed with SHA-256.
 
-Persistence is implemented by M0002.
+Line numbers and absolute paths are never sufficient identity.
 
-## Distribution
+Repository-relative path is matching/disambiguation metadata but not the complete identity.
 
-The CLI is distributed as a .NET tool through a NuGet package.
+Each rule owns its canonical evidence definition. Formatting/trivia is ignored unless it is directly relevant to that rule.
 
-Project-local names:
+## Ignore status
+
+`hygiene ignores` reports persisted decisions as:
 
 ```text
-command: hygiene
-CLI project/assembly: DotNetAiCodeHygiene.Cli
-NuGet package ID: DotNetAiCodeHygiene.Tool
+active
+stale
 ```
 
-M0001 must produce a valid current local package. Installation/consumer-surface acceptance of that exact package is M0003.
+A disabled rule does not automatically make its decision stale. Ignore-status evaluation may evaluate the relevant rule independently of normal enablement.
+
+Stale decisions are not automatically deleted.
+
+## Persistence writes
+
+`.hygiene/config.json` and `.hygiene/decisions.json` writes are atomic from the repository consumer's perspective.
+
+A write must not silently overwrite a file that changed since the command read it. Conflicting modification fails instead of losing state.
+
+Cancellation before commit leaves the previous committed file intact.
 
 ## Supported platform
 
-M0001 support and validation:
+M0002 authoritative validation remains Windows 11 with the .NET 11 SDK line.
 
-```text
-Windows 11
-```
-
-Cross-platform support is not claimed by compilation alone and is not an M0001 acceptance requirement.
+Cross-platform support is not claimed.
 
 ## Automation policy
 
-The repository does not use GitHub Actions or other repository-hosted workflow automation for the initial project. Required validation must be locally invokable.
+No GitHub Actions or other repository-hosted workflow automation is used. Required validation is locally invokable.

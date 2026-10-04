@@ -2,152 +2,190 @@
 
 ## System shape
 
-The intended product pipeline is:
-
 ```text
-source
-  -> target resolution
-  -> deterministic formatting
-  -> safe normalization
+source targets
+  -> repository/project resolution
+  -> Roslyn project/source context
+  -> enabled-rule selection
   -> deterministic rule evaluation
-  -> findings/review candidates
+  -> occurrence matching against decisions
+  -> ordered findings/review candidates
+  -> run snapshot
+  -> text/JSON presentation
   -> caller remediation
 ```
 
-The CLI is the supported public surface. Internal assemblies are implementation details unless a later milestone deliberately promotes a reusable API.
+Formatting and safe normalization remain M0003 work.
 
-## Major boundaries
+The CLI is the supported public surface. Internal assemblies are implementation details unless deliberately promoted later.
 
-### CLI boundary
+## Project boundaries
+
+M0002 establishes:
+
+```text
+src/
+  DotNetAiCodeHygiene.Cli/
+  DotNetAiCodeHygiene.Core/
+
+tests/
+  DotNetAiCodeHygiene.Cli.Tests/
+  DotNetAiCodeHygiene.Core.Tests/
+```
+
+`DotNetAiCodeHygiene.Core` owns application/domain semantics for target resolution, Roslyn analysis, rules, identities, matching, and persistence.
+
+It is not a supported public library API.
+
+CLI handlers remain thin adapters.
+
+## CLI boundary
 
 Owns:
 
-- command parsing through `System.CommandLine`;
+- `System.CommandLine` parsing;
+- public options/arguments;
 - help/version;
 - stable exit mapping;
 - stdout/stderr routing;
-- text/JSON presentation;
-- cancellation handoff;
-- invocation of application services.
+- text/JSON rendering;
+- cancellation handoff.
 
-Command handlers should remain thin. Product semantics belong in testable application/domain code.
+It does not own rule semantics or occurrence matching.
 
-### Formatting boundary
+## Repository/project context
 
-Owns deterministic presentation changes. Formatting must not intentionally change program semantics.
+The engine:
 
-The initial formatter strategy is Roslyn-based for C#.
+1. discovers the Git repository root;
+2. resolves selected C# target files;
+3. associates them with discoverable SDK-style `.csproj` projects;
+4. loads enough Roslyn project/compilation context for syntax, semantic models, and symbols;
+5. permits broader read-only project/repository context while limiting emitted findings to target files.
 
-### Normalization boundary
+The public contract is project-aware behavior, not a specific Roslyn workspace type.
 
-Owns high-confidence, semantics-preserving structural transformations. Normalization is intentionally stricter than hygiene remediation and must not become a generic auto-fix channel.
+## Rule engine
 
-### Hygiene boundary
-
-Owns deterministic rule ordering, enabled-rule evaluation, findings, review candidates, run/finding identities, and rule-specific evidence construction.
-
-Ordinary hygiene detection has no embedded-model dependency.
-
-### Decision-store boundary
-
-Owns persistent reviewed exceptions and later rule configuration.
-
-The persistence format is Git-friendly JSON, but agents/humans normally mutate it through CLI commands.
-
-Writes must eventually be atomic and conflict-aware. Those behaviors are implemented with the persistence vertical slice in M0002 unless explicitly pulled forward.
-
-## Rule model
-
-Rules are immutable opinionated units:
+Rules contain:
 
 ```text
-Rule
-  ID
-  version
-  fixed semantics
-  fixed applicability
-  fixed place in canonical order
+stable ID
+version
+fixed classification
+fixed semantics
+fixed applicability
+canonical order
+evidence/fingerprint construction
+explanation guidance
 ```
 
-User configuration does not provide rule parameters, severity overrides, thresholds, ordering, or per-file rule policy.
+Configuration selects enabled rules only.
 
-The engine guarantees deterministic evaluation of the selected rules. It does not guarantee that the selected rule set is philosophically coherent.
+Ignore-status evaluation may evaluate a disabled rule to determine whether a stored occurrence still exists.
+
+## Result construction
+
+Rule evaluation produces internal occurrences before public finding numbers.
+
+The engine:
+
+1. produces occurrences for enabled rules/targets;
+2. matches persistent decisions;
+3. omits ignored occurrences;
+4. deterministically sorts visible findings;
+5. assigns `F-*`;
+6. creates one run ID;
+7. publishes latest-run state only after successful complete result construction;
+8. renders text or JSON.
 
 ## Identity model
 
-### Rule
+Rule: persistent semantic ID.  
+Run: one successful completed check, e.g. `R-7K2M9P`.  
+Finding: run-local, e.g. `R-7K2M9P/F-2`.  
+Ignore decision: repository-persistent, e.g. `I-17`.
 
-Persistent semantic identity:
+Run-ID encoding is implementation-local but must make accidental reuse negligible.
 
-```text
-readability.long-line.review
-```
-
-### Run
-
-One analysis invocation:
-
-```text
-R-8K3M
-```
-
-### Finding
-
-A concrete occurrence within a run:
-
-```text
-R-8K3M/F-42
-```
-
-Finding handles are interaction conveniences, not persistent occurrence keys.
-
-### Ignore decision
-
-A persistent reviewed exception:
-
-```text
-I-17
-```
-
-An ignore decision survives analysis runs by matching a stable occurrence identity.
+Ignore IDs must never be silently reused for another stored decision.
 
 ## Fingerprinting
 
-Occurrence identity uses a Roslyn semantic anchor plus rule-specific canonical evidence.
+Occurrence matching combines:
 
-General canonical evidence excludes:
+```text
+rule ID
++ rule version
++ semantic anchor
++ rule-specific canonical evidence
++ local discriminator when required
+```
 
-- line numbers;
-- absolute paths;
-- indentation;
-- ordinary whitespace/trivia when irrelevant.
+Canonical evidence is deterministically serialized and hashed with BCL SHA-256.
 
-Rules may include trivia when trivia is exactly what the rule evaluates.
+Do not use `GetHashCode()`, runtime-dependent hashes, line number, or absolute path as occurrence identity.
 
-Evidence is hashed with SHA-256. Structurally identical sibling occurrences may use a deterministic local ordinal/discriminator after the semantic anchor and structural fingerprint.
+Prefer Roslyn documentation-comment IDs for source symbols when available.
 
-A formatting-only edit should not invalidate an ignore for a structural rule. A material change to the evidence a rule evaluates should reopen the occurrence.
+Rules own what evidence changes identity.
+
+## Local run state
+
+```text
+.hygiene/.state/latest-run.json
+```
+
+is ephemeral engine-owned state.
+
+Only latest run is retained in M0002. It supports `explain` and finding-to-occurrence resolution for `ignore`.
+
+It is not committed and not a public schema.
+
+## Committed state
+
+```text
+.hygiene/config.json
+.hygiene/decisions.json
+```
+
+are Git-friendly engine-owned persistence.
+
+They are readable/diffable but normally mutated through CLI commands.
+
+Persistence reads validate schema before mutation.
+
+Writes are atomic and conflict-aware. Equivalent mechanics are acceptable if they guarantee no partial committed file and no silent overwrite of concurrent external modification.
+
+## Ignore creation
+
+```text
+latest-run finding
+-> recover occurrence identity
+-> revalidate current source
+-> if same occurrence still exists, persist decision
+```
+
+This prevents ignoring stale findings after source changes.
 
 ## Target/context distinction
-
-Target selection determines where a command may emit results or apply changes.
-
-Analysis may read broader repository context when the rule requires it. Therefore:
 
 ```text
 target scope != context visibility
 ```
 
-This distinction prevents file-scoped agent workflows from degrading semantic correctness.
+Target selection controls where findings may be emitted; analysis may inspect broader context.
 
-## M0001 architecture scope
+## Cancellation
 
-M0001 establishes:
+Long-running target/project loading and analysis accept cancellation.
 
-- solution/project boundaries;
-- CLI boundary;
-- testing boundary;
-- local engineering validation entry point;
-- packaging metadata.
+Cancelled/failed checks do not publish partial latest-run state.
 
-M0001 does not implement the hygiene engine, decision store, fingerprinting engine, or formatter behavior beyond any minimal scaffolding required to keep the skeleton coherent.
+Cancelled persistence mutation does not leave partial committed JSON.
+
+## M0002 architecture scope
+
+M0002 implements C# target resolution, project-aware Roslyn context, three rules, deterministic result ordering, run/finding identity, latest-run state, rule configuration, persistent ignores, fingerprint matching, and text/JSON result surfaces.
+
+It does not implement formatting, normalization, embedded AI, run history, cross-language analysis, IDE/MCP integration, or installed-package consumer validation.

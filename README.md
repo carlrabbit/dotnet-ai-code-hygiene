@@ -1,44 +1,29 @@
 # dotnet-ai-code-hygiene
 
-AI-first code hygiene tooling for deterministic formatting, normalization, opinionated hygiene analysis, and agent-oriented remediation workflows. M0001 currently provides the command-line foundation; those product capabilities are planned and are not implemented yet.
+`hygiene` is a Windows-first CLI for deterministic C# code hygiene checks. M0002 provides three parameterless rules: `docs.summary.required`, `readability.long-line.review`, and `readability.control-flow.visual-block`. Checks are read-only and findings do not cause a non-zero exit code.
 
-## Status
+Run from a Git repository containing SDK-style .NET projects:
 
-`M0001 — CLI Foundation` provides a .NET CLI skeleton, local validation, and a packable .NET tool package. The hygiene engine vertical slice follows in M0002. The reserved commands currently expose help only and do not analyze or change source code.
-
-## Product direction
-
-The tool is designed for coding agents and humans:
-
-```text
-generated or edited code
--> deterministic formatting
--> safe normalization
--> deterministic hygiene checks
--> narrowly scoped findings/review candidates
--> remediation by the calling agent or human
+```powershell
+hygiene check
+hygiene check src/Example/Service.cs
+hygiene check --changed
+hygiene check --output json
+hygiene rules
+hygiene explain R-7K2M9P/F-1
+hygiene ignore F-1 --reason "Reviewed and intentionally retained"
+hygiene ignores
+hygiene unignore I-1
 ```
 
-The hygiene engine does not require an embedded AI model for ordinary detection.
+Use `--output json` for automation. JSON results use schema version 1; diagnostics are written to stderr. Exit codes are `0` for successful commands (including checks with findings), `1` for unexpected failures, `2` for malformed invocation, `3` for invalid repository/input/state, and `4` when a required dependency such as Git is unavailable.
 
-## Initial platform
+The CLI owns `.hygiene/config.json` and `.hygiene/decisions.json`. The latest local run is stored under `.hygiene/.state/` and is Git-ignored. Use `hygiene rules enable|disable` to select rules and the ignore commands to manage reviewed exceptions.
 
-- Windows 11 is the first supported development and validation platform.
-- The project follows the .NET 11 SDK line.
-- .NET 11 SDK must be installed to build and run the project.
-- No GitHub Actions or repository-hosted CI workflows are used.
-- Local validation is authoritative for the initial milestones.
+M0002 is validated on Windows 11 with the .NET 11 SDK line. `format` and `normalize` are not implemented until M0003. Installed-tool usage guidance is deferred until the packaged consumer surface is validated.
 
-## Command
+Run repository validation with:
 
-The distributed command name is:
-
-```text
-hygiene
+```powershell
+./eng/validate.ps1
 ```
-
-M0001 establishes command discovery and the reserved top-level command surface. Functional hygiene analysis is introduced by later milestones.
-
-The M0001 package can be produced locally with `dotnet pack`; installed-tool consumer validation and installation guidance are planned for M0003.
-
-See `docs/SPECS.md`, `docs/ENGINEERING.md`, `docs/ARCHITECTURE.md`, and the active milestone for authoritative project details.
