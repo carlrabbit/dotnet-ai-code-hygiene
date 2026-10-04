@@ -1,0 +1,22 @@
+{
+  "dateUtc": "2026-10-04T20:45:44Z",
+  "currentCommit": "0b48571ab4920ea9ef8eda3c873c7090c5642424",
+  "branch": "codex/M0005-supported-dotnet-profile",
+  "os": "Microsoft Windows 11 Home",
+  "osVersion": "10.0.26200",
+  "osBuild": "26200",
+  "powershell": "7.6.5",
+  "dotnetSdk": "11.0.100-rc.1.26425.128",
+  "hygieneVersion": "0.5.0",
+  "profile": {
+    "schemaVersion": 1,
+    "profile": "dotnet-11",
+    "version": 1
+  },
+  "globalIgnoreStateExists": false,
+  "productConfigExists": false,
+  "cliBinarySha256": "EBEA0B22EC8CA29161253B74C71B7158DB81FFD1CCE977096B4C5BCAE67C84B4",
+  "coreBinarySha256": "FE5F5D70F9810A5E1AEDB8B3D8EF0DEB8651378CE83006CF2D5D59D5AEF07B08",
+  "cliBinaryLastWrite": "2026-10-04T22:26:20.0685173+02:00",
+  "sourceBuildCommit": "83456ff (M0005 product-code commit; following 0b48571 only records human approval in docs/ledger)"
+}

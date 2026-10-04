@@ -1,0 +1,129 @@
+{
+  "groups": [
+    {
+      "path": "src/DotNetAiCodeHygiene.Cli/Program.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 9,
+      "ids": "F-335-F-343"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Cli/Program.cs",
+      "ruleId": "readability.long-line.review",
+      "classification": "questionable/noisy finding",
+      "count": 7,
+      "ids": "F-213, F-225-F-227, F-231, F-233-F-234"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "ruleId": "docs.summary.required",
+      "classification": "legitimate hygiene issue",
+      "count": 12,
+      "ids": "F-4-F-10, F-109-F-112, F-114"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 40,
+      "ids": "F-345-F-346, F-348-F-351, F-354-F-356, F-358-F-360, F-366-F-374, F-379, F-381-F-382, F-385-F-392, F-394-F-401"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "ruleId": "readability.long-line.review",
+      "classification": "questionable/noisy finding",
+      "count": 17,
+      "ids": "F-238-F-239, F-243-F-251, F-255, F-262-F-264, F-266-F-267"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+      "ruleId": "docs.summary.required",
+      "classification": "legitimate hygiene issue",
+      "count": 16,
+      "ids": "F-123-F-138"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 41,
+      "ids": "F-403-F-443"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+      "ruleId": "readability.long-line.review",
+      "classification": "questionable/noisy finding",
+      "count": 19,
+      "ids": "F-270-F-288"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/RewriteEngine.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 6,
+      "ids": "F-448, F-450, F-452-F-453, F-457, F-459"
+    },
+    {
+      "path": "src/DotNetAiCodeHygiene.Core/SdkProjectDetection.cs",
+      "ruleId": "docs.summary.required",
+      "classification": "legitimate hygiene issue",
+      "count": 3,
+      "ids": "F-151-F-153"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Cli.Tests/CliProcessTests.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 5,
+      "ids": "F-468, F-472-F-475"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/LifecycleTests.cs",
+      "ruleId": "docs.summary.required",
+      "classification": "questionable/noisy finding",
+      "count": 3,
+      "ids": "F-168-F-170"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/LifecycleTests.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 9,
+      "ids": "F-476-F-481, F-539-F-541"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/LifecycleTests.cs",
+      "ruleId": "readability.long-line.review",
+      "classification": "questionable/noisy finding",
+      "count": 4,
+      "ids": "F-298-F-300, F-308"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/M0005EvidenceTests.cs",
+      "ruleId": "docs.summary.required",
+      "classification": "questionable/noisy finding",
+      "count": 19,
+      "ids": "F-194-F-212"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/M0005EvidenceTests.cs",
+      "ruleId": "readability.control-flow.visual-block",
+      "classification": "legitimate hygiene issue",
+      "count": 24,
+      "ids": "F-542-F-565"
+    },
+    {
+      "path": "tests/DotNetAiCodeHygiene.Core.Tests/M0005EvidenceTests.cs",
+      "ruleId": "readability.long-line.review",
+      "classification": "questionable/noisy finding",
+      "count": 16,
+      "ids": "F-319-F-334"
+    }
+  ],
+  "ignored": 0,
+  "findings": 565,
+  "scoped": 250,
+  "reviewItems": 2,
+  "runId": "R-D4535036",
+  "batchHandle": "R-D4535036/B-1"
+}

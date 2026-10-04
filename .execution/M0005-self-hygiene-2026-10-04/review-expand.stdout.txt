@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "reviewBatch": {
+    "id": "B-1",
+    "handle": "R-D4535036/B-1",
+    "ruleId": "docs.summary.quality.review",
+    "ruleVersion": 2,
+    "mode": "expanded",
+    "reviewerClass": "frontier",
+    "populationCount": 2,
+    "sampleCount": 2,
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "German quality: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?"
+      },
+      {
+        "id": "Q2",
+        "text": "Technical correctness: Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?"
+      },
+      {
+        "id": "Q3",
+        "text": "Information value: Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature? A concise summary is acceptable only when it still communicates useful purpose/domain meaning."
+      },
+      {
+        "id": "Q4",
+        "text": "Clarity and scope: Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?"
+      }
+    ],
+    "escalation": {
+      "condition": "Expand if any sampled summary materially fails Q1-Q4 or the implementer cannot confidently answer any required question.",
+      "command": "hygiene review expand R-D4535036/B-1",
+      "reviewerClass": "frontier"
+    },
+    "items": [
+      {
+        "id": "RI-1",
+        "path": "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+        "line": 15,
+        "column": 1,
+        "symbol": "DotNetAiCodeHygiene.Core.ProfileManager",
+        "summary": "Owns the fixed dotnet-11 profile and its explicitly delimited repository artifacts.",
+        "declaration": "DotNetAiCodeHygiene.Core.ProfileManager"
+      },
+      {
+        "id": "RI-2",
+        "path": "src/DotNetAiCodeHygiene.Core/RewriteEngine.cs",
+        "line": 32,
+        "column": 1,
+        "symbol": "DotNetAiCodeHygiene.Core.RewriteEngine",
+        "summary": "Plans Roslyn rewrites completely before applying an all-target transaction.",
+        "declaration": "DotNetAiCodeHygiene.Core.RewriteEngine"
+      }
+    ]
+  }
+}

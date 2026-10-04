@@ -1,0 +1,60 @@
+{
+  "executable": "C:\\Users\\carlt\\AppData\\Local\\Temp\\hygiene-self-review-25ecfb326682426aa8fac1976fc99d88\\tools\\hygiene.exe",
+  "workingDirectory": "C:\\src\\dotnet-ai-code-hygiene",
+  "commands": [
+    {
+      "stderrFile": "version.stderr.txt",
+      "args": [
+        "--version"
+      ],
+      "name": "version",
+      "stdoutFile": "version.stdout.txt",
+      "exitCode": 0
+    },
+    {
+      "stderrFile": "agent-help.stderr.txt",
+      "args": [
+        "help",
+        "--agent"
+      ],
+      "name": "agent-help",
+      "stdoutFile": "agent-help.stdout.txt",
+      "exitCode": 0
+    },
+    {
+      "stderrFile": "format-check.stderr.txt",
+      "args": [
+        "format",
+        "--check",
+        "--output",
+        "json"
+      ],
+      "name": "format-check",
+      "stdoutFile": "format-check.stdout.txt",
+      "exitCode": 0
+    },
+    {
+      "stderrFile": "normalize-check.stderr.txt",
+      "args": [
+        "normalize",
+        "--check",
+        "--output",
+        "json"
+      ],
+      "name": "normalize-check",
+      "stdoutFile": "normalize-check.stdout.txt",
+      "exitCode": 0
+    },
+    {
+      "stderrFile": "check.stderr.txt",
+      "args": [
+        "check",
+        "--output",
+        "json"
+      ],
+      "name": "check",
+      "stdoutFile": "check.stdout.txt",
+      "exitCode": 0
+    }
+  ]
+}

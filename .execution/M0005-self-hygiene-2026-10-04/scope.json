@@ -1,0 +1,58 @@
+{
+  "targetMode": "repository-default; no positional paths and no --changed",
+  "targetRule": "all repository .cs files excluding .git, .hygiene, bin, and obj; check analyzes project-backed Roslyn documents",
+  "csharpFilesDiscovered": 10,
+  "csharpFiles": [
+    "src/DotNetAiCodeHygiene.Cli/AssemblyInfo.cs",
+    "src/DotNetAiCodeHygiene.Cli/Program.cs",
+    "src/DotNetAiCodeHygiene.Core/AssemblyInfo.cs",
+    "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+    "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+    "src/DotNetAiCodeHygiene.Core/RewriteEngine.cs",
+    "src/DotNetAiCodeHygiene.Core/SdkProjectDetection.cs",
+    "tests/DotNetAiCodeHygiene.Cli.Tests/CliProcessTests.cs",
+    "tests/DotNetAiCodeHygiene.Core.Tests/LifecycleTests.cs",
+    "tests/DotNetAiCodeHygiene.Core.Tests/M0005EvidenceTests.cs"
+  ],
+  "findingsReportedFor": [
+    "src/DotNetAiCodeHygiene.Cli/Program.cs",
+    "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+    "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+    "src/DotNetAiCodeHygiene.Core/RewriteEngine.cs",
+    "src/DotNetAiCodeHygiene.Core/SdkProjectDetection.cs",
+    "tests/DotNetAiCodeHygiene.Cli.Tests/CliProcessTests.cs",
+    "tests/DotNetAiCodeHygiene.Core.Tests/LifecycleTests.cs",
+    "tests/DotNetAiCodeHygiene.Core.Tests/M0005EvidenceTests.cs"
+  ],
+  "filesWithoutFindings": [
+    "src/DotNetAiCodeHygiene.Cli/AssemblyInfo.cs",
+    "src/DotNetAiCodeHygiene.Core/AssemblyInfo.cs"
+  ],
+  "formatCheck": {
+    "schemaVersion": 1,
+    "command": "format",
+    "checkOnly": true,
+    "targetCount": 10,
+    "changedCount": 0,
+    "unchangedCount": 10,
+    "changedPaths": []
+  },
+  "normalizeCheck": {
+    "schemaVersion": 1,
+    "command": "normalize",
+    "checkOnly": true,
+    "targetCount": 10,
+    "changedCount": 0,
+    "unchangedCount": 10,
+    "changedPaths": []
+  },
+  "deterministicFindingCount": 565,
+  "ignoredCount": 0,
+  "reviewRunId": "R-D4535036",
+  "reviewBatch": "R-D4535036/B-1",
+  "expandedPopulationCount": 2,
+  "expandedSampleCount": 2,
+  "m0005ChangedLineFindingCount": 250,
+  "diffBase": "61dcf6e (M0004 merge)",
+  "diffHead": "0b48571 (current reviewed branch commit)"
+}
