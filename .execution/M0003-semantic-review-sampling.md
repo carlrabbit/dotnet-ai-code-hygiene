@@ -42,7 +42,7 @@ The execution ledger may compress work. It must not compress obligations.
 | DOC-01 | documentation | README/public docs explain batches, empty samples, explicit expansion, implementer/frontier classes, no model/history engine, and exact summary-quality escalation workflow. | WP-04, WP-07 | README.md and docs/PUBLIC-DOCS.md compared with commands and tests | eng/validate.ps1: Release Core 19/19 + CLI 19/19; VAL-04 inspection | complete |
 | DOC-02 | documentation | Project authority consistently refers to formatting/normalization/installed-tool validation as M0004 work; no stale M0003 formatter/package claim remains. | WP-04 | SPECS.md, ARCHITECTURE.md and ENGINEERING.md retain M0004 boundary | eng/validate.ps1: Release Core 19/19 + CLI 19/19; VAL-04 inspection | complete |
 | DOC-03 | documentation | Public/project docs explain both colocated and fully decoupled review topologies, namespaced `.hygiene/reviews/` PR-friendly storage, external `--file` transport, embedded-source implications, and that the CLI neither commits nor transmits the artifact. | WP-07 | README.md and PUBLIC-DOCS.md document both topologies and source implications | eng/validate.ps1: Release Core 19/19 + CLI 19/19; VAL-04 inspection | complete |
-| REV-01 | review | Human review confirms sample usefulness, rubric quality, finding/batch separation, durable handoff usability for both reviewer topologies, PR inclusion behavior, absence of hidden model/history behavior, and preservation of M0004 scope. | WP-07 | New amended REV-M0003-COMPLETION review pending | new amended completion review requested after push | pending human review |
+| REV-01 | review | Human review confirms sample usefulness, rubric quality, finding/batch separation, durable handoff usability for both reviewer topologies, PR inclusion behavior, absence of hidden model/history behavior, and preservation of M0004 scope. | WP-07 | New amended REV-M0003-COMPLETION review pending | new amended completion review requested after push | complete |
 
 ## Evidence Case Registry
 
@@ -109,17 +109,17 @@ Implementation-owned work packages retain the original PR #3 implementation hist
 | VAL-03 | isolated SDK-style fixture repos plus external temp destination | Windows 11 + .NET 11 + Git | passed | LifecycleTests.DurableReviewHandoffEmbedsOnlyCurrentRelevantSourcesAndIsAtomic used an isolated SDK-style Git fixture plus separate external temp path; CLI handoff ran with Git hidden. |
 | VAL-04 | `./eng/validate.ps1` + dependency/workflow/gitignore/docs inspection | complete repo / Windows 11 | passed | ./eng/validate.ps1 exit 0: Release build, Core 19/19, CLI 19/19, publish/package succeeded. git diff --check clean; .gitignore, source/dependency/workflow inspection completed. |
 | VAL-05 | README/public docs vs live amended behavior | local repo | passed | README.md, docs/PUBLIC-DOCS.md, docs/REVIEW-HANDOFFS.md compared with CLI implementation and fixture assertions. |
-| VAL-06 | human completion review after amendment | project owner/delegate | awaiting human review | Pending: REV-M0003-COMPLETION |
+| VAL-06 | human completion review after amendment | project owner/delegate | passed | User approved REV-M0003-COMPLETION on 2026-10-04 after amended PR #3 update. |
 
 ## Resume Point
 
 Last completed work package: WP-07 amendment implementation and amended validation.
 
-Current work package: REV-M0003-COMPLETION human review (pending).
+Current work package: milestone complete; amended human review approved.
 
-Next concrete action: human reviewer evaluates amended PR #3 and records REV-M0003-COMPLETION.
+Next concrete action: none; M0003 amendment is complete.
 
-Known agent-resolvable gaps: none; external human completion review remains pending.
+Known agent-resolvable gaps: none.
 
 External blockers or planning escalations: none.
 
@@ -138,5 +138,5 @@ External blockers or planning escalations: none.
 - [x] confirm no model/history/transport-provider/Git mutation behavior was introduced;
 - [x] confirm M0004 scope not pulled forward;
 - [x] update README/public docs to implemented behavior;
-- [ ] obtain `REV-M0003-COMPLETION` after amendment;
+- [x] obtain `REV-M0003-COMPLETION` after amendment;
 - [x] write durable completion reconciliation into milestone.

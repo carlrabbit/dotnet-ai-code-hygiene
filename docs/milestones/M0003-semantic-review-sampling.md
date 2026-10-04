@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Lifecycle state | awaiting-human-review |
+| Lifecycle state | complete |
 | Mode | ai-executed-human-reviewed |
 | Baseline implementation model | GPT-5.6 Luna |
 | Baseline executor readiness | confirmed |
@@ -230,7 +230,7 @@ Review ID: `REV-M0003-COMPLETION`.
 
 The previous human-review request is superseded by this amendment. Complete human review only after amendment implementation/evidence.
 
-Confirm sample/rubric usefulness, default `.hygiene/reviews/` PR behavior, explicit external file for decoupled review, embedded source context, absence of Git/network/model side effects, distinction between explicit review artifacts and engine-managed history, and preservation of M0004 scope.
+Confirmed by user approval on 2026-10-04: sample/rubric usefulness, default `.hygiene/reviews/` PR behavior, explicit external file for decoupled review, embedded source context, absence of Git/network/model side effects, distinction between explicit review artifacts and engine-managed history, and preservation of M0004 scope.
 
 ## Completion Evidence
 
@@ -238,4 +238,4 @@ Implementation evidence refreshed for the durable handoff amendment on 2026-10-0
 
 `./eng/validate.ps1` completed successfully: Release build passed; Core TUnit 19/19 passed; CLI TUnit 19/19 passed; publish and package succeeded. The focused fixture exercises default and external destinations, stale/old handles, source context boundaries, schema/RI-* identities, atomic no-overwrite behavior, and source/latest-run immutability. CLI fixture succeeds with Git hidden. Repository inspection confirmed `.hygiene/.state/` is ignored while `.hygiene/reviews/` is not, no provider/network/transport dependency or Git mutation implementation was added, no GitHub workflow exists, and format/normalize remain M0004 scaffolding.
 
-README and public documentation describe both handoff topologies and source-content implications. `REV-M0003-COMPLETION` is newly requested and remains pending human review; this milestone is not self-approved.
+README and public documentation describe both handoff topologies and source-content implications. `REV-M0003-COMPLETION` was approved by the user on 2026-10-04 after the amendment was pushed to PR #3. Human completion review is satisfied.
