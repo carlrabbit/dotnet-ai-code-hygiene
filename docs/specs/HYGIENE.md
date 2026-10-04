@@ -45,7 +45,7 @@ The run ID and summary counts are emitted once per completed check.
 
 ## JSON output
 
-`hygiene check --output json` emits one JSON object to stdout:
+`hygiene check --output json` emits one JSON object to stdout. In the example the semantic review rule is disabled, so the additive batch list is empty:
 
 ```json
 {
@@ -66,19 +66,22 @@ The run ID and summary counts are emitted once per completed check.
       "suggestion": "Review whether the line hides multiple concepts or structures that should be made visible or named."
     }
   ],
-  "ignoredCount": 1
+  "ignoredCount": 1,
+  "reviewBatches": []
 }
 ```
 
 Contract:
 
-- `schemaVersion`, `runId`, `findings`, and `ignoredCount` are always present.
+- `schemaVersion`, `runId`, `findings`, `ignoredCount`, and `reviewBatches` are always present.
 - shown finding fields are present; `symbol` may be `null`.
 - line/column are 1-based.
 - internal fingerprints/persistence evidence are not exposed.
 - diagnostics/progress go to stderr, never JSON stdout.
 
 `rules`, `explain`, and `ignores` also support `--output json`; their JSON uses top-level `schemaVersion: 1` and exposes consumer-relevant data only.
+
+`reviewBatches` contains semantic review work selected for the current run. Batches are not findings and do not affect finding or ignored counts. Public batch/item fields, the fixed summary-quality rubric, and expansion behavior are defined in `docs/specs/SEMANTIC-REVIEWS.md`. Empty eligible populations are rendered as an explicit `sample 0/0` batch.
 
 ## Explain
 

@@ -1,40 +1,24 @@
 # Public Documentation
 
-The repository is public and the CLI is intended as an externally consumable developer tool.
-
-## Current public surface
-
-The root `README.md` remains the primary public documentation surface during M0002.
-
-Before M0002 completes, it must not claim that the hygiene engine is already available.
-
-At M0002 completion, README documentation must include representative source-project invocations for:
+At M0003 completion README/public usage must explain:
 
 ```text
 hygiene check
-hygiene check <file>
-hygiene check --changed
-hygiene rules
-hygiene explain <finding>
-hygiene ignore <finding>
-hygiene ignores
-hygiene unignore <ignore-id>
+hygiene review expand <batch-handle>
 ```
 
-It must also state:
+Clearly distinguish deterministic findings from semantic review batches.
 
-- findings do not imply non-zero exit;
-- `--output json` is the machine-readable automation surface;
-- `.hygiene/config.json` and `.hygiene/decisions.json` are CLI-owned state;
-- M0002 remains Windows-first;
-- `format` and `normalize` are not implemented until M0003.
+Document:
 
-## Installation
+- sample reviewer = implementer;
+- expanded reviewer = frontier;
+- CLI never invokes a model;
+- no semantic-review history exists;
+- empty sample is valid;
+- all sampled answers confidently acceptable => no expansion;
+- any material failure or uncertainty => expand and route to frontier review.
 
-Installed `.NET tool` usage and installation guidance remains deferred until M0003 proves the exact installed consumer surface.
+Do not claim the tool itself can determine whether German prose is good.
 
-Do not document `dotnet tool install` as validated product behavior during M0002.
-
-## Dedicated public docs
-
-Do not create a `public-docs/` tree until enough public material justifies it.
+Formatting/normalization and installed-tool installation guidance remain M0004 work.

@@ -22,7 +22,8 @@ public sealed class CliProcessTests
         await Assert.That(result.StandardOutput).Contains("ignore");
         await Assert.That(result.StandardOutput).Contains("unignore");
         await Assert.That(result.StandardOutput).Contains("ignores");
-        await Assert.That(result.StandardOutput).Contains("rules");
+            await Assert.That(result.StandardOutput).Contains("rules");
+        await Assert.That(result.StandardOutput).Contains("review");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -35,6 +36,7 @@ public sealed class CliProcessTests
     [Arguments("unignore")]
     [Arguments("ignores")]
     [Arguments("rules")]
+    [Arguments("review")]
     public async Task ReservedCommandHelpSucceeds(string command)
     {
         ProcessResult result = await RunCliAsync(command, "--help");
@@ -84,7 +86,7 @@ public sealed class CliProcessTests
             await RunProcessAsync("git", repo, "init", "-q");
             Directory.CreateDirectory(Path.Combine(repo, "src"));
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "public class Fixture { public string Long = \"" + new string('x', 205) + "\"; public void Run() { } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "public class Fixture { public string Long = \"" + new string('x', 205) + "\"; public void Run() { } }\n/// <summary>Die Fixture beschreibt eine ausgewählte Testressource.</summary>\npublic class ReviewedFixture { }\n");
             ProcessResult first = await RunCliInAsync(repo, "check", "--output", "json");
             await Assert.That(first.ExitCode).IsEqualTo(0);
             using JsonDocument json = JsonDocument.Parse(first.StandardOutput);
@@ -95,9 +97,32 @@ public sealed class CliProcessTests
             await Assert.That(firstFinding.TryGetProperty("line", out _)).IsTrue();
             await Assert.That(firstFinding.TryGetProperty("column", out _)).IsTrue();
             await Assert.That(firstFinding.TryGetProperty("fingerprint", out _)).IsFalse();
+            JsonElement batchJson = json.RootElement.GetProperty("reviewBatches")[0];
+            await Assert.That(batchJson.GetProperty("reviewerClass").GetString()).IsEqualTo("implementer");
+            await Assert.That(batchJson.GetProperty("mode").GetString()).IsEqualTo("sample");
+            await Assert.That(batchJson.GetProperty("populationCount").GetInt32()).IsEqualTo(1);
+            await Assert.That(batchJson.GetProperty("items")[0].TryGetProperty("summary", out _)).IsTrue();
+            await Assert.That(batchJson.TryGetProperty("populationFingerprint", out _)).IsFalse();
+            await Assert.That(batchJson.GetProperty("items")[0].TryGetProperty("rankingHash", out _)).IsFalse();
             await Assert.That(first.StandardError).IsEmpty();
             string latestPath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
             string latestBeforeExplain = await File.ReadAllTextAsync(latestPath);
+            string batchHandle = batchJson.GetProperty("handle").GetString()!;
+            ProcessResult expandedBare = await RunCliInAsync(repo, "review", "expand", "B-1", "--output", "json");
+            await Assert.That(expandedBare.ExitCode).IsEqualTo(0);
+            using (JsonDocument expandedJson = JsonDocument.Parse(expandedBare.StandardOutput))
+            {
+                JsonElement expandedBatch = expandedJson.RootElement.GetProperty("reviewBatch");
+                await Assert.That(expandedBatch.GetProperty("mode").GetString()).IsEqualTo("expanded");
+                await Assert.That(expandedBatch.GetProperty("reviewerClass").GetString()).IsEqualTo("frontier");
+                await Assert.That(expandedBatch.GetProperty("sampleCount").GetInt32()).IsEqualTo(expandedBatch.GetProperty("populationCount").GetInt32());
+            }
+            await Assert.That(await File.ReadAllTextAsync(latestPath)).IsEqualTo(latestBeforeExplain);
+            ProcessResult expandedQualified = await RunCliInAsync(repo, "review", "expand", batchHandle, "--output", "json");
+            await Assert.That(expandedQualified.ExitCode).IsEqualTo(0);
+            await Assert.That((await RunCliInAsync(repo, "review", "expand", "R-OLD/B-1")).ExitCode).IsEqualTo(3);
+            await Assert.That((await RunCliInAsync(repo, "ignore", "B-1")).ExitCode).IsEqualTo(3);
+            await Assert.That(Directory.GetFiles(Path.Combine(repo, ".hygiene"), "*review*", SearchOption.AllDirectories).Length).IsEqualTo(0);
             ProcessResult bareExplanation = await RunCliInAsync(repo, "explain", finding, "--output", "json");
             await Assert.That(bareExplanation.ExitCode).IsEqualTo(0);
             ProcessResult explanation = await RunCliInAsync(repo, "explain", run + "/" + finding, "--output", "json");
@@ -164,6 +189,12 @@ public sealed class CliProcessTests
             await Assert.That(noFindings.RootElement.GetProperty("runId").GetString()!.StartsWith("R-", StringComparison.Ordinal)).IsTrue();
             await Assert.That(noFindings.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(0);
             await Assert.That(noFindings.RootElement.GetProperty("ignoredCount").GetInt32()).IsEqualTo(0);
+            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(1);
+            await Assert.That((await RunCliInAsync(repo, "rules", "disable", "docs.summary.quality.review")).ExitCode).IsEqualTo(0);
+            ProcessResult reviewDisabled = await RunCliInAsync(repo, "check", "--output", "json");
+            using JsonDocument reviewDisabledJson = JsonDocument.Parse(reviewDisabled.StandardOutput);
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(0);
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(noFindings.RootElement.GetProperty("findings").GetArrayLength());
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             ProcessResult enabledAgain = await RunCliInAsync(repo, "check", "--output", "json");
@@ -192,6 +223,40 @@ public sealed class CliProcessTests
             await Assert.That(await File.ReadAllTextAsync(decisionsPath)).IsEqualTo(malformedDecisions);
         }
         finally { Directory.Delete(repo, true); }
+    }
+
+    [Test]
+    public async Task EmptyReviewBatchIsPresentInJsonAndText()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-empty-review-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await RunProcessAsync("git", repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "public class NoSummary { }");
+            ProcessResult jsonResult = await RunCliInAsync(repo, "check", "--output", "json");
+            await Assert.That(jsonResult.ExitCode).IsEqualTo(0);
+            using JsonDocument json = JsonDocument.Parse(jsonResult.StandardOutput);
+            JsonElement batch = json.RootElement.GetProperty("reviewBatches")[0];
+            await Assert.That(batch.GetProperty("populationCount").GetInt32()).IsEqualTo(0);
+            await Assert.That(batch.GetProperty("sampleCount").GetInt32()).IsEqualTo(0);
+            await Assert.That(batch.GetProperty("items").GetArrayLength()).IsEqualTo(0);
+            ProcessResult text = await RunCliInAsync(repo, "check", "--output", "text");
+            await Assert.That(text.StandardOutput).Contains("docs.summary.quality.review — sample 0/0 — reviewer: implementer");
+        }
+        finally { Directory.Delete(repo, true); }
+    }
+
+    [Test]
+    public async Task RulesJsonDeclaresFindingAndBatchOutputKinds()
+    {
+        ProcessResult result = await RunCliAsync("rules", "--output", "json");
+        await Assert.That(result.ExitCode).IsEqualTo(0);
+        using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
+        JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray().Single(x => x.GetProperty("id").GetString() == "docs.summary.quality.review");
+        await Assert.That(rule.GetProperty("outputKind").GetString()).IsEqualTo("review-batch");
+        await Assert.That(rule.GetProperty("classification").GetString()).IsEqualTo("review-batch");
     }
 
     [Test]

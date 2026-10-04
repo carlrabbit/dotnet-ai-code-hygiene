@@ -18,7 +18,7 @@
 | Repository validation | Tier 2 `./eng/validate.ps1` |
 | Integration validation | Tier 3 isolated local .NET/Git fixture repositories |
 | Validation locus/platform | local Windows 11 + .NET 11 SDK + Git + PowerShell |
-| Consumer/release validation | Tier 4 installed-tool validation deferred to M0003 |
+| Consumer/release validation | Tier 4 installed-tool validation deferred to M0004 |
 | Human review | required at milestone completion |
 
 ## Goal
@@ -134,7 +134,7 @@ Implementation does not need `.guide-profile.json`, `.guide-sync/`, the external
 - **AC-20** — `.hygiene/config.json` and `.hygiene/decisions.json` are schema-validated before use; malformed/unsupported committed state fails with exit code `3` and is not silently rewritten.
 - **AC-21** — Committed config/decision writes are atomic and detect conflicting external modification instead of silently overwriting it; cancellation before commit leaves the prior valid state intact.
 - **AC-22** — Public exit/stream behavior remains stable: successful checks return `0` even with findings; invalid invocation returns `2`; invalid product input/state returns `3`; unavailable required environment/dependency returns `4`; unexpected internal failure returns `1`.
-- **AC-23** — `format` and `normalize` remain clearly non-functional scaffolding, no embedded AI/model dependency is added, and no M0003 installed-tool validation or cross-platform claim is introduced.
+- **AC-23** — `format` and `normalize` remain clearly non-functional scaffolding, no embedded AI/model dependency is added, and no M0004 installed-tool validation or cross-platform claim is introduced.
 - **AC-24** — `./eng/validate.ps1` remains a thin complete Windows-local validation entry point and successfully runs the M0002 restore/build/test/pack validation set.
 - **DOC-01** — README/public documentation is updated at completion with representative M0002 source-project usage, JSON/exit semantics, CLI-owned state guidance, Windows-first status, and explicit deferral of formatting/normalization and installed-tool guidance.
 - **DOC-02** — Project authority remains internally consistent with the implemented M0002 public/persisted behavior; material deviations are returned to planning rather than silently changing contracts.
@@ -225,7 +225,7 @@ Review subject:
 - stability/safety of occurrence matching;
 - text/JSON process surface;
 - Windows-local target/Git/project behavior;
-- evidence that M0003 formatting/normalization/installed-tool scope was not pulled forward.
+- evidence that M0004 formatting/normalization/installed-tool scope was not pulled forward.
 
 Acceptance:
 

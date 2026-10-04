@@ -1,57 +1,38 @@
 # Milestones
 
 ## M0001 — CLI Foundation
-
 **State:** done
-**Mode:** AI-executed, human-reviewed
-
-Established the Windows-first .NET 11 CLI repository skeleton, TUnit testing, `System.CommandLine` command surface, process-level CLI contract, local engineering validation, and packable .NET tool artifact.
-
-Primary milestone:
-
-```text
-docs/milestones/M0001-cli-foundation.md
-```
 
 ## M0002 — Hygiene Vertical Slice
-
 **State:** done
+
+Established project-aware C# targets, deterministic rules/findings, JSON/text output, run/finding identities, explain, config, persistent ignores, fingerprinting, stale/unignore behavior.
+
+## M0003 — Semantic Review Sampling & Escalation
+**State:** awaiting human review
 **Mode:** AI-executed, human-reviewed
 
-Implement the first complete useful hygiene loop:
+Add first-class semantic `ReviewBatch` output and the first semantic sampling rule:
 
 ```text
-target resolution
--> Roslyn project/source context
--> deterministic ordered rules
--> findings/review candidates
--> run/finding handles
--> text/JSON output
--> explain
--> persisted ignore decision
--> later suppression
--> stale detection
--> unignore
+docs.summary.quality.review
 ```
 
-Initial rules:
+Every enabled run evaluates the rule. It samples up to five existing summaries; the sample may be empty. The implementation agent reviews the fixed rubric. If any answer materially fails or is uncertain, the caller explicitly runs:
 
 ```text
-docs.summary.required
-readability.long-line.review
-readability.control-flow.visual-block
+hygiene review expand <batch-handle>
 ```
+
+Expansion emits the complete eligible population for a frontier-capability reviewer. The CLI does not invoke models and stores no semantic-review history.
 
 Primary milestone:
 
 ```text
-docs/milestones/M0002-hygiene-vertical-slice.md
+docs/milestones/M0003-semantic-review-sampling.md
 ```
 
-## M0003 — Packaged Developer Tool
-
+## M0004 — Packaged Developer Tool
 **State:** planned
 
-Add real deterministic formatting, only justified safe normalization, and consumer-surface validation of the exact current `.NET tool` package installed through `dotnet tool`.
-
-M0003 is not implementation authority until separately planned and marked ready.
+Add deterministic formatting, only justified safe normalization, and installed `.NET tool` consumer validation.

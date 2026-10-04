@@ -18,7 +18,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.cs"), "public class Sample { public void Run() { var x = 1; if (x > 0) { x++; } } }\n");
             var engine = new HygieneEngine(repo);
-            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "readability.long-line.review", "readability.control-flow.visual-block" });
+            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.quality.review", "readability.long-line.review", "readability.control-flow.visual-block" });
             await Assert.That(engine.ListRules().All(x => x.Enabled)).IsTrue();
             CheckResult result = engine.Check([], false);
             await Assert.That(result.Findings.Select(x => x.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.required", "readability.control-flow.visual-block" });
@@ -32,6 +32,69 @@ public sealed class LifecycleTests
             CheckResult restored = engine.Check([], false);
             await Assert.That(restored.IgnoredCount).IsEqualTo(0);
             await Assert.That(restored.Findings.Any(f => f.Fingerprint == target.Fingerprint)).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task SemanticReviewSamplingAndExpansionAreDeterministicAndRunScoped()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-review-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string file = Path.Combine(repo, "src", "Fixture.cs");
+            string source = string.Join("\n", Enumerable.Range(0, 8).Select(i => $"/// <summary>Diese Beschreibung erklärt den fachlichen Zweck {i}.</summary>\npublic class Subject{i} {{ }}")) + "\n/// <summary>   </summary>\npublic class EmptySummary { }\n/// <summary><bad>Ungültig.</summary>\npublic class InvalidSummary { }\n// ordinary comment\npublic class UndocumentedText { }\npublic class MissingSummary { }";
+            await File.WriteAllTextAsync(file, source);
+            var engine = new HygieneEngine(repo);
+            CheckResult first = engine.Check([], false);
+            ReviewBatch batch = first.ReviewBatches.Single();
+            await Assert.That(batch.PopulationCount).IsEqualTo(8);
+            await Assert.That(batch.SampleCount).IsEqualTo(5);
+            await Assert.That(batch.Mode).IsEqualTo("sample");
+            await Assert.That(batch.ReviewerClass).IsEqualTo("implementer");
+            await Assert.That(batch.Questions.Select(q => q.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3", "Q4" });
+            CheckResult repeat = engine.Check([], false);
+            await Assert.That(repeat.ReviewBatches.Single().Items.Select(i => i.Symbol).ToArray()).IsEquivalentTo(batch.Items.Select(i => i.Symbol).ToArray());
+            await Assert.That(repeat.ReviewBatches.Single().PopulationFingerprint).IsEqualTo(batch.PopulationFingerprint);
+            batch = repeat.ReviewBatches.Single();
+
+            string latestPath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
+            string beforeExpand = await File.ReadAllTextAsync(latestPath);
+            ReviewBatch expanded = engine.ExpandReview(batch.Id);
+            await Assert.That(expanded.Mode).IsEqualTo("expanded");
+            await Assert.That(expanded.ReviewerClass).IsEqualTo("frontier");
+            await Assert.That(expanded.Items.Count).IsEqualTo(8);
+            await Assert.That(batch.Items.All(sample => expanded.Items.Any(item => item.Symbol == sample.Symbol))).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(latestPath)).IsEqualTo(beforeExpand);
+            bool oldRejected = false;
+            try { _ = engine.ExpandReview("R-OLD/B-1"); } catch (ProductException) { oldRejected = true; }
+            await Assert.That(oldRejected).IsTrue();
+            bool ignoreRejected = false;
+            try { _ = engine.Ignore("B-1", "not a finding"); } catch (ProductException) { ignoreRejected = true; }
+            await Assert.That(ignoreRejected).IsTrue();
+
+            await File.WriteAllTextAsync(file, source.Replace("fachlichen Zweck 0", "geänderten fachlichen Zweck 0", StringComparison.Ordinal));
+            ReviewBatch changedPopulation = engine.Check([], false, true, false, false).ReviewBatches.Single();
+            await Assert.That(changedPopulation.PopulationFingerprint).IsNotEqualTo(batch.PopulationFingerprint);
+            bool changedRejected = false;
+            try { _ = engine.ExpandReview(batch.Handle); } catch (ProductException e) when (e.Message.Contains("rerun hygiene check", StringComparison.Ordinal)) { changedRejected = true; }
+            await Assert.That(changedRejected).IsTrue();
+
+            string five = string.Join("\n", Enumerable.Range(0, 5).Select(i => $"/// <summary>Eine brauchbare Zusammenfassung {i}.</summary>\npublic class Small{i} {{ }}"));
+            await File.WriteAllTextAsync(file, five);
+            ReviewBatch small = engine.Check([], false).ReviewBatches.Single();
+            await Assert.That(small.PopulationCount).IsEqualTo(5);
+            await Assert.That(small.SampleCount).IsEqualTo(5);
+            await Assert.That(small.Items.Count).IsEqualTo(5);
+
+            await File.WriteAllTextAsync(file, "public class NoSummaries { }");
+            ReviewBatch empty = engine.Check([], false).ReviewBatches.Single();
+            await Assert.That(empty.PopulationCount).IsEqualTo(0);
+            await Assert.That(empty.SampleCount).IsEqualTo(0);
+            await Assert.That(empty.Items.Count).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
     }

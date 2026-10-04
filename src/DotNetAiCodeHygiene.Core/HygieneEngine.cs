@@ -7,12 +7,18 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Build.Locator;
+using System.Xml.Linq;
+using System.Text.RegularExpressions;
 
 namespace DotNetAiCodeHygiene.Core;
 
-public sealed record Rule(string Id, int Version, string Classification, string Purpose);
+public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
-public sealed record CheckResult(int SchemaVersion, string RunId, IReadOnlyList<Finding> Findings, int IgnoredCount);
+public sealed record ReviewQuestion(string Id, string Text);
+public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
+public sealed record ReviewEscalation(string Condition, string Command, string ReviewerClass);
+public sealed record ReviewBatch(string Id, string Handle, string RuleId, int RuleVersion, string Mode, string ReviewerClass, int PopulationCount, int SampleCount, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewItem> Items, string PopulationFingerprint, IReadOnlyList<ReviewItem>? PopulationItems = null);
+public sealed record CheckResult(int SchemaVersion, string RunId, IReadOnlyList<Finding> Findings, int IgnoredCount, IReadOnlyList<ReviewBatch> ReviewBatches);
 public sealed record IgnoreDecision(string Id, string RuleId, int RuleVersion, string Path, string Anchor, string Fingerprint, string Reason, DateTimeOffset CreatedAt, string? Discriminator = null);
 public sealed record IgnoreView(string Id, string RuleId, string Path, string State, string Reason);
 public sealed class ProductException(string message) : Exception(message);
@@ -22,9 +28,10 @@ public sealed class HygieneEngine
 {
     public static readonly Rule[] Rules =
     [
-        new("docs.summary.required", 1, "finding", "Require XML summaries on public and internal API symbols."),
-        new("readability.long-line.review", 1, "review-candidate", "Review unusually long physical source lines."),
-        new("readability.control-flow.visual-block", 1, "finding", "Separate control-flow blocks visually from preceding statements.")
+        new("docs.summary.required", 1, "finding", "finding", "Require XML summaries on public and internal API symbols."),
+        new("docs.summary.quality.review", 1, "review-batch", "review-batch", "Review a deterministic sample of existing XML summaries for quality."),
+        new("readability.long-line.review", 1, "finding", "review-candidate", "Review unusually long physical source lines."),
+        new("readability.control-flow.visual-block", 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.")
     ];
     private readonly string root;
     private readonly string hygiene;
@@ -91,7 +98,7 @@ public sealed class HygieneEngine
         return value;
     }
     private sealed record Config(int SchemaVersion, string[] DisabledRules);
-    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount);
+    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null);
     private sealed record DecisionFile(int SchemaVersion, IgnoreDecision[] Decisions);
 
     public void SetRule(string id, bool enabled)
@@ -230,6 +237,7 @@ public sealed class HygieneEngine
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
         var candidates = new List<Finding>();
+        var reviewSubjects = new List<(string Identity, string Content, ReviewItem Item)>();
         foreach (var projectGroup in projectsByTarget.GroupBy(item => item.Value.Id))
         {
             Project project = workspace.CurrentSolution.GetProject(projectGroup.Key)!;
@@ -246,13 +254,25 @@ public sealed class HygieneEngine
             SyntaxNode syntaxRoot = tree.GetRoot();
             foreach (SyntaxNode node in syntaxRoot.DescendantNodes())
             {
-                if (!disabled.Contains(Rules[0].Id) && node is MemberDeclarationSyntax member && model.GetDeclaredSymbol(member) is ISymbol symbol && (symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && !symbol.IsImplicitlyDeclared && SummaryEligible(symbol) && !HasSummary(member))
+                if (node is MemberDeclarationSyntax member && model.GetDeclaredSymbol(member) is ISymbol symbol && (symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && !symbol.IsImplicitlyDeclared && SummaryEligible(symbol))
                 {
+                    bool hasSummary = HasSummary(member);
                     string anchor = symbol.GetDocumentationCommentId() ?? symbol.ToDisplayString();
-                    candidates.Add(Make(Rules[0], rel, tree, member.GetLocation().SourceSpan.Start, symbol.ToDisplayString(), "Public or internal symbol has no non-empty XML summary.", "Add a concise XML <summary> that describes the symbol's purpose.", "The declaration has no summary text.", "This rule requires documentation, not a particular wording or language.", anchor, "missing-summary:" + anchor));
+                    if (!disabled.Contains(Rules[0].Id) && !hasSummary)
+                        candidates.Add(Make(Rules[0], rel, tree, member.GetLocation().SourceSpan.Start, symbol.ToDisplayString(), "Public or internal symbol has no non-empty XML summary.", "Add a concise XML <summary> that describes the symbol's purpose.", "The declaration has no summary text.", "This rule requires documentation, not a particular wording or language.", anchor, "missing-summary:" + anchor));
+                    if (!disabled.Contains(Rules[1].Id) && hasSummary)
+                    {
+                        string summary = GetSummaryText(member);
+                        if (!string.IsNullOrWhiteSpace(summary))
+                        {
+                            var pos = tree.GetLineSpan(member.GetLocation().SourceSpan).StartLinePosition;
+                            ReviewItem item = new("", rel, pos.Line + 1, pos.Character + 1, symbol.ToDisplayString(), summary, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+                            reviewSubjects.Add((rel + "\0" + anchor, GetSummaryContent(member), item));
+                        }
+                    }
                 }
             }
-            if (!disabled.Contains(Rules[1].Id))
+            if (!disabled.Contains(Rules[2].Id))
             {
                 SourceTextLines(text, (line, number, start) =>
                 {
@@ -262,12 +282,12 @@ public sealed class HygieneEngine
                         SyntaxNode? anchorNode = containing?.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax or BaseTypeDeclarationSyntax);
                         string anchor = anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol s ? s.GetDocumentationCommentId() ?? s.ToDisplayString() : rel;
                         string canonical = string.Join(" ", syntaxRoot.DescendantTokens(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length)).Select(t => t.ToString()));
-                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[1], anchor, canonical);
-                        candidates.Add(Make(Rules[1], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
+                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[2], anchor, canonical);
+                        candidates.Add(Make(Rules[2], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
                     }
                 });
             }
-            if (!disabled.Contains(Rules[2].Id))
+            if (!disabled.Contains(Rules[3].Id))
             {
                 foreach (BlockSyntax block in syntaxRoot.DescendantNodes().OfType<BlockSyntax>())
                 {
@@ -286,8 +306,8 @@ public sealed class HygieneEngine
                         ISymbol? container = model.GetEnclosingSymbol(current.SpanStart);
                         string anchor = container?.GetDocumentationCommentId() ?? container?.ToDisplayString() ?? rel;
                         string evidence = previous.Kind().ToString() + ":" + string.Join(" ", previous.DescendantTokens().Select(t => t.ToString())) + "|" + current.Kind() + ":" + string.Join(" ", current.DescendantTokens().Select(t => t.ToString()));
-                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[2], anchor, evidence);
-                        candidates.Add(Make(Rules[2], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
+                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[3], anchor, evidence);
+                        candidates.Add(Make(Rules[3], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
                     }
                 }
             }
@@ -297,9 +317,57 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        var result = new CheckResult(1, run, active, ignored);
-        if (publishLatest) WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored), json));
+        ReviewBatch[] batches = disabled.Contains(Rules[1].Id) ? [] : [BuildReviewBatch(run, reviewSubjects)];
+        var result = new CheckResult(1, run, active, ignored, batches);
+        if (publishLatest) WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches, targets.Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray()), json));
         return result;
+    }
+
+    private static readonly ReviewQuestion[] SummaryQuestions =
+    [
+        new("Q1", "German quality: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?"),
+        new("Q2", "Technical correctness: Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?"),
+        new("Q3", "Information value: Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature? A concise summary is acceptable only when it still communicates useful purpose/domain meaning."),
+        new("Q4", "Clarity and scope: Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?")
+    ];
+
+    private static ReviewBatch BuildReviewBatch(string run, List<(string Identity, string Content, ReviewItem Item)> subjects)
+    {
+        var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
+            .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
+            .Select(s => (s.Identity, s.Content, s.Item, ContentFingerprint: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s.Content)))))
+            .ToArray();
+        string populationData = string.Join("\n", ordered.Select(s => s.Identity + "\0" + s.ContentFingerprint));
+        string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[1].Id + "\0" + Rules[1].Version + "\0" + populationData)));
+        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[1].Id + "\0" + Rules[1].Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
+            .OrderBy(x => x.Rank, StringComparer.Ordinal).ThenBy(x => x.Subject.Identity, StringComparer.Ordinal).Take(5).ToArray();
+        ReviewItem[] all = ordered.Select((s, i) => s.Item with { Id = "I-" + (i + 1) }).ToArray();
+        var ids = all.ToDictionary(x => x.Path + "\0" + x.Line + "\0" + x.Symbol, x => x.Id, StringComparer.Ordinal);
+        ReviewItem[] sample = ranked.Select(x => x.Subject.Item with { Id = ids[x.Subject.Item.Path + "\0" + x.Subject.Item.Line + "\0" + x.Subject.Item.Symbol] }).ToArray();
+        return new ReviewBatch("B-1", run + "/B-1", Rules[1].Id, 1, "sample", "implementer", ordered.Length, sample.Length, SummaryQuestions,
+            new ReviewEscalation("Expand if any sampled summary materially fails Q1-Q4 or the implementer cannot confidently answer any required question.", "hygiene review expand " + run + "/B-1", "frontier"), sample, population, all);
+    }
+
+    public ReviewBatch ExpandReview(string handle)
+    {
+        RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
+        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null)
+            throw new ProductException("Review batch is unavailable; run check again.");
+        string batchId = handle;
+        if (handle.Contains('/'))
+        {
+            string[] parts = handle.Split('/');
+            if (parts.Length != 2 || parts[0] != snapshot.RunId) throw new ProductException("Review batch handle does not refer to the latest available run.");
+            batchId = parts[1];
+        }
+        ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        CheckResult fresh;
+        try { fresh = Check(snapshot.TargetPaths, false, true, false, false); }
+        catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
+        ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId) ?? throw new ProductException("Review population changed; rerun hygiene check.");
+        if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint)) throw new ProductException("Review population changed; rerun hygiene check.");
+        return stored with { Mode = "expanded", ReviewerClass = "frontier", PopulationCount = current.PopulationCount, SampleCount = current.PopulationCount,
+            Items = current.PopulationItems ?? [], PopulationItems = current.PopulationItems };
     }
     private static bool IsControl(StatementSyntax s) => s is IfStatementSyntax or SwitchStatementSyntax or ForStatementSyntax or ForEachStatementSyntax or ForEachVariableStatementSyntax or WhileStatementSyntax or DoStatementSyntax or TryStatementSyntax or UsingStatementSyntax or LockStatementSyntax;
     private static bool Same(IgnoreDecision d, Finding f) => d.RuleId == f.RuleId && d.RuleVersion == f.RuleVersion && d.Path == f.Path && d.Anchor == f.Anchor && d.Fingerprint == f.Fingerprint && d.Discriminator == f.Discriminator;
@@ -312,18 +380,38 @@ public sealed class HygieneEngine
     }
     private static bool SummaryEligible(ISymbol s) => s switch { INamedTypeSymbol => true, IPropertySymbol => true, IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.Ordinary } => true, _ => false };
     private static bool HasSummary(MemberDeclarationSyntax m)
+        => !string.IsNullOrWhiteSpace(GetSummaryText(m));
+
+    private static string GetSummaryText(MemberDeclarationSyntax member)
     {
-        foreach (SyntaxTrivia trivia in m.GetLeadingTrivia())
+        foreach (SyntaxTrivia trivia in member.GetLeadingTrivia())
         {
-            if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) && !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia)) continue;
             if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation) continue;
-            foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>())
+            foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>().Where(x => x.StartTag.Name.LocalName.ValueText == "summary"))
             {
-                if (summary.StartTag.Name.LocalName.ValueText != "summary") continue;
-                if (summary.Content.Any(HasDocumentationContent)) return true;
+                try
+                {
+                    string value = XElement.Parse(summary.ToFullString(), LoadOptions.None).Value;
+                    return Regex.Replace(value, @"\s+", " ").Trim();
+                }
+                catch (System.Xml.XmlException) { continue; }
             }
         }
-        return false;
+        return "";
+    }
+
+    private static string GetSummaryContent(MemberDeclarationSyntax member)
+    {
+        foreach (SyntaxTrivia trivia in member.GetLeadingTrivia())
+        {
+            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation) continue;
+            foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>().Where(x => x.StartTag.Name.LocalName.ValueText == "summary"))
+            {
+                try { return Regex.Replace(XElement.Parse(summary.ToFullString()).ToString(SaveOptions.DisableFormatting), @"\s+", " ").Trim(); }
+                catch (System.Xml.XmlException) { continue; }
+            }
+        }
+        return "";
     }
 
     private static bool HasDocumentationContent(SyntaxNode node) => node switch
