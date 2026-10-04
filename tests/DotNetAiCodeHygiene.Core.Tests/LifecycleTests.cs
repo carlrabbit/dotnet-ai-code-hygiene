@@ -9,6 +9,72 @@ namespace DotNetAiCodeHygiene.Core.Tests;
 public sealed class LifecycleTests
 {
     [Test]
+    public async Task ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-profile-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await RunGitExitCode(repo, "init", "-q");
+            var manager = new ProfileManager(repo);
+            await Assert.That(manager.Bootstrap().ChangedPaths.Count).IsEqualTo(4);
+            await File.AppendAllTextAsync(Path.Combine(repo, "Directory.Build.props"), "\n<!-- user-owned -->\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup><ItemGroup><PackageReference Include=\"StyleCop.Analyzers\" Version=\"1.0.0\" /></ItemGroup></Project>");
+            ProfileResult update = manager.Update();
+            await Assert.That(update.FindingCount).IsEqualTo(2);
+            await Assert.That((await File.ReadAllTextAsync(Path.Combine(repo, "Directory.Build.props"))).Contains("user-owned", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(manager.Bootstrap().FindingCount).IsEqualTo(2);
+            await Assert.That(manager.Update().ChangedPaths.Count).IsEqualTo(0);
+            var engine = new HygieneEngine(repo);
+            Finding mandatory = engine.Check([], false).Findings.First(f => f.RuleId == "profile.dotnet.analysis.required");
+            bool disableRejected = false, ignoreRejected = false;
+            try { engine.SetRule("profile.dotnet.analysis.required", false); } catch (ProductException) { disableRejected = true; }
+            try { engine.Ignore(mandatory.Handle, "must not be suppressible"); } catch (ProductException) { ignoreRejected = true; }
+            await Assert.That(disableRejected).IsTrue();
+            await Assert.That(ignoreRejected).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ProfileBootstrapFaultRollsBackTheWholeProfileInstallation()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-profile-rollback-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await RunGitExitCode(repo, "init", "-q");
+            var manager = new ProfileManager(repo, count => { if (count == 1) { throw new OperationCanceledException("injected profile cancellation"); } });
+            bool cancelled = false;
+            try { manager.Bootstrap(); } catch (OperationCanceledException) { cancelled = true; }
+            await Assert.That(cancelled).IsTrue();
+            foreach (string path in new[] { ".hygiene/profile.json", ".hygiene/profile/Hygiene.props", ".editorconfig", "Directory.Build.props" })
+            {
+                await Assert.That(File.Exists(Path.Combine(repo, path))).IsFalse();
+            }
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-doc-carriers-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Api.cs"), "/// <summary>Ein gültiger Typ.</summary>\n/// <param name=\"Name\">Der Anzeigename.</param>\npublic record Person(string Name);\n/// <summary>Ein gültiger Wert.</summary>\n/// <param name=\"Name\">Der Wert.</param>\npublic record struct PersonValue(string Name);\n/// <inheritdoc/>\npublic class Derived { }\n/// <inheritdoc/>\n/// <summary>Unvollständiger Text</summary>\npublic class ExplicitInheritdoc { }\n");
+            CheckResult result = new HygieneEngine(repo).Check([], false);
+            Finding[] summaries = result.Findings.Where(f => f.RuleId == "docs.summary.required").ToArray();
+            await Assert.That(summaries.Length).IsEqualTo(0);
+            await Assert.That(result.Findings.Count(f => f.RuleId == "docs.text.sentence")).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task RewriteCheckIsNonMutatingAndFormatAndNormalizeAreIdempotent()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-" + Guid.NewGuid().ToString("N"));
@@ -76,7 +142,7 @@ public sealed class LifecycleTests
             await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo("external edit");
 
             await File.WriteAllTextAsync(second, validSecond);
-            var faulted = new RewriteEngine(repo, null, count => { if (count == 1) throw new OperationCanceledException("injected cancellation"); });
+            var faulted = new RewriteEngine(repo, null, count => { if (count == 1) { throw new OperationCanceledException("injected cancellation"); } });
             bool cancelled = false;
             try { faulted.Rewrite("format", [first, second], false, false); } catch (OperationCanceledException) { cancelled = true; }
             await Assert.That(cancelled).IsTrue();
@@ -200,7 +266,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.cs"), "public class Sample { public void Run() { var x = 1; if (x > 0) { x++; } } }\n");
             var engine = new HygieneEngine(repo);
-            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.quality.review", "readability.long-line.review", "readability.control-flow.visual-block" });
+            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "readability.long-line.review", "readability.control-flow.visual-block" });
             await Assert.That(engine.ListRules().All(x => x.Enabled)).IsTrue();
             CheckResult result = engine.Check([], false);
             await Assert.That(result.Findings.Select(x => x.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.required", "readability.control-flow.visual-block" });
@@ -326,7 +392,7 @@ public sealed class LifecycleTests
                 await Assert.That(root.GetProperty("source").GetProperty("runId").GetString()).IsEqualTo(batch.Handle.Split('/')[0]);
                 await Assert.That(root.GetProperty("source").GetProperty("batchHandle").GetString()).IsEqualTo(batch.Handle);
                 await Assert.That(root.GetProperty("rule").GetProperty("id").GetString()).IsEqualTo("docs.summary.quality.review");
-                await Assert.That(root.GetProperty("rule").GetProperty("version").GetInt32()).IsEqualTo(1);
+                await Assert.That(root.GetProperty("rule").GetProperty("version").GetInt32()).IsEqualTo(2);
                 await Assert.That(root.GetProperty("mode").GetString()).IsEqualTo("expanded");
                 await Assert.That(root.GetProperty("reviewerClass").GetString()).IsEqualTo("frontier");
                 await Assert.That(root.GetProperty("populationCount").GetInt32()).IsEqualTo(3);
@@ -350,7 +416,10 @@ public sealed class LifecycleTests
             await Assert.That(engine.CreateReviewHandoff(batch.Handle, externalPath)).IsEqualTo(Path.GetFullPath(externalPath));
             await Assert.That(File.Exists(externalPath)).IsTrue();
             using (JsonDocument externalRequest = JsonDocument.Parse(await File.ReadAllTextAsync(externalPath)))
+            {
                 await Assert.That(externalRequest.RootElement.GetProperty("handoffId").GetString()).IsEqualTo(expectedId);
+            }
+
             string internalPath = Path.Combine(repo, ".hygiene", "custom", "request.json");
             await Assert.That(engine.CreateReviewHandoff(batch.Handle, internalPath)).IsEqualTo(Path.GetFullPath(internalPath));
             await Assert.That(File.Exists(internalPath)).IsTrue();
@@ -595,7 +664,7 @@ public sealed class LifecycleTests
             try { _ = engine.Check(["Loose.cs"], false); } catch (ProductException) { projectRejected = true; }
             await Assert.That(projectRejected).IsTrue();
         }
-        finally { if (File.Exists(outside)) File.Delete(outside); DeleteTree(repo); }
+        finally { if (File.Exists(outside)) { File.Delete(outside); } DeleteTree(repo); }
     }
 
     [Test]
@@ -923,15 +992,31 @@ public sealed class LifecycleTests
     private static async Task Git(string dir, params string[] args)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string arg in args) start.ArgumentList.Add(arg);
+        foreach (string arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
         using Process p = Process.Start(start)!; await p.WaitForExitAsync();
-        if (p.ExitCode != 0) throw new InvalidOperationException(await p.StandardError.ReadToEndAsync());
+        if (p.ExitCode != 0)
+        {
+            throw new InvalidOperationException(await p.StandardError.ReadToEndAsync());
+        }
+
+        if (args.Length > 0 && args[0] == "init")
+        {
+            _ = new ProfileManager(dir).Bootstrap();
+        }
     }
 
     private static async Task<int> RunGitExitCode(string dir, params string[] args)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string arg in args) start.ArgumentList.Add(arg);
+        foreach (string arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
         using Process process = Process.Start(start)!;
         await process.WaitForExitAsync();
         return process.ExitCode;
@@ -939,8 +1024,16 @@ public sealed class LifecycleTests
 
     private static void DeleteTree(string path)
     {
-        if (!Directory.Exists(path)) return;
-        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
         Directory.Delete(path, true);
     }
 }
