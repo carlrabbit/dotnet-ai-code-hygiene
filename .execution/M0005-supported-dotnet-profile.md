@@ -44,56 +44,56 @@ Planning seeded the lossless obligation/evidence registry only. Implementation o
 
 | ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
 |---|---|---|---|---|---|
-| EC-01a | AC-01 | missing marker -> bootstrap guidance | VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-01b | AC-01 | unsupported/future marker -> update/error guidance | VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-03a | AC-03 | clean repository bootstrap creates profile | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-03b | AC-03 | second bootstrap is idempotent | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-04a | AC-04 | current-profile drift repaired | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-04b | AC-04 | unsupported/future version rejected without mutation | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-05a | AC-05 | canonical generated/effective profile passes | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-05b | AC-05 | project override weakens MSBuild property | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-05c | AC-05 | nested EditorConfig weakens required IDE rule | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-06a | AC-06 | TreatWarningsAsErrors repository setting found | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-06b | AC-06 | WarningsAsErrors non-empty found | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-07a | AC-07 | existing user `.editorconfig` preserved around managed block | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-07b | AC-07 | existing user `Directory.Build.props` preserved around managed import | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-09a | AC-09 | direct StyleCop.Analyzers reference | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-09b | AC-09 | central package management activates StyleCop | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-09c | AC-09 | effective StyleCop analyzer input detected/de-duplicated | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-11a | AC-11 | disable mandatory rule rejected | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-11b | AC-11 | ignore mandatory finding rejected | VAL-01, VAL-02, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-12a | AC-12 | fault/conflict during multi-artifact profile update leaves pre-run state | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-14a | AC-14 | ordinary direct `<summary>` | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-14b | AC-14 | ordinary direct `<inheritdoc/>` | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-15a | AC-15 | positional record class property uses `<param>` | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-15b | AC-15 | positional record struct property uses `<param>` | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-16a | AC-16 | one of several normal parameters documented; siblings absent | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-17a | AC-17 | inheritdoc-only satisfies missing summary | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-17b | AC-17 | inheritdoc plus malformed/unsentenced explicit prose still reports | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-18a | AC-18 | param/typeparam matching, duplicate and orphan cases | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-18b | AC-18 | paramref/typeparamref valid and invalid references | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-19a | AC-19 | returns/value applicability and non-empty checks | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-19b | AC-19 | exception valid/invalid cref without thrown-exception inference | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-20a | AC-20 | prose ending after inline `<see/>` with punctuation passes; without punctuation fails | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-20b | AC-20 | `<example>`/custom elements are not independently sentence-enforced | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-21a | AC-21 | ordinary `<summary>` enters semantic sample | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-21b | AC-21 | positional-property `<param>` enters semantic sample | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-21c | AC-21 | inheritdoc-only and optional normal param prose excluded | VAL-01, VAL-03 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-24a | AC-24 | packed metadata + installed `--version` are 0.5.0 | VAL-04, VAL-05 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-25a | AC-25 | installed bootstrap/update/profile check lifecycle | VAL-04 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-25b | AC-25 | installed documentation-rule behavior | VAL-04 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
-| EC-25c | AC-25 | installed M0004 normalize/check regression | VAL-04 | case implementation and mapped test/installed evidence in milestone completion map | evidence collected |
+| EC-01a | AC-01 | missing marker -> bootstrap guidance | VAL-02, VAL-03 | `M0005EvidenceTests.EC01MissingAndFutureProfileStatesGiveSafeGuidanceWithoutMutation` asserts the missing-marker product exception directs callers to bootstrap. | evidence collected |
+| EC-01b | AC-01 | unsupported/future marker -> update/error guidance | VAL-02, VAL-03 | `M0005EvidenceTests.EC01MissingAndFutureProfileStatesGiveSafeGuidanceWithoutMutation` asserts future marker update rejection and byte-for-byte marker preservation. | evidence collected |
+| EC-03a | AC-03 | clean repository bootstrap creates profile | VAL-01, VAL-02, VAL-03 | `LifecycleTests.ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations` asserts four profile artifacts are created on clean bootstrap. | evidence collected |
+| EC-03b | AC-03 | second bootstrap is idempotent | VAL-01, VAL-02, VAL-03 | `LifecycleTests.ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations` asserts second bootstrap reports zero changed paths. | evidence collected |
+| EC-04a | AC-04 | current-profile drift repaired | VAL-01, VAL-02, VAL-03 | `M0005EvidenceTests.EC04UpdateRepairsProfileOwnedDriftWithoutOverwritingUserContent` corrupts the generated props, verifies canonical repair, user-content preservation, then verifies idempotence. | evidence collected |
+| EC-04b | AC-04 | unsupported/future version rejected without mutation | VAL-01, VAL-02, VAL-03 | `M0005EvidenceTests.EC01MissingAndFutureProfileStatesGiveSafeGuidanceWithoutMutation` asserts future marker update rejection and unchanged marker. | evidence collected |
+| EC-05a | AC-05 | canonical generated/effective profile passes | VAL-01, VAL-03 | `M0005EvidenceTests.EC05CanonicalEffectiveProfilePassesAfterBootstrap` asserts no analysis-profile findings after bootstrap for a supported SDK project. | evidence collected |
+| EC-05b | AC-05 | project override weakens MSBuild property | VAL-01, VAL-03 | `M0005EvidenceTests.EC05EffectiveImportedMsbuildPropertiesAndWarningPromotionAreReported` asserts effective imported AnalysisLevel, EnableNETAnalyzers, and EnforceCodeStyleInBuild conflicts. | evidence collected |
+| EC-05c | AC-05 | nested EditorConfig weakens required IDE rule | VAL-01, VAL-03 | `M0005EvidenceTests.EC05NestedEditorConfigOverridesAndRootCutoffsAreEffective` asserts nested weakening and missing inherited settings after a nested root cutoff; `EC05MissingRootCutoffInheritsParentEditorConfig` exercises parent inheritance. | evidence collected |
+| EC-06a | AC-06 | TreatWarningsAsErrors repository setting found | VAL-01, VAL-03 | `M0005EvidenceTests.EC05EffectiveImportedMsbuildPropertiesAndWarningPromotionAreReported` asserts a `Directory.Build.targets` TreatWarningsAsErrors violation. | evidence collected |
+| EC-06b | AC-06 | WarningsAsErrors non-empty found | VAL-01, VAL-03 | `M0005EvidenceTests.EC05EffectiveImportedMsbuildPropertiesAndWarningPromotionAreReported` asserts non-empty WarningsAsErrors in `Directory.Build.targets`. | evidence collected |
+| EC-07a | AC-07 | existing user `.editorconfig` preserved around managed block | VAL-01, VAL-03 | `M0005EvidenceTests.EC07BootstrapPreservesPreexistingEditorConfigAndBuildProperties` asserts existing indent settings survive and the managed root/block are installed. | evidence collected |
+| EC-07b | AC-07 | existing user `Directory.Build.props` preserved around managed import | VAL-01, VAL-03 | `M0005EvidenceTests.EC07BootstrapPreservesPreexistingEditorConfigAndBuildProperties` asserts user property content survives managed import installation. | evidence collected |
+| EC-09a | AC-09 | direct StyleCop.Analyzers reference | VAL-01, VAL-03 | `M0005EvidenceTests.EC09PackageCentralAndPathAnalyzerInputsAreDetectedWithoutDuplicateSourceFindings` asserts one finding for the direct PackageReference source. | evidence collected |
+| EC-09b | AC-09 | central package management activates StyleCop | VAL-01, VAL-03 | `M0005EvidenceTests.EC09PackageCentralAndPathAnalyzerInputsAreDetectedWithoutDuplicateSourceFindings` asserts active central package management yields the `Directory.Packages.props` finding. | evidence collected |
+| EC-09c | AC-09 | effective StyleCop analyzer input detected/de-duplicated | VAL-01, VAL-03 | `M0005EvidenceTests.EC09PackageCentralAndPathAnalyzerInputsAreDetectedWithoutDuplicateSourceFindings` asserts package and analyzer visibility deduplicate to one project-source finding; `EC09ResolvedNugetAssetsAndPathBasedAnalyzerInputsAreRecognized` exercises explicit path and resolved assets. | evidence collected |
+| EC-11a | AC-11 | disable mandatory rule rejected | VAL-01, VAL-02, VAL-03 | `LifecycleTests.ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations` asserts mandatory rule disable rejection. | evidence collected |
+| EC-11b | AC-11 | ignore mandatory finding rejected | VAL-01, VAL-02, VAL-03 | `LifecycleTests.ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations` asserts mandatory profile finding ignore rejection. | evidence collected |
+| EC-12a | AC-12 | fault/conflict during multi-artifact profile update leaves pre-run state | VAL-01, VAL-03 | `LifecycleTests.ProfileBootstrapFaultRollsBackTheWholeProfileInstallation` injects cancellation after first replacement and asserts all four paths remain absent. | evidence collected |
+| EC-14a | AC-14 | ordinary direct `<summary>` | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts explicit ordinary documentation produces no missing-summary finding. | evidence collected |
+| EC-14b | AC-14 | ordinary direct `<inheritdoc/>` | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts direct declaration inheritdoc satisfies a missing summary. | evidence collected |
+| EC-15a | AC-15 | positional record class property uses `<param>` | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts matching record-class `<param>` provides the positional property summary. | evidence collected |
+| EC-15b | AC-15 | positional record struct property uses `<param>` | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts matching record-struct `<param>` provides the positional property summary. | evidence collected |
+| EC-16a | AC-16 | one of several normal parameters documented; siblings absent | VAL-01, VAL-03 | `M0005EvidenceTests.EC16AndEC18OptionalDocumentationAndDeclarationElementsArePresenceBased` asserts an undocumented sibling parameter does not create summary-completeness findings. | evidence collected |
+| EC-17a | AC-17 | inheritdoc-only satisfies missing summary | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts inheritdoc-only is a valid local summary carrier. | evidence collected |
+| EC-17b | AC-17 | inheritdoc plus malformed/unsentenced explicit prose still reports | VAL-01, VAL-03 | `LifecycleTests.DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc` asserts inheritdoc beside unpunctuated explicit summary still produces a sentence finding. | evidence collected |
+| EC-18a | AC-18 | param/typeparam matching, duplicate and orphan cases | VAL-01, VAL-03 | `M0005EvidenceTests.EC16AndEC18OptionalDocumentationAndDeclarationElementsArePresenceBased` asserts valid documented names, duplicate param/typeparam, orphan param, and containing-type typeparam rejection. | evidence collected |
+| EC-18b | AC-18 | paramref/typeparamref valid and invalid references | VAL-01, VAL-03 | `M0005EvidenceTests.EC18DelegateIndexerAndTypeParameterScopeAreCorrect` asserts valid delegate/indexer parameter docs and containing type scope; `EC18bInvalidInlineReferencesAreRejectedWhileEnclosingTypeParametersAreInScope` asserts invalid references fail. | evidence collected |
+| EC-19a | AC-19 | returns/value applicability and non-empty checks | VAL-01, VAL-03 | `M0005EvidenceTests.EC19PresentReturnsValuesAndExceptionsAreValidatedWithoutCompletenessRules` asserts invalid void returns, empty returns, invalid value applicability, and that an undocumented return is allowed. | evidence collected |
+| EC-19b | AC-19 | exception valid/invalid cref without thrown-exception inference | VAL-01, VAL-03 | `M0005EvidenceTests.EC19PresentReturnsValuesAndExceptionsAreValidatedWithoutCompletenessRules` asserts System.Exception is valid and System.String is invalid as exception cref. | evidence collected |
+| EC-20a | AC-20 | prose ending after inline `<see/>` with punctuation passes; without punctuation fails | VAL-01, VAL-03 | `M0005EvidenceTests.EC20InlineSentenceBoundariesAndPermissiveElementsAreEnforcedPrecisely` asserts the `<see/>` ending with punctuation passes and without punctuation fails. | evidence collected |
+| EC-20b | AC-20 | `<example>`/custom elements are not independently sentence-enforced | VAL-01, VAL-03 | `M0005EvidenceTests.EC20InlineSentenceBoundariesAndPermissiveElementsAreEnforcedPrecisely` asserts unpunctuated example/custom text creates no independent sentence finding. | evidence collected |
+| EC-21a | AC-21 | ordinary `<summary>` enters semantic sample | VAL-01, VAL-03 | `M0005EvidenceTests.EC21SemanticSummaryPopulationUsesOnlyLocalSummaryCarriers` asserts the ordinary record summary subject enters population. | evidence collected |
+| EC-21b | AC-21 | positional-property `<param>` enters semantic sample | VAL-01, VAL-03 | `M0005EvidenceTests.EC21SemanticSummaryPopulationUsesOnlyLocalSummaryCarriers` asserts the synthesized Value property appears via its record param summary. | evidence collected |
+| EC-21c | AC-21 | inheritdoc-only and optional normal param prose excluded | VAL-01, VAL-03 | `M0005EvidenceTests.EC21SemanticSummaryPopulationUsesOnlyLocalSummaryCarriers` asserts inheritdoc-only subjects and optional parameter prose are excluded. | evidence collected |
+| EC-24a | AC-24 | packed metadata + installed `--version` are 0.5.0 | VAL-04, VAL-05 | `eng/validate.ps1` packs the 0.5.0 nupkg, hash-checks the local feed copy, installs that exact package, and asserts installed `hygiene --version` is 0.5.0. | evidence collected |
+| EC-25a | AC-25 | installed bootstrap/update/profile check lifecycle | VAL-04 | `eng/validate.ps1` runs installed bootstrap, idempotent update, mandatory rules inspection, and check in its isolated consumer repository. | evidence collected |
+| EC-25b | AC-25 | installed documentation-rule behavior | VAL-04 | `eng/validate.ps1` invokes installed check and asserts missing-summary and sentence findings. | evidence collected |
+| EC-25c | AC-25 | installed M0004 normalize/check regression | VAL-04 | `eng/validate.ps1` invokes installed normalize --check, normalize, and repeat check and verifies mutation/idempotence. | evidence collected |
 
 ## Validation Gates
 
 | ID | Depth/target/locus | Proves | Status | Evidence |
 |---|---|---|---|---|
-| VAL-01 | Tier 1 Core rule-set/profile/remediation/documentation tests / local Windows 11 + .NET 11 | AC-02, AC-05..AC-22 + mapped ECs | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
-| VAL-02 | Tier 1 built CLI process / local Windows 11 + .NET 11 | AC-01, AC-03, AC-04, AC-11, AC-22 + mapped ECs | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
-| VAL-03 | Tier 3 isolated SDK-style Git fixture repositories / Windows 11 + .NET 11 + Git | AC-01, AC-03..AC-23 + mapped ECs | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
-| VAL-04 | Tier 4 exact locally packed+installed 0.5.0 tool / isolated Windows consumer repo | AC-24, AC-25 + EC-24a/EC-25a..c | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
-| VAL-05 | Tier 2 complete repo via `./eng/validate.ps1` / Windows 11 | AC-23, AC-24, AC-26 | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
-| VAL-06 | Tier 2 README/public docs vs installed behavior | DOC-01, DOC-02 | passed | `./eng/validate.ps1` — Core 26/26, CLI 21/21, exact installed 0.5.0 consumer passed |
+| VAL-01 | Tier 1 Core rule-set/profile/remediation/documentation tests / local Windows 11 + .NET 11 | AC-02, AC-05..AC-22 + mapped ECs | passed | `./eng/validate.ps1` on 2026-10-04: Core 42/42 passed, including `M0005EvidenceTests`; focused tests above identify individual EC cases. |
+| VAL-02 | Tier 1 built CLI process / local Windows 11 + .NET 11 | AC-01, AC-03, AC-04, AC-11, AC-22 + mapped ECs | passed | `./eng/validate.ps1` on 2026-10-04: CLI 21/21 passed; installed CLI process lifecycle ran in isolated Tier 4 consumer. |
+| VAL-03 | Tier 3 isolated SDK-style Git fixture repositories / Windows 11 + .NET 11 + Git | AC-01, AC-03..AC-23 + mapped ECs | passed | `./eng/validate.ps1` on 2026-10-04: all 42 Core and 21 CLI tests passed; profile and documentation evidence uses the focused temporary Git repositories named above. |
+| VAL-04 | Tier 4 exact locally packed+installed 0.5.0 tool / isolated Windows consumer repo | AC-24, AC-25 + EC-24a/EC-25a..c | passed | `./eng/validate.ps1` on 2026-10-04 completed exact nupkg hash-copy, isolated `dotnet tool install --version 0.5.0`, version assertion, bootstrap/update/rules/check, documentation findings, and normalize/check workflow. |
+| VAL-05 | Tier 2 complete repo via `./eng/validate.ps1` / Windows 11 | AC-23, AC-24, AC-26 | passed | `./eng/validate.ps1` on 2026-10-04: Release build, Core 42/42, CLI 21/21, pack and installed consumer completed successfully. |
+| VAL-06 | Tier 2 README/public docs vs installed behavior | DOC-01, DOC-02 | passed | `./eng/validate.ps1` on 2026-10-04 passed; updated PROFILE and DOCUMENTATION specs clarify effective config scopes; public behavior remains asserted by Tier 4. |
 | VAL-07 | Tier 5 human review `REV-M0005-COMPLETION` | REV-01 | awaiting human review | `REV-M0005-COMPLETION` remains for project owner/delegate |
 
 ## Work Packages
@@ -109,7 +109,7 @@ Planning seeded the lossless obligation/evidence registry only. Implementation o
 
 ## Resume Point
 
-Automated implementation and validation are complete. Awaiting required project-owner/delegate review `REV-M0005-COMPLETION`; implementation has not self-approved.
+Automated implementation and validation are complete. The final `./eng/validate.ps1` run on 2026-10-04 passed Release build, Core 42/42, CLI 21/21, exact packed/installed 0.5.0 Tier-4 consumer checks. Awaiting required project-owner/delegate review `REV-M0005-COMPLETION`; implementation has not self-approved.
 
 ## Final Reconciliation
 
@@ -117,6 +117,7 @@ Automated implementation and validation are complete. Awaiting required project-
 - [x] verify exact milestone/ledger obligation-ID set equality;
 - [x] verify exact milestone/ledger evidence-case-ID set equality;
 - [x] verify every obligation/case has concrete implementation and required validation evidence;
+- [x] audit each of the 39 planner-owned evidence cases against a focused assertion or exact installed-tool assertion; aggregate suite results are not used as case evidence;
 - [x] verify M0004 prerequisite remained compatible with this ready contract;
 - [x] verify profile rule semantics did not become command/phase-parameterized;
 - [x] verify mandatory profile rules cannot be disabled/ignored;

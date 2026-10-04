@@ -1,5 +1,9 @@
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Xml.Linq;
 
 namespace DotNetAiCodeHygiene.Core;
@@ -10,6 +14,7 @@ public sealed record ProfileResult(string Command, int FindingCount, IReadOnlyLi
 /// <summary>Owns the fixed dotnet-11 profile and its explicitly delimited repository artifacts.</summary>
 public sealed class ProfileManager
 {
+    private static readonly ConcurrentDictionary<string, (string Fingerprint, string Output)> Evaluations = new(StringComparer.OrdinalIgnoreCase);
     private const string Start = "<!-- hygiene profile:begin -->";
     private const string End = "<!-- hygiene profile:end -->";
     private const string Import = "<!-- hygiene profile import:begin -->";
@@ -60,6 +65,7 @@ public sealed class ProfileManager
     public IReadOnlyList<ProfileFinding> Analyze()
     {
         var findings = new List<ProfileFinding>();
+        var styleCopSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!File.Exists(P(".hygiene/profile/Hygiene.props")) || File.ReadAllText(P(".hygiene/profile/Hygiene.props")) != Props)
         {
             findings.Add(new("profile.dotnet.analysis.required", ".hygiene/profile/Hygiene.props", "The generated supported-profile MSBuild artifact is missing or drifted.", "Run hygiene update to reconcile hygiene-owned profile state."));
@@ -72,95 +78,259 @@ public sealed class ProfileManager
         {
             findings.Add(new("profile.dotnet.analysis.required", ".editorconfig", "The root hygiene profile EditorConfig block is missing or drifted.", "Run hygiene update to reconcile the managed section."));
         }
-        foreach (string project in Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(p => !Ignored(p)))
-        {
-            try
-            {
-                XDocument doc = XDocument.Load(project);
-                foreach (string property in new[] { "TreatWarningsAsErrors", "WarningsAsErrors" })
-                {
-                    foreach (XElement value in doc.Descendants().Where(e => e.Name.LocalName == property))
-                    {
-                        if (property == "TreatWarningsAsErrors" ? value.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) : !string.IsNullOrWhiteSpace(value.Value))
-                        {
-                            findings.Add(new("profile.dotnet.analysis.required", Rel(project), $"Repository-configured {property} violates the supported profile.", "Remove the global warning-promotion setting."));
-                        }
-                    }
-                }
-
-                foreach (string property in new[] { "AnalysisLevel", "EnableNETAnalyzers", "EnforceCodeStyleInBuild" })
-                {
-                    string expected = property == "AnalysisLevel" ? "11" : "true";
-                    foreach (XElement value in doc.Descendants().Where(e => e.Name.LocalName == property))
-                    {
-                        if (!value.Value.Trim().Equals(expected, StringComparison.OrdinalIgnoreCase))
-                        {
-                            findings.Add(new("profile.dotnet.analysis.required", Rel(project), $"Project property {property} must be {expected}.", "Remove or correct the project-local override."));
-                        }
-                    }
-                }
-
-                if (doc.Descendants().Any(e => (e.Name.LocalName is "PackageReference" or "Analyzer") && ((string?)e.Attribute("Include") ?? (string?)e.Attribute("Update") ?? "").StartsWith("StyleCop.Analyzers", StringComparison.OrdinalIgnoreCase)))
-                {
-                    findings.Add(new("profile.stylecop.prohibited", Rel(project), "StyleCop.Analyzers is prohibited by the supported profile.", "Resolve the analyzer dependency and its policy impact explicitly."));
-                }
-            }
-            catch (System.Xml.XmlException) { findings.Add(new("profile.dotnet.analysis.required", Rel(project), "Project configuration could not be parsed for profile analysis.", "Repair the project XML.")); }
-        }
-        foreach (string props in Directory.EnumerateFiles(root, "Directory.Build.props", SearchOption.AllDirectories).Where(p => !Ignored(p)))
-        {
-            try
-            {
-                XDocument doc = XDocument.Load(props);
-                foreach (string property in new[] { "TreatWarningsAsErrors", "WarningsAsErrors" })
-                {
-                    foreach (XElement value in doc.Descendants().Where(e => e.Name.LocalName == property))
-                    {
-                        if (property == "TreatWarningsAsErrors" ? value.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) : !string.IsNullOrWhiteSpace(value.Value))
-                        {
-                            findings.Add(new("profile.dotnet.analysis.required", Rel(props), $"Repository-configured {property} violates the supported profile.", "Remove the global warning-promotion setting."));
-                        }
-                    }
-                }
-            }
-            catch (System.Xml.XmlException) { findings.Add(new("profile.dotnet.analysis.required", Rel(props), "Build properties could not be parsed for profile analysis.", "Repair the MSBuild XML.")); }
-        }
-        foreach (string config in Directory.EnumerateFiles(root, ".editorconfig", SearchOption.AllDirectories).Where(p => !Ignored(p)))
-        {
-            string contents = File.ReadAllText(config);
-            foreach ((string key, string expected) in new[] { ("csharp_prefer_braces", "true"), ("dotnet_diagnostic.IDE0011.severity", "error"), ("dotnet_style_require_accessibility_modifiers", "always"), ("dotnet_diagnostic.IDE0040.severity", "error") })
-            {
-                foreach (string line in contents.Split('\n'))
-                {
-                    string[] pair = line.Split('=', 2);
-                    if (pair.Length == 2 && pair[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase) && !pair[1].Trim().Equals(expected, StringComparison.OrdinalIgnoreCase))
-                    {
-                        findings.Add(new("profile.dotnet.analysis.required", Rel(config), $"EditorConfig setting {key} weakens the supported profile.", $"Set {key} = {expected} in the overriding configuration."));
-                    }
-                }
-            }
-        }
-        foreach (string config in Directory.EnumerateFiles(root, "*.props", SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(root, "*.targets", SearchOption.AllDirectories)).Where(p => !Ignored(p)))
+        string[] projects = Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(p => !Ignored(p)).ToArray();
+        string[] msbuildFiles = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(p => !Ignored(p) && (Path.GetExtension(p).ToLowerInvariant() is ".csproj" or ".props" or ".targets" or ".vbproj" or ".fsproj"))
+            .ToArray();
+        foreach (string config in msbuildFiles)
         {
             try
             {
                 XDocument doc = XDocument.Load(config);
-                foreach (string property in new[] { "AnalysisLevel", "EnableNETAnalyzers", "EnforceCodeStyleInBuild" })
+                foreach (XElement value in doc.Descendants().Where(e => e.Name.LocalName is "TreatWarningsAsErrors" or "WarningsAsErrors"))
                 {
-                    string expected = property == "AnalysisLevel" ? "11" : "true";
-                    if (doc.Descendants().Any(e => e.Name.LocalName == property && !e.Value.Trim().Equals(expected, StringComparison.OrdinalIgnoreCase)))
+                    string property = value.Name.LocalName;
+                    if (property == "TreatWarningsAsErrors" ? value.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) : !string.IsNullOrWhiteSpace(value.Value))
                     {
-                        findings.Add(new("profile.dotnet.analysis.required", Rel(config), $"Build property {property} weakens the supported profile.", "Remove or correct the overriding MSBuild property."));
+                        findings.Add(new("profile.dotnet.analysis.required", Rel(config), $"Repository-configured {property} violates the supported profile.", "Remove the global warning-promotion setting."));
                     }
                 }
-                if (doc.Descendants().Any(e => (e.Name.LocalName is "PackageReference" or "Analyzer") && ((string?)e.Attribute("Include") ?? (string?)e.Attribute("Update") ?? "").StartsWith("StyleCop.Analyzers", StringComparison.OrdinalIgnoreCase)))
+                if (doc.Descendants().Any(e => (e.Name.LocalName is "PackageReference" or "Analyzer") && IsStyleCop(((string?)e.Attribute("Include") ?? (string?)e.Attribute("Update") ?? ""))))
                 {
-                    findings.Add(new("profile.stylecop.prohibited", Rel(config), "StyleCop.Analyzers is prohibited by the supported profile.", "Resolve the analyzer dependency and its policy impact explicitly."));
+                    styleCopSources.Add(config);
                 }
             }
-            catch (System.Xml.XmlException) { }
+            catch (System.Xml.XmlException) { findings.Add(new("profile.dotnet.analysis.required", Rel(config), "Build configuration could not be parsed for profile analysis.", "Repair the project XML.")); }
+        }
+
+        foreach (string project in projects)
+        {
+            try
+            {
+                string[] configurations = ["Debug", "Release"];
+                bool hasRepositoryConfiguredStyleCopSource = false;
+                foreach (string configuration in configurations)
+                {
+                    using JsonDocument evaluation = Evaluate(project, configuration, "-getProperty:AnalysisLevel,EnableNETAnalyzers,EnforceCodeStyleInBuild,ManagePackageVersionsCentrally", "-getItem:Analyzer,PackageReference,PackageVersion");
+                    JsonElement properties = evaluation.RootElement.GetProperty("Properties");
+                    foreach ((string property, string expected) in new[] { ("AnalysisLevel", "11"), ("EnableNETAnalyzers", "true"), ("EnforceCodeStyleInBuild", "true") })
+                    {
+                        string actual = Property(properties, property);
+                        if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                        {
+                            findings.Add(new("profile.dotnet.analysis.required", Rel(project), $"Effective project property {property} must be {expected} for {configuration} (found '{actual}').", "Correct the effective MSBuild property."));
+                        }
+                    }
+                    JsonElement items = evaluation.RootElement.GetProperty("Items");
+                    foreach (JsonElement item in items.GetProperty("Analyzer").EnumerateArray())
+                    {
+                        string identity = ItemProperty(item, "Identity");
+                        if (IsStyleCop(identity))
+                        {
+                            string source = ItemProperty(item, "DefiningProjectFullPath");
+                            if (File.Exists(source) && IsWithinRoot(source))
+                            {
+                                styleCopSources.Add(source);
+                                hasRepositoryConfiguredStyleCopSource = true;
+                            }
+                            else
+                            {
+                                styleCopSources.Add(project);
+                                hasRepositoryConfiguredStyleCopSource = true;
+                            }
+                        }
+                    }
+                    foreach (JsonElement item in items.GetProperty("PackageReference").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                    {
+                        string source = ItemProperty(item, "DefiningProjectFullPath");
+                        if (File.Exists(source) && IsWithinRoot(source))
+                        {
+                            styleCopSources.Add(source);
+                            hasRepositoryConfiguredStyleCopSource = true;
+                        }
+                    }
+                    bool centralManagementActive = Property(properties, "ManagePackageVersionsCentrally").Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (centralManagementActive && items.GetProperty("PackageReference").EnumerateArray().Any(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                    {
+                        foreach (JsonElement item in items.GetProperty("PackageVersion").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                        {
+                            string source = ItemProperty(item, "DefiningProjectFullPath");
+                            if (File.Exists(source) && IsWithinRoot(source))
+                            {
+                                styleCopSources.Add(source);
+                                hasRepositoryConfiguredStyleCopSource = true;
+                            }
+                        }
+                    }
+                }
+                if (HasResolvedStyleCopAnalyzer(project) && !hasRepositoryConfiguredStyleCopSource)
+                {
+                    styleCopSources.Add(project);
+                }
+            }
+            catch (Exception e) when (e is IOException or InvalidOperationException or JsonException or ProductException)
+            {
+                findings.Add(new("profile.dotnet.analysis.required", Rel(project), "Effective MSBuild configuration could not be evaluated.", "Repair the project/import configuration and retry profile analysis."));
+            }
+        }
+
+        foreach (string source in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories).Where(p => !Ignored(p)))
+        {
+            IReadOnlyDictionary<string, string> effective = EffectiveEditorConfig(source);
+            foreach ((string key, string expected) in new[] { ("csharp_prefer_braces", "true"), ("dotnet_diagnostic.IDE0011.severity", "error"), ("dotnet_style_require_accessibility_modifiers", "always"), ("dotnet_diagnostic.IDE0040.severity", "error") })
+            {
+                if (!effective.TryGetValue(key, out string? actual) || !OptionEquals(key, actual, expected))
+                {
+                    findings.Add(new("profile.dotnet.analysis.required", Rel(source), $"Effective EditorConfig setting {key} must be {expected} (found '{actual ?? "<unset>"}').", $"Set {key} = {expected} in the effective configuration."));
+                }
+            }
+        }
+
+        foreach (string source in styleCopSources)
+        {
+            findings.Add(new("profile.stylecop.prohibited", Rel(source), "StyleCop analyzers are prohibited by the supported profile.", "Resolve the analyzer dependency and its policy impact explicitly."));
         }
         return findings.GroupBy(f => (f.RuleId, f.Path, f.Message)).Select(g => g.First()).OrderBy(f => f.RuleId, StringComparer.Ordinal).ThenBy(f => f.Path, StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool IsStyleCop(string value) => value.Contains("stylecop", StringComparison.OrdinalIgnoreCase);
+    private bool IsWithinRoot(string path)
+    {
+        string relative = Path.GetRelativePath(root, path);
+        return !Path.IsPathRooted(relative) && relative != ".." && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+    }
+    private static string Property(JsonElement properties, string key) => properties.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
+    private static string ItemProperty(JsonElement item, string key) => item.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
+
+    private JsonDocument Evaluate(string project, string configuration, string properties, string items)
+    {
+        string fingerprint = ConfigFingerprint();
+        string cacheKey = project + "|" + configuration;
+        if (Evaluations.TryGetValue(cacheKey, out var cached) && cached.Fingerprint == fingerprint)
+        {
+            return JsonDocument.Parse(cached.Output);
+        }
+        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        start.ArgumentList.Add("msbuild"); start.ArgumentList.Add(project); start.ArgumentList.Add("-property:Configuration=" + configuration); start.ArgumentList.Add(properties); start.ArgumentList.Add(items);
+        using Process process = Process.Start(start) ?? throw new ProductException("Could not start MSBuild evaluation.");
+        string stdout = process.StandardOutput.ReadToEnd(); string stderr = process.StandardError.ReadToEnd(); process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new ProductException("MSBuild evaluation failed: " + stderr);
+        }
+        try
+        {
+            Evaluations[cacheKey] = (fingerprint, stdout);
+            return JsonDocument.Parse(stdout);
+        }
+        catch (JsonException) { throw new ProductException("MSBuild returned invalid evaluation data: " + stderr); }
+    }
+
+    private string ConfigFingerprint()
+    {
+        var inputs = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(path => !Ignored(path) && (Path.GetExtension(path) is ".csproj" or ".props" or ".targets" or ".vbproj" or ".fsproj"))
+            .Order(StringComparer.OrdinalIgnoreCase);
+        var signature = inputs.Select(path => Rel(path) + "|" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).ToList();
+        foreach (string project in Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(path => !Ignored(path)))
+        {
+            string assets = Path.Combine(Path.GetDirectoryName(project)!, "obj", "project.assets.json");
+            if (File.Exists(assets))
+            {
+                signature.Add(Rel(assets) + "|" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assets))));
+            }
+        }
+        return string.Join("\n", signature);
+    }
+
+    private static bool HasResolvedStyleCopAnalyzer(string project)
+    {
+        string assets = Path.Combine(Path.GetDirectoryName(project)!, "obj", "project.assets.json");
+        if (!File.Exists(assets))
+        {
+            return false;
+        }
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(assets));
+            if (!document.RootElement.TryGetProperty("targets", out JsonElement targets))
+            {
+                return false;
+            }
+            foreach (JsonProperty target in targets.EnumerateObject())
+            {
+                foreach (JsonProperty library in target.Value.EnumerateObject())
+                {
+                    if (library.Value.TryGetProperty("analyzers", out JsonElement analyzers) && analyzers.ValueKind == JsonValueKind.Array &&
+                        (IsStyleCop(library.Name) || analyzers.EnumerateArray().Any(analyzer => IsStyleCop(analyzer.TryGetProperty("path", out JsonElement path) ? path.GetString() ?? "" : ""))))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch (JsonException) { }
+        return false;
+    }
+
+    private IReadOnlyDictionary<string, string> EffectiveEditorConfig(string source)
+    {
+        string directory = Path.GetDirectoryName(source)!;
+        var chain = new List<string>();
+        for (string? current = directory; current is not null; current = Directory.GetParent(current)?.FullName)
+        {
+            string config = Path.Combine(current, ".editorconfig");
+            if (File.Exists(config))
+            {
+                chain.Add(config);
+                if (File.ReadLines(config).Any(line => line.Trim().Equals("root=true", StringComparison.OrdinalIgnoreCase) || line.Trim().Equals("root = true", StringComparison.OrdinalIgnoreCase)))
+                {
+                    break;
+                }
+            }
+        }
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string config in chain.AsEnumerable().Reverse())
+        {
+            string[] lines = File.ReadAllLines(config); string section = "*"; string relative = Path.GetRelativePath(Path.GetDirectoryName(config)!, source).Replace('\\', '/');
+            foreach (string line in lines)
+            {
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith('[') && trimmed.EndsWith(']'))
+                {
+                    section = trimmed[1..^1].Trim();
+                    continue;
+                }
+                if (trimmed.Length == 0 || trimmed.StartsWith('#') || trimmed.StartsWith(';'))
+                {
+                    continue;
+                }
+                int equals = trimmed.IndexOf('=');
+                if (equals < 0)
+                {
+                    continue;
+                }
+                string key = trimmed[..equals].Trim(); string value = trimmed[(equals + 1)..].Trim();
+                if (section == "*" || EditorPatternMatches(section, relative))
+                {
+                    values[key] = value;
+                }
+            }
+        }
+        return values;
+    }
+
+    private static bool EditorPatternMatches(string pattern, string relativePath)
+    {
+        string candidate = pattern.Contains('/') ? relativePath : Path.GetFileName(relativePath);
+        string glob = Regex.Escape(pattern.Replace('\\', '/')).Replace("\\*\\*/", "(?:.*/)?").Replace("\\*", "[^/]*").Replace("\\?", "[^/]");
+        return Regex.IsMatch(candidate, "^" + glob + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    private static bool OptionEquals(string key, string actual, string expected)
+    {
+        string value = actual.Split(':', 2)[0].Trim();
+        return value.Equals(expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private ProfileResult Apply(string command, bool requireMarker)

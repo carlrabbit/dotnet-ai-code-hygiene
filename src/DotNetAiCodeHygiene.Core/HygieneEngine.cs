@@ -626,7 +626,7 @@ public sealed class HygieneEngine
         => member.GetLeadingTrivia().Select(t => t.GetStructure()).OfType<DocumentationCommentTriviaSyntax>().FirstOrDefault();
 
     private static bool HasInheritdoc(MemberDeclarationSyntax member)
-        => Documentation(member)?.DescendantNodes().OfType<XmlEmptyElementSyntax>().Any(e => e.Name.LocalName.ValueText == "inheritdoc") == true;
+        => Documentation(member)?.Content.OfType<XmlEmptyElementSyntax>().Any(e => e.Name.LocalName.ValueText == "inheritdoc") == true;
 
     private static string GetParamText(MemberDeclarationSyntax member, string name)
     {
@@ -668,13 +668,22 @@ public sealed class HygieneEngine
         HashSet<string> parameters = symbol switch
         {
             IMethodSymbol method => method.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            IPropertySymbol property => property.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            INamedTypeSymbol { TypeKind: TypeKind.Delegate, DelegateInvokeMethod: { } invoke } => invoke.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
             INamedTypeSymbol type when member is RecordDeclarationSyntax record => (record.ParameterList?.Parameters ?? default).Select(p => p.Identifier.ValueText).ToHashSet(StringComparer.Ordinal),
             _ => new HashSet<string>(StringComparer.Ordinal)
         };
         HashSet<string> typeParameters = symbol switch
         {
-            IMethodSymbol method => method.TypeParameters.Concat(method.ContainingType is null ? Enumerable.Empty<ITypeParameterSymbol>() : method.ContainingType.TypeParameters).Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            IMethodSymbol method => method.TypeParameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
             INamedTypeSymbol type => type.TypeParameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            _ => new HashSet<string>(StringComparer.Ordinal)
+        };
+        HashSet<string> inScopeTypeParameters = symbol switch
+        {
+            IMethodSymbol method => method.TypeParameters.Concat(ContainingTypeParameters(method.ContainingType)).Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            INamedTypeSymbol type => type.TypeParameters.Concat(ContainingTypeParameters(type.ContainingType)).Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            IPropertySymbol property => ContainingTypeParameters(property.ContainingType).Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
             _ => new HashSet<string>(StringComparer.Ordinal)
         };
         foreach (XmlElementSyntax element in documentation.DescendantNodes().OfType<XmlElementSyntax>())
@@ -784,7 +793,7 @@ public sealed class HygieneEngine
             }
 
             string? name = reference.Attributes.OfType<XmlNameAttributeSyntax>().FirstOrDefault(a => a.Name.ToString() == "name")?.Identifier.Identifier.ValueText;
-            bool valid = tag == "paramref" ? !string.IsNullOrEmpty(name) && parameters.Contains(name) : !string.IsNullOrEmpty(name) && typeParameters.Contains(name);
+            bool valid = tag == "paramref" ? !string.IsNullOrEmpty(name) && parameters.Contains(name) : !string.IsNullOrEmpty(name) && inScopeTypeParameters.Contains(name);
             if (!valid)
             {
                 string message = $"<{tag}> must reference a declaration parameter of the matching kind.";
@@ -792,6 +801,17 @@ public sealed class HygieneEngine
             }
         }
         return findings;
+    }
+
+    private static IEnumerable<ITypeParameterSymbol> ContainingTypeParameters(INamedTypeSymbol? type)
+    {
+        for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
+        {
+            foreach (ITypeParameterSymbol parameter in current.TypeParameters)
+            {
+                yield return parameter;
+            }
+        }
     }
 
     private static bool IsDerivedFrom(INamedTypeSymbol symbol, INamedTypeSymbol baseType)

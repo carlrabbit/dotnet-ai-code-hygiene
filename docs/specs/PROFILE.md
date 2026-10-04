@@ -178,7 +178,7 @@ dotnet_diagnostic.IDE0040.severity = error
 
 No other diagnostic severity is set by the v1 profile.
 
-Deeper/user EditorConfig entries are allowed, but they must not weaken these required effective settings. The profile rule validates the effective configuration seen by supported project source files.
+Deeper/user EditorConfig entries are allowed, but they must not weaken these required effective settings. The profile rule resolves the EditorConfig hierarchy for repository C# source files, applying matching sections from parent to child until a `root = true` cutoff. A missing cutoff allows parent configuration to affect the repository. The profile rule validates the effective configuration seen by supported project source files, not every raw setting regardless of whether it matches a source path.
 
 ## Severity policy
 
@@ -229,7 +229,7 @@ Repository-configured `TreatWarningsAsErrors=true` or non-empty `WarningsAsError
 
 The rule does not require a specific `TargetFramework`; the supported analyzer/runtime baseline is the .NET 11 SDK line.
 
-The rule validates effective configuration, not only whether canonical text happens to exist in generated artifacts.
+The rule validates effective MSBuild property values for Debug and Release evaluations and effective EditorConfig settings, not only whether canonical text happens to exist in generated artifacts. It scans repository project/import configuration for warning-promotion declarations, including project files, `.props`, and `.targets` files.
 
 Its deterministic remediation installs/reconciles only the profile-owned marker/artifacts/managed sections described above. It does not rewrite arbitrary nested project/EditorConfig overrides.
 
@@ -247,7 +247,8 @@ The rule detects at least:
 
 - direct `StyleCop.Analyzers` package references;
 - central package-management declarations/references that activate `StyleCop.Analyzers`;
-- resolved/effective analyzer inputs identifiable as StyleCop analyzer assemblies.
+- evaluated analyzer inputs identifiable as StyleCop analyzer assemblies, including repository path-based `<Analyzer>` inputs;
+- resolved NuGet analyzer assets identifiable as StyleCop analyzer assemblies.
 
 One configured source should not be double-reported merely because it is visible through more than one inspection path.
 

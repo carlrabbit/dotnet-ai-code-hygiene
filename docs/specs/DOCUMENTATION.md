@@ -60,6 +60,8 @@ Continue to exclude:
 
 A covered subject satisfies the rule when its resolved summary carrier is non-empty, or when direct `<inheritdoc/>` satisfies the declaration-level missing-summary requirement.
 
+For this exemption, `<inheritdoc/>` must be a direct child of the declaration's documentation comment. A nested `<inheritdoc/>` inside `<remarks>`, `<example>`, or another element does not satisfy the declaration summary.
+
 The rule does not recursively resolve an inheritdoc target or inspect ancestor documentation.
 
 `<inheritdoc/>` only excuses missing inherited summary material. Explicit documentation written beside it is still subject to structural and sentence rules.
@@ -79,7 +81,7 @@ This is presence-based. It never requires optional documentation merely because 
 When present:
 
 - `name` must be non-empty;
-- it must identify an actual declaration parameter, including a positional record parameter on the record declaration;
+- it must identify an actual parameter of the documented declaration: method/constructor parameters, delegate parameters, indexer parameters, or positional record parameters on the record declaration;
 - there is at most one `<param>` for the same parameter name on the same declaration;
 - prose content must be non-empty.
 
@@ -90,12 +92,13 @@ The matching `<param>` for a synthesized positional-record property also serves 
 When present:
 
 - `name` must identify an actual type/method type parameter in that declaration;
+- it must be declared by the documented declaration itself; a containing type parameter is not a `<typeparam>` of a method or nested declaration;
 - there is at most one `<typeparam>` for the same type parameter;
 - prose content must be non-empty.
 
 ### `<paramref>` / `<typeparamref>`
 
-When present inside documentation prose, `name` must identify a valid parameter/type parameter available in the documented declaration's scope.
+When present inside documentation prose, `paramref` must identify a parameter of the documented declaration. `typeparamref` may identify a type parameter declared on that declaration or an enclosing type parameter in scope. These reference scopes do not expand which declaration parameters `<param>` and `<typeparam>` may document.
 
 ### `<returns>`
 
