@@ -20,12 +20,19 @@ internal static class Program
     }
     private static RootCommand Build()
     {
-        var root = new RootCommand("AI-first code hygiene tooling.");
-        var format = new Command("format", "Reserved for a future formatter.");
-        format.SetAction(_ => Run(() => { Console.Error.WriteLine("format is not implemented until M0004."); return 3; })); root.Subcommands.Add(format);
-        var normalize = new Command("normalize", "Reserved for a future normalizer.");
-        normalize.SetAction(_ => Run(() => { Console.Error.WriteLine("normalize is not implemented until M0004."); return 3; })); root.Subcommands.Add(normalize);
+        var root = new RootCommand("Deterministic .NET hygiene, formatting, and normalization tools.");
         var output = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
+        foreach (string name in new[] { "format", "normalize" })
+        {
+            var command = new Command(name, name == "format" ? "Format selected C# source using Roslyn." : "Apply safe semantic simplifications to selected C# source.");
+            var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
+            var changedOpt = new Option<bool>("--changed"); var checkOpt = new Option<bool>("--check");
+            command.Arguments.Add(pathsArg); command.Options.Add(changedOpt); command.Options.Add(checkOpt); command.Options.Add(output);
+            command.SetAction(parse => Run(() => RenderRewrite(new RewriteEngine(), name, parse.GetValue(pathsArg) ?? [], parse.GetValue(changedOpt), parse.GetValue(checkOpt), parse.GetValue(output) ?? "text")));
+            root.Subcommands.Add(command);
+        }
+        var agentHelp = new Command("help", "Show coding-agent workflow guidance."); var agent = new Option<bool>("--agent") { Description = "Show stable coding-agent guidance." }; agentHelp.Options.Add(agent);
+        agentHelp.SetAction(parse => Run(() => { if (!parse.GetValue(agent)) { Console.WriteLine(root.Description); return 0; } Console.WriteLine(AgentGuidance); return 0; })); root.Subcommands.Add(agentHelp);
         var paths = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
         var changed = new Option<bool>("--changed");
         var check = new Command("check", "Analyze selected C# source files."); check.Arguments.Add(paths); check.Options.Add(changed); check.Options.Add(output);
@@ -67,6 +74,25 @@ internal static class Program
         CheckResult r = engine.Check(paths, changed);
         if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
         else if (output == "text") { Console.WriteLine($"Run {r.RunId}: {r.Findings.Count} finding(s), {r.IgnoredCount} ignored."); foreach (Finding f in r.Findings) { string classification = f.Classification == "review-candidate" ? " [review-candidate]" : ""; Console.WriteLine($"{f.Id} {f.RuleId}{classification} {f.Path}:{f.Line}:{f.Column} {f.Message} {f.Suggestion}"); } foreach (ReviewBatch b in r.ReviewBatches) RenderBatchText(b); }
+        else throw new ArgumentException("--output must be text or json.");
+        return 0;
+    }
+    private const string AgentGuidance = """
+        hygiene is a repository-scoped .NET hygiene tool. Run it from a Git repository.
+        Workflow: implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check.
+        Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
+        Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
+        format is presentation-only. normalize applies a small fixed Roslyn semantic simplification catalogue, validates compilation before and after, formats changed files, and commits all selected changes together. Both support non-mutating --check and are idempotent.
+        check reports deterministic findings and semantic review samples. Use explain for a finding, ignore only reviewed exceptions, and unignore to remove an exception. Review batches are not findings.
+        If any sampled answer materially fails or is uncertain, use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for frontier review.
+        The CLI invokes no model. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
+        """;
+    private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
+    {
+        if (output is not ("text" or "json")) throw new ArgumentException("--output must be text or json.");
+        RewriteResult r = engine.Rewrite(command, paths, changed, checkOnly);
+        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths }, Json));
+        else if (output == "text") { Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}"); foreach (string path in r.ChangedPaths) Console.WriteLine($"  {path}"); }
         else throw new ArgumentException("--output must be text or json.");
         return 0;
     }

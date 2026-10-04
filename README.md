@@ -4,7 +4,7 @@ AI-first code hygiene tooling for deterministic hygiene analysis and bounded sem
 
 ## Status
 
-M0001 and M0002 are complete. M0003 — Semantic Review Sampling & Escalation — is the active milestone.
+The project targets Windows 11 and the .NET 11 SDK line. M0004 provides the installable `0.4.0` tool, deterministic formatting/normalization, and installed-consumer validation.
 
 M0003 adds bounded semantic review batches. The CLI selects what should be reviewed; the current implementation agent judges the sample. If the sample is materially poor or uncertain, the caller explicitly expands the batch for frontier-capability review. The CLI itself never invokes a model.
 
@@ -17,7 +17,32 @@ generated or edited code
 -> remediation by the calling agent
 ```
 
-Windows 11 and the .NET 11 SDK line remain the authoritative initial platform. No GitHub Actions/workflows are used.
+Windows 11 and the .NET 11 SDK line are the supported platform. The package is locally validated; public-feed publication is not claimed. No GitHub Actions/workflows are used.
+
+## Install and agent workflow
+
+Install the tool package from the configured NuGet source:
+
+```powershell
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.4.0
+hygiene --version
+hygiene help --agent
+```
+
+The canonical coding-agent workflow is:
+
+```text
+implement/change code
+-> run relevant tests
+-> hygiene normalize
+-> hygiene check
+-> resolve deterministic findings and semantic review work
+-> rerun tests/check as needed
+```
+
+`hygiene format [paths...]` applies Roslyn presentation formatting only. `hygiene normalize [paths...]` applies the fixed conservative Roslyn simplification policy in `docs/specs/REWRITES.md`, validates project compilation before and after, and formats changed documents. Both commands support repository-default, explicit file/directory, and `--changed` targets; explicit paths cannot be combined with `--changed`. Both support non-mutating `--check` and text/JSON output. Rewrite plans cover the selected set before mutation, commits roll back on failure, and repeated runs are idempotent. A successful `--check` means the command succeeded even when paths would change.
+
+Analysis rules and rewrite transformations are separate: disabling an analysis rule does not disable normalization. Findings remain deterministic and can be explained or explicitly ignored. Semantic review remains caller-judged; uncertain or materially negative sample answers can be escalated with `hygiene review expand` or written as a durable handoff with `hygiene review handoff`, locally or to an explicit external file. The CLI invokes no model.
 
 M0003 review workflow:
 

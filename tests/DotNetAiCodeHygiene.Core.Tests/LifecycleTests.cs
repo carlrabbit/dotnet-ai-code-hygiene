@@ -9,6 +9,89 @@ namespace DotNetAiCodeHygiene.Core.Tests;
 public sealed class LifecycleTests
 {
     [Test]
+    public async Task RewriteCheckIsNonMutatingAndFormatAndNormalizeAreIdempotent()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string file = Path.Combine(repo, "src", "Fixture.cs");
+            const string initial = "public class Fixture{private int value;public int Value(){return this.value;}}";
+            await File.WriteAllTextAsync(file, initial);
+            var engine = new RewriteEngine(repo);
+            RewriteResult formatCheck = engine.Rewrite("format", [], false, true);
+            await Assert.That(formatCheck.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(initial);
+            RewriteResult format = engine.Rewrite("format", [], false, false);
+            await Assert.That(format.ChangedPaths).IsEquivalentTo(new[] { "src/Fixture.cs" });
+            string formatted = await File.ReadAllTextAsync(file);
+            await Assert.That(engine.Rewrite("format", [], false, false).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(formatted);
+            RewriteResult normalizeCheck = engine.Rewrite("normalize", [], false, true);
+            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(formatted);
+            RewriteResult normalize = engine.Rewrite("normalize", [], false, false);
+            await Assert.That(normalize.ChangedCount).IsEqualTo(1);
+            string normalized = await File.ReadAllTextAsync(file);
+            await Assert.That(engine.Rewrite("normalize", [], false, false).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(normalized);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NormalizeRejectsCompilerErrorsAndRewriteConflictNeverOverwritesSource()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-safety-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string first = Path.Combine(repo, "src", "A.cs");
+            string second = Path.Combine(repo, "src", "B.cs");
+            string unselected = Path.Combine(repo, "src", "Unselected.cs");
+            const string a = "public class A{public void Run(){System.Console.WriteLine(1);}}";
+            const string invalid = "public class B { public void Run() { MissingType value = null; } }";
+            const string untouched = "public class Unselected { }\n";
+            await File.WriteAllTextAsync(first, a);
+            await File.WriteAllTextAsync(second, invalid);
+            await File.WriteAllTextAsync(unselected, untouched);
+            var engine = new RewriteEngine(repo);
+            bool rejected = false;
+            try { engine.Rewrite("normalize", [first, second], false, false); } catch (ProductException) { rejected = true; }
+            await Assert.That(rejected).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
+            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo(invalid);
+
+            const string validSecond = "public class B{public void Run(){System.Console.WriteLine(2);}}";
+            await File.WriteAllTextAsync(second, validSecond);
+            var conflicting = new RewriteEngine(repo, () => File.WriteAllText(second, "external edit"));
+            rejected = false;
+            try { conflicting.Rewrite("format", [first, second], false, false); } catch (ProductException) { rejected = true; }
+            await Assert.That(rejected).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
+            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo("external edit");
+
+            await File.WriteAllTextAsync(second, validSecond);
+            var faulted = new RewriteEngine(repo, null, count => { if (count == 1) throw new OperationCanceledException("injected cancellation"); });
+            bool cancelled = false;
+            try { faulted.Rewrite("format", [first, second], false, false); } catch (OperationCanceledException) { cancelled = true; }
+            await Assert.That(cancelled).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
+            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo(validSecond);
+            RewriteResult committed = new RewriteEngine(repo).Rewrite("format", [first, second], false, false);
+            await Assert.That(committed.ChangedCount).IsEqualTo(2);
+            await Assert.That(await File.ReadAllTextAsync(first)).IsNotEqualTo(a);
+            await Assert.That(await File.ReadAllTextAsync(second)).IsNotEqualTo(validSecond);
+            await Assert.That(await File.ReadAllTextAsync(unselected)).IsEqualTo(untouched);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task RuleOrderAndRepositoryLifecycleAreDeterministic()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-test-" + Guid.NewGuid().ToString("N"));

@@ -52,7 +52,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.1.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.4.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -309,16 +309,11 @@ public sealed class CliProcessTests
     }
 
     [Test]
-    public async Task FormatAndNormalizeRemainNonFunctionalScaffolding()
+    public async Task FormatAndNormalizeExposeFunctionalHelpAndOutput()
     {
-        ProcessResult format = await RunCliAsync("format");
-        ProcessResult normalize = await RunCliAsync("normalize");
-        await Assert.That(format.ExitCode).IsEqualTo(3);
-        await Assert.That(format.StandardOutput).IsEmpty();
-        await Assert.That(format.StandardError).Contains("format is not implemented");
-        await Assert.That(normalize.ExitCode).IsEqualTo(3);
-        await Assert.That(normalize.StandardOutput).IsEmpty();
-        await Assert.That(normalize.StandardError).Contains("normalize is not implemented");
+        ProcessResult help = await RunCliAsync("help", "--agent");
+        await Assert.That(help.ExitCode).IsEqualTo(0);
+        await Assert.That(help.StandardOutput).Contains("Workflow:");
     }
 
     private static async Task<ProcessResult> RunCliAsync(params string[] arguments)

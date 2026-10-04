@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>DotNetAiCodeHygiene.Cli</AssemblyName>
     <RootNamespace>DotNetAiCodeHygiene.Cli</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.4.0</Version>
     <InformationalVersion>$(Version)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageId>DotNetAiCodeHygiene.Tool</PackageId>
