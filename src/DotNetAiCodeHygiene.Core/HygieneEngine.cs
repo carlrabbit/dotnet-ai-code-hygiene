@@ -41,7 +41,6 @@ public sealed class HygieneEngine
     private readonly string hygiene;
     private readonly Action? beforeAtomicReplace;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = false };
-    private static readonly object WorkspaceRegistrationLock = new();
 
     public HygieneEngine(string? cwd = null) : this(cwd, null) { }
 
@@ -115,7 +114,7 @@ public sealed class HygieneEngine
     }
     public IReadOnlyList<(Rule Rule, bool Enabled)> ListRules() => Rules.Select(r => (r, !Disabled.Contains(r.Id, StringComparer.Ordinal))).ToArray();
 
-    private string[] ResolveTargets(string[] paths, bool changed)
+    internal string[] ResolveTargets(string[] paths, bool changed)
     {
         if (changed && paths.Length > 0) throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
         IEnumerable<string> files;
@@ -196,10 +195,7 @@ public sealed class HygieneEngine
 
     private static MSBuildWorkspace CreateWorkspace()
     {
-        lock (WorkspaceRegistrationLock)
-        {
-            if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
-        }
+        RoslynWorkspaceRegistration.EnsureRegistered();
         return MSBuildWorkspace.Create(new Dictionary<string, string> { ["DesignTimeBuild"] = "true" });
     }
 

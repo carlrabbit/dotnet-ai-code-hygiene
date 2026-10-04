@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Build.Locator;
@@ -12,6 +11,15 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DotNetAiCodeHygiene.Core;
 
+internal static class RoslynWorkspaceRegistration
+{
+    private static readonly object Gate = new();
+    public static void EnsureRegistered()
+    {
+        lock (Gate) if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
+    }
+}
+
 public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> ChangedPaths);
 
 /// <summary>Plans Roslyn rewrites completely before applying an all-target transaction.</summary>
@@ -20,13 +28,13 @@ public sealed class RewriteEngine
     private readonly string root;
     private readonly Action? beforeCommit;
     private readonly Action<int>? afterFileCommit;
-    private static readonly object RegistrationLock = new();
-
+    private readonly Func<string, string>? plannedTextForTesting;
     public RewriteEngine(string? cwd = null) : this(cwd, null, null) { }
-    internal RewriteEngine(string? cwd, Action? beforeCommit, Action<int>? afterFileCommit = null)
+    internal RewriteEngine(string? cwd, Action? beforeCommit, Action<int>? afterFileCommit = null, Func<string, string>? plannedTextForTesting = null)
     {
         this.beforeCommit = beforeCommit;
         this.afterFileCommit = afterFileCommit;
+        this.plannedTextForTesting = plannedTextForTesting;
         string dir = Path.GetFullPath(cwd ?? Environment.CurrentDirectory);
         while (!Directory.Exists(Path.Combine(dir, ".git")) && !File.Exists(Path.Combine(dir, ".git")))
             dir = Directory.GetParent(dir)?.FullName ?? throw new ProductException("Current directory is not inside a Git repository.");
@@ -36,7 +44,10 @@ public sealed class RewriteEngine
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
         if (command is not ("format" or "normalize")) throw new ArgumentException("Unknown rewrite command.");
-        string[] targets = ResolveTargets(paths, changed);
+        var hygieneEngine = new HygieneEngine(root);
+        string[] targets = hygieneEngine.ResolveTargets(paths, changed);
+        var directlyTargetedFiles = paths.Select(raw => Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw)))
+            .Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         using var workspace = CreateWorkspace();
         var projects = LoadProjects(workspace);
@@ -46,7 +57,11 @@ public sealed class RewriteEngine
             var match = projects.SelectMany(p => p.Documents.Select(d => (Project: p, Document: d)))
                 .Where(x => x.Document.FilePath is not null && Path.GetFullPath(x.Document.FilePath).Equals(path, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(x => Path.GetFullPath(x.Project.FilePath ?? "").Length).FirstOrDefault();
-            if (match.Document is null) throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Rel(path)}");
+            if (match.Document is null)
+            {
+                if (directlyTargetedFiles.Contains(path)) throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Rel(path)}");
+                continue;
+            }
             assigned[path] = match;
         }
         var plan = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
@@ -64,7 +79,7 @@ public sealed class RewriteEngine
                     ? Formatter.FormatAsync(document).GetAwaiter().GetResult()
                     : Normalize(document, compilation);
                 SourceText rewritten = changedDocument.GetTextAsync().GetAwaiter().GetResult();
-                string content = rewritten.ToString();
+                string content = plannedTextForTesting?.Invoke(rewritten.ToString()) ?? rewritten.ToString();
                 if (!StringComparer.Ordinal.Equals(source.ToString(), content))
                 {
                     Encoding encoding = source.Encoding ?? new UTF8Encoding(false);
@@ -153,46 +168,9 @@ public sealed class RewriteEngine
     private bool HasErrors(Compilation compilation) => compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null || IsInRepo(d.Location.SourceTree.FilePath)));
     private bool IsInRepo(string path) => Path.GetFullPath(path).StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     private string Rel(string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
-    private string[] ResolveTargets(string[] paths, bool changed)
-    {
-        if (changed && paths.Length > 0) throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
-        IEnumerable<string> files;
-        if (changed) files = GitChanged();
-        else if (paths.Length == 0) files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories);
-        else
-        {
-            var selected = new List<string>();
-            foreach (string raw in paths)
-            {
-                string full = Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw));
-                if (!IsInRepo(full) && !full.Equals(root, StringComparison.OrdinalIgnoreCase)) throw new ProductException("Target is outside the repository.");
-                if (File.Exists(full)) { if (!full.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) throw new ProductException($"Unsupported explicit file: {raw}"); selected.Add(full); }
-                else if (Directory.Exists(full)) selected.AddRange(Directory.EnumerateFiles(full, "*.cs", SearchOption.AllDirectories));
-                else throw new ProductException($"Target does not exist: {raw}");
-            }
-            files = selected;
-        }
-        return files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists).Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).Where(p => !Path.GetRelativePath(root, p).Split(Path.DirectorySeparatorChar).Any(x => x is ".git" or ".hygiene" or "bin" or "obj")).Order(StringComparer.Ordinal).ToArray();
-    }
-    private IEnumerable<string> GitChanged()
-    {
-        string output;
-        try
-        {
-            var info = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = root, RedirectStandardOutput = true, UseShellExecute = false };
-            foreach (string arg in new[] { "status", "--porcelain", "-z", "--untracked-files=all" }) info.ArgumentList.Add(arg);
-            using var process = System.Diagnostics.Process.Start(info) ?? throw new IOException(); output = process.StandardOutput.ReadToEnd(); process.WaitForExit(); if (process.ExitCode != 0) throw new IOException();
-        }
-        catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
-        foreach (string row in output.Split('\0', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (row.Length < 4 || row.StartsWith(" D") || row.StartsWith("D ")) continue;
-            string path = row[3..]; if (path.Contains(" -> ")) path = path[(path.LastIndexOf(" -> ", StringComparison.Ordinal) + 4)..]; yield return Path.Combine(root, path);
-        }
-    }
     private static MSBuildWorkspace CreateWorkspace()
     {
-        lock (RegistrationLock) if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
+        RoslynWorkspaceRegistration.EnsureRegistered();
         return MSBuildWorkspace.Create(new Dictionary<string, string> { ["DesignTimeBuild"] = "true" });
     }
     private Project[] LoadProjects(MSBuildWorkspace workspace)

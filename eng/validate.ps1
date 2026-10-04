@@ -17,10 +17,32 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCOD
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
 $package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.4.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
-$feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'
-New-Item -ItemType Directory -Force $feed, $toolPath, $consumer | Out-Null
+$feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
+$nugetConfig = Join-Path $tierRoot 'NuGet.config'
+New-Item -ItemType Directory -Force $feed, $toolPath, $consumer, $nugetCache | Out-Null
 Copy-Item -LiteralPath $package.FullName -Destination $feed
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --add-source $feed --version 0.4.0
+if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash) { throw 'Tier-4 local feed package does not match the package just packed.' }
+@"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="CurrentRun" value="$feed" />
+    <add key="NuGetOfficial" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="CurrentRun">
+      <package pattern="DotNetAiCodeHygiene.Tool" />
+    </packageSource>
+    <packageSource key="NuGetOfficial">
+      <package pattern="*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+"@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
+$previousNugetPackages = $env:NUGET_PACKAGES
+$env:NUGET_PACKAGES = $nugetCache
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.4.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { $hygiene = Join-Path $toolPath 'hygiene' }
@@ -60,4 +82,8 @@ try {
     & $hygiene check --output json | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
 }
-finally { Pop-Location; Remove-Item -LiteralPath $tierRoot -Recurse -Force }
+finally {
+    Pop-Location
+    $env:NUGET_PACKAGES = $previousNugetPackages
+    Remove-Item -LiteralPath $tierRoot -Recurse -Force
+}
