@@ -8,10 +8,20 @@ using System.Xml.Linq;
 
 namespace DotNetAiCodeHygiene.Core;
 
+/// <summary>Beschreibt einen Verstoß gegen das unterstützte Hygieneprofil.</summary>
+/// <param name="RuleId">Kennung der verletzten Profilregel.</param>
+/// <param name="Path">Repositoryrelativer Pfad der Fundstelle.</param>
+/// <param name="Message">Erklärung des Profilverstoßes.</param>
+/// <param name="Suggestion">Vorschlag zur Behebung des Verstoßes.</param>
 public sealed record ProfileFinding(string RuleId, string Path, string Message, string Suggestion);
+/// <summary>Enthält das Ergebnis eines Profilvorgangs.</summary>
+/// <param name="Command">Ausgeführter Profilbefehl.</param>
+/// <param name="FindingCount">Anzahl der verbleibenden Profilverstöße.</param>
+/// <param name="Findings">Verbleibende Profilverstöße mit Hinweisen.</param>
+/// <param name="ChangedPaths">Geänderte repositoryrelative Pfade.</param>
 public sealed record ProfileResult(string Command, int FindingCount, IReadOnlyList<ProfileFinding> Findings, IReadOnlyList<string> ChangedPaths);
 
-/// <summary>Owns the fixed dotnet-11 profile and its explicitly delimited repository artifacts.</summary>
+/// <summary>Verwaltet das feste dotnet-11-Profil und seine klar abgegrenzten Repositorydateien.</summary>
 public sealed class ProfileManager
 {
     private static readonly ConcurrentDictionary<string, (string Fingerprint, string Output)> Evaluations = new(StringComparer.OrdinalIgnoreCase);
@@ -27,7 +37,12 @@ public sealed class ProfileManager
     private static readonly string EditorBlock = $"{Start}\n[*.cs]\ncsharp_prefer_braces = true\ndotnet_diagnostic.IDE0011.severity = error\ndotnet_style_require_accessibility_modifiers = always\ndotnet_diagnostic.IDE0040.severity = error\n{End}";
     private static readonly string ImportBlock = $"{Import}\n  <Import Project=\"$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props\" Condition=\"Exists('$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props')\" />\n  {ImportEnd}";
 
+    /// <summary>Verwaltet das Profil im angegebenen Repository.</summary>
+    /// <param name="root">Pfad zum Stammverzeichnis des Repositorys.</param>
     public ProfileManager(string root) : this(root, null) { }
+    /// <summary>Erstellt einen Profilmanager mit einem Hook für transaktionale Tests.</summary>
+    /// <param name="root">Pfad zum Stammverzeichnis des Repositorys.</param>
+    /// <param name="afterReplace">Optionaler Hook nach dem Austausch einer Datei.</param>
     internal ProfileManager(string root, Action<int>? afterReplace)
     {
         this.root = Path.GetFullPath(root);
@@ -35,9 +50,17 @@ public sealed class ProfileManager
     }
     private string P(string relative) => Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
 
+    /// <summary>Installiert das unterstützte Profil und meldet verbleibende Verstöße.</summary>
+    /// <param name="output">Gewünschtes Ausgabeformat.</param>
+    /// <returns>Ergebnis der Profilinstallation.</returns>
     public ProfileResult Bootstrap(string output = "text") => Apply("bootstrap", false);
+    /// <summary>Gleicht die verwalteten Profilelemente mit dem aktuellen Profil ab.</summary>
+    /// <param name="output">Gewünschtes Ausgabeformat.</param>
+    /// <returns>Ergebnis des Profilabgleichs.</returns>
     public ProfileResult Update(string output = "text") => Apply("update", true);
 
+    /// <summary>Prüft, ob das Repository ein unterstütztes Profil verwendet.</summary>
+    /// <exception cref="ProductException">Das Profil fehlt oder wird nicht unterstützt.</exception>
     public void RequireCurrent()
     {
         string path = P(".hygiene/profile.json");
@@ -62,6 +85,8 @@ public sealed class ProfileManager
         { throw new ProductException("Invalid .hygiene/profile.json; run hygiene bootstrap after resolving the malformed profile state."); }
     }
 
+    /// <summary>Analysiert die effektive Projektkonfiguration und die Profilartefakte.</summary>
+    /// <returns>Profilverstöße in stabiler Reihenfolge.</returns>
     public IReadOnlyList<ProfileFinding> Analyze()
     {
         var findings = new List<ProfileFinding>();

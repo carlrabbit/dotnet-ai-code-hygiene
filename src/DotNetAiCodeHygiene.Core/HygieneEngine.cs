@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 
 namespace DotNetAiCodeHygiene.Core;
 
+/// <param name="Configurable">Gibt an, ob Aufrufer die Regel aktivieren oder deaktivieren dürfen.</param>
 public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose, bool Configurable = true);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
 public sealed record ReviewQuestion(string Id, string Text);
@@ -65,9 +66,18 @@ public sealed class HygieneEngine
         root = dir; hygiene = Path.Combine(root, ".hygiene");
     }
     public string Root => root;
+    /// <summary>Installiert das unterstützte Profil im Repository.</summary>
+    /// <param name="output">Gewünschtes Ausgabeformat.</param>
+    /// <returns>Ergebnis der Profilinstallation.</returns>
     public ProfileResult Bootstrap(string output = "text") => new ProfileManager(root).Bootstrap(output);
+    /// <summary>Gleicht die verwalteten Profilelemente im Repository mit der aktuellen Vorgabe ab.</summary>
+    /// <param name="output">Gewünschtes Ausgabeformat.</param>
+    /// <returns>Ergebnis des Profilabgleichs.</returns>
     public ProfileResult UpdateProfile(string output = "text") => new ProfileManager(root).Update(output);
+    /// <summary>Prüft, ob das Repository ein unterstütztes Profil verwendet.</summary>
     public void RequireProfile() => new ProfileManager(root).RequireCurrent();
+    /// <summary>Analysiert das effektive Profil im Repository.</summary>
+    /// <returns>Gefundene Profilverstöße.</returns>
     public IReadOnlyList<ProfileFinding> AnalyzeProfile() => new ProfileManager(root).Analyze();
 
     private T Read<T>(string path, T fallback)
