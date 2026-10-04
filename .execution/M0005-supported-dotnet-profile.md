@@ -38,7 +38,7 @@ Planning seeded the lossless obligation/evidence registry only. Implementation o
 | AC-26 | acceptance | M0005 adds no StyleCop dependency, external specialist analyzer requirement, arbitrary analyzer compatibility layer, model/provider call, automatic StyleCop removal, non-.NET profile, MCP/IDE integration, or GitHub workflow. | WP-05/WP-06 | scope/dependency/workflow inspection | VAL-05 | implemented |
 | DOC-01 | documentation | README/public docs explain profile bootstrap/update/check lifecycle, generated/managed ownership, analyzer/severity policy, mandatory profile-rule behavior, and StyleCop prohibition. | WP-05 | README and current installed public behavior | VAL-06 | implemented |
 | DOC-02 | documentation | README/public docs explain summary-carrier semantics, positional records, direct inheritdoc, optional XML documentation, structural consistency, sentence punctuation, and separation from semantic summary-quality review. | WP-05 | README and current installed public behavior | VAL-06 | implemented |
-| REV-01 | review | Human completion review confirms the generated profile is appropriately opinionated/minimal, bootstrap/update ownership is safe, StyleCop handling is appropriate, documentation rules avoid accidental completeness policy, record/inheritdoc semantics are understandable, and M0002-M0004 workflows remain coherent. | WP-06 | awaiting project owner/delegate; not self-approved | VAL-07 | awaiting human review |
+| REV-01 | review | Human completion review confirms the generated profile is appropriately opinionated/minimal, bootstrap/update ownership is safe, StyleCop handling is appropriate, documentation rules avoid accidental completeness policy, record/inheritdoc semantics are understandable, and M0002-M0004 workflows remain coherent. | WP-06 | project owner approved `REV-M0005-COMPLETION` in conversation on 2026-10-04 | VAL-07 | accepted |
 
 ## Evidence Case Registry
 
@@ -94,7 +94,7 @@ Planning seeded the lossless obligation/evidence registry only. Implementation o
 | VAL-04 | Tier 4 exact locally packed+installed 0.5.0 tool / isolated Windows consumer repo | AC-24, AC-25 + EC-24a/EC-25a..c | passed | `./eng/validate.ps1` on 2026-10-04 completed exact nupkg hash-copy, isolated `dotnet tool install --version 0.5.0`, version assertion, bootstrap/update/rules/check, documentation findings, and normalize/check workflow. |
 | VAL-05 | Tier 2 complete repo via `./eng/validate.ps1` / Windows 11 | AC-23, AC-24, AC-26 | passed | `./eng/validate.ps1` on 2026-10-04: Release build, Core 44/44, CLI 21/21, package creation, and exact 0.5.0 installed consumer validation completed successfully. |
 | VAL-06 | Tier 2 README/public docs vs installed behavior | DOC-01, DOC-02 | passed | `./eng/validate.ps1` on 2026-10-04 passed; updated PROFILE and DOCUMENTATION specs clarify effective config scopes; public behavior remains asserted by Tier 4. |
-| VAL-07 | Tier 5 human review `REV-M0005-COMPLETION` | REV-01 | awaiting human review | `REV-M0005-COMPLETION` remains for project owner/delegate |
+| VAL-07 | Tier 5 human review `REV-M0005-COMPLETION` | REV-01 | passed | Project owner explicitly approved `REV-M0005-COMPLETION` in conversation on 2026-10-04. |
 
 ## Work Packages
 
@@ -105,11 +105,11 @@ Planning seeded the lossless obligation/evidence registry only. Implementation o
 | WP-03 Effective profile and analyzer checks | `ProfileManager.Analyze` over projects, props/targets, EditorConfig, and StyleCop references | AC-05..AC-10 | complete |
 | WP-04 Documentation carriers and rules | Roslyn documentation analysis in `HygieneEngine` | AC-13..AC-21 | complete |
 | WP-05 Package, installed consumer, and public docs | CLI `0.5.0`, `eng/validate.ps1`, and README | AC-22..AC-26, DOC-01..DOC-02 | complete |
-| WP-06 Regression, evidence, and reconciliation | Core/CLI fixture suites and final validation gate | AC-23..AC-26, ECs, VAL-01..VAL-07 | automated work complete; human review pending |
+| WP-06 Regression, evidence, and reconciliation | Core/CLI fixture suites and final validation gate | AC-23..AC-26, ECs, VAL-01..VAL-07 | complete |
 
 ## Resume Point
 
-Automated implementation and validation are complete. The final `./eng/validate.ps1` run on 2026-10-04 passed Release build, Core 43/43, CLI 21/21, exact packed/installed 0.5.0 Tier-4 consumer checks. Awaiting required project-owner/delegate review `REV-M0005-COMPLETION`; implementation has not self-approved.
+Implementation, validation, and human review are complete. The final `./eng/validate.ps1` run on 2026-10-04 passed Release build, Core 44/44, CLI 21/21, exact packed/installed 0.5.0 Tier-4 consumer checks. The project owner approved `REV-M0005-COMPLETION` on 2026-10-04.
 
 ## Final Reconciliation
 
@@ -129,4 +129,4 @@ Automated implementation and validation are complete. The final `./eng/validate.
 - [x] confirm no StyleCop/external-analyzer/model/MCP/workflow scope was added;
 - [x] update direct required public docs;
 - [x] preserve durable completion evidence in the milestone;
-- [ ] request `REV-M0005-COMPLETION` and terminate `AWAITING HUMAN REVIEW`.
+- [x] request `REV-M0005-COMPLETION`; project owner approved, closing the human review gate.

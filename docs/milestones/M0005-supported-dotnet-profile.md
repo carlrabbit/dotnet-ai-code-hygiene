@@ -301,6 +301,6 @@ Automated evidence collected on 2026-10-04, Windows 11, .NET SDK `11.0.100-rc.1.
 | AC-22..AC-23 | Canonical `Rules` order and existing M0002/M0003/M0004 Core/CLI regression suites | VAL-01..VAL-03, VAL-05 | Core 44/44 and CLI 21/21 passed. |
 | AC-24..AC-25; EC-24a..EC-25c | `eng/validate.ps1` packs `DotNetAiCodeHygiene.Tool.0.5.0`, hash-checks the local feed copy, installs to an isolated tool path, and invokes installed `hygiene.exe` for version, rewrite, bootstrap, update, rules, documentation, and check scenarios | VAL-04, VAL-05 | Exact installed package reported `0.5.0`; Tier-4 consumer lifecycle passed. |
 | AC-26, DOC-01..DOC-02 | Scope/dependency/workflow inspection and README comparison against profile/documentation CLI contracts | VAL-05, VAL-06 | No prohibited integration scope added; public documentation reflects M0005 behavior. |
-| REV-01 | Project-owner/delegate completion review `REV-M0005-COMPLETION` | VAL-07 | Awaiting human review; implementation has not self-approved. |
+| REV-01 | Project-owner/delegate completion review `REV-M0005-COMPLETION` | VAL-07 | Accepted by the project owner in conversation on 2026-10-04. |
 
 Focused evidence by planner-owned evidence-case ID is recorded individually in `.execution/M0005-supported-dotnet-profile.md`; each `evidence collected` row names the exercised test or installed-tool assertions for that exact case.
