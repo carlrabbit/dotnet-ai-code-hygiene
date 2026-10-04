@@ -12,7 +12,7 @@ using System.Text.RegularExpressions;
 
 namespace DotNetAiCodeHygiene.Core;
 
-public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose);
+public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose, bool Configurable = true);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
 public sealed record ReviewQuestion(string Id, string Text);
 public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
@@ -32,8 +32,12 @@ public sealed class HygieneEngine
 {
     public static readonly Rule[] Rules =
     [
-        new("docs.summary.required", 1, "finding", "finding", "Require XML summaries on public and internal API symbols."),
-        new("docs.summary.quality.review", 1, "review-batch", "review-batch", "Review a deterministic sample of existing XML summaries for quality."),
+        new("profile.dotnet.analysis.required", 1, "finding", "finding", "Require the supported .NET analysis profile.", false),
+        new("profile.stylecop.prohibited", 1, "finding", "finding", "Prohibit StyleCop analyzers.", false),
+        new("docs.summary.required", 2, "finding", "finding", "Require documentation summaries on covered API symbols."),
+        new("docs.xml.consistent", 1, "finding", "finding", "Check present XML documentation structure and references."),
+        new("docs.text.sentence", 1, "finding", "finding", "Require sentence punctuation in selected documentation prose."),
+        new("docs.summary.quality.review", 2, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for quality."),
         new("readability.long-line.review", 1, "finding", "review-candidate", "Review unusually long physical source lines."),
         new("readability.control-flow.visual-block", 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.")
     ];
@@ -51,16 +55,28 @@ public sealed class HygieneEngine
         while (!Directory.Exists(Path.Combine(dir, ".git")) && !File.Exists(Path.Combine(dir, ".git")))
         {
             string? parent = Directory.GetParent(dir)?.FullName;
-            if (parent is null) throw new ProductException("Current directory is not inside a Git repository.");
+            if (parent is null)
+            {
+                throw new ProductException("Current directory is not inside a Git repository.");
+            }
+
             dir = parent;
         }
         root = dir; hygiene = Path.Combine(root, ".hygiene");
     }
     public string Root => root;
+    public ProfileResult Bootstrap(string output = "text") => new ProfileManager(root).Bootstrap(output);
+    public ProfileResult UpdateProfile(string output = "text") => new ProfileManager(root).Update(output);
+    public void RequireProfile() => new ProfileManager(root).RequireCurrent();
+    public IReadOnlyList<ProfileFinding> AnalyzeProfile() => new ProfileManager(root).Analyze();
 
     private T Read<T>(string path, T fallback)
     {
-        if (!File.Exists(path)) return fallback;
+        if (!File.Exists(path))
+        {
+            return fallback;
+        }
+
         try { return JsonSerializer.Deserialize<T>(File.ReadAllText(path), json) ?? throw new JsonException(); }
         catch (Exception e) when (e is JsonException or IOException) { throw new ProductException($"Invalid state file '{Path.GetRelativePath(root, path)}'."); }
     }
@@ -69,16 +85,37 @@ public sealed class HygieneEngine
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string? original = verifyExpected ? expected : Snapshot(path);
-        if (Snapshot(path) != original) throw new ProductException("State changed concurrently; retry the command.");
+        if (Snapshot(path) != original)
+        {
+            throw new ProductException("State changed concurrently; retry the command.");
+        }
+
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             File.WriteAllText(temp, content, new UTF8Encoding(false));
             beforeAtomicReplace?.Invoke();
-            if (Snapshot(path) != original) throw new ProductException("State changed concurrently; retry the command.");
-            if (File.Exists(path)) File.Replace(temp, path, null); else File.Move(temp, path);
+            if (Snapshot(path) != original)
+            {
+                throw new ProductException("State changed concurrently; retry the command.");
+            }
+
+            if (File.Exists(path))
+            {
+                File.Replace(temp, path, null);
+            }
+            else
+            {
+                File.Move(temp, path);
+            }
         }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        finally
+        {
+            if (File.Exists(temp))
+            {
+                File.Delete(temp);
+            }
+        }
     }
     private string ConfigPath => Path.Combine(hygiene, "config.json");
     private string DecisionsPath => Path.Combine(hygiene, "decisions.json");
@@ -88,16 +125,22 @@ public sealed class HygieneEngine
         get
         {
             Config value = Read(ConfigPath, new Config(1, []));
-            if (value.SchemaVersion != 1 || value.DisabledRules is null || value.DisabledRules.Any(id => !Rules.Any(r => r.Id == id)) || value.DisabledRules.Distinct(StringComparer.Ordinal).Count() != value.DisabledRules.Length)
+            if (value.SchemaVersion != 1 || value.DisabledRules is null || value.DisabledRules.Any(id => !Rules.Any(r => r.Id == id && r.Configurable)) || value.DisabledRules.Distinct(StringComparer.Ordinal).Count() != value.DisabledRules.Length)
+            {
                 throw new ProductException("Invalid or unsupported .hygiene/config.json.");
+            }
+
             return value.DisabledRules;
         }
     }
     private DecisionFile ReadDecisions()
     {
         DecisionFile value = Read(DecisionsPath, new DecisionFile(1, []));
-        if (value.SchemaVersion != 1 || value.Decisions is null || value.Decisions.Any(d => d is null || string.IsNullOrEmpty(d.Id) || d.Id.Length < 3 || !d.Id.StartsWith("I-", StringComparison.Ordinal) || !Rules.Any(r => r.Id == d.RuleId) || d.RuleVersion < 1 || string.IsNullOrEmpty(d.Fingerprint) || d.Fingerprint.Length != 64) || value.Decisions.Select(d => d.Id).Distinct(StringComparer.Ordinal).Count() != value.Decisions.Length)
+        if (value.SchemaVersion != 1 || value.Decisions is null || value.Decisions.Any(d => d is null || string.IsNullOrEmpty(d.Id) || d.Id.Length < 3 || !d.Id.StartsWith("I-", StringComparison.Ordinal) || !Rules.Any(r => r.Id == d.RuleId && r.Configurable) || d.RuleVersion < 1 || string.IsNullOrEmpty(d.Fingerprint) || d.Fingerprint.Length != 64) || value.Decisions.Select(d => d.Id).Distinct(StringComparer.Ordinal).Count() != value.Decisions.Length)
+        {
             throw new ProductException("Invalid or unsupported .hygiene/decisions.json.");
+        }
+
         return value;
     }
     private sealed record Config(int SchemaVersion, string[] DisabledRules);
@@ -106,38 +149,64 @@ public sealed class HygieneEngine
 
     public void SetRule(string id, bool enabled)
     {
-        if (!Rules.Any(r => r.Id == id)) throw new ProductException($"Unknown rule ID '{id}'.");
+        Rule rule = Rules.SingleOrDefault(r => r.Id == id) ?? throw new ProductException($"Unknown rule ID '{id}'.");
+        if (!rule.Configurable)
+        {
+            throw new ProductException($"Rule '{id}' is mandatory and cannot be enabled or disabled.");
+        }
+
         string? original = Snapshot(ConfigPath);
         string[] current = Disabled;
         string[] next = enabled ? current.Where(x => x != id).ToArray() : current.Append(id).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         WriteAtomic(ConfigPath, JsonSerializer.Serialize(new Config(1, next), json), original, true);
     }
-    public IReadOnlyList<(Rule Rule, bool Enabled)> ListRules() => Rules.Select(r => (r, !Disabled.Contains(r.Id, StringComparer.Ordinal))).ToArray();
+    public IReadOnlyList<(Rule Rule, bool Enabled)> ListRules() => Rules.Select(r => (r, !r.Configurable || !Disabled.Contains(r.Id, StringComparer.Ordinal))).ToArray();
 
     internal string[] ResolveTargets(string[] paths, bool changed)
     {
-        if (changed && paths.Length > 0) throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
+        if (changed && paths.Length > 0)
+        {
+            throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
+        }
+
         IEnumerable<string> files;
         if (changed)
         {
             try { files = GitChanged().ToArray(); }
             catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
         }
-        else if (paths.Length == 0) files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories);
+        else if (paths.Length == 0)
+        {
+            files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories);
+        }
         else
         {
             var chosen = new List<string>();
             foreach (string raw in paths)
             {
                 string full = Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw));
-                if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && full != root) throw new ProductException("Target is outside the repository.");
+                if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && full != root)
+                {
+                    throw new ProductException("Target is outside the repository.");
+                }
+
                 if (File.Exists(full))
                 {
-                    if (!full.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) throw new ProductException($"Unsupported explicit file: {raw}");
+                    if (!full.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new ProductException($"Unsupported explicit file: {raw}");
+                    }
+
                     chosen.Add(full);
                 }
-                else if (Directory.Exists(full)) chosen.AddRange(Directory.EnumerateFiles(full, "*.cs", SearchOption.AllDirectories));
-                else throw new ProductException($"Target does not exist: {raw}");
+                else if (Directory.Exists(full))
+                {
+                    chosen.AddRange(Directory.EnumerateFiles(full, "*.cs", SearchOption.AllDirectories));
+                }
+                else
+                {
+                    throw new ProductException($"Target does not exist: {raw}");
+                }
             }
             files = chosen;
         }
@@ -148,11 +217,24 @@ public sealed class HygieneEngine
     {
         var psi = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         psi.ArgumentList.Add("status"); psi.ArgumentList.Add("--porcelain"); psi.ArgumentList.Add("-z"); psi.ArgumentList.Add("--untracked-files=all");
-        using var p = System.Diagnostics.Process.Start(psi) ?? throw new IOException(); string output = p.StandardOutput.ReadToEnd(); p.WaitForExit(); if (p.ExitCode != 0) throw new IOException();
+        using var p = System.Diagnostics.Process.Start(psi) ?? throw new IOException(); string output = p.StandardOutput.ReadToEnd(); p.WaitForExit(); if (p.ExitCode != 0)
+        {
+            throw new IOException();
+        }
+
         foreach (string entry in output.Split('\0', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (entry.Length < 4 || entry.StartsWith(" D", StringComparison.Ordinal) || entry.StartsWith("D ", StringComparison.Ordinal)) continue;
-            string rel = entry[3..]; if (rel.Contains(" -> ")) rel = rel[(rel.LastIndexOf(" -> ", StringComparison.Ordinal) + 4)..]; yield return Path.Combine(root, rel);
+            if (entry.Length < 4 || entry.StartsWith(" D", StringComparison.Ordinal) || entry.StartsWith("D ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string rel = entry[3..]; if (rel.Contains(" -> "))
+            {
+                rel = rel[(rel.LastIndexOf(" -> ", StringComparison.Ordinal) + 4)..];
+            }
+
+            yield return Path.Combine(root, rel);
         }
     }
     private string[] FindSdkProjects()
@@ -171,13 +253,24 @@ public sealed class HygieneEngine
         while (pending.Count > 0)
         {
             string directory = pending.Pop();
-            foreach (string file in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)) yield return file;
+            foreach (string file in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
+            {
+                yield return file;
+            }
+
             foreach (string child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly))
             {
                 FileAttributes attributes = File.GetAttributes(child);
-                if ((attributes & FileAttributes.ReparsePoint) != 0 || Excluded(child)) continue;
+                if ((attributes & FileAttributes.ReparsePoint) != 0 || Excluded(child))
+                {
+                    continue;
+                }
+
                 string full = Path.GetFullPath(child);
-                if (full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) pending.Push(full);
+                if (full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    pending.Push(full);
+                }
             }
         }
     }
@@ -201,6 +294,7 @@ public sealed class HygieneEngine
 
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true)
     {
+        RequireProfile();
         string[] targets = ResolveTargets(paths, changed);
         string[] projectPaths = FindSdkProjects();
         using MSBuildWorkspace workspace = CreateWorkspace();
@@ -229,7 +323,11 @@ public sealed class HygieneEngine
                 .FirstOrDefault();
             if (project is null)
             {
-                if (directlyTargetedFiles.Contains(target)) throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Path.GetRelativePath(root, target)}");
+                if (directlyTargetedFiles.Contains(target))
+                {
+                    throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Path.GetRelativePath(root, target)}");
+                }
+
                 continue;
             }
             projectsByTarget[target] = project;
@@ -247,79 +345,137 @@ public sealed class HygieneEngine
             var targetSet = projectGroup.Select(item => item.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (Document document in project.Documents.Where(d => d.FilePath is not null && targetSet.Contains(Path.GetFullPath(d.FilePath))))
             {
-            SyntaxTree tree = document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'.");
-            string path = tree.FilePath;
-            string text = File.ReadAllText(path); string rel = Path.GetRelativePath(root, path).Replace('\\', '/');
-            var model = compilation.GetSemanticModel(tree);
-            var occurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-            SyntaxNode syntaxRoot = tree.GetRoot();
-            foreach (SyntaxNode node in syntaxRoot.DescendantNodes())
-            {
-                if (node is MemberDeclarationSyntax member && model.GetDeclaredSymbol(member) is ISymbol symbol && (symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && !symbol.IsImplicitlyDeclared && SummaryEligible(symbol))
+                SyntaxTree tree = document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'.");
+                string path = tree.FilePath;
+                string text = File.ReadAllText(path); string rel = Path.GetRelativePath(root, path).Replace('\\', '/');
+                var model = compilation.GetSemanticModel(tree);
+                var occurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+                SyntaxNode syntaxRoot = tree.GetRoot();
+                foreach (SyntaxNode node in syntaxRoot.DescendantNodes())
                 {
-                    bool hasSummary = HasSummary(member);
-                    string anchor = symbol.GetDocumentationCommentId() ?? symbol.ToDisplayString();
-                    if (!disabled.Contains(Rules[0].Id) && !hasSummary)
-                        candidates.Add(Make(Rules[0], rel, tree, member.GetLocation().SourceSpan.Start, symbol.ToDisplayString(), "Public or internal symbol has no non-empty XML summary.", "Add a concise XML <summary> that describes the symbol's purpose.", "The declaration has no summary text.", "This rule requires documentation, not a particular wording or language.", anchor, "missing-summary:" + anchor));
-                    if (!disabled.Contains(Rules[1].Id) && hasSummary)
+                    if (node is MemberDeclarationSyntax member && model.GetDeclaredSymbol(member) is ISymbol symbol && (symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal) && !symbol.IsImplicitlyDeclared && SummaryEligible(symbol))
                     {
-                        string summary = GetSummaryText(member);
-                        if (!string.IsNullOrWhiteSpace(summary))
+                        foreach (Finding documentationFinding in DocumentationFindings(member, symbol, model, compilation, rel, tree))
                         {
-                            var pos = tree.GetLineSpan(member.GetLocation().SourceSpan).StartLinePosition;
-                            ReviewItem item = new("", rel, pos.Line + 1, pos.Character + 1, symbol.ToDisplayString(), summary, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
-                            reviewSubjects.Add((rel + "\0" + anchor, GetSummaryContent(member), item));
-                            reviewSourceContents.TryAdd(rel, tree.GetText().ToString());
+                            if (documentationFinding.RuleId == Rules[3].Id ? !disabled.Contains(Rules[3].Id) : !disabled.Contains(Rules[4].Id))
+                            {
+                                candidates.Add(documentationFinding);
+                            }
+                        }
+
+                        bool hasSummary = HasSummary(member);
+                        string anchor = symbol.GetDocumentationCommentId() ?? symbol.ToDisplayString();
+                        if (!disabled.Contains(Rules[2].Id) && !hasSummary)
+                        {
+                            candidates.Add(Make(Rules[2], rel, tree, member.GetLocation().SourceSpan.Start, symbol.ToDisplayString(), "Public or internal symbol has no non-empty documentation summary.", "Add a concise documentation summary for this API subject.", "The declaration has no summary text.", "This rule requires documentation, not a particular wording or language.", anchor, "missing-summary:" + anchor));
+                        }
+
+                        if (!disabled.Contains(Rules[5].Id) && hasSummary)
+                        {
+                            string summary = GetSummaryText(member);
+                            if (!string.IsNullOrWhiteSpace(summary))
+                            {
+                                var pos = tree.GetLineSpan(member.GetLocation().SourceSpan).StartLinePosition;
+                                ReviewItem item = new("", rel, pos.Line + 1, pos.Character + 1, symbol.ToDisplayString(), summary, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+                                reviewSubjects.Add((rel + "\0" + anchor, GetSummaryContent(member), item));
+                                reviewSourceContents.TryAdd(rel, tree.GetText().ToString());
+                            }
+                        }
+                    }
+                    if (node is RecordDeclarationSyntax record && record.ParameterList is not null && model.GetDeclaredSymbol(record) is INamedTypeSymbol { DeclaredAccessibility: Accessibility.Public or Accessibility.Internal } recordSymbol)
+                    {
+                        string recordAnchor = recordSymbol.GetDocumentationCommentId() ?? recordSymbol.ToDisplayString();
+                        foreach (ParameterSyntax parameter in record.ParameterList.Parameters)
+                        {
+                            string parameterName = parameter.Identifier.ValueText;
+                            IPropertySymbol? synthesizedProperty = recordSymbol.GetMembers(parameterName).OfType<IPropertySymbol>().FirstOrDefault();
+                            if (synthesizedProperty?.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+                            {
+                                continue;
+                            }
+
+                            string parameterSummary = GetParamText(record, parameterName);
+                            if (string.IsNullOrWhiteSpace(parameterSummary) && !HasInheritdoc(record))
+                            {
+                                string propertyAnchor = recordAnchor + "." + parameterName;
+                                candidates.Add(Make(Rules[2], rel, tree, parameter.SpanStart, propertyAnchor,
+                                    "Public or internal positional record property has no non-empty documentation summary.",
+                                    $"Add a non-empty <param name=\"{parameterName}\"> summary to the record documentation.",
+                                    "The matching record parameter has no summary prose.",
+                                    "Ordinary parameters remain optional documentation subjects.", propertyAnchor, "missing-record-property-summary:" + propertyAnchor));
+                            }
+                            else if (!string.IsNullOrWhiteSpace(parameterSummary))
+                            {
+                                var position = tree.GetLineSpan(parameter.Span).StartLinePosition;
+                                var item = new ReviewItem("", rel, position.Line + 1, position.Character + 1, recordAnchor + "." + parameterName, parameterSummary, recordSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+                                reviewSubjects.Add((rel + "\0" + recordAnchor + "." + parameterName, GetParamContent(record, parameterName), item));
+                                reviewSourceContents.TryAdd(rel, tree.GetText().ToString());
+                            }
+                        }
+                    }
+                }
+                if (!disabled.Contains(Rules[6].Id))
+                {
+                    SourceTextLines(text, (line, number, start) =>
+                    {
+                        if (line.Length > 200)
+                        {
+                            SyntaxNode? containing = syntaxRoot.FindNode(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length), getInnermostNodeForTie: false);
+                            SyntaxNode? anchorNode = containing?.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax or BaseTypeDeclarationSyntax);
+                            string anchor = anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol s ? s.GetDocumentationCommentId() ?? s.ToDisplayString() : rel;
+                            string canonical = string.Join(" ", syntaxRoot.DescendantTokens(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length)).Select(t => t.ToString()));
+                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[6], anchor, canonical);
+                            candidates.Add(Make(Rules[6], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
+                        }
+                    });
+                }
+                if (!disabled.Contains(Rules[7].Id))
+                {
+                    foreach (BlockSyntax block in syntaxRoot.DescendantNodes().OfType<BlockSyntax>())
+                    {
+                        StatementSyntax[] statements = block.Statements.ToArray();
+                        for (int i = 1; i < statements.Length; i++)
+                        {
+                            StatementSyntax current = statements[i], previous = statements[i - 1];
+                            if (!IsControl(current) || IsControl(previous) || previous is LocalFunctionStatementSyntax)
+                            {
+                                continue;
+                            }
+
+                            int prevEnd = previous.Span.End;
+                            SyntaxTriviaList leading = current.GetLeadingTrivia();
+                            SyntaxTrivia[] comments = leading.Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia) || t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)).ToArray();
+                            int boundary = comments.Length > 0 ? comments[0].SpanStart : current.SpanStart;
+                            string between = text[Math.Min(prevEnd, text.Length)..Math.Clamp(boundary, prevEnd, text.Length)];
+                            string[] boundaryLines = between.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+                            if (boundaryLines.Length > 2 && boundaryLines.Skip(1).Take(boundaryLines.Length - 2).Any(string.IsNullOrWhiteSpace))
+                            {
+                                continue;
+                            }
+
+                            ISymbol? container = model.GetEnclosingSymbol(current.SpanStart);
+                            string anchor = container?.GetDocumentationCommentId() ?? container?.ToDisplayString() ?? rel;
+                            string evidence = previous.Kind().ToString() + ":" + string.Join(" ", previous.DescendantTokens().Select(t => t.ToString())) + "|" + current.Kind() + ":" + string.Join(" ", current.DescendantTokens().Select(t => t.ToString()));
+                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[7], anchor, evidence);
+                            candidates.Add(Make(Rules[7], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
                         }
                     }
                 }
             }
-            if (!disabled.Contains(Rules[2].Id))
-            {
-                SourceTextLines(text, (line, number, start) =>
-                {
-                    if (line.Length > 200)
-                    {
-                        SyntaxNode? containing = syntaxRoot.FindNode(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length), getInnermostNodeForTie: false);
-                        SyntaxNode? anchorNode = containing?.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax or BaseTypeDeclarationSyntax);
-                        string anchor = anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol s ? s.GetDocumentationCommentId() ?? s.ToDisplayString() : rel;
-                        string canonical = string.Join(" ", syntaxRoot.DescendantTokens(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length)).Select(t => t.ToString()));
-                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[2], anchor, canonical);
-                        candidates.Add(Make(Rules[2], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
-                    }
-                });
-            }
-            if (!disabled.Contains(Rules[3].Id))
-            {
-                foreach (BlockSyntax block in syntaxRoot.DescendantNodes().OfType<BlockSyntax>())
-                {
-                    StatementSyntax[] statements = block.Statements.ToArray();
-                    for (int i = 1; i < statements.Length; i++)
-                    {
-                        StatementSyntax current = statements[i], previous = statements[i - 1];
-                        if (!IsControl(current) || IsControl(previous) || previous is LocalFunctionStatementSyntax) continue;
-                        int prevEnd = previous.Span.End;
-                        SyntaxTriviaList leading = current.GetLeadingTrivia();
-                        SyntaxTrivia[] comments = leading.Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia) || t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)).ToArray();
-                        int boundary = comments.Length > 0 ? comments[0].SpanStart : current.SpanStart;
-                        string between = text[Math.Min(prevEnd, text.Length)..Math.Clamp(boundary, prevEnd, text.Length)];
-                        string[] boundaryLines = between.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
-                        if (boundaryLines.Length > 2 && boundaryLines.Skip(1).Take(boundaryLines.Length - 2).Any(string.IsNullOrWhiteSpace)) continue;
-                        ISymbol? container = model.GetEnclosingSymbol(current.SpanStart);
-                        string anchor = container?.GetDocumentationCommentId() ?? container?.ToDisplayString() ?? rel;
-                        string evidence = previous.Kind().ToString() + ":" + string.Join(" ", previous.DescendantTokens().Select(t => t.ToString())) + "|" + current.Kind() + ":" + string.Join(" ", current.DescendantTokens().Select(t => t.ToString()));
-                        string discriminator = NextDiscriminator(occurrenceCounts, Rules[3], anchor, evidence);
-                        candidates.Add(Make(Rules[3], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
-                    }
-                }
-            }
-            }
+        }
+        foreach (ProfileFinding finding in AnalyzeProfile())
+        {
+            Rule rule = Rules.Single(r => r.Id == finding.RuleId);
+            string anchor = "profile:" + finding.Path;
+            string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + anchor + "\0" + finding.Message)));
+            candidates.Add(new Finding("", "", rule.Id, rule.Version, rule.Classification, finding.Path, 1, 1, null,
+                finding.Message, finding.Suggestion, finding.Message, finding.Message, finding.Suggestion, anchor, fingerprint));
         }
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        ReviewBatch[] batches = disabled.Contains(Rules[1].Id) ? [] : [BuildReviewBatch(run, reviewSubjects, reviewSourceContents)];
+        ReviewBatch[] batches = disabled.Contains(Rules[5].Id) ? [] : [BuildReviewBatch(run, reviewSubjects, reviewSourceContents)];
         var result = new CheckResult(1, run, active, ignored, batches);
         if (publishLatest)
         {
@@ -346,8 +502,8 @@ public sealed class HygieneEngine
             .Select(s => (s.Identity, s.Content, s.Item, ContentFingerprint: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s.Content)))))
             .ToArray();
         string populationData = string.Join("\n", ordered.Select(s => s.Identity + "\0" + s.ContentFingerprint));
-        string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[1].Id + "\0" + Rules[1].Version + "\0" + populationData)));
-        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[1].Id + "\0" + Rules[1].Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
+        string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[5].Id + "\0" + Rules[5].Version + "\0" + populationData)));
+        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[5].Id + "\0" + Rules[5].Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
             .OrderBy(x => x.Rank, StringComparer.Ordinal).ThenBy(x => x.Subject.Identity, StringComparer.Ordinal).Take(5).ToArray();
         ReviewItem[] all = ordered.Select((s, i) => s.Item with { Id = "RI-" + (i + 1) }).ToArray();
         var ids = all.ToDictionary(x => x.Path + "\0" + x.Line + "\0" + x.Symbol, x => x.Id, StringComparer.Ordinal);
@@ -355,7 +511,7 @@ public sealed class HygieneEngine
         ReviewSource[] sources = ordered.Select(s => s.Item.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
             .Select(path => sourceContents.TryGetValue(path, out string? content) && content is not null ? new ReviewSource(path, content) : throw new ProductException($"Source context for '{path}' is unavailable."))
             .ToArray();
-        return new ReviewBatch("B-1", run + "/B-1", Rules[1].Id, 1, "sample", "implementer", ordered.Length, sample.Length, SummaryQuestions,
+        return new ReviewBatch("B-1", run + "/B-1", Rules[5].Id, 2, "sample", "implementer", ordered.Length, sample.Length, SummaryQuestions,
             new ReviewEscalation("Expand if any sampled summary materially fails Q1-Q4 or the implementer cannot confidently answer any required question.", "hygiene review expand " + run + "/B-1", "frontier"), sample, population, all, sources);
     }
 
@@ -363,12 +519,19 @@ public sealed class HygieneEngine
     {
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
         if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null)
+        {
             throw new ProductException("Review batch is unavailable; run check again.");
+        }
+
         string batchId = handle;
         if (handle.Contains('/'))
         {
             string[] parts = handle.Split('/');
-            if (parts.Length != 2 || parts[0] != snapshot.RunId) throw new ProductException("Review batch handle does not refer to the latest available run.");
+            if (parts.Length != 2 || parts[0] != snapshot.RunId)
+            {
+                throw new ProductException("Review batch handle does not refer to the latest available run.");
+            }
+
             batchId = parts[1];
         }
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
@@ -377,9 +540,21 @@ public sealed class HygieneEngine
         try { fresh = Check(revalidationPaths, false, true, false, false); }
         catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
         ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId) ?? throw new ProductException("Review population changed; rerun hygiene check.");
-        if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint)) throw new ProductException("Review population changed; rerun hygiene check.");
-        return stored with { Mode = "expanded", ReviewerClass = "frontier", PopulationCount = current.PopulationCount, SampleCount = current.PopulationCount,
-            Items = current.PopulationItems ?? [], PopulationItems = current.PopulationItems, SourceContents = current.SourceContents };
+        if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
+        {
+            throw new ProductException("Review population changed; rerun hygiene check.");
+        }
+
+        return stored with
+        {
+            Mode = "expanded",
+            ReviewerClass = "frontier",
+            PopulationCount = current.PopulationCount,
+            SampleCount = current.PopulationCount,
+            Items = current.PopulationItems ?? [],
+            PopulationItems = current.PopulationItems,
+            SourceContents = current.SourceContents
+        };
     }
 
     public string CreateReviewHandoff(string handle, string? filePath = null)
@@ -404,7 +579,11 @@ public sealed class HygieneEngine
     {
         string directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
-        if (File.Exists(path)) throw new ProductException($"Review handoff destination already exists: '{path}'. Choose a new --file path or remove the existing request explicitly.");
+        if (File.Exists(path))
+        {
+            throw new ProductException($"Review handoff destination already exists: '{path}'. Choose a new --file path or remove the existing request explicitly.");
+        }
+
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
@@ -422,7 +601,13 @@ public sealed class HygieneEngine
                 throw new ProductException($"Review handoff destination already exists: '{path}'. Choose a new --file path or remove the existing request explicitly.");
             }
         }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        finally
+        {
+            if (File.Exists(temp))
+            {
+                File.Delete(temp);
+            }
+        }
     }
     private static bool IsControl(StatementSyntax s) => s is IfStatementSyntax or SwitchStatementSyntax or ForStatementSyntax or ForEachStatementSyntax or ForEachVariableStatementSyntax or WhileStatementSyntax or DoStatementSyntax or TryStatementSyntax or UsingStatementSyntax or LockStatementSyntax;
     private static bool Same(IgnoreDecision d, Finding f) => d.RuleId == f.RuleId && d.RuleVersion == f.RuleVersion && d.Path == f.Path && d.Anchor == f.Anchor && d.Fingerprint == f.Fingerprint && d.Discriminator == f.Discriminator;
@@ -435,13 +620,201 @@ public sealed class HygieneEngine
     }
     private static bool SummaryEligible(ISymbol s) => s switch { INamedTypeSymbol => true, IPropertySymbol => true, IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.Ordinary } => true, _ => false };
     private static bool HasSummary(MemberDeclarationSyntax m)
-        => !string.IsNullOrWhiteSpace(GetSummaryText(m));
+        => !string.IsNullOrWhiteSpace(GetSummaryText(m)) || HasInheritdoc(m);
+
+    private static DocumentationCommentTriviaSyntax? Documentation(MemberDeclarationSyntax member)
+        => member.GetLeadingTrivia().Select(t => t.GetStructure()).OfType<DocumentationCommentTriviaSyntax>().FirstOrDefault();
+
+    private static bool HasInheritdoc(MemberDeclarationSyntax member)
+        => Documentation(member)?.DescendantNodes().OfType<XmlEmptyElementSyntax>().Any(e => e.Name.LocalName.ValueText == "inheritdoc") == true;
+
+    private static string GetParamText(MemberDeclarationSyntax member, string name)
+    {
+        XmlElementSyntax? element = Documentation(member)?.DescendantNodes().OfType<XmlElementSyntax>().FirstOrDefault(e =>
+            e.StartTag.Name.LocalName.ValueText == "param" && e.StartTag.Attributes.OfType<XmlNameAttributeSyntax>().Any(a => a.Identifier.Identifier.ValueText == name));
+        return element is null ? "" : XmlProse(element.ToFullString());
+    }
+
+    private static string GetParamContent(MemberDeclarationSyntax member, string name)
+    {
+        XmlElementSyntax? element = Documentation(member)?.DescendantNodes().OfType<XmlElementSyntax>().FirstOrDefault(e =>
+            e.StartTag.Name.LocalName.ValueText == "param" && e.StartTag.Attributes.OfType<XmlNameAttributeSyntax>().Any(a => a.Identifier.Identifier.ValueText == name));
+        if (element is null)
+        {
+            return "";
+        }
+
+        try { return Regex.Replace(XElement.Parse(element.ToFullString()).ToString(SaveOptions.DisableFormatting), @"\s+", " ").Trim(); }
+        catch (System.Xml.XmlException) { return ""; }
+    }
+
+    private static string XmlProse(string xml)
+    {
+        try { return Regex.Replace(XElement.Parse(xml).Value, @"\s+", " ").Trim(); }
+        catch (System.Xml.XmlException) { return ""; }
+    }
+
+    private static IReadOnlyList<Finding> DocumentationFindings(MemberDeclarationSyntax member, ISymbol symbol, SemanticModel model, Compilation compilation, string path, SyntaxTree tree)
+    {
+        DocumentationCommentTriviaSyntax? documentation = Documentation(member);
+        if (documentation is null)
+        {
+            return [];
+        }
+
+        var findings = new List<Finding>();
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        string anchor = symbol.GetDocumentationCommentId() ?? symbol.ToDisplayString();
+        HashSet<string> parameters = symbol switch
+        {
+            IMethodSymbol method => method.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            INamedTypeSymbol type when member is RecordDeclarationSyntax record => (record.ParameterList?.Parameters ?? default).Select(p => p.Identifier.ValueText).ToHashSet(StringComparer.Ordinal),
+            _ => new HashSet<string>(StringComparer.Ordinal)
+        };
+        HashSet<string> typeParameters = symbol switch
+        {
+            IMethodSymbol method => method.TypeParameters.Concat(method.ContainingType is null ? Enumerable.Empty<ITypeParameterSymbol>() : method.ContainingType.TypeParameters).Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            INamedTypeSymbol type => type.TypeParameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+            _ => new HashSet<string>(StringComparer.Ordinal)
+        };
+        foreach (XmlElementSyntax element in documentation.DescendantNodes().OfType<XmlElementSyntax>())
+        {
+            string tag = element.StartTag.Name.LocalName.ValueText;
+            string? name = element.StartTag.Attributes.OfType<XmlNameAttributeSyntax>().FirstOrDefault(a => a.Name.ToString() == "name")?.Identifier.Identifier.ValueText;
+            string prose = XmlProse(element.ToFullString());
+            string? issue = null;
+            if (tag == "param")
+            {
+                if (string.IsNullOrWhiteSpace(name) || !parameters.Contains(name))
+                {
+                    issue = "<param> must name a declaration parameter.";
+                }
+                else if (!counts.TryAdd("param:" + name, 1))
+                {
+                    issue = $"Duplicate <param> for '{name}'.";
+                }
+                else if (string.IsNullOrWhiteSpace(prose))
+                {
+                    issue = $"<param name=\"{name}\"> must contain prose.";
+                }
+            }
+            else if (tag == "typeparam")
+            {
+                if (string.IsNullOrWhiteSpace(name) || !typeParameters.Contains(name))
+                {
+                    issue = "<typeparam> must name a declaration type parameter.";
+                }
+                else if (!counts.TryAdd("typeparam:" + name, 1))
+                {
+                    issue = $"Duplicate <typeparam> for '{name}'.";
+                }
+                else if (string.IsNullOrWhiteSpace(prose))
+                {
+                    issue = $"<typeparam name=\"{name}\"> must contain prose.";
+                }
+            }
+            else if (tag == "returns")
+            {
+                bool hasValueReturn = symbol switch
+                {
+                    IMethodSymbol callable => !callable.ReturnsVoid,
+                    INamedTypeSymbol { TypeKind: TypeKind.Delegate, DelegateInvokeMethod.ReturnsVoid: false } => true,
+                    _ => false
+                };
+                if (!counts.TryAdd("returns", 1))
+                {
+                    issue = "Only one <returns> element is allowed.";
+                }
+                else if (!hasValueReturn)
+                {
+                    issue = "<returns> is only valid for a value-returning callable.";
+                }
+                else if (string.IsNullOrWhiteSpace(prose))
+                {
+                    issue = "<returns> must contain prose.";
+                }
+            }
+            else if (tag == "value")
+            {
+                if (!counts.TryAdd("value", 1))
+                {
+                    issue = "Only one <value> element is allowed.";
+                }
+                else if (symbol is not IPropertySymbol)
+                {
+                    issue = "<value> is only valid on a property or indexer.";
+                }
+                else if (string.IsNullOrWhiteSpace(prose))
+                {
+                    issue = "<value> must contain prose.";
+                }
+            }
+            else if (tag == "exception")
+            {
+                XmlCrefAttributeSyntax? cref = element.StartTag.Attributes.OfType<XmlCrefAttributeSyntax>().FirstOrDefault();
+                ISymbol? target = cref is null ? null : model.GetSymbolInfo(cref.Cref).Symbol;
+                INamedTypeSymbol? baseException = compilation.GetTypeByMetadataName("System.Exception");
+                bool valid = target is INamedTypeSymbol exceptionType && baseException is not null && IsDerivedFrom(exceptionType, baseException);
+                if (!valid)
+                {
+                    issue = "<exception cref> must resolve to an exception type.";
+                }
+                else if (string.IsNullOrWhiteSpace(prose))
+                {
+                    issue = "<exception> must contain prose.";
+                }
+            }
+
+            if (issue is not null)
+            {
+                findings.Add(Make(Rules[3], path, tree, element.SpanStart, symbol.ToDisplayString(), issue, "Correct or remove the optional XML element.", issue, "Optional XML elements are checked only when present.", anchor, tag + ":" + element.ToFullString()));
+            }
+            if (tag is "summary" or "param" or "typeparam" or "returns" or "value" or "exception" && !string.IsNullOrWhiteSpace(prose) && prose[^1] is not ('.' or '?' or '!'))
+            {
+                string message = $"Explicit <{tag}> prose must end with '.', '?' or '!'.";
+                findings.Add(Make(Rules[4], path, tree, element.SpanStart, symbol.ToDisplayString(), message, "Finish the prose with sentence punctuation.", prose, "Sentence punctuation is mechanical and does not judge prose quality.", anchor, tag + ":" + element.ToFullString()));
+            }
+        }
+        foreach (XmlEmptyElementSyntax reference in documentation.DescendantNodes().OfType<XmlEmptyElementSyntax>())
+        {
+            string tag = reference.Name.LocalName.ValueText;
+            if (tag is not ("paramref" or "typeparamref"))
+            {
+                continue;
+            }
+
+            string? name = reference.Attributes.OfType<XmlNameAttributeSyntax>().FirstOrDefault(a => a.Name.ToString() == "name")?.Identifier.Identifier.ValueText;
+            bool valid = tag == "paramref" ? !string.IsNullOrEmpty(name) && parameters.Contains(name) : !string.IsNullOrEmpty(name) && typeParameters.Contains(name);
+            if (!valid)
+            {
+                string message = $"<{tag}> must reference a declaration parameter of the matching kind.";
+                findings.Add(Make(Rules[3], path, tree, reference.SpanStart, symbol.ToDisplayString(), message, "Use a parameter or type parameter declared by this API.", name ?? "missing name", "References are validated without requiring documentation for parameters.", anchor, tag + ":" + reference.ToFullString()));
+            }
+        }
+        return findings;
+    }
+
+    private static bool IsDerivedFrom(INamedTypeSymbol symbol, INamedTypeSymbol baseType)
+    {
+        for (INamedTypeSymbol? current = symbol; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, baseType))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static string GetSummaryText(MemberDeclarationSyntax member)
     {
         foreach (SyntaxTrivia trivia in member.GetLeadingTrivia())
         {
-            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation) continue;
+            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation)
+            {
+                continue;
+            }
+
             foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>().Where(x => x.StartTag.Name.LocalName.ValueText == "summary"))
             {
                 try
@@ -459,7 +832,11 @@ public sealed class HygieneEngine
     {
         foreach (SyntaxTrivia trivia in member.GetLeadingTrivia())
         {
-            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation) continue;
+            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax documentation)
+            {
+                continue;
+            }
+
             foreach (XmlElementSyntax summary in documentation.DescendantNodes().OfType<XmlElementSyntax>().Where(x => x.StartTag.Name.LocalName.ValueText == "summary"))
             {
                 try { return Regex.Replace(XElement.Parse(summary.ToFullString()).ToString(SaveOptions.DisableFormatting), @"\s+", " ").Trim(); }
@@ -481,10 +858,22 @@ public sealed class HygieneEngine
         int start = 0, number = 1;
         for (int i = 0; i <= s.Length; i++)
         {
-            if (i < s.Length && s[i] is not ('\r' or '\n')) continue;
+            if (i < s.Length && s[i] is not ('\r' or '\n'))
+            {
+                continue;
+            }
+
             action(s[start..i], number++, start);
-            if (i == s.Length) break;
-            if (s[i] == '\r' && i + 1 < s.Length && s[i + 1] == '\n') i++;
+            if (i == s.Length)
+            {
+                break;
+            }
+
+            if (s[i] == '\r' && i + 1 < s.Length && s[i + 1] == '\n')
+            {
+                i++;
+            }
+
             start = i + 1;
         }
     }
@@ -497,18 +886,31 @@ public sealed class HygieneEngine
 
     public Finding Explain(string handle)
     {
-        RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [] , 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.Findings is null || snapshot.IgnoredCount < 0 || snapshot.Findings.Any(f => f is null || string.IsNullOrEmpty(f.Id) || string.IsNullOrEmpty(f.RuleId)) || snapshot.Findings.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != snapshot.Findings.Length) throw new ProductException("Latest run state is unavailable or malformed; run check again.");
+        RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
+        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.Findings is null || snapshot.IgnoredCount < 0 || snapshot.Findings.Any(f => f is null || string.IsNullOrEmpty(f.Id) || string.IsNullOrEmpty(f.RuleId)) || snapshot.Findings.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != snapshot.Findings.Length)
+        {
+            throw new ProductException("Latest run state is unavailable or malformed; run check again.");
+        }
+
         string id = handle;
-        if (handle.Contains('/')) { string[] parts = handle.Split('/'); if (parts.Length != 2 || parts[0] != snapshot.RunId) throw new ProductException("Finding handle does not refer to the latest available run."); id = parts[1]; }
+        if (handle.Contains('/')) { string[] parts = handle.Split('/'); if (parts.Length != 2 || parts[0] != snapshot.RunId) { throw new ProductException("Finding handle does not refer to the latest available run."); } id = parts[1]; }
         return snapshot.Findings.SingleOrDefault(f => f.Id == id) ?? throw new ProductException($"Finding '{handle}' was not found in the latest run.");
     }
     public IgnoreDecision Ignore(string handle, string reason)
     {
         Finding reference = Explain(handle);
+        if (!Rules.Single(r => r.Id == reference.RuleId).Configurable)
+        {
+            throw new ProductException($"Mandatory profile finding '{reference.RuleId}' cannot be ignored.");
+        }
+
         CheckResult fresh = Check([reference.Path], false, false, true, false);
         Finding? current = fresh.Findings.FirstOrDefault(f => Same(new IgnoreDecision("", reference.RuleId, reference.RuleVersion, reference.Path, reference.Anchor, reference.Fingerprint, "", default, reference.Discriminator), f));
-        if (current is null) throw new ProductException("Finding is stale; run check again before ignoring it.");
+        if (current is null)
+        {
+            throw new ProductException("Finding is stale; run check again before ignoring it.");
+        }
+
         string? original = Snapshot(DecisionsPath);
         DecisionFile file = ReadDecisions();
         IgnoreDecision decision = new("I-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)), current.RuleId, current.RuleVersion, current.Path, current.Anchor, current.Fingerprint, reason, DateTimeOffset.UtcNow, current.Discriminator);
@@ -520,7 +922,11 @@ public sealed class HygieneEngine
         string? original = Snapshot(DecisionsPath);
         DecisionFile file = ReadDecisions();
         IgnoreDecision[] next = file.Decisions.Where(d => d.Id != id).ToArray();
-        if (next.Length == file.Decisions.Length) throw new ProductException($"Ignore decision '{id}' was not found.");
+        if (next.Length == file.Decisions.Length)
+        {
+            throw new ProductException($"Ignore decision '{id}' was not found.");
+        }
+
         WriteAtomic(DecisionsPath, JsonSerializer.Serialize(new DecisionFile(1, next), json), original, true);
     }
     public IReadOnlyList<IgnoreView> ListIgnores(string[] paths)
@@ -529,7 +935,11 @@ public sealed class HygieneEngine
         var filters = paths.Select(p =>
         {
             string full = Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(root, p));
-            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && full != root) throw new ProductException("Ignore filter is outside the repository.");
+            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && full != root)
+            {
+                throw new ProductException("Ignore filter is outside the repository.");
+            }
+
             return (Path: Path.GetRelativePath(root, full).Replace('\\', '/').TrimEnd('/'), Directory: Directory.Exists(full));
         }).ToArray();
         var scoped = filters.Length == 0 ? file.Decisions : file.Decisions.Where(d => filters.Any(f => d.Path == f.Path || (f.Directory && d.Path.StartsWith(f.Path + "/", StringComparison.Ordinal))));

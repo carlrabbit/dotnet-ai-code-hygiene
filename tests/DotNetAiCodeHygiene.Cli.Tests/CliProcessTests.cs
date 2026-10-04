@@ -50,7 +50,11 @@ public sealed class CliProcessTests
             await Assert.That(result.StandardOutput).DoesNotContain("future");
             await Assert.That(result.StandardOutput).DoesNotContain("not implemented");
         }
-        if (command == "help") await Assert.That(result.StandardOutput).Contains("--agent");
+        if (command == "help")
+        {
+            await Assert.That(result.StandardOutput).Contains("--agent");
+        }
+
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -60,7 +64,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.4.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.5.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -139,7 +143,9 @@ public sealed class CliProcessTests
             {
                 JsonElement value = explanationJson.RootElement;
                 foreach (string field in new[] { "schemaVersion", "ruleId", "ruleVersion", "classification", "path", "line", "column", "observation", "reason", "suggestion", "constraint" })
+                {
                     await Assert.That(value.TryGetProperty(field, out _)).IsTrue();
+                }
             }
             ProcessResult textExplanation = await RunCliInAsync(repo, "explain", finding);
             await Assert.That(textExplanation.ExitCode).IsEqualTo(0);
@@ -156,7 +162,7 @@ public sealed class CliProcessTests
                 JsonElement persistedDecision = decisions.RootElement.GetProperty("decisions")[0];
                 await Assert.That(persistedDecision.GetProperty("id").GetString()!.StartsWith("I-", StringComparison.Ordinal)).IsTrue();
                 await Assert.That(persistedDecision.GetProperty("ruleId").GetString()).IsEqualTo(firstFinding.GetProperty("ruleId").GetString());
-                await Assert.That(persistedDecision.GetProperty("ruleVersion").GetInt32()).IsEqualTo(1);
+                await Assert.That(persistedDecision.GetProperty("ruleVersion").GetInt32()).IsEqualTo(2);
                 await Assert.That(persistedDecision.GetProperty("path").GetString()).IsEqualTo("src/Fixture.cs");
                 await Assert.That(persistedDecision.GetProperty("anchor").GetString()).IsNotEmpty();
                 await Assert.That(persistedDecision.GetProperty("fingerprint").GetString()!.Length).IsEqualTo(64);
@@ -294,7 +300,10 @@ public sealed class CliProcessTests
         finally
         {
             Directory.Delete(repo, true);
-            if (Directory.Exists(external)) Directory.Delete(external, true);
+            if (Directory.Exists(external))
+            {
+                Directory.Delete(external, true);
+            }
         }
     }
 
@@ -323,7 +332,9 @@ public sealed class CliProcessTests
         await Assert.That(help.ExitCode).IsEqualTo(0);
         await Assert.That(help.StandardOutput).Contains("Workflow:");
         foreach (string required in new[] { "Targets:", "Exit 0", "--output text|json", "presentation-only", "non-mutating --check", "findings", "review expand", "review handoff", ".hygiene", "no model" })
+        {
             await Assert.That(help.StandardOutput).Contains(required);
+        }
     }
 
     [Test]
@@ -429,7 +440,11 @@ public sealed class CliProcessTests
             RedirectStandardError = true,
             UseShellExecute = false
         };
-        if (hideGit) startInfo.Environment["PATH"] = Path.GetDirectoryName(CliAssemblyPath)!;
+        if (hideGit)
+        {
+            startInfo.Environment["PATH"] = Path.GetDirectoryName(CliAssemblyPath)!;
+        }
+
         startInfo.ArgumentList.Add(CliAssemblyPath);
 
         foreach (string argument in arguments)
@@ -450,11 +465,27 @@ public sealed class CliProcessTests
     private static async Task RunProcessAsync(string executable, string workingDirectory, params string[] args)
     {
         ProcessStartInfo info = new(executable) { WorkingDirectory = workingDirectory, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string arg in args) info.ArgumentList.Add(arg);
+        foreach (string arg in args)
+        {
+            info.ArgumentList.Add(arg);
+        }
+
         using Process process = Process.Start(info)!;
         string error = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
-        if (process.ExitCode != 0) throw new InvalidOperationException(error);
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        if (executable == "git" && args.Length > 0 && args[0] == "init")
+        {
+            ProcessResult bootstrap = await RunCliInAsync(workingDirectory, "bootstrap", "--output", "json");
+            if (bootstrap.ExitCode != 0)
+            {
+                throw new InvalidOperationException(bootstrap.StandardError);
+            }
+        }
     }
 
     private static string GetCliAssemblyPath()
@@ -468,8 +499,16 @@ public sealed class CliProcessTests
 
     private static void DeleteTree(string path)
     {
-        if (!Directory.Exists(path)) return;
-        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
         Directory.Delete(path, true);
     }
 

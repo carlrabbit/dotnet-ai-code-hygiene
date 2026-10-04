@@ -1,18 +1,39 @@
 # Public Documentation
 
-Install version `0.4.0` from a configured NuGet source with `dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.4.0`, then inspect `hygiene --version` and `hygiene help --agent`. This project supports Windows 11 with the .NET 11 SDK line; it does not claim public-feed publication.
-
-Canonical workflow:
+At M0005 completion, README/public docs must explain the supported-profile lifecycle:
 
 ```text
-implement/change code
--> run relevant tests
--> hygiene normalize
--> hygiene check
--> resolve findings/review work
--> rerun tests/check as appropriate
+hygiene bootstrap
+hygiene update
+hygiene check
 ```
 
-`format` is presentation-only. `normalize` applies a small fixed Roslyn semantic-simplification policy, requires clean project compilations before and after, and formats changed documents. Both support repository/default, explicit file/directory, and `--changed` targets, text/JSON, and non-mutating `--check`. Complete plans are validated before an all-or-nothing mutation; repeated runs are idempotent. `--check` exits 0 when pending changes are reported. JSON includes changed counts and paths. Analysis rules and transformations are separate. The canonical workflow is implement, test, normalize, check, resolve findings/review work, and retest/recheck as appropriate. Existing deterministic finding explain/ignore flows and explicit semantic review expansion/handoff remain available; no model call is made.
+Document:
 
-Do not claim Linux/macOS validation, broad modernization, automated remediation, MCP, IDE integration, or public package publication.
+- the supported profile is `dotnet-11` v1;
+- normal checking requires a current profile marker;
+- bootstrap/update are repository-wide and idempotent;
+- profile-managed artifacts/sections and their ownership boundary;
+- `AnalysisLevel=11`, built-in analyzer enablement, and code-style-in-build;
+- braces and explicit accessibility are enforced as analyzer errors;
+- global warnings-as-errors repository configuration is prohibited;
+- other diagnostics remain at platform/analyzer defaults from the hygiene profile;
+- StyleCop is prohibited and not automatically removed;
+- mandatory profile findings cannot be disabled/ignored;
+- no arbitrary external analyzer compatibility is promised.
+
+Documentation policy must state:
+
+- only a generic documentation summary is required;
+- "summary" is semantic, not `<summary>`-tag-only;
+- positional record property summaries use matching record `<param>` elements;
+- direct `<inheritdoc/>` satisfies missing summary without recursive parent inspection;
+- ordinary params/typeparams/returns/etc. remain optional;
+- optional documentation present must be structurally consistent;
+- selected explicit prose must end with `.`, `?`, or `!`;
+- `<example>` and other non-governed/custom tags are not forbidden;
+- semantic summary-quality review remains separate from deterministic structure/punctuation checks.
+
+Public docs must also retain M0004 installed-tool/format/normalize usage and M0003 review/handoff workflow.
+
+Do not claim support for StyleCop, third-party async analyzers, non-.NET languages, or arbitrary analyzer stacks.

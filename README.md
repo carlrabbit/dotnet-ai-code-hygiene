@@ -4,7 +4,7 @@ AI-first code hygiene tooling for deterministic hygiene analysis and bounded sem
 
 ## Status
 
-The project targets Windows 11 and the .NET 11 SDK line. M0004 provides the installable `0.4.0` tool, deterministic formatting/normalization, and installed-consumer validation.
+The project targets Windows 11 and the .NET 11 SDK line. The installable `0.5.0` tool provides a fixed supported profile, deterministic formatting/normalization, and installed-consumer validation.
 
 M0003 adds bounded semantic review batches. The CLI selects what should be reviewed; the current implementation agent judges the sample. If the sample is materially poor or uncertain, the caller explicitly expands the batch for frontier-capability review. The CLI itself never invokes a model.
 
@@ -24,10 +24,22 @@ Windows 11 and the .NET 11 SDK line are the supported platform. The package is l
 Install the tool package from the configured NuGet source:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.4.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.5.0
 hygiene --version
 hygiene help --agent
 ```
+
+## Supported profile
+
+Each repository runs `hygiene bootstrap` once to establish the supported `dotnet-11` v1 profile, then `hygiene update` to reconcile its profile-owned state and `hygiene check` to analyze source. Normal checking requires the committed `.hygiene/profile.json` marker. Bootstrap and update are repository-wide, idempotent operations; they preserve content outside the delimited hygiene blocks in root `.editorconfig` and `Directory.Build.props`.
+
+The generated `.hygiene/profile/Hygiene.props` pins `AnalysisLevel=11`, enables built-in .NET analyzers, and enforces code-style analyzers during builds. The root EditorConfig requires braces (IDE0011) and explicit accessibility (IDE0040) as errors. The profile does not promote other diagnostics or set a global warnings-as-errors policy. Mandatory profile findings cannot be disabled or ignored. StyleCop analyzers are prohibited and are reported for caller resolution; hygiene does not remove them automatically.
+
+## Documentation hygiene
+
+Only a generic summary is required for covered API subjects. Summary is semantic: ordinary declarations use `<summary>`, while positional record and record-struct properties use the matching record `<param name="...">` text. A direct `<inheritdoc/>` satisfies a missing summary without recursively inspecting inherited documentation. Ordinary parameters, type parameters, returns, values, and exceptions remain optional.
+
+Optional XML documentation that is present is checked for structural consistency. Explicit prose in summaries, parameters, type parameters, returns, values, and exceptions must end in `.`, `?`, or `!`. Examples and custom elements are not independently sentence-checked. Deterministic structure and punctuation rules are separate from semantic summary-quality review.
 
 The canonical coding-agent workflow is:
 

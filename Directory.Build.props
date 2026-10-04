@@ -3,7 +3,9 @@
     <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>default</LangVersion>
   </PropertyGroup>
+  <!-- hygiene profile import:begin -->
+  <Import Project="$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props" Condition="Exists('$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props')" />
+  <!-- hygiene profile import:end -->
 </Project>

@@ -15,7 +15,7 @@ dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --confi
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
 
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.4.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.5.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -42,7 +42,7 @@ if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256
 "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
 $previousNugetPackages = $env:NUGET_PACKAGES
 $env:NUGET_PACKAGES = $nugetCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.4.0
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.5.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { $hygiene = Join-Path $toolPath 'hygiene' }
@@ -56,7 +56,7 @@ try {
     & $hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = & $hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.4\.0') { throw 'Installed hygiene version does not match 0.4.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.5\.0') { throw 'Installed hygiene version does not match 0.5.0.' }
     & $hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $formatBefore = Get-Content -Raw Sample.cs
@@ -79,8 +79,17 @@ try {
     if ($normalized -ceq $normalizeBefore) { throw 'Installed normalize mutation did not change source.' }
     $normalizeClean = & $hygiene normalize --check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $normalizeClean.changedCount -ne 0) { throw 'Installed normalize was not idempotent.' }
-    & $hygiene check --output json | Out-Null
+    $bootstrap = & $hygiene bootstrap --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $bootstrap.findingCount -ne 0) { throw 'Installed bootstrap failed or left profile findings.' }
+    $update = & $hygiene update --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $update.findingCount -ne 0 -or $update.changedPaths.Count -ne 0) { throw 'Installed update was not clean and idempotent.' }
+    $rules = & $hygiene rules --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
+    Set-Content -NoNewline -Path Sample.cs -Value "/// <summary>Sample API</summary>`npublic class Sample { public void Run() { } }`n"
+    $check = & $hygiene check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
+    if (-not ($check.findings | Where-Object ruleId -eq 'docs.summary.required')) { throw 'Installed check did not report a missing API summary.' }
+    if (-not ($check.findings | Where-Object ruleId -eq 'docs.text.sentence')) { throw 'Installed check did not report missing summary punctuation.' }
 }
 finally {
     Pop-Location

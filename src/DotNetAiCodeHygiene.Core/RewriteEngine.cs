@@ -16,7 +16,13 @@ internal static class RoslynWorkspaceRegistration
     private static readonly object Gate = new();
     public static void EnsureRegistered()
     {
-        lock (Gate) if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
+        lock (Gate)
+        {
+            if (!MSBuildLocator.IsRegistered)
+            {
+                MSBuildLocator.RegisterDefaults();
+            }
+        }
     }
 }
 
@@ -37,13 +43,20 @@ public sealed class RewriteEngine
         this.plannedTextForTesting = plannedTextForTesting;
         string dir = Path.GetFullPath(cwd ?? Environment.CurrentDirectory);
         while (!Directory.Exists(Path.Combine(dir, ".git")) && !File.Exists(Path.Combine(dir, ".git")))
+        {
             dir = Directory.GetParent(dir)?.FullName ?? throw new ProductException("Current directory is not inside a Git repository.");
+        }
+
         root = dir;
     }
 
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
-        if (command is not ("format" or "normalize")) throw new ArgumentException("Unknown rewrite command.");
+        if (command is not ("format" or "normalize"))
+        {
+            throw new ArgumentException("Unknown rewrite command.");
+        }
+
         var hygieneEngine = new HygieneEngine(root);
         string[] targets = hygieneEngine.ResolveTargets(paths, changed);
         var directlyTargetedFiles = paths.Select(raw => Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw)))
@@ -59,7 +72,11 @@ public sealed class RewriteEngine
                 .OrderBy(x => Path.GetFullPath(x.Project.FilePath ?? "").Length).FirstOrDefault();
             if (match.Document is null)
             {
-                if (directlyTargetedFiles.Contains(path)) throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Rel(path)}");
+                if (directlyTargetedFiles.Contains(path))
+                {
+                    throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Rel(path)}");
+                }
+
                 continue;
             }
             assigned[path] = match;
@@ -70,7 +87,11 @@ public sealed class RewriteEngine
         {
             Project project = group.First().Value.Project;
             Compilation compilation = project.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not create a project compilation.");
-            if (command == "normalize" && HasErrors(compilation)) throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
+            if (command == "normalize" && HasErrors(compilation))
+            {
+                throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
+            }
+
             foreach (var pair in group)
             {
                 Document document = pair.Value.Document;
@@ -87,7 +108,11 @@ public sealed class RewriteEngine
                     bool hasPreamble = preamble.Length > 0 && original[pair.Key].AsSpan().StartsWith(preamble);
                     byte[] encoded = encoding.GetBytes(content);
                     plan[pair.Key] = hasPreamble ? preamble.Concat(encoded).ToArray() : encoded;
-                    if (!changedByProject.TryGetValue(group.Key, out var files)) changedByProject[group.Key] = files = new(StringComparer.OrdinalIgnoreCase);
+                    if (!changedByProject.TryGetValue(group.Key, out var files))
+                    {
+                        changedByProject[group.Key] = files = new(StringComparer.OrdinalIgnoreCase);
+                    }
+
                     files[pair.Key] = content;
                 }
             }
@@ -96,20 +121,35 @@ public sealed class RewriteEngine
         {
             foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
             {
-                if (!changedByProject.TryGetValue(group.Key, out var files)) continue;
+                if (!changedByProject.TryGetValue(group.Key, out var files))
+                {
+                    continue;
+                }
+
                 Project project = group.First().Value.Project;
                 Solution solution = project.Solution;
                 foreach (var entry in group)
                 {
-                    if (!files.TryGetValue(entry.Key, out string? text)) continue;
+                    if (!files.TryGetValue(entry.Key, out string? text))
+                    {
+                        continue;
+                    }
+
                     solution = solution.WithDocumentText(entry.Value.Document.Id, SourceText.From(text, Encoding.UTF8));
                 }
                 Compilation after = solution.GetProject(group.Key)!.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not validate the rewrite plan.");
-                if (HasErrors(after)) throw new ProductException($"Normalization would introduce compiler errors in '{Rel(project.FilePath!)}'; no files were changed.");
+                if (HasErrors(after))
+                {
+                    throw new ProductException($"Normalization would introduce compiler errors in '{Rel(project.FilePath!)}'; no files were changed.");
+                }
             }
         }
         string[] changedPaths = plan.Keys.Select(Rel).Order(StringComparer.Ordinal).ToArray();
-        if (!checkOnly && plan.Count > 0) Commit(plan, original);
+        if (!checkOnly && plan.Count > 0)
+        {
+            Commit(plan, original);
+        }
+
         return new(command, checkOnly, targets.Length, plan.Count, targets.Length - plan.Count, changedPaths);
     }
 
@@ -128,7 +168,13 @@ public sealed class RewriteEngine
     private void Commit(Dictionary<string, byte[]> plan, Dictionary<string, byte[]> original)
     {
         foreach (var item in original)
-            if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value)) throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
+        {
+            if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value))
+            {
+                throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
+            }
+        }
+
         var staged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var committed = new List<string>();
         try
@@ -141,7 +187,13 @@ public sealed class RewriteEngine
             }
             beforeCommit?.Invoke();
             foreach (var item in original)
-                if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value)) throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
+            {
+                if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value))
+                {
+                    throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
+                }
+            }
+
             int committedCount = 0;
             foreach (var entry in staged.ToArray())
             {
@@ -151,18 +203,36 @@ public sealed class RewriteEngine
                 committed.Add(entry.Key);
                 afterFileCommit?.Invoke(++committedCount);
             }
-            foreach (string backup in staged.Values) if (File.Exists(backup)) File.Delete(backup);
+            foreach (string backup in staged.Values)
+            {
+                if (File.Exists(backup))
+                {
+                    File.Delete(backup);
+                }
+            }
         }
         catch
         {
             foreach (string path in committed.AsEnumerable().Reverse())
             {
                 string backup = staged[path];
-                if (File.Exists(backup)) File.Replace(backup, path, null);
+                if (File.Exists(backup))
+                {
+                    File.Replace(backup, path, null);
+                }
             }
             throw;
         }
-        finally { foreach (string temp in staged.Values) if (File.Exists(temp)) File.Delete(temp); }
+        finally
+        {
+            foreach (string temp in staged.Values)
+            {
+                if (File.Exists(temp))
+                {
+                    File.Delete(temp);
+                }
+            }
+        }
     }
 
     private bool HasErrors(Compilation compilation) => compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null || IsInRepo(d.Location.SourceTree.FilePath)));
@@ -181,7 +251,11 @@ public sealed class RewriteEngine
             try
             {
                 XDocument doc = XDocument.Load(project);
-                if (doc.Root?.Attribute("Sdk") is null && !doc.Root!.Elements().Any(x => x.Name.LocalName == "Sdk")) continue;
+                if (doc.Root?.Attribute("Sdk") is null && !doc.Root!.Elements().Any(x => x.Name.LocalName == "Sdk"))
+                {
+                    continue;
+                }
+
                 Project? existing = workspace.CurrentSolution.Projects.FirstOrDefault(p => Path.GetFullPath(p.FilePath ?? "").Equals(Path.GetFullPath(project), StringComparison.OrdinalIgnoreCase));
                 Project loaded = existing ?? workspace.OpenProjectAsync(project).GetAwaiter().GetResult();
                 list.Add(workspace.CurrentSolution.GetProject(loaded.Id)!);

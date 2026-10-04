@@ -11,7 +11,7 @@ internal static class Program
     {
         RootCommand root = Build();
         ParseResult parsed = root.Parse(args);
-        if (parsed.Errors.Count > 0) { foreach (var error in parsed.Errors) Console.Error.WriteLine(error.Message); return 2; }
+        if (parsed.Errors.Count > 0) { foreach (var error in parsed.Errors) { Console.Error.WriteLine(error.Message); } return 2; }
         try { return await parsed.InvokeAsync(); }
         catch (ArgumentException e) { Console.Error.WriteLine(e.Message); return 2; }
         catch (ProductException e) { Console.Error.WriteLine(e.Message); return 3; }
@@ -22,6 +22,14 @@ internal static class Program
     {
         var root = new RootCommand("Deterministic .NET hygiene, formatting, and normalization tools.");
         var output = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
+        root.Options.Add(new VersionOption());
+        foreach (string name in new[] { "bootstrap", "update" })
+        {
+            var profile = new Command(name, name == "bootstrap" ? "Install the supported dotnet-11 hygiene profile." : "Reconcile the installed hygiene profile.");
+            profile.Options.Add(output);
+            profile.SetAction(parse => Run(() => RenderProfile(name == "bootstrap" ? new HygieneEngine().Bootstrap(parse.GetValue(output) ?? "text") : new HygieneEngine().UpdateProfile(parse.GetValue(output) ?? "text"), parse.GetValue(output) ?? "text")));
+            root.Subcommands.Add(profile);
+        }
         foreach (string name in new[] { "format", "normalize" })
         {
             var command = new Command(name, name == "format" ? "Format selected C# source using Roslyn." : "Apply safe semantic simplifications to selected C# source.");
@@ -72,14 +80,48 @@ internal static class Program
     private static int RenderCheck(HygieneEngine engine, string[] paths, bool changed, string output)
     {
         CheckResult r = engine.Check(paths, changed);
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
-        else if (output == "text") { Console.WriteLine($"Run {r.RunId}: {r.Findings.Count} finding(s), {r.IgnoredCount} ignored."); foreach (Finding f in r.Findings) { string classification = f.Classification == "review-candidate" ? " [review-candidate]" : ""; Console.WriteLine($"{f.Id} {f.RuleId}{classification} {f.Path}:{f.Line}:{f.Column} {f.Message} {f.Suggestion}"); } foreach (ReviewBatch b in r.ReviewBatches) RenderBatchText(b); }
-        else throw new ArgumentException("--output must be text or json.");
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
+        }
+        else if (output == "text")
+        {
+            Console.WriteLine($"Run {r.RunId}: {r.Findings.Count} finding(s), {r.IgnoredCount} ignored."); foreach (Finding f in r.Findings) { string classification = f.Classification == "review-candidate" ? " [review-candidate]" : ""; Console.WriteLine($"{f.Id} {f.RuleId}{classification} {f.Path}:{f.Line}:{f.Column} {f.Message} {f.Suggestion}"); }
+            foreach (ReviewBatch b in r.ReviewBatches)
+            {
+                RenderBatchText(b);
+            }
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
+        return 0;
+    }
+    private static int RenderProfile(ProfileResult r, string output)
+    {
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.FindingCount, r.Findings, r.ChangedPaths }, Json));
+        }
+        else if (output == "text")
+        {
+            Console.WriteLine($"{r.Command}: {r.ChangedPaths.Count} profile file(s) reconciled, {r.FindingCount} finding(s)"); foreach (var f in r.Findings)
+            {
+                Console.WriteLine($"{f.RuleId} {f.Path}: {f.Message} {f.Suggestion}");
+            }
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
         return 0;
     }
     private const string AgentGuidance = """
         hygiene is a repository-scoped .NET hygiene tool. Run it from a Git repository.
-        Workflow: implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check.
+        Workflow: hygiene bootstrap (once per repository) -> implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check. Use hygiene update to reconcile the installed dotnet-11 v1 profile.
         Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
         Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
         format is presentation-only. normalize applies a small fixed Roslyn semantic simplification catalogue, validates compilation before and after, formats changed files, and commits all selected changes together. Both support non-mutating --check and are idempotent.
@@ -89,46 +131,123 @@ internal static class Program
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
     {
-        if (output is not ("text" or "json")) throw new ArgumentException("--output must be text or json.");
+        if (output is not ("text" or "json"))
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
         RewriteResult r = engine.Rewrite(command, paths, changed, checkOnly);
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths }, Json));
-        else if (output == "text") { Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}"); foreach (string path in r.ChangedPaths) Console.WriteLine($"  {path}"); }
-        else throw new ArgumentException("--output must be text or json.");
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths }, Json));
+        }
+        else if (output == "text")
+        {
+            Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}"); foreach (string path in r.ChangedPaths)
+            {
+                Console.WriteLine($"  {path}");
+            }
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
         return 0;
     }
     private static object PublicFinding(Finding f) => new { f.Id, f.Handle, f.RuleId, f.RuleVersion, f.Classification, f.Path, f.Line, f.Column, f.Symbol, f.Message, f.Suggestion };
     private static object PublicBatch(ReviewBatch b) => new { b.Id, b.Handle, b.RuleId, b.RuleVersion, b.Mode, b.ReviewerClass, b.PopulationCount, b.SampleCount, b.Questions, b.Escalation, items = b.Items.Select(i => new { i.Id, i.Path, i.Line, i.Column, i.Symbol, i.Summary, i.Declaration }) };
     private static int RenderReview(ReviewBatch batch, string output)
     {
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, reviewBatch = PublicBatch(batch) }, Json));
-        else if (output == "text") RenderBatchText(batch);
-        else throw new ArgumentException("--output must be text or json.");
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, reviewBatch = PublicBatch(batch) }, Json));
+        }
+        else if (output == "text")
+        {
+            RenderBatchText(batch);
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
         return 0;
     }
     private static void RenderBatchText(ReviewBatch b)
     {
         Console.WriteLine($"{b.Id} {b.RuleId} — {b.Mode} {b.SampleCount}/{b.PopulationCount} — reviewer: {b.ReviewerClass}");
-        foreach (ReviewItem item in b.Items) Console.WriteLine($"  {item.Id} {item.Path}:{item.Line}:{item.Column} {item.Symbol} — {item.Summary}");
-        foreach (ReviewQuestion question in b.Questions) Console.WriteLine($"  {question.Id}: {question.Text}");
-        if (b.Mode == "sample") Console.WriteLine($"  Escalate: {b.Escalation.Condition} Run: hygiene review expand {b.Handle}");
+        foreach (ReviewItem item in b.Items)
+        {
+            Console.WriteLine($"  {item.Id} {item.Path}:{item.Line}:{item.Column} {item.Symbol} — {item.Summary}");
+        }
+
+        foreach (ReviewQuestion question in b.Questions)
+        {
+            Console.WriteLine($"  {question.Id}: {question.Text}");
+        }
+
+        if (b.Mode == "sample")
+        {
+            Console.WriteLine($"  Escalate: {b.Escalation.Condition} Run: hygiene review expand {b.Handle}");
+        }
     }
     private static int RenderFinding(Finding f, string output)
     {
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, f.RuleId, f.RuleVersion, f.Classification, f.Path, f.Line, f.Column, f.Observation, f.Reason, f.Suggestion, f.Constraint }, Json));
-        else if (output == "text") Console.WriteLine($"{f.RuleId} v{f.RuleVersion} ({f.Classification})\n{f.Path}:{f.Line}:{f.Column}\nObservation: {f.Observation}\nWhy: {f.Reason}\nSuggestion: {f.Suggestion}\nConstraint: {f.Constraint}");
-        else throw new ArgumentException("--output must be text or json."); return 0;
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, f.RuleId, f.RuleVersion, f.Classification, f.Path, f.Line, f.Column, f.Observation, f.Reason, f.Suggestion, f.Constraint }, Json));
+        }
+        else if (output == "text")
+        {
+            Console.WriteLine($"{f.RuleId} v{f.RuleVersion} ({f.Classification})\n{f.Path}:{f.Line}:{f.Column}\nObservation: {f.Observation}\nWhy: {f.Reason}\nSuggestion: {f.Suggestion}\nConstraint: {f.Constraint}");
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
+        return 0;
     }
     private static int RenderRules(HygieneEngine e, string output)
     {
-        var values = e.ListRules().Select(x => new { x.Rule.Id, x.Rule.Version, x.Rule.OutputKind, x.Rule.Classification, x.Rule.Purpose, x.Enabled });
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, rules = values }, Json));
-        else if (output == "text") foreach (var r in values) Console.WriteLine($"{r.Id} v{r.Version} [{r.OutputKind}; {(r.Enabled ? "enabled" : "disabled")}] {r.Purpose}");
-        else throw new ArgumentException("--output must be text or json."); return 0;
+        var values = e.ListRules().Select(x => new { x.Rule.Id, x.Rule.Version, x.Rule.OutputKind, x.Rule.Classification, x.Rule.Purpose, x.Rule.Configurable, x.Enabled });
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, rules = values }, Json));
+        }
+        else if (output == "text")
+        {
+            foreach (var r in values)
+            {
+                Console.WriteLine($"{r.Id} v{r.Version} [{r.OutputKind}; {(r.Configurable ? "configurable" : "mandatory")}; {(r.Enabled ? "enabled" : "disabled")}] {r.Purpose}");
+            }
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
+        return 0;
     }
     private static int RenderIgnores(IReadOnlyList<IgnoreView> values, string output)
     {
-        if (output == "json") Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, ignores = values }, Json));
-        else if (output == "text") foreach (var x in values) Console.WriteLine($"{x.Id} {x.State} {x.RuleId} {x.Path} {x.Reason}");
-        else throw new ArgumentException("--output must be text or json."); return 0;
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, ignores = values }, Json));
+        }
+        else if (output == "text")
+        {
+            foreach (var x in values)
+            {
+                Console.WriteLine($"{x.Id} {x.State} {x.RuleId} {x.Path} {x.Reason}");
+            }
+        }
+        else
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
+        return 0;
     }
 }

@@ -3,36 +3,109 @@
 ## System shape
 
 ```text
+repository
+-> profile state/configuration
+-> command-selected fixed rule set
+   -> fixed rule evaluation
+   -> optional fixed deterministic remediation for bootstrap/update
+-> findings/review batches
+
 source targets
-├─> rewrite pipeline
-│    ├─ format
-│    └─ normalize
-└─> analysis pipeline
-     ├─ deterministic findings
-     └─ semantic review batches/handoffs
+-> M0004 rewrite pipeline
+   -> format
+   -> normalize
+
+normal check
+-> mandatory profile rules
+-> configurable deterministic source rules
+-> configurable semantic review rules
 ```
 
-The installed `hygiene` CLI remains the public boundary.
+## Fixed rules, fixed remediation
 
-## Rewrite pipeline
+Rule semantics do not receive an execution phase/mode parameter.
+
+A rule may define:
 
 ```text
-resolve complete target set
--> snapshot source
--> load Roslyn context
--> compute complete in-memory rewrite plan
--> validate plan
--> check-only report OR transactional commit
+diagnosis(repository/context) -> occurrences
+optional deterministic remediation -> proposed repository edits
 ```
 
-The rewrite engine must not expose best-effort per-file mutation.
+`bootstrap`, `update`, and `check` select rule sets/execution policy around those fixed definitions.
 
-`format` uses Roslyn formatting and is presentation-only.
+This prevents hidden parametrization where one rule ID means different things in different commands.
 
-`normalize` requires a clean relevant compilation, applies the fixed semantic simplifications in `docs/specs/REWRITES.md`, formats changed documents, verifies resulting compilation, then commits.
+## Rule sets
 
-Analysis rules and normalization transformations remain separate abstractions. Existing rule configuration does not configure transformations.
+Engine-defined sets:
 
-Tier-4 validation operates on the installed package boundary: pack -> isolated local source -> `dotnet tool install` -> installed command -> isolated consumer repo.
+```text
+bootstrap
+update
+normal
+```
 
-Deferred: resolve/remediation, model invocation, MCP, IDE integration, portable Agent Skill, broad transformation configuration, cross-language rewrite architecture.
+Membership is not user configuration.
+
+Profile rule membership is defined in `docs/specs/PROFILE.md`.
+
+## Profile ownership
+
+Committed profile state:
+
+```text
+.hygiene/profile.json
+```
+
+Namespaced profile artifact:
+
+```text
+.hygiene/profile/Hygiene.props
+```
+
+The product may maintain narrowly delimited integration points in repository-standard files such as root `Directory.Build.props` and `.editorconfig`.
+
+Ownership is explicit and bounded:
+
+- hygiene may reconcile its own generated file/managed section/import;
+- unrelated user content is preserved;
+- arbitrary conflicting project/nested EditorConfig content is diagnosed, not silently rewritten.
+
+## Profile evaluation
+
+`profile.dotnet.analysis.required` validates effective project/analyzer configuration, not only generated file text.
+
+This is necessary because project-local/nested configuration can override root/profile defaults.
+
+## StyleCop boundary
+
+StyleCop is a prohibited tool, not a delegated capability.
+
+The profile rule detects configured/effective activation but has no deterministic removal remediation. Dependency removal is caller-controlled because repository-wide diagnostic impact can require judgment.
+
+## Documentation subject model
+
+Documentation rules operate on API documentation subjects rather than raw tag names.
+
+```text
+API subject
+-> source declaration representation
+-> resolved summary carrier
+```
+
+For positional records, the synthesized property is the subject while the matching record `<param>` is its source summary carrier.
+
+This model is shared by deterministic summary-required logic and semantic summary-quality sampling.
+
+## M0004 boundaries retained
+
+M0004 all-or-nothing mutation infrastructure is reused for bootstrap/update profile edits.
+
+M0004 format/normalize semantics, installed-tool public boundary, and agent-help model remain intact.
+
+## Model boundary
+
+Profile/bootstrap/update/documentation rules introduce no model call.
+
+Semantic review still uses the existing external caller/frontier escalation contract.
