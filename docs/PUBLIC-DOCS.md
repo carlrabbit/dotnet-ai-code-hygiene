@@ -1,33 +1,18 @@
 # Public Documentation
 
-At M0003 completion README/public usage must explain:
+Install version `0.4.0` from a configured NuGet source with `dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.4.0`, then inspect `hygiene --version` and `hygiene help --agent`. This project supports Windows 11 with the .NET 11 SDK line; it does not claim public-feed publication.
+
+Canonical workflow:
 
 ```text
-hygiene check
-hygiene review expand <batch-handle>
-hygiene review handoff <batch-handle> [--file <path>]
+implement/change code
+-> run relevant tests
+-> hygiene normalize
+-> hygiene check
+-> resolve findings/review work
+-> rerun tests/check as appropriate
 ```
 
-Clearly distinguish deterministic findings from semantic review batches.
+`format` is presentation-only. `normalize` applies a small fixed Roslyn semantic-simplification policy, requires clean project compilations before and after, and formats changed documents. Both support repository/default, explicit file/directory, and `--changed` targets, text/JSON, and non-mutating `--check`. Complete plans are validated before an all-or-nothing mutation; repeated runs are idempotent. `--check` exits 0 when pending changes are reported. JSON includes changed counts and paths. Analysis rules and transformations are separate. The canonical workflow is implement, test, normalize, check, resolve findings/review work, and retest/recheck as appropriate. Existing deterministic finding explain/ignore flows and explicit semantic review expansion/handoff remain available; no model call is made.
 
-Document:
-
-- sample reviewer = implementer;
-- expanded/handoff reviewer = frontier;
-- CLI never invokes a model;
-- no engine-managed semantic-review history exists;
-- empty sample is valid;
-- all sampled answers confidently acceptable => no escalation;
-- any material failure or uncertainty => escalate;
-- `review expand` is transient stdout expansion;
-- `review handoff` creates a durable frontier-review request;
-- default repository request path is `.hygiene/reviews/<handoff-id>/request.json`;
-- `.hygiene/reviews/` is intentionally available for PR inclusion;
-- explicit `--file` supports a fully decoupled reviewer via an external/shared path;
-- the request embeds source files containing review subjects;
-- source is not sent anywhere by the CLI;
-- the CLI does not commit the request or ingest review results.
-
-Do not claim the tool itself can determine whether German prose is good.
-
-Formatting/normalization and installed-tool installation guidance remain M0004 work.
+Do not claim Linux/macOS validation, broad modernization, automated remediation, MCP, IDE integration, or public package publication.

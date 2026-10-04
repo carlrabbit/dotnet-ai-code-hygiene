@@ -1,21 +1,15 @@
 # Terminology
 
-**Finding** — deterministic rule occurrence.
+**Formatter** — deterministic presentation-only source transformation.
 
-**Review candidate** — deterministic finding requiring contextual remediation judgment.
+**Normalizer** — deterministic semantics-preserving structural transformation using the fixed engine-defined M0004 catalogue.
 
-**Semantic review rule** — a rule whose primary output is a bounded `ReviewBatch`, not deterministic findings.
+**Rewrite plan** — complete in-memory description of every selected file change before repository mutation.
 
-**ReviewBatch** — run-scoped semantic-review workload containing population size, deterministic sample, fixed questions, reviewer class, and escalation guidance.
+**Rewrite transaction** — all-or-nothing application of a validated rewrite plan across the complete selected target set.
 
-**Review item** — one subject in a batch, identified by path/location/symbol and the artifact to judge.
+**Rewrite check mode** — non-mutating `--check` evaluation that computes the same rewrite plan and reports pending changes.
 
-**Sample review** — bounded normal batch reviewed by the current implementation agent.
+**Installed-tool validation** — validation against `dotnet tool install` from the exact local package, not project-output DLLs.
 
-**Expanded review** — full eligible population returned after explicit escalation; M0003 requires reviewer class `frontier`.
-
-**Escalation** — caller-controlled transition from sample batch to expanded batch. The CLI does not decide sample pass/fail or invoke a model.
-
-**Review batch handle** — run-scoped handle such as `R-8K3M/B-1`; valid only for latest local run state.
-
-M0003 intentionally has no semantic-review history, TTL, schedule, acceptance record, or per-item persistence.
+**Agent help** — CLI-owned coding-agent guidance for workflow, targeting, outputs/exits, rewrites, deterministic findings, and semantic-review escalation/handoff.

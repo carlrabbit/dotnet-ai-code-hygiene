@@ -22,8 +22,9 @@ public sealed class CliProcessTests
         await Assert.That(result.StandardOutput).Contains("ignore");
         await Assert.That(result.StandardOutput).Contains("unignore");
         await Assert.That(result.StandardOutput).Contains("ignores");
-            await Assert.That(result.StandardOutput).Contains("rules");
+        await Assert.That(result.StandardOutput).Contains("rules");
         await Assert.That(result.StandardOutput).Contains("review");
+        await Assert.That(result.StandardOutput).Contains("help");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -37,12 +38,19 @@ public sealed class CliProcessTests
     [Arguments("ignores")]
     [Arguments("rules")]
     [Arguments("review")]
+    [Arguments("help")]
     public async Task ReservedCommandHelpSucceeds(string command)
     {
         ProcessResult result = await RunCliAsync(command, "--help");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
         await Assert.That(result.StandardOutput).Contains(command);
+        if (command is "format" or "normalize")
+        {
+            await Assert.That(result.StandardOutput).DoesNotContain("future");
+            await Assert.That(result.StandardOutput).DoesNotContain("not implemented");
+        }
+        if (command == "help") await Assert.That(result.StandardOutput).Contains("--agent");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -52,7 +60,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.1.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.4.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -309,16 +317,101 @@ public sealed class CliProcessTests
     }
 
     [Test]
-    public async Task FormatAndNormalizeRemainNonFunctionalScaffolding()
+    public async Task FormatAndNormalizeExposeFunctionalHelpAndOutput()
     {
-        ProcessResult format = await RunCliAsync("format");
-        ProcessResult normalize = await RunCliAsync("normalize");
-        await Assert.That(format.ExitCode).IsEqualTo(3);
-        await Assert.That(format.StandardOutput).IsEmpty();
-        await Assert.That(format.StandardError).Contains("format is not implemented");
-        await Assert.That(normalize.ExitCode).IsEqualTo(3);
-        await Assert.That(normalize.StandardOutput).IsEmpty();
-        await Assert.That(normalize.StandardError).Contains("normalize is not implemented");
+        ProcessResult help = await RunCliAsync("help", "--agent");
+        await Assert.That(help.ExitCode).IsEqualTo(0);
+        await Assert.That(help.StandardOutput).Contains("Workflow:");
+        foreach (string required in new[] { "Targets:", "Exit 0", "--output text|json", "presentation-only", "non-mutating --check", "findings", "review expand", "review handoff", ".hygiene", "no model" })
+            await Assert.That(help.StandardOutput).Contains(required);
+    }
+
+    [Test]
+    public async Task RewriteCliJsonTextCheckModesAndPersistentStateBoundaries()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-cli-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        Directory.CreateDirectory(Path.Combine(repo, "broken"));
+        try
+        {
+            await RunProcessAsync("git", repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string file = Path.Combine(repo, "src", "Fixture.cs");
+            const string original = "using System; public class Fixture{private int value; public String Empty(){return System.String.Empty;} public int Read(){return this.value;}}";
+            await File.WriteAllTextAsync(file, original);
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Other.cs"), "public class Other { }\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "broken", "Broken.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string broken = Path.Combine(repo, "broken", "Broken.cs");
+            await File.WriteAllTextAsync(broken, "public class Broken{void Run(){MissingType value=null;}}\n");
+
+            ProcessResult formatWithCompilerError = await RunCliInAsync(repo, "format", broken, "--check", "--output", "json");
+            await Assert.That(formatWithCompilerError.ExitCode).IsEqualTo(0);
+            await Assert.That(formatWithCompilerError.StandardError).IsEmpty();
+            using (JsonDocument.Parse(formatWithCompilerError.StandardOutput)) { }
+
+            string hygiene = Path.Combine(repo, ".hygiene");
+            Directory.CreateDirectory(Path.Combine(hygiene, ".state"));
+            string config = Path.Combine(hygiene, "config.json");
+            string decisions = Path.Combine(hygiene, "decisions.json");
+            string latest = Path.Combine(hygiene, ".state", "latest-run.json");
+            await File.WriteAllTextAsync(config, "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.required\"]}");
+            await File.WriteAllTextAsync(decisions, "{\"schemaVersion\":1,\"decisions\":[]}");
+            await File.WriteAllTextAsync(latest, "rewrite-state-sentinel");
+            string configBefore = await File.ReadAllTextAsync(config);
+            string decisionsBefore = await File.ReadAllTextAsync(decisions);
+            string latestBefore = await File.ReadAllTextAsync(latest);
+
+            string sourceBeforeFormat = await File.ReadAllTextAsync(file);
+            ProcessResult formatCheck = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--check", "--output", "json");
+            await Assert.That(formatCheck.ExitCode).IsEqualTo(0);
+            await Assert.That(formatCheck.StandardError).IsEmpty();
+            using JsonDocument json = JsonDocument.Parse(formatCheck.StandardOutput);
+            JsonElement format = json.RootElement;
+            await Assert.That(format.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
+            await Assert.That(format.GetProperty("checkOnly").GetBoolean()).IsTrue();
+            await Assert.That(format.GetProperty("targetCount").GetInt32()).IsEqualTo(1);
+            await Assert.That(format.GetProperty("changedPaths").GetArrayLength()).IsEqualTo(format.GetProperty("changedCount").GetInt32());
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(sourceBeforeFormat);
+            ProcessResult invalidOutput = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "yaml");
+            await Assert.That(invalidOutput.ExitCode).IsEqualTo(2);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(sourceBeforeFormat);
+            ProcessResult formatMutation = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "json");
+            await Assert.That(formatMutation.ExitCode).IsEqualTo(0);
+            using JsonDocument formatMutationJson = JsonDocument.Parse(formatMutation.StandardOutput);
+            await Assert.That(formatMutationJson.RootElement.GetProperty("changedPaths").ToString()).IsEqualTo(format.GetProperty("changedPaths").ToString());
+            ProcessResult cleanJson = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--check", "--output", "json");
+            using JsonDocument cleanFormat = JsonDocument.Parse(cleanJson.StandardOutput);
+            await Assert.That(cleanFormat.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
+            ProcessResult cleanText = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "text");
+            await Assert.That(cleanText.ExitCode).IsEqualTo(0);
+            await Assert.That(cleanText.StandardOutput).Contains("0 changed");
+
+            byte[] sourceBeforeNormalize = await File.ReadAllBytesAsync(file);
+            ProcessResult normalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
+            await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
+            using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
+            string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
+            await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
+            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
+            ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");
+            await Assert.That(normalizeMutation.ExitCode).IsEqualTo(0);
+            using JsonDocument normalizeMutationJson = JsonDocument.Parse(normalizeMutation.StandardOutput);
+            await Assert.That(normalizeMutationJson.RootElement.GetProperty("changedPaths").ToString()).IsEqualTo(paths);
+            string normalized = await File.ReadAllTextAsync(file);
+            await Assert.That(normalized).Contains("string Empty()");
+            await Assert.That(normalized).DoesNotContain("System.String.Empty");
+            await Assert.That(await File.ReadAllTextAsync(config)).IsEqualTo(configBefore);
+            await Assert.That(await File.ReadAllTextAsync(decisions)).IsEqualTo(decisionsBefore);
+            await Assert.That(await File.ReadAllTextAsync(latest)).IsEqualTo(latestBefore);
+
+            ProcessResult conflictingTargets = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--changed");
+            await Assert.That(conflictingTargets.ExitCode).IsEqualTo(2);
+            ProcessResult unsupported = await RunCliInAsync(repo, "format", "src/Fixture.csproj");
+            await Assert.That(unsupported.ExitCode).IsEqualTo(3);
+            ProcessResult outside = await RunCliInAsync(repo, "format", Path.GetTempPath());
+            await Assert.That(outside.ExitCode).IsEqualTo(3);
+        }
+        finally { DeleteTree(repo); }
     }
 
     private static async Task<ProcessResult> RunCliAsync(params string[] arguments)
@@ -371,6 +464,13 @@ public sealed class CliProcessTests
             .Single(attribute => attribute.Key == "CliAssemblyPath")
             .Value!;
         return Path.GetFullPath(configuredPath);
+    }
+
+    private static void DeleteTree(string path)
+    {
+        if (!Directory.Exists(path)) return;
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+        Directory.Delete(path, true);
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
