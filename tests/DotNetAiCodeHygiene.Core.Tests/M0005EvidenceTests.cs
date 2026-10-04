@@ -91,6 +91,7 @@ public sealed class M0005EvidenceTests
             Directory.CreateDirectory(nested);
             string source = Path.Combine(nested, "Api.cs");
             await File.WriteAllTextAsync(source, "public class Api { }\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"nested/Api.cs\" /></ItemGroup></Project>");
             string config = Path.Combine(nested, ".editorconfig");
             await File.WriteAllTextAsync(config, "[*.cs]\ndotnet_diagnostic.IDE0011.severity = none\n");
             IReadOnlyList<ProfileFinding> inherited = new ProfileManager(repo).Analyze();
@@ -99,6 +100,25 @@ public sealed class M0005EvidenceTests
             IReadOnlyList<ProfileFinding> cutoff = new ProfileManager(repo).Analyze();
             await Assert.That(cutoff.Any(f => f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0040", StringComparison.Ordinal))).IsTrue();
             await Assert.That(cutoff.Any(f => f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task EC05EffectiveEditorConfigAppliesOnlyToEvaluatedCompileSources()
+    {
+        string repo = await NewProfileRepo(withProject: true);
+        try
+        {
+            string nested = Path.Combine(repo, "src", "nested");
+            Directory.CreateDirectory(nested);
+            await File.WriteAllTextAsync(Path.Combine(nested, "Loose.cs"), "public class Loose { }\n");
+            await File.WriteAllTextAsync(Path.Combine(nested, "Projected.cs"), "public class Projected { }\n");
+            await File.WriteAllTextAsync(Path.Combine(nested, ".editorconfig"), "[*.cs]\ndotnet_diagnostic.IDE0011.severity = none\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"nested/Projected.cs\" /></ItemGroup></Project>");
+            IReadOnlyList<ProfileFinding> findings = new ProfileManager(repo).Analyze();
+            await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Loose.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsFalse();
+            await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Projected.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
         }
         finally { DeleteTree(repo); }
     }
@@ -153,7 +173,7 @@ public sealed class M0005EvidenceTests
             await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string assets = Path.Combine(repo, "src", "obj", "project.assets.json");
             Directory.CreateDirectory(Path.GetDirectoryName(assets)!);
-            await File.WriteAllTextAsync(assets, "{\"targets\":{\"net11.0\":{\"StyleCop.Analyzers/1.2.0\":{\"analyzers\":[{\"path\":\"analyzers/dotnet/cs/StyleCop.Analyzers.dll\"}]}}}}");
+            await File.WriteAllTextAsync(assets, "{\"targets\":{\"net11.0\":{\"StyleCop.Analyzers/1.2.0\":{\"analyzers\":{\"analyzers/dotnet/cs/StyleCop.Analyzers.dll\":{\"codeLanguage\":\"cs\"}}}}}}");
             IReadOnlyList<ProfileFinding> resolved = new ProfileManager(repo).Analyze().Where(f => f.RuleId == "profile.stylecop.prohibited").ToArray();
             await Assert.That(resolved.Count(f => f.Path == "src/App.csproj")).IsEqualTo(1);
         }

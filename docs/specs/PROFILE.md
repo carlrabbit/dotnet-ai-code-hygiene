@@ -178,7 +178,7 @@ dotnet_diagnostic.IDE0040.severity = error
 
 No other diagnostic severity is set by the v1 profile.
 
-Deeper/user EditorConfig entries are allowed, but they must not weaken these required effective settings. The profile rule resolves the EditorConfig hierarchy for repository C# source files, applying matching sections from parent to child until a `root = true` cutoff. A missing cutoff allows parent configuration to affect the repository. The profile rule validates the effective configuration seen by supported project source files, not every raw setting regardless of whether it matches a source path.
+Deeper/user EditorConfig entries are allowed, but they must not weaken these required effective settings. The profile rule resolves the EditorConfig hierarchy for C# source files that are evaluated `Compile` inputs of supported SDK-style C# projects, applying matching sections from parent to child until a `root = true` cutoff. A missing cutoff allows parent configuration to affect the repository. Files shared by multiple supported projects are validated once. Loose or otherwise unprojected C# files are not profile subjects. The profile rule validates the effective configuration seen by supported project source files, not every raw setting regardless of whether it matches a source path.
 
 ## Severity policy
 

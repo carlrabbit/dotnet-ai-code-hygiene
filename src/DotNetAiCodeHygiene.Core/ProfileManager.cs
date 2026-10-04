@@ -66,6 +66,7 @@ public sealed class ProfileManager
     {
         var findings = new List<ProfileFinding>();
         var styleCopSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var evaluatedSources = new HashSet<string>(PathComparer);
         if (!File.Exists(P(".hygiene/profile/Hygiene.props")) || File.ReadAllText(P(".hygiene/profile/Hygiene.props")) != Props)
         {
             findings.Add(new("profile.dotnet.analysis.required", ".hygiene/profile/Hygiene.props", "The generated supported-profile MSBuild artifact is missing or drifted.", "Run hygiene update to reconcile hygiene-owned profile state."));
@@ -107,11 +108,16 @@ public sealed class ProfileManager
         {
             try
             {
+                if (!IsSdkStyleProject(project))
+                {
+                    continue;
+                }
                 string[] configurations = ["Debug", "Release"];
                 bool hasRepositoryConfiguredStyleCopSource = false;
+                var projectSources = new HashSet<string>(PathComparer);
                 foreach (string configuration in configurations)
                 {
-                    using JsonDocument evaluation = Evaluate(project, configuration, "-getProperty:AnalysisLevel,EnableNETAnalyzers,EnforceCodeStyleInBuild,ManagePackageVersionsCentrally", "-getItem:Analyzer,PackageReference,PackageVersion");
+                    using JsonDocument evaluation = Evaluate(project, configuration, "-getProperty:AnalysisLevel,EnableNETAnalyzers,EnforceCodeStyleInBuild,ManagePackageVersionsCentrally", "-getItem:Analyzer,PackageReference,PackageVersion,Compile");
                     JsonElement properties = evaluation.RootElement.GetProperty("Properties");
                     foreach ((string property, string expected) in new[] { ("AnalysisLevel", "11"), ("EnableNETAnalyzers", "true"), ("EnforceCodeStyleInBuild", "true") })
                     {
@@ -122,6 +128,22 @@ public sealed class ProfileManager
                         }
                     }
                     JsonElement items = evaluation.RootElement.GetProperty("Items");
+                    foreach (JsonElement item in items.GetProperty("Compile").EnumerateArray())
+                    {
+                        string fullPath = ItemProperty(item, "FullPath");
+                        if (fullPath.Length == 0)
+                        {
+                            string identity = ItemProperty(item, "Identity");
+                            if (identity.Length > 0)
+                            {
+                                fullPath = Path.GetFullPath(identity, Path.GetDirectoryName(project)!);
+                            }
+                        }
+                        if (fullPath.Length > 0 && Path.GetExtension(fullPath).Equals(".cs", StringComparison.OrdinalIgnoreCase) && File.Exists(fullPath) && IsWithinRoot(fullPath))
+                        {
+                            projectSources.Add(Path.GetFullPath(fullPath));
+                        }
+                    }
                     foreach (JsonElement item in items.GetProperty("Analyzer").EnumerateArray())
                     {
                         string identity = ItemProperty(item, "Identity");
@@ -167,6 +189,7 @@ public sealed class ProfileManager
                 {
                     styleCopSources.Add(project);
                 }
+                evaluatedSources.UnionWith(projectSources);
             }
             catch (Exception e) when (e is IOException or InvalidOperationException or JsonException or ProductException)
             {
@@ -174,7 +197,7 @@ public sealed class ProfileManager
             }
         }
 
-        foreach (string source in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories).Where(p => !Ignored(p)))
+        foreach (string source in evaluatedSources)
         {
             IReadOnlyDictionary<string, string> effective = EffectiveEditorConfig(source);
             foreach ((string key, string expected) in new[] { ("csharp_prefer_braces", "true"), ("dotnet_diagnostic.IDE0011.severity", "error"), ("dotnet_style_require_accessibility_modifiers", "always"), ("dotnet_diagnostic.IDE0040.severity", "error") })
@@ -201,6 +224,16 @@ public sealed class ProfileManager
     }
     private static string Property(JsonElement properties, string key) => properties.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
     private static string ItemProperty(JsonElement item, string key) => item.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
+    private static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    private static bool IsSdkStyleProject(string project)
+    {
+        try
+        {
+            XDocument doc = XDocument.Load(project);
+            return doc.Root?.Attribute("Sdk") is not null || doc.Root?.Elements().Any(e => e.Name.LocalName == "Import" && ((string?)e.Attribute("Project"))?.Contains("Sdk.props", StringComparison.OrdinalIgnoreCase) == true) == true;
+        }
+        catch (System.Xml.XmlException) { return false; }
+    }
 
     private JsonDocument Evaluate(string project, string configuration, string properties, string items)
     {
@@ -261,8 +294,9 @@ public sealed class ProfileManager
             {
                 foreach (JsonProperty library in target.Value.EnumerateObject())
                 {
-                    if (library.Value.TryGetProperty("analyzers", out JsonElement analyzers) && analyzers.ValueKind == JsonValueKind.Array &&
-                        (IsStyleCop(library.Name) || analyzers.EnumerateArray().Any(analyzer => IsStyleCop(analyzer.TryGetProperty("path", out JsonElement path) ? path.GetString() ?? "" : ""))))
+                    if (library.Value.TryGetProperty("analyzers", out JsonElement analyzers) &&
+                        (IsStyleCop(library.Name) || (analyzers.ValueKind == JsonValueKind.Object && analyzers.EnumerateObject().Any(analyzer => IsStyleCop(analyzer.Name))) ||
+                         (analyzers.ValueKind == JsonValueKind.Array && analyzers.EnumerateArray().Any(analyzer => IsStyleCop(analyzer.TryGetProperty("path", out JsonElement path) ? path.GetString() ?? "" : "")))))
                     {
                         return true;
                     }
