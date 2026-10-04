@@ -1,29 +1,52 @@
 # dotnet-ai-code-hygiene
 
-`hygiene` is a Windows-first CLI for deterministic C# code hygiene checks. M0002 provides three parameterless rules: `docs.summary.required`, `readability.long-line.review`, and `readability.control-flow.visual-block`. Checks are read-only and findings do not cause a non-zero exit code.
+AI-first code hygiene tooling for deterministic hygiene analysis and bounded semantic review.
 
-Run from a Git repository containing SDK-style .NET projects:
+## Status
 
-```powershell
+M0001 and M0002 are complete. M0003 — Semantic Review Sampling & Escalation — is the active milestone.
+
+M0003 adds bounded semantic review batches. The CLI selects what should be reviewed; the current implementation agent judges the sample. If the sample is materially poor or uncertain, the caller explicitly expands the batch for frontier-capability review. The CLI itself never invokes a model.
+
+```text
+generated or edited code
+-> deterministic findings
+-> bounded semantic review sample
+-> implementer review
+-> explicit frontier escalation only when needed
+-> remediation by the calling agent
+```
+
+Windows 11 and the .NET 11 SDK line remain the authoritative initial platform. No GitHub Actions/workflows are used.
+
+M0003 review workflow:
+
+```text
 hygiene check
-hygiene check src/Example/Service.cs
-hygiene check --changed
-hygiene check --output json
-hygiene rules
-hygiene explain R-7K2M9P/F-1
-hygiene ignore F-1 --reason "Reviewed and intentionally retained"
-hygiene ignores
-hygiene unignore I-1
+hygiene review expand <batch-handle>
+hygiene review handoff <batch-handle> [--file <path>]
 ```
 
-Use `--output json` for automation. JSON results use schema version 1; diagnostics are written to stderr. Exit codes are `0` for successful commands (including checks with findings), `1` for unexpected failures, `2` for malformed invocation, `3` for invalid repository/input/state, and `4` when a required dependency such as Git is unavailable.
+`hygiene check` reports deterministic findings and one semantic review batch for each enabled semantic review rule. The first rule, `docs.summary.quality.review`, samples up to five valid, non-empty XML summaries from the selected C# targets. An empty sample is valid and is reported explicitly as `sample 0/0`.
 
-The CLI owns `.hygiene/config.json` and `.hygiene/decisions.json`. The latest local run is stored under `.hygiene/.state/` and is Git-ignored. Use `hygiene rules enable|disable` to select rules and the ignore commands to manage reviewed exceptions.
+The current implementation agent reviews the normal sample against the four published questions: natural German, technical correctness, information value, and clarity/scope. Confidently acceptable answers need no further action. If any answer materially fails or the implementation agent is uncertain about any question, explicitly expand the batch and hand the complete eligible population to a frontier-capability reviewer:
 
-M0002 is validated on Windows 11 with the .NET 11 SDK line. `format` and `normalize` are not implemented until M0003. Installed-tool usage guidance is deferred until the packaged consumer surface is validated.
-
-Run repository validation with:
-
-```powershell
-./eng/validate.ps1
+```text
+hygiene review expand B-1
 ```
+
+`review expand B-1` is a transient stdout operation for a colocated frontier reviewer. It accepts a bare batch ID or a fully qualified latest-run handle such as `R-7K2M9P/B-1` and emits the full revalidated population.
+
+`review handoff B-1` creates a durable JSON request at `.hygiene/reviews/<handoff-id>/request.json`. This namespaced folder is intentionally not Git-ignored, so a team can include the request in the same branch or PR. The CLI does not commit it; whether to add the artifact is a caller/team decision.
+
+For a completely decoupled frontier reviewer, choose an external destination:
+
+```text
+hygiene review handoff B-1 --file "G:\My Drive\Transfer\HR-R7K2M9P-B1-request.json"
+```
+
+Both handoff forms use the same latest-run and population revalidation as `review expand`. The request embeds full source text for each file containing a review item, and no unrelated source files. Choose only a destination appropriate for that repository source. The CLI writes the file locally; it does not transmit source, invoke Git, or commit the request.
+
+The CLI never invokes a model or determines whether prose passes. No engine-managed semantic-review history or result ingestion exists; a request is an explicit review work product, not review acceptance state.
+
+Formatting, normalization, and installed-tool consumer validation move to M0004.

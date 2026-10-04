@@ -1,123 +1,55 @@
 # Engineering
 
-## Development baseline
+## Baseline
 
-```text
-Operating system: Windows 11
-SDK line: .NET 11
-Language version: SDK default
-Shell for repository engineering launchers: PowerShell
-```
+Windows 11; .NET 11 SDK line; SDK-default C#; PowerShell.
 
-Do not claim Linux or macOS support until representative process-level validation exists there.
+Required technologies remain `System.CommandLine`, TUnit, Roslyn, BCL SHA-256, and existing Git support where already required.
 
-## Required technologies
-
-- `System.CommandLine` is the required CLI parser/command library.
-- TUnit is the required test framework.
-- Roslyn compiler/workspace APIs are the required C# analysis foundation.
-- BCL `System.Security.Cryptography.SHA256` is the fingerprint hash primitive.
-- Git is a required environment dependency only for `--changed`.
-
-Exact compatible package patch versions remain implementation-maintained unless compatibility evidence requires stronger pinning.
-
-## Repository shape
-
-M0002 may extend the repository to:
-
-```text
-DotNetAiCodeHygiene.slnx
-src/
-  DotNetAiCodeHygiene.Cli/
-  DotNetAiCodeHygiene.Core/
-tests/
-  DotNetAiCodeHygiene.Cli.Tests/
-  DotNetAiCodeHygiene.Core.Tests/
-eng/
-  validate.ps1
-```
-
-Do not create additional speculative layers/projects.
-
-`Core` is an internal implementation assembly, not a supported public library.
-
-## Build quality
-
-All project code keeps:
-
-```text
-TargetFramework=net11.0
-Nullable=enable
-ImplicitUsings=enable
-TreatWarningsAsErrors=true
-```
+M0003 adds no AI/model SDK or network dependency.
 
 ## Test strategy
 
-The project is process-boundary/integration-first for public CLI compatibility and uses focused Core tests where more exhaustive/diagnostic.
+Use focused Core tests plus built CLI process tests and isolated SDK-style fixture repositories.
 
-M0002 needs both:
+Existing M0003 semantic-sampling evidence remains required.
 
-- Core tests for rule semantics, targeting, fingerprinting, matching, persistence, and ordering;
-- CLI process tests for invocation, streams, exits, text/JSON, target modes, rules, explain, ignore, unignore, and ignores.
+The handoff amendment additionally requires:
 
-A Core test does not replace process-boundary evidence for public CLI behavior.
+- default `.hygiene/reviews/<handoff-id>/request.json` creation;
+- `.hygiene/reviews/` is not matched by repository `.gitignore`;
+- deterministic/filesystem-safe handoff identity;
+- bare and qualified latest batch handles;
+- handoff uses the same stale-population rejection as expansion;
+- repository-local PR-friendly destination;
+- explicit external destination outside the repository;
+- missing parent directory creation;
+- existing destination is rejected without overwrite;
+- atomic request write;
+- request schema/version/kind/source/rule/reviewer/population/questions/items;
+- `RI-*` handoff item identity;
+- deduplicated embedded full source text for every file containing a handoff item;
+- no unrelated repository source embedded;
+- request creation does not mutate latest-run state or source;
+- no model/network/Git mutation;
+- no result/history ingestion.
 
-## Test fixtures
+## Fixture strategy
 
-Repository discovery, Git `--changed`, project association, persistence, and path semantics use isolated temporary fixture repositories rather than the real development repository.
+Use isolated temporary SDK-style repositories.
 
-Fixture tests may initialize local Git repositories.
-
-No network service is required.
-
-## Engineering command
-
-```powershell
-./eng/validate.ps1
-```
-
-remains the complete local repository validation entry point and includes M0002 restore/build/test/pack validation.
-
-The PowerShell launcher remains thin.
+For handoff tests, use at least two review items in one source file to prove source de-duplication, review items across two files, an unrelated source file that must not be embedded, an external temporary directory outside the fixture repository, a stale population change after `check`, and a pre-existing destination conflict.
 
 ## Validation topology
 
-| Depth | Target | Locus | Platform/capability | Command | Evidence |
-|---|---|---|---|---|---|
-| Tier 1 | Core rule/identity/persistence tests | local | Windows 11 + .NET 11 SDK | focused `dotnet test` | deterministic Core evidence |
-| Tier 1 | built CLI process | local | Windows 11 + .NET 11 SDK | CLI TUnit process tests | invocation/stream/exit/output evidence |
-| Tier 2 | complete repository | local | Windows 11 + .NET 11 SDK + PowerShell + Git | `./eng/validate.ps1` | restore/build/test/pack |
-| Tier 3 | isolated temporary .NET/Git fixture repositories | local | Windows 11 + .NET 11 SDK + Git | TUnit integration scenarios | real repository/project/Git/persistence behavior |
-| Tier 4 | installed `.NET tool` artifact | deferred to M0003 | Windows 11 | later milestone | later evidence |
+| Depth | Target | Locus |
+|---|---|---|
+| Tier 1 | Core sampler/review/handoff construction | Windows 11 + .NET 11 |
+| Tier 1 | built CLI process | Windows 11 + .NET 11 |
+| Tier 3 | isolated SDK-style fixture repos + external temp destination | Windows 11 + .NET 11 + Git |
+| Tier 2 | complete repository | `./eng/validate.ps1` |
+| Human | semantic workflow + transport usability | project owner/delegate |
 
-## Process isolation
+`./eng/validate.ps1` remains complete restore/build/test/pack validation.
 
-CLI integration tests invoke the built CLI process, not command handlers.
-
-Fixture repositories isolate `.git`, `.hygiene`, sources, `.csproj`, and changed/untracked state.
-
-Tests must not rely on global Git identity/configuration where fixture-local configuration can be used.
-
-## Persistence validation
-
-Tests directly prove:
-
-- first-write creation;
-- atomic replacement;
-- malformed committed state rejection;
-- conflicting external modification rejection;
-- cancellation does not commit partial state;
-- latest-run state is replaceable by a new successful check.
-
-Lower-level fault injection may prove race/cancellation mechanics when a process-level race would be unreliable, provided public behavior is also represented where practical.
-
-## GitHub automation
-
-Do not add `.github/workflows/` or other repository-hosted CI/CD workflows.
-
-## Documentation boundary
-
-Project authority lives in `docs/` and active milestones.
-
-No research layer is required for M0002; implementation-affecting conclusions are already promoted into project authority.
+Do not add AI SDKs, HTTP model clients, orchestration frameworks, review-history databases, transport-provider SDKs, or GitHub Actions/workflows.

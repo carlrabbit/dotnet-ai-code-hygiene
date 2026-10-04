@@ -4,188 +4,113 @@
 
 ```text
 source targets
-  -> repository/project resolution
-  -> Roslyn project/source context
-  -> enabled-rule selection
-  -> deterministic rule evaluation
-  -> occurrence matching against decisions
-  -> ordered findings/review candidates
-  -> run snapshot
-  -> text/JSON presentation
-  -> caller remediation
+-> project-aware Roslyn context
+-> enabled rules
+   -> deterministic occurrences/findings
+   -> semantic review populations/samples
+-> ignore matching for findings
+-> ordered findings + review batches
+-> latest-run snapshot
+-> text/JSON presentation
+-> caller remediation/review
 ```
 
-Formatting and safe normalization remain M0003 work.
-
-The CLI is the supported public surface. Internal assemblies are implementation details unless deliberately promoted later.
-
-## Project boundaries
-
-M0002 establishes:
+Semantic escalation additionally supports:
 
 ```text
-src/
-  DotNetAiCodeHygiene.Cli/
-  DotNetAiCodeHygiene.Core/
-
-tests/
-  DotNetAiCodeHygiene.Cli.Tests/
-  DotNetAiCodeHygiene.Core.Tests/
+latest review batch
+-> population revalidation
+-> complete expanded frontier batch
+-> optional durable review handoff artifact
 ```
 
-`DotNetAiCodeHygiene.Core` owns application/domain semantics for target resolution, Roslyn analysis, rules, identities, matching, and persistence.
+Formatting/normalization move to M0004.
 
-It is not a supported public library API.
+## Boundaries
 
-CLI handlers remain thin adapters.
+`DotNetAiCodeHygiene.Cli` remains the public process boundary. `DotNetAiCodeHygiene.Core` remains internal application/domain implementation.
 
-## CLI boundary
+CLI owns parsing/rendering/exits and destination-path surface. Core owns rule semantics, sampling, batch identities, population revalidation, handoff construction, and existing deterministic behavior.
 
-Owns:
+## Rule output model
 
-- `System.CommandLine` parsing;
-- public options/arguments;
-- help/version;
-- stable exit mapping;
-- stdout/stderr routing;
-- text/JSON rendering;
-- cancellation handoff.
+M0003 supports `finding` and `review-batch`. `ReviewBatch` is not a pseudo-finding and cannot be ignored.
 
-It does not own rule semantics or occurrence matching.
-
-## Repository/project context
-
-The engine:
-
-1. discovers the Git repository root;
-2. resolves selected C# target files;
-3. associates them with discoverable SDK-style `.csproj` projects;
-4. loads enough Roslyn project/compilation context for syntax, semantic models, and symbols;
-5. permits broader read-only project/repository context while limiting emitted findings to target files.
-
-The public contract is project-aware behavior, not a specific Roslyn workspace type.
-
-## Rule engine
-
-Rules contain:
+## Generic semantic sampler
 
 ```text
-stable ID
-version
-fixed classification
-fixed semantics
-fixed applicability
-canonical order
-evidence/fingerprint construction
-explanation guidance
+eligible subjects
+-> stable subject/content fingerprints
+-> population fingerprint
+-> deterministic SHA-256 ranking
+-> fixed-size sample
+-> ReviewBatch
 ```
 
-Configuration selects enabled rules only.
+Infrastructure is generic; population, content fingerprint, sample maximum, questions, and escalation condition remain rule-owned.
 
-Ignore-status evaluation may evaluate a disabled rule to determine whether a stored occurrence still exists.
+## Batch/run state
 
-## Result construction
+Batch handles are run-local (`R-.../B-1`). Latest-run state retains enough data to resolve/revalidate/expand batches. It remains Git-ignored and engine-owned.
 
-Rule evaluation produces internal occurrences before public finding numbers.
+No engine-managed semantic review history exists.
 
-The engine:
-
-1. produces occurrences for enabled rules/targets;
-2. matches persistent decisions;
-3. omits ignored occurrences;
-4. deterministically sorts visible findings;
-5. assigns `F-*`;
-6. creates one run ID;
-7. publishes latest-run state only after successful complete result construction;
-8. renders text or JSON.
-
-## Identity model
-
-Rule: persistent semantic ID.  
-Run: one successful completed check, e.g. `R-7K2M9P`.  
-Finding: run-local, e.g. `R-7K2M9P/F-2`.  
-Ignore decision: repository-persistent, e.g. `I-17`.
-
-Run-ID encoding is implementation-local but must make accidental reuse negligible.
-
-Ignore IDs must never be silently reused for another stored decision.
-
-## Fingerprinting
-
-Occurrence matching combines:
+## Expansion boundary
 
 ```text
-rule ID
-+ rule version
-+ semantic anchor
-+ rule-specific canonical evidence
-+ local discriminator when required
+batch handle
+-> latest-run lookup
+-> recompute current population
+-> verify population fingerprint unchanged
+-> emit complete expanded population
 ```
 
-Canonical evidence is deterministically serialized and hashed with BCL SHA-256.
+Expansion prepares data only. It performs no model call and no mutation.
 
-Do not use `GetHashCode()`, runtime-dependent hashes, line number, or absolute path as occurrence identity.
-
-Prefer Roslyn documentation-comment IDs for source symbols when available.
-
-Rules own what evidence changes identity.
-
-## Local run state
+## Durable handoff boundary
 
 ```text
-.hygiene/.state/latest-run.json
+batch handle
+-> same latest-run lookup/revalidation as expansion
+-> expanded frontier batch
+-> transport envelope
+-> atomic request.json write
 ```
 
-is ephemeral engine-owned state.
+Handoff creation must reuse expansion/revalidation semantics rather than duplicate a weaker path.
 
-Only latest run is retained in M0002. It supports `explain` and finding-to-occurrence resolution for `ignore`.
-
-It is not committed and not a public schema.
-
-## Committed state
+Default repository path:
 
 ```text
-.hygiene/config.json
-.hygiene/decisions.json
+.hygiene/reviews/<handoff-id>/request.json
 ```
 
-are Git-friendly engine-owned persistence.
+Explicit file paths can point outside the repository.
 
-They are readable/diffable but normally mutated through CLI commands.
+`.hygiene/reviews/` is a durable product namespace, distinct from ephemeral `.hygiene/.state/`.
 
-Persistence reads validate schema before mutation.
+The product does not automatically commit, delete, import, or treat these files as semantic acceptance/history.
 
-Writes are atomic and conflict-aware. Equivalent mechanics are acceptable if they guarantee no partial committed file and no silent overwrite of concurrent external modification.
+## Two reviewer topologies
 
-## Ignore creation
+### Colocated reviewer
 
-```text
-latest-run finding
--> recover occurrence identity
--> revalidate current source
--> if same occurrence still exists, persist decision
-```
+The frontier/planner can access the same repository/machine. The handoff contains stable source references plus embedded baseline source context; the reviewer may inspect additional repository context directly.
 
-This prevents ignoring stale findings after source changes.
+### Decoupled reviewer
 
-## Target/context distinction
+The frontier/planner cannot access the repository/machine. The same request artifact embeds the complete expanded item set, rubric, and full text of source files containing review subjects. It can be transported through any external mechanism, including an implementer-side shared Transfer folder.
 
-```text
-target scope != context visibility
-```
+No transport provider is built into the CLI.
 
-Target selection controls where findings may be emitted; analysis may inspect broader context.
+## Model boundary
 
-## Cancellation
+Core/CLI know only reviewer-class metadata (`implementer`, `frontier`). No provider/API/credential/model-routing concern exists in M0003.
 
-Long-running target/project loading and analysis accept cancellation.
+## Version-control boundary
 
-Cancelled/failed checks do not publish partial latest-run state.
+`.hygiene/.state/` is ephemeral and ignored.
 
-Cancelled persistence mutation does not leave partial committed JSON.
+`.hygiene/reviews/` is intentionally not ignored so a handoff/result may be included in a PR when it is material engineering evidence.
 
-## M0002 architecture scope
-
-M0002 implements C# target resolution, project-aware Roslyn context, three rules, deterministic result ordering, run/finding identity, latest-run state, rule configuration, persistent ignores, fingerprint matching, and text/JSON result surfaces.
-
-It does not implement formatting, normalization, embedded AI, run history, cross-language analysis, IDE/MCP integration, or installed-package consumer validation.
+Version-control choice remains caller/team policy; the CLI never invokes Git mutation for handoff artifacts.
