@@ -8,6 +8,7 @@ namespace DotNetAiCodeHygiene.Core.Tests;
 
 public sealed class LifecycleTests
 {
+    /// <summary>Prüft den idempotenten Profilbootstrap und verpflichtende Regeln.</summary>
     [Test]
     public async Task ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations()
     {
@@ -36,6 +37,7 @@ public sealed class LifecycleTests
         finally { DeleteTree(repo); }
     }
 
+    /// <summary>Prüft, dass ein fehlgeschlagenes Profilupdate alle Änderungen zurücknimmt.</summary>
     [Test]
     public async Task ProfileBootstrapFaultRollsBackTheWholeProfileInstallation()
     {
@@ -56,6 +58,7 @@ public sealed class LifecycleTests
         finally { DeleteTree(repo); }
     }
 
+    /// <summary>Prüft Zusammenfassungen aus Recordparametern und direktem inheritdoc.</summary>
     [Test]
     public async Task DocumentationSummaryCarriersAcceptRecordParameterAndDirectInheritdoc()
     {

@@ -12,6 +12,12 @@ using System.Text.RegularExpressions;
 
 namespace DotNetAiCodeHygiene.Core;
 
+/// <summary>Beschreibt eine Hygieneregel und ihre feste Versionierung.</summary>
+/// <param name="Id">Stabile Kennung der Regel.</param>
+/// <param name="Version">Version der Regelbedeutung.</param>
+/// <param name="OutputKind">Art der Ausgabe, die die Regel erzeugt.</param>
+/// <param name="Classification">Klassifikation der Ausgabe.</param>
+/// <param name="Purpose">Zweck der Regel.</param>
 /// <param name="Configurable">Gibt an, ob Aufrufer die Regel aktivieren oder deaktivieren dürfen.</param>
 public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose, bool Configurable = true);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
@@ -29,6 +35,7 @@ public sealed record IgnoreView(string Id, string RuleId, string Path, string St
 public sealed class ProductException(string message) : Exception(message);
 public sealed class EnvironmentException(string message) : Exception(message);
 
+/// <summary>Führt deterministische Hygieneanalysen für ein Repository aus.</summary>
 public sealed class HygieneEngine
 {
     public static readonly Rule[] Rules =
@@ -157,6 +164,9 @@ public sealed class HygieneEngine
     private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null, bool ChangedScope = false, string[]? InputPaths = null);
     private sealed record DecisionFile(int SchemaVersion, IgnoreDecision[] Decisions);
 
+    /// <summary>Aktiviert oder deaktiviert eine konfigurierbare Regel.</summary>
+    /// <param name="id">Kennung der Regel.</param>
+    /// <param name="enabled">Gibt an, ob die Regel aktiviert werden soll.</param>
     public void SetRule(string id, bool enabled)
     {
         Rule rule = Rules.SingleOrDefault(r => r.Id == id) ?? throw new ProductException($"Unknown rule ID '{id}'.");
@@ -170,6 +180,8 @@ public sealed class HygieneEngine
         string[] next = enabled ? current.Where(x => x != id).ToArray() : current.Append(id).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         WriteAtomic(ConfigPath, JsonSerializer.Serialize(new Config(1, next), json), original, true);
     }
+    /// <summary>Listet Regeln mit ihrem jeweiligen Aktivierungsstatus auf.</summary>
+    /// <returns>Regeln und ihr Aktivierungsstatus in kanonischer Reihenfolge.</returns>
     public IReadOnlyList<(Rule Rule, bool Enabled)> ListRules() => Rules.Select(r => (r, !r.Configurable || !Disabled.Contains(r.Id, StringComparer.Ordinal))).ToArray();
 
     internal string[] ResolveTargets(string[] paths, bool changed)
@@ -302,6 +314,13 @@ public sealed class HygieneEngine
         return MSBuildWorkspace.Create(new Dictionary<string, string> { ["DesignTimeBuild"] = "true" });
     }
 
+    /// <summary>Analysiert ausgewählte Quelldateien und veröffentlicht eine erfolgreiche Prüfrunde.</summary>
+    /// <param name="paths">Optionale Repositorypfade für die Analyse.</param>
+    /// <param name="changed">Gibt an, ob nur geänderte Dateien analysiert werden.</param>
+    /// <param name="applyIgnores">Gibt an, ob gültige Ausnahmen angewendet werden.</param>
+    /// <param name="includeDisabled">Gibt an, ob deaktivierte Regeln einbezogen werden.</param>
+    /// <param name="publishLatest">Gibt an, ob die erfolgreiche Runde als letzte Runde gespeichert wird.</param>
+    /// <returns>Deterministische Fundstellen und semantische Prüflose.</returns>
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true)
     {
         RequireProfile();
