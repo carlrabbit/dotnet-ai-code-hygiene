@@ -41,6 +41,30 @@ public sealed class M0005EvidenceTests
     }
 
     [Test]
+    public async Task EC05TopLevelSdkElementProjectParticipatesInProfileAnalysis()
+    {
+        string repo = await NewProfileRepo();
+        try
+        {
+            string source = Path.Combine(repo, "src");
+            Directory.CreateDirectory(source);
+            await File.WriteAllTextAsync(Path.Combine(source, "App.csproj"), "<Project><Sdk Name=\"Microsoft.NET.Sdk\" /><PropertyGroup><TargetFramework>net11.0</TargetFramework><AnalysisLevel>10</AnalysisLevel><EnableNETAnalyzers>false</EnableNETAnalyzers><EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"Api.cs\" /><PackageReference Include=\"StyleCop.Analyzers\" /></ItemGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(source, "Api.cs"), "public class Api { }\n");
+            await File.WriteAllTextAsync(Path.Combine(source, ".editorconfig"), "[*.cs]\ndotnet_diagnostic.IDE0011.severity = none\n");
+
+            IReadOnlyList<ProfileFinding> findings = new ProfileManager(repo).Analyze();
+
+            foreach (string setting in new[] { "AnalysisLevel", "EnableNETAnalyzers", "EnforceCodeStyleInBuild" })
+            {
+                await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/App.csproj" && f.Message.Contains(setting, StringComparison.Ordinal))).IsTrue();
+            }
+            await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(findings.Any(f => f.RuleId == "profile.stylecop.prohibited" && f.Path == "src/App.csproj")).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task EC07BootstrapPreservesPreexistingEditorConfigAndBuildProperties()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-m0005-preserve-" + Guid.NewGuid().ToString("N"));

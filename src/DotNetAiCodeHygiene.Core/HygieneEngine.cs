@@ -242,7 +242,7 @@ public sealed class HygieneEngine
         return EnumerateRepositoryFiles("*.csproj")
             .Where(p => !Excluded(p))
             .Order(StringComparer.Ordinal)
-            .Where(IsSdkStyleProject)
+            .Where(SdkProjectDetection.IsSdkStyle)
             .ToArray();
     }
 
@@ -273,17 +273,6 @@ public sealed class HygieneEngine
                 }
             }
         }
-    }
-
-    private static bool IsSdkStyleProject(string project)
-    {
-        try
-        {
-            var xml = System.Xml.Linq.XDocument.Load(project);
-            var element = xml.Root;
-            return element?.Attribute("Sdk") is not null || element?.Elements().Any(e => e.Name.LocalName == "Sdk") == true;
-        }
-        catch (System.Xml.XmlException) { return false; }
     }
 
     private static MSBuildWorkspace CreateWorkspace()

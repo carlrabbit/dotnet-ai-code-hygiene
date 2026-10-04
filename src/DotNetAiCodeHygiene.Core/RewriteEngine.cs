@@ -251,7 +251,7 @@ public sealed class RewriteEngine
             try
             {
                 XDocument doc = XDocument.Load(project);
-                if (doc.Root?.Attribute("Sdk") is null && !doc.Root!.Elements().Any(x => x.Name.LocalName == "Sdk"))
+                if (!SdkProjectDetection.IsSdkStyle(doc))
                 {
                     continue;
                 }

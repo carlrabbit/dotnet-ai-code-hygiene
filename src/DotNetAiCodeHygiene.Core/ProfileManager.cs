@@ -108,7 +108,7 @@ public sealed class ProfileManager
         {
             try
             {
-                if (!IsSdkStyleProject(project))
+                if (!SdkProjectDetection.IsSdkStyle(project))
                 {
                     continue;
                 }
@@ -225,16 +225,6 @@ public sealed class ProfileManager
     private static string Property(JsonElement properties, string key) => properties.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
     private static string ItemProperty(JsonElement item, string key) => item.TryGetProperty(key, out JsonElement value) ? value.GetString() ?? "" : "";
     private static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-    private static bool IsSdkStyleProject(string project)
-    {
-        try
-        {
-            XDocument doc = XDocument.Load(project);
-            return doc.Root?.Attribute("Sdk") is not null || doc.Root?.Elements().Any(e => e.Name.LocalName == "Import" && ((string?)e.Attribute("Project"))?.Contains("Sdk.props", StringComparison.OrdinalIgnoreCase) == true) == true;
-        }
-        catch (System.Xml.XmlException) { return false; }
-    }
-
     private JsonDocument Evaluate(string project, string configuration, string properties, string items)
     {
         string fingerprint = ConfigFingerprint();
