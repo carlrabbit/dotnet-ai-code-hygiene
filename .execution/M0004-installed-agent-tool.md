@@ -38,7 +38,7 @@ Operational implementation state; not project authority. The ledger may compress
 | AC-28 | acceptance | No model/provider SDK/call, automatic remediation/resolve loop, MCP, IDE integration, portable Agent Skill, GitHub workflow, or cross-platform support claim is introduced. | WP-06 | implementation and focused evidence cases listed below | VAL-01..VAL-06 | complete |
 | DOC-01 | documentation | README/public docs explain installation, version, format, normalize, `--check`, canonical agent workflow, rewrite safety/idempotence, analysis-vs-transformation distinction, and existing review escalation/handoff. | WP-04, WP-06 | implementation and focused evidence cases listed below | VAL-01..VAL-06 | complete |
 | DOC-02 | documentation | Public docs accurately describe Windows 11 support and do not claim public package publication, Linux/macOS validation, broad modernization, automatic remediation, MCP, or IDE integration. | WP-04, WP-06 | implementation and focused evidence cases listed below | VAL-01..VAL-06 | complete |
-| REV-01 | review | Human completion review confirms rewrite behavior is predictably safe/useful for coding agents, the normalization catalogue is conservative, agent help is effective, installed-tool validation represents a real consumer, and deferred orchestration scope was not pulled forward. | | | | todo |
+| REV-01 | review | Human completion review confirms rewrite behavior is predictably safe/useful for coding agents, the normalization catalogue is conservative, agent help is effective, installed-tool validation represents a real consumer, and deferred orchestration scope was not pulled forward. | | User approved completion review in conversation on 2026-10-04; review covered the requested M0004 completion. | Human review approval received 2026-10-04. | complete |
 
 ## Evidence Case Registry
 
@@ -105,17 +105,13 @@ Operational implementation state; not project authority. The ledger may compress
 | VAL-04 | exact locally packed+installed .NET tool in isolated consumer repo | Windows 11 + .NET 11 | passed | Current packed nupkg SHA-256 matched feed copy; fresh NUGET_PACKAGES cache and isolated NuGet.config map exact tool ID only to current-run feed; installed `hygiene.exe` invoked. |
 | VAL-05 | `./eng/validate.ps1` + dependency/workflow/scope inspection | complete repo / Windows 11 | passed | Final script exit 0; Release build, Core 23/23, CLI 21/21, pack and Tier 4 passed. No workflow/model/MCP/IDE additions. |
 | VAL-06 | README/public docs vs installed behavior | local repo | passed | README/PUBLIC-DOCS workflow, flags, outcomes and Windows 11 claims compared against CLI help and installed consumer behavior. |
-| VAL-07 | human completion review | project owner/delegate | todo | Required review is pending; implementation did not self-approve. |
+| VAL-07 | human completion review | project owner/delegate | passed | Project owner approved REV-M0004-COMPLETION in conversation on 2026-10-04. |
 
 ## Resume Point
 
 Last completed work package: WP-01..WP-06 implementation and evidence reconciliation.
 
-Current work package: automated validation complete; awaiting human completion review.
-
-Next concrete action: human reviewer evaluates `REV-M0004-COMPLETION`; do not mark COMPLETE until approved.
-
-Known agent-resolvable gaps: none. Every required EC row is individually mapped to focused TUnit or Tier-4 evidence; only REV-01 remains pending.
+Current work package: WP-01..WP-06 complete; automated validation and human completion review approved.\n\nNext concrete action: retain the completed milestone and PR #4 as its implementation record.\n\nKnown agent-resolvable gaps: none. Every required EC row is individually mapped to focused TUnit or Tier-4 evidence; all obligations and review are complete.
 
 External blockers or planning escalations: none identified.
 
@@ -134,5 +130,5 @@ External blockers or planning escalations: none identified.
 - [x] run complete ./eng/validate.ps1 on Windows 11;
 - [x] verify M0002/M0003 regressions;
 - [x] confirm no resolve/model/MCP/IDE/workflow scope;
-- [ ] obtain REV-M0004-COMPLETION;
+- [x] obtain REV-M0004-COMPLETION;
 - [x] write durable completion evidence into milestone.
