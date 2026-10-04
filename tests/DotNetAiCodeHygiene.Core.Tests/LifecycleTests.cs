@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
 using DotNetAiCodeHygiene.Core;
 
@@ -55,6 +57,7 @@ public sealed class LifecycleTests
             await Assert.That(batch.SampleCount).IsEqualTo(5);
             await Assert.That(batch.Mode).IsEqualTo("sample");
             await Assert.That(batch.ReviewerClass).IsEqualTo("implementer");
+            await Assert.That(batch.Items.All(item => item.Id.StartsWith("RI-", StringComparison.Ordinal))).IsTrue();
             await Assert.That(batch.Questions.Select(q => q.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3", "Q4" });
             CheckResult repeat = engine.Check([], false);
             await Assert.That(repeat.ReviewBatches.Single().Items.Select(i => i.Symbol).ToArray()).IsEquivalentTo(batch.Items.Select(i => i.Symbol).ToArray());
@@ -97,6 +100,127 @@ public sealed class LifecycleTests
             await Assert.That(empty.Items.Count).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task DurableReviewHandoffEmbedsOnlyCurrentRelevantSourcesAndIsAtomic()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-handoff-" + Guid.NewGuid().ToString("N"));
+        string external = Path.Combine(Path.GetTempPath(), "hygiene-handoff-external-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".gitignore"), "**/bin/\n**/obj/\n**/.hygiene/.state/\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string aPath = Path.Combine(repo, "src", "A.cs");
+            string bPath = Path.Combine(repo, "src", "B.cs");
+            string unrelatedPath = Path.Combine(repo, "src", "Unrelated.cs");
+            string aSource = "/// <summary>Erste relevante Beschreibung.</summary>\npublic class A { }\n/// <summary>Zweite relevante Beschreibung.</summary>\npublic class A2 { }\n";
+            string bSource = "/// <summary>Dritte relevante Beschreibung.</summary>\npublic class B { }\n";
+            string unrelatedSource = "public class Unrelated { }\n";
+            await File.WriteAllTextAsync(aPath, aSource);
+            await File.WriteAllTextAsync(bPath, bSource);
+            await File.WriteAllTextAsync(unrelatedPath, unrelatedSource);
+
+            var engine = new HygieneEngine(repo);
+            ReviewBatch batch = engine.Check([], false).ReviewBatches.Single();
+            string statePath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
+            string stateBefore = await File.ReadAllTextAsync(statePath);
+            string aBefore = await File.ReadAllTextAsync(aPath);
+            string bBefore = await File.ReadAllTextAsync(bPath);
+            string unrelatedBefore = await File.ReadAllTextAsync(unrelatedPath);
+            string defaultPath = engine.CreateReviewHandoff("B-1");
+            string expectedId = "HR-" + batch.Handle.Split('/')[0][2..] + "-B1";
+            await Assert.That(Path.GetRelativePath(repo, defaultPath).Replace('\\', '/')).IsEqualTo(".hygiene/reviews/" + expectedId + "/request.json");
+            await Assert.That(Regex.IsMatch(expectedId, "^HR-[A-Z0-9-]+$", RegexOptions.CultureInvariant)).IsTrue();
+            await Assert.That(await RunGitExitCode(repo, "check-ignore", "--quiet", ".hygiene/reviews/" + expectedId + "/request.json")).IsEqualTo(1);
+
+            using (JsonDocument request = JsonDocument.Parse(await File.ReadAllTextAsync(defaultPath)))
+            {
+                JsonElement root = request.RootElement;
+                await Assert.That(root.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
+                await Assert.That(root.GetProperty("kind").GetString()).IsEqualTo("semantic-review-request");
+                await Assert.That(root.GetProperty("handoffId").GetString()).IsEqualTo(expectedId);
+                await Assert.That(DateTimeOffset.TryParse(root.GetProperty("createdAtUtc").GetString(), out _)).IsTrue();
+                await Assert.That(root.GetProperty("source").GetProperty("runId").GetString()).IsEqualTo(batch.Handle.Split('/')[0]);
+                await Assert.That(root.GetProperty("source").GetProperty("batchHandle").GetString()).IsEqualTo(batch.Handle);
+                await Assert.That(root.GetProperty("rule").GetProperty("id").GetString()).IsEqualTo("docs.summary.quality.review");
+                await Assert.That(root.GetProperty("rule").GetProperty("version").GetInt32()).IsEqualTo(1);
+                await Assert.That(root.GetProperty("mode").GetString()).IsEqualTo("expanded");
+                await Assert.That(root.GetProperty("reviewerClass").GetString()).IsEqualTo("frontier");
+                await Assert.That(root.GetProperty("populationCount").GetInt32()).IsEqualTo(3);
+                await Assert.That(root.GetProperty("items").GetArrayLength()).IsEqualTo(3);
+                await Assert.That(root.GetProperty("questions").GetArrayLength()).IsEqualTo(4);
+                await Assert.That(root.GetProperty("items")[0].GetProperty("id").GetString()!.StartsWith("RI-", StringComparison.Ordinal)).IsTrue();
+                await Assert.That(root.GetProperty("sources").GetArrayLength()).IsEqualTo(2);
+                string[] sourcePaths = root.GetProperty("sources").EnumerateArray().Select(x => x.GetProperty("path").GetString()!).ToArray();
+                await Assert.That(sourcePaths).IsEquivalentTo(new[] { "src/A.cs", "src/B.cs" });
+                string embeddedA = root.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("path").GetString() == "src/A.cs").GetProperty("content").GetString()!;
+                await Assert.That(embeddedA).IsEqualTo(aSource);
+                string embeddedB = root.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("path").GetString() == "src/B.cs").GetProperty("content").GetString()!;
+                await Assert.That(embeddedB).IsEqualTo(bSource);
+                await Assert.That(root.GetProperty("sources").EnumerateArray().Any(x => x.GetProperty("path").GetString() == "src/Unrelated.cs")).IsFalse();
+            }
+            string jsonText = await File.ReadAllTextAsync(defaultPath);
+            await Assert.That(jsonText.Contains("PopulationFingerprint", StringComparison.OrdinalIgnoreCase)).IsFalse();
+            await Assert.That(jsonText.Contains("rankingHash", StringComparison.OrdinalIgnoreCase)).IsFalse();
+
+            string externalPath = Path.Combine(external, "nested", "deeper", "request.json");
+            await Assert.That(engine.CreateReviewHandoff(batch.Handle, externalPath)).IsEqualTo(Path.GetFullPath(externalPath));
+            await Assert.That(File.Exists(externalPath)).IsTrue();
+            using (JsonDocument externalRequest = JsonDocument.Parse(await File.ReadAllTextAsync(externalPath)))
+                await Assert.That(externalRequest.RootElement.GetProperty("handoffId").GetString()).IsEqualTo(expectedId);
+            string internalPath = Path.Combine(repo, ".hygiene", "custom", "request.json");
+            await Assert.That(engine.CreateReviewHandoff(batch.Handle, internalPath)).IsEqualTo(Path.GetFullPath(internalPath));
+            await Assert.That(File.Exists(internalPath)).IsTrue();
+
+            string conflictPath = Path.Combine(external, "existing", "request.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(conflictPath)!);
+            const string existing = "keep these bytes";
+            await File.WriteAllTextAsync(conflictPath, existing);
+            bool conflict = false;
+            try { _ = engine.CreateReviewHandoff(batch.Handle, conflictPath); } catch (ProductException) { conflict = true; }
+            await Assert.That(conflict).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(conflictPath)).IsEqualTo(existing);
+
+            string failedPath = Path.Combine(external, "atomic", "request.json");
+            var interrupted = new HygieneEngine(repo, () => throw new OperationCanceledException("simulated interrupted handoff"));
+            bool interruptedWrite = false;
+            try { _ = interrupted.CreateReviewHandoff(batch.Handle, failedPath); } catch (OperationCanceledException) { interruptedWrite = true; }
+            await Assert.That(interruptedWrite).IsTrue();
+            await Assert.That(File.Exists(failedPath)).IsFalse();
+            await Assert.That(Directory.EnumerateFiles(Path.GetDirectoryName(failedPath)!, "*.tmp").Any()).IsFalse();
+
+            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(stateBefore);
+            await Assert.That(await File.ReadAllTextAsync(aPath)).IsEqualTo(aBefore);
+            await Assert.That(await File.ReadAllTextAsync(bPath)).IsEqualTo(bBefore);
+            await Assert.That(await File.ReadAllTextAsync(unrelatedPath)).IsEqualTo(unrelatedBefore);
+
+            await File.WriteAllTextAsync(aPath, aSource.Replace("Erste relevante", "Geänderte relevante", StringComparison.Ordinal));
+            bool stale = false;
+            try { _ = engine.CreateReviewHandoff(batch.Handle, Path.Combine(external, "stale", "request.json")); }
+            catch (ProductException e) when (e.Message.Contains("rerun hygiene check", StringComparison.Ordinal)) { stale = true; }
+            await Assert.That(stale).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(external, "stale", "request.json"))).IsFalse();
+            bool old = false;
+            try { _ = engine.CreateReviewHandoff("R-OLD/B-1", Path.Combine(external, "old", "request.json")); } catch (ProductException) { old = true; }
+            await Assert.That(old).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(external, "old", "request.json"))).IsFalse();
+
+            ReviewBatch beforeAddedFile = engine.Check([], false).ReviewBatches.Single();
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "NewEligible.cs"), "/// <summary>Neue relevante Datei.</summary>\npublic class NewEligible { }\n");
+            bool addedSubjectStale = false;
+            try { _ = engine.CreateReviewHandoff(beforeAddedFile.Handle, Path.Combine(external, "added", "request.json")); }
+            catch (ProductException e) when (e.Message.Contains("rerun hygiene check", StringComparison.Ordinal)) { addedSubjectStale = true; }
+            await Assert.That(addedSubjectStale).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(external, "added", "request.json"))).IsFalse();
+        }
+        finally
+        {
+            DeleteTree(repo);
+            DeleteTree(external);
+        }
     }
 
     [Test]
@@ -622,6 +746,15 @@ public sealed class LifecycleTests
         foreach (string arg in args) start.ArgumentList.Add(arg);
         using Process p = Process.Start(start)!; await p.WaitForExitAsync();
         if (p.ExitCode != 0) throw new InvalidOperationException(await p.StandardError.ReadToEndAsync());
+    }
+
+    private static async Task<int> RunGitExitCode(string dir, params string[] args)
+    {
+        var start = new ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardError = true, UseShellExecute = false };
+        foreach (string arg in args) start.ArgumentList.Add(arg);
+        using Process process = Process.Start(start)!;
+        await process.WaitForExitAsync();
+        return process.ExitCode;
     }
 
     private static void DeleteTree(string path)

@@ -249,6 +249,48 @@ public sealed class CliProcessTests
     }
 
     [Test]
+    public async Task HandoffCommandWritesDefaultAndExternalRequestsWithoutGit()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-cli-handoff-" + Guid.NewGuid().ToString("N"));
+        string external = Path.Combine(Path.GetTempPath(), "hygiene-cli-handoff-outside-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await RunProcessAsync("git", repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>Eine verständliche Fixturebeschreibung.</summary>\npublic class Fixture { }\n");
+            ProcessResult check = await RunCliInAsync(repo, "check", "--output", "json");
+            await Assert.That(check.ExitCode).IsEqualTo(0);
+            using JsonDocument json = JsonDocument.Parse(check.StandardOutput);
+            string handle = json.RootElement.GetProperty("reviewBatches")[0].GetProperty("handle").GetString()!;
+            ProcessResult defaultHandoff = await RunCliInAsync(repo, true, "review", "handoff", "B-1");
+            await Assert.That(defaultHandoff.ExitCode).IsEqualTo(0);
+            await Assert.That(defaultHandoff.StandardOutput).Contains(".hygiene");
+            string defaultPath = defaultHandoff.StandardOutput["Review handoff written: ".Length..].Trim();
+            await Assert.That(File.Exists(defaultPath)).IsTrue();
+
+            string externalPath = Path.Combine(external, "nested", "request.json");
+            ProcessResult externalHandoff = await RunCliInAsync(repo, true, "review", "handoff", handle, "--file", externalPath);
+            await Assert.That(externalHandoff.ExitCode).IsEqualTo(0);
+            await Assert.That(File.Exists(externalPath)).IsTrue();
+            using JsonDocument externalJson = JsonDocument.Parse(await File.ReadAllTextAsync(externalPath));
+            await Assert.That(externalJson.RootElement.GetProperty("mode").GetString()).IsEqualTo("expanded");
+
+            string stalePath = Path.Combine(external, "stale", "request.json");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>Eine geänderte verständliche Fixturebeschreibung.</summary>\npublic class Fixture { }\n");
+            ProcessResult stale = await RunCliInAsync(repo, true, "review", "handoff", "B-1", "--file", stalePath);
+            await Assert.That(stale.ExitCode).IsEqualTo(3);
+            await Assert.That(stale.StandardError).Contains("rerun hygiene check");
+            await Assert.That(File.Exists(stalePath)).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(repo, true);
+            if (Directory.Exists(external)) Directory.Delete(external, true);
+        }
+    }
+
+    [Test]
     public async Task RulesJsonDeclaresFindingAndBatchOutputKinds()
     {
         ProcessResult result = await RunCliAsync("rules", "--output", "json");

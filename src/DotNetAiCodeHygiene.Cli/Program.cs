@@ -43,11 +43,15 @@ internal static class Program
         var enableId = new Argument<string>("rule-id"); var enable = new Command("enable", "Enable a rule."); enable.Arguments.Add(enableId); enable.SetAction(parse => Run(() => { new HygieneEngine().SetRule(parse.GetValue(enableId)!, true); return 0; })); rules.Subcommands.Add(enable);
         var disableId = new Argument<string>("rule-id"); var disable = new Command("disable", "Disable a rule."); disable.Arguments.Add(disableId); disable.SetAction(parse => Run(() => { new HygieneEngine().SetRule(parse.GetValue(disableId)!, false); return 0; })); rules.Subcommands.Add(disable);
         root.Subcommands.Add(rules);
-        var review = new Command("review", "Expand a semantic review batch for frontier review.");
+        var review = new Command("review", "Expand or create a durable handoff for a semantic review batch.");
         var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand the latest run's complete eligible review population.");
         expand.Arguments.Add(expandHandle); expand.Options.Add(output);
         expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
-        review.Subcommands.Add(expand); root.Subcommands.Add(review);
+        var handoffHandle = new Argument<string>("batch-handle"); var handoffFile = new Option<string?>("--file");
+        var handoff = new Command("handoff", "Create a durable, transport-neutral frontier-review request.");
+        handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile);
+        handoff.SetAction(parse => Run(() => { string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile)); Console.WriteLine($"Review handoff written: {path}"); return 0; }));
+        review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
         return root;
     }
     internal static int Run(Func<int> action)

@@ -12,42 +12,44 @@ M0003 adds no AI/model SDK or network dependency.
 
 Use focused Core tests plus built CLI process tests and isolated SDK-style fixture repositories.
 
-M0003 evidence must cover:
+Existing M0003 semantic-sampling evidence remains required.
 
-- deterministic sampler reproducibility;
-- population/content change recomputation;
-- zero population;
-- <=5 and >5 populations;
-- batch order/handles;
-- summary-quality eligibility;
-- exact rubric metadata;
-- check text/JSON additive output;
-- latest-run batch state;
-- bare/qualified expansion;
-- stale-population rejection;
-- full-population expanded output;
-- implementer -> frontier reviewer-class transition;
-- expansion not mutating latest run;
-- no review-history artifact;
-- no model/network dependency;
-- M0002 regression behavior.
+The handoff amendment additionally requires:
 
-No actual model is required in automated validation.
+- default `.hygiene/reviews/<handoff-id>/request.json` creation;
+- `.hygiene/reviews/` is not matched by repository `.gitignore`;
+- deterministic/filesystem-safe handoff identity;
+- bare and qualified latest batch handles;
+- handoff uses the same stale-population rejection as expansion;
+- repository-local PR-friendly destination;
+- explicit external destination outside the repository;
+- missing parent directory creation;
+- existing destination is rejected without overwrite;
+- atomic request write;
+- request schema/version/kind/source/rule/reviewer/population/questions/items;
+- `RI-*` handoff item identity;
+- deduplicated embedded full source text for every file containing a handoff item;
+- no unrelated repository source embedded;
+- request creation does not mutate latest-run state or source;
+- no model/network/Git mutation;
+- no result/history ingestion.
 
 ## Fixture strategy
 
-Use isolated temporary SDK-style repositories. Include fixtures with 0, <5, =5, >5 eligible summaries, mixed missing/existing summaries, target scoping, and source change between check/expand.
+Use isolated temporary SDK-style repositories.
+
+For handoff tests, use at least two review items in one source file to prove source de-duplication, review items across two files, an unrelated source file that must not be embedded, an external temporary directory outside the fixture repository, a stale population change after `check`, and a pre-existing destination conflict.
 
 ## Validation topology
 
 | Depth | Target | Locus |
 |---|---|---|
-| Tier 1 | Core sampler/review semantics | Windows 11 + .NET 11 |
+| Tier 1 | Core sampler/review/handoff construction | Windows 11 + .NET 11 |
 | Tier 1 | built CLI process | Windows 11 + .NET 11 |
-| Tier 3 | isolated SDK-style fixture repos | Windows 11 + .NET 11 + Git |
+| Tier 3 | isolated SDK-style fixture repos + external temp destination | Windows 11 + .NET 11 + Git |
 | Tier 2 | complete repository | `./eng/validate.ps1` |
-| Human | semantic workflow usability | project owner/delegate |
+| Human | semantic workflow + transport usability | project owner/delegate |
 
 `./eng/validate.ps1` remains complete restore/build/test/pack validation.
 
-Do not add AI SDKs, HTTP model clients, orchestration frameworks, review-history databases, or GitHub Actions/workflows.
+Do not add AI SDKs, HTTP model clients, orchestration frameworks, review-history databases, transport-provider SDKs, or GitHub Actions/workflows.

@@ -4,21 +4,9 @@
 
 The deterministic engine selects a small semantic-review workload; the caller judges it.
 
-M0003 does not persist answers/history or introduce periodic/history-based triggers. Every enabled semantic review rule evaluates every run.
+M0003 does not persist semantic answers/history or introduce periodic/history-based triggers. Every enabled semantic review rule evaluates every run.
 
-A semantic review rule defines:
-
-```text
-rule ID/version
-eligible population
-sample-size maximum
-stable subject identity/content fingerprint
-deterministic ranking
-reviewer class
-fixed questions/rubric
-escalation condition
-expanded reviewer class
-```
+A semantic review rule defines rule ID/version, eligible population, sample-size maximum, stable subject identity/content fingerprint, deterministic ranking, reviewer class, fixed questions/rubric, escalation condition, and expanded reviewer class.
 
 ## Deterministic sampling
 
@@ -30,76 +18,69 @@ For each rule:
 4. rank subjects with SHA-256 over `rule ID + version + population fingerprint + subject identity + subject content fingerprint`;
 5. take the first rule-defined maximum count.
 
-Identical review-relevant state => identical sample. Population/content change => changed population fingerprint and potentially rotated sample.
+Identical review-relevant state yields the same sample. Population/content change changes the population fingerprint and may rotate the sample.
 
 M0003 sample maximum for `docs.summary.quality.review` is exactly 5 and is not configurable.
 
 ## Public batch shape
 
-Normal check batch exposes:
+Normal check batch exposes id/handle, rule ID/version, `mode=sample`, `reviewerClass=implementer`, population/sample counts, questions, escalation guidance, and items.
 
-```text
-id / handle
-ruleId / ruleVersion
-mode = sample
-reviewerClass = implementer
-populationCount / sampleCount
-questions[]
-escalation { condition, command, reviewerClass=frontier }
-items[]
-```
+Each item exposes item ID, repository-relative path, 1-based line/column, symbol, summary text, and declaration display/signature.
 
-Each item exposes:
+Internal hashes, ranking values, semantic anchors, and population fingerprints are not public check output.
 
-```text
-item ID
-repository-relative path
-1-based line/column
-symbol
-summary text
-declaration display/signature
-```
-
-Internal hashes, ranking values, semantic anchors, and population fingerprints are not public output.
-
-Text output must be concise but sufficient to execute the rubric. Empty sample must be explicit (`sample 0/0`).
+Empty sample must be explicit (`sample 0/0`).
 
 ## Caller protocol
 
 The tool does not collect answers.
 
-For a sample:
-
 ```text
-all required answers confidently acceptable
-    -> no expansion
-
-any materially negative answer
-    -> expand
-
-implementer cannot confidently answer any required question
-    -> expand
+all required answers confidently acceptable -> no escalation
+any materially negative answer             -> escalate
+uncertain required answer                   -> escalate
 ```
 
-The caller hands expanded output to a frontier-capability reviewer. The frontier reviewer identifies problematic items; the implementation agent fixes them; then normal `hygiene check` runs again.
+Escalation preparation has two forms:
+
+```text
+hygiene review expand <batch-handle>
+    -> expanded frontier batch on stdout
+
+hygiene review handoff <batch-handle> [--file <path>]
+    -> durable expanded frontier-review request file
+```
+
+The latter is the portable handoff for either a colocated frontier/planner or a completely decoupled reviewer.
 
 ## Expansion
 
 `review expand` accepts bare latest-run or fully qualified latest-run batch handles.
 
-Before expansion, recompute current eligible population/fingerprint. If changed, fail with exit 3 and request new check.
+Before expansion, recompute current eligible population/fingerprint. If changed, fail with exit 3 and request a new check.
 
-Expanded batch:
-
-```text
-mode = expanded
-reviewerClass = frontier
-sampleCount == populationCount
-items == complete eligible population, including previously sampled items
-same questions/rubric
-```
+Expanded batch has `mode=expanded`, `reviewerClass=frontier`, `sampleCount == populationCount`, and contains the complete eligible population including previously sampled items with the same questions/rubric.
 
 Expansion does not create a new run and does not mutate latest-run state.
+
+## Handoff
+
+`review handoff` uses the same resolution/revalidation/expanded population as `review expand`; it must not have a divergent semantic implementation.
+
+Default repository-backed destination:
+
+```text
+.hygiene/reviews/<handoff-id>/request.json
+```
+
+Explicit external destination:
+
+```text
+hygiene review handoff B-1 --file <absolute-or-relative-file-path>
+```
+
+The artifact contract is defined in `docs/specs/REVIEW-HANDOFFS.md`.
 
 ## `docs.summary.quality.review`
 
@@ -135,22 +116,14 @@ A concise summary is acceptable only when it still communicates useful purpose/d
 
 ### Escalation
 
-Expand when any sampled summary materially fails Q1-Q4 or the implementer is not confident enough to answer any required question.
+Escalate when any sampled summary materially fails Q1-Q4 or the implementer is not confident enough to answer any required question.
 
-The full expanded population is reviewed by a frontier-capability reviewer using the same questions.
+For direct same-process use, `review expand` is sufficient. For a durable handoff, PR-visible evidence, or a decoupled frontier/planner, use `review handoff`.
 
 ## Relationship to required-summary rule
 
-```text
-docs.summary.required
-    -> deterministic missing-summary finding
-
-docs.summary.quality.review
-    -> bounded semantic sample of summaries that exist
-```
-
-Adding a missing summary resolves Rule A. A later run may sample it under Rule B according to deterministic sampling.
+`docs.summary.required` remains the deterministic missing-summary rule; `docs.summary.quality.review` samples summaries that exist.
 
 ## Non-goals
 
-No language heuristic is treated as sufficient quality judgment. No automatic model call, repair, history, schedule, random sampling, or review-answer persistence.
+No language heuristic is treated as sufficient quality judgment. No automatic model call, repair, engine-managed review history, schedule, random sampling, or review-answer persistence.
