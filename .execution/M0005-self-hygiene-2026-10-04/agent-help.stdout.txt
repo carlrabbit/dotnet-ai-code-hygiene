@@ -1,0 +1,8 @@
+hygiene is a repository-scoped .NET hygiene tool. Run it from a Git repository.
+Workflow: hygiene bootstrap (once per repository) -> implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check. Use hygiene update to reconcile the installed dotnet-11 v1 profile.
+Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
+Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
+format is presentation-only. normalize applies a small fixed Roslyn semantic simplification catalogue, validates compilation before and after, formats changed files, and commits all selected changes together. Both support non-mutating --check and are idempotent.
+check reports deterministic findings and semantic review samples. Use explain for a finding, ignore only reviewed exceptions, and unignore to remove an exception. Review batches are not findings.
+If any sampled answer materially fails or is uncertain, use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for frontier review.
+The CLI invokes no model. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.

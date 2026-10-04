@@ -1,0 +1,7 @@
+{
+  "tempDir": "C:\\Users\\carlt\\AppData\\Local\\Temp\\hygiene-self-review-25ecfb326682426aa8fac1976fc99d88",
+  "toolPath": "C:\\Users\\carlt\\AppData\\Local\\Temp\\hygiene-self-review-25ecfb326682426aa8fac1976fc99d88\\tools\\hygiene.exe",
+  "packagePath": "C:\\src\\dotnet-ai-code-hygiene\\artifacts\\packages\\DotNetAiCodeHygiene.Tool.0.5.0.nupkg",
+  "packageSha256": "BC4F525E858C9CE6513FF4F9DAB5A022C705CCDA0D5C4C95AF4E0134078F329A",
+  "toolExeSha256": "78263AED2C4407DDB199A6AD11C2EFE2D2DFDB674BED39C0F5B0315AEC4FBA4C"
+}

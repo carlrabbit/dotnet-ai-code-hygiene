@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "command": "normalize",
+  "checkOnly": true,
+  "targetCount": 10,
+  "changedCount": 0,
+  "unchangedCount": 10,
+  "changedPaths": []
+}

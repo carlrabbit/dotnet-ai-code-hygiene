@@ -1,0 +1,30 @@
+[
+  {
+    "id": "RI-1",
+    "path": "src/DotNetAiCodeHygiene.Core/ProfileManager.cs",
+    "line": 15,
+    "symbol": "DotNetAiCodeHygiene.Core.ProfileManager",
+    "summary": "Owns the fixed dotnet-11 profile and its explicitly delimited repository artifacts.",
+    "rubric": {
+      "Q1": "Fails: English rather than natural German.",
+      "Q2": "Pass: the class owns fixed dotnet-11 profile evaluation and delimited repository artifacts.",
+      "Q3": "Pass: states meaningful responsibility beyond the class name.",
+      "Q4": "Pass: concise and understandable, though “explicitly delimited” is slightly abstract."
+    },
+    "overall": "Expected semantic-review item; material Q1 failure."
+  },
+  {
+    "id": "RI-2",
+    "path": "src/DotNetAiCodeHygiene.Core/RewriteEngine.cs",
+    "line": 32,
+    "symbol": "DotNetAiCodeHygiene.Core.RewriteEngine",
+    "summary": "Plans Roslyn rewrites completely before applying an all-target transaction.",
+    "rubric": {
+      "Q1": "Fails: English rather than natural German.",
+      "Q2": "Pass: matches RewriteEngine, which plans Roslyn rewrites before applying an all-target transaction.",
+      "Q3": "Pass: conveys the plan-before-commit safety behavior.",
+      "Q4": "Pass: concise and specific."
+    },
+    "overall": "Expected semantic-review item; material Q1 failure."
+  }
+]
