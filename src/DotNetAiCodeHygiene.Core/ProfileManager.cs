@@ -18,7 +18,7 @@ public sealed record ProfileFinding(string RuleId, string Path, string Message, 
 /// <param name="Command">Ausgeführter Profilbefehl.</param>
 /// <param name="FindingCount">Anzahl der verbleibenden Profilverstöße.</param>
 /// <param name="Findings">Verbleibende Profilverstöße mit Hinweisen.</param>
-/// <param name="ChangedPaths">Geänderte Pfade relativ zum Repository-Stamm.</param>
+/// <param name="ChangedPaths">Geänderte repositoryrelative Pfade.</param>
 public sealed record ProfileResult(string Command, int FindingCount, IReadOnlyList<ProfileFinding> Findings, IReadOnlyList<string> ChangedPaths);
 
 /// <summary>Verwaltet das feste dotnet-11-Profil und seine klar abgegrenzten Repositorydateien.</summary>
