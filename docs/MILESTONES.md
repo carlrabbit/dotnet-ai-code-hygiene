@@ -35,3 +35,16 @@ Primary milestone:
 ```text
 docs/milestones/M0005-supported-dotnet-profile.md
 ```
+
+
+## M0006 — Rule Policy Rationale & Semantic Review Separation
+**State:** planned after M0005
+**Mode:** AI-executed, human-reviewed
+
+Clarifies fixed rule semantics versus enable/disable-only participation, separates language-neutral summary quality from the fixed German-language review policy, and promotes rule-by-rule rationale into current authority so intentional policies are not mistaken for accidental implementation behavior.
+
+Primary milestone:
+
+```text
+docs/milestones/M0006-rule-policy-rationale.md
+```
