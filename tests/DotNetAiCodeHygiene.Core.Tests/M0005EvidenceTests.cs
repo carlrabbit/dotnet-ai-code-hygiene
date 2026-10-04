@@ -2,10 +2,8 @@ using DotNetAiCodeHygiene.Core;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
 
-/// <summary>Prüft die Akzeptanzfälle für das unterstützte .NET-Profil.</summary>
 public sealed class M0005EvidenceTests
 {
-    /// <summary>Prüft Hinweise für fehlende und nicht unterstützte Profile.</summary>
     [Test]
     public async Task EC01MissingAndFutureProfileStatesGiveSafeGuidanceWithoutMutation()
     {
@@ -30,7 +28,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft die gültige Profilkonfiguration nach dem Bootstrap.</summary>
     [Test]
     public async Task EC05CanonicalEffectiveProfilePassesAfterBootstrap()
     {
@@ -43,7 +40,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft, dass der Bootstrap vorhandene Benutzereinstellungen erhält.</summary>
     [Test]
     public async Task EC07BootstrapPreservesPreexistingEditorConfigAndBuildProperties()
     {
@@ -63,7 +59,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft wirksame MSBuild-Überschreibungen und Warnungsbeförderungen.</summary>
     [Test]
     public async Task EC05EffectiveImportedMsbuildPropertiesAndWarningPromotionAreReported()
     {
@@ -86,7 +81,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft verschachtelte EditorConfig-Überschreibungen und Stammgrenzen.</summary>
     [Test]
     public async Task EC05NestedEditorConfigOverridesAndRootCutoffsAreEffective()
     {
@@ -110,7 +104,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft EditorConfig nur für ausgewertete C#-Compile-Elemente.</summary>
     [Test]
     public async Task EC05EffectiveEditorConfigAppliesOnlyToEvaluatedCompileSources()
     {
@@ -130,7 +123,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft die Vererbung einer übergeordneten EditorConfig-Datei.</summary>
     [Test]
     public async Task EC05MissingRootCutoffInheritsParentEditorConfig()
     {
@@ -152,7 +144,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(container); }
     }
 
-    /// <summary>Prüft zentrale Pakete und Analyzerpfade ohne doppelte Fundstellen.</summary>
     [Test]
     public async Task EC09PackageCentralAndPathAnalyzerInputsAreDetectedWithoutDuplicateSourceFindings()
     {
@@ -169,7 +160,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft NuGet-Analyzerassets und explizite Analyzerpfade.</summary>
     [Test]
     public async Task EC09ResolvedNugetAssetsAndPathBasedAnalyzerInputsAreRecognized()
     {
@@ -190,7 +180,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft Delegate-, Indexer- und Typparameter in XML-Dokumentation.</summary>
     [Test]
     public async Task EC18DelegateIndexerAndTypeParameterScopeAreCorrect()
     {
@@ -248,7 +237,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft optionale Dokumentationselemente und ihre Deklarationsbezüge.</summary>
     [Test]
     public async Task EC16AndEC18OptionalDocumentationAndDeclarationElementsArePresenceBased()
     {
@@ -282,7 +270,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft ungültige Inlineverweise und äußere Typparameter im Gültigkeitsbereich.</summary>
     [Test]
     public async Task EC18bInvalidInlineReferencesAreRejectedWhileEnclosingTypeParametersAreInScope()
     {
@@ -309,7 +296,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft vorhandene Rückgabe-, Wert- und Ausnahmeelemente.</summary>
     [Test]
     public async Task EC19PresentReturnsValuesAndExceptionsAreValidatedWithoutCompletenessRules()
     {
@@ -352,7 +338,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft Satzgrenzen nach Inlineelementen und permissiven XML-Elementen.</summary>
     [Test]
     public async Task EC20InlineSentenceBoundariesAndPermissiveElementsAreEnforcedPrecisely()
     {
@@ -376,7 +361,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft die Zusammenfassungen in der semantischen Stichprobe.</summary>
     [Test]
     public async Task EC21SemanticSummaryPopulationUsesOnlyLocalSummaryCarriers()
     {
@@ -404,7 +388,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft, dass verschachteltes inheritdoc keine Zusammenfassung ersetzt.</summary>
     [Test]
     public async Task EC17NestedInheritdocDoesNotExemptMissingDeclarationSummary()
     {
@@ -418,7 +401,6 @@ public sealed class M0005EvidenceTests
         finally { DeleteTree(repo); }
     }
 
-    /// <summary>Prüft die Reparatur eigener Profilabweichungen beim Update.</summary>
     [Test]
     public async Task EC04UpdateRepairsProfileOwnedDriftWithoutOverwritingUserContent()
     {
