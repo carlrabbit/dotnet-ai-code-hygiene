@@ -38,7 +38,7 @@ The execution ledger may compress work. It must not compress obligations.
 | AC-24 | acceptance | `./eng/validate.ps1` remains a thin complete Windows-local validation entry point and successfully runs the M0002 restore/build/test/pack validation set. | WP-06 | eng/validate.ps1 remains complete validation entry point and passed. | VAL-04 ./eng/validate.ps1 | done |
 | DOC-01 | documentation | README/public documentation is updated at completion with representative M0002 source-project usage, JSON/exit semantics, CLI-owned state guidance, Windows-first status, and explicit deferral of formatting/normalization and installed-tool guidance. | WP-06 | README includes representative commands, JSON/exit semantics, CLI-owned state and deferrals. | VAL-05 README inspected against current behavior | done |
 | DOC-02 | documentation | Project authority remains internally consistent with the implemented M0002 public/persisted behavior; material deviations are returned to planning rather than silently changing contracts. | WP-06 |The six required authority documents were checked against CLI commands, JSON/persistence fields, target behavior, exits and README; no material contract deviation was introduced.|VAL-04 solution/docs review; VAL-05 README behavior comparison| done |
-| REV-01 | review | A human completion review confirms that the first hygiene loop is useful and deterministic, evidence is criterion-specific, persisted ignores behave safely, and M0003 scope was not pulled forward. | WP-07 | | | todo |
+| REV-01 | review | A human completion review confirms that the first hygiene loop is useful and deterministic, evidence is criterion-specific, persisted ignores behave safely, and M0003 scope was not pulled forward. | WP-07 | Project owner approved `REV-M0002-COMPLETION` with “Ok, I approve” on 2026-10-04. | VAL-06 approval recorded in this conversation | done |
 
 ## Evidence Case Registry
 
@@ -106,19 +106,19 @@ The execution ledger may compress work. It must not compress obligations.
 | VAL-03 | isolated temporary SDK-style .NET/Git repository scenarios | local Windows 11 + .NET 11 SDK + Git | AC-02, AC-03, AC-04, AC-10, AC-15, AC-16, AC-17, AC-19 and seeded EC cases | passed |2026-10-04 Windows 11; Core/CLI TUnit used isolated temp repositories for default/explicit/overlap/changed targets, evaluated Compile membership, linked compile inputs, project references/defines/language version, outside-root project rejection, Git change classes, and ignore lifecycle.|
 | VAL-04 | `./eng/validate.ps1` | complete repository / local Windows 11 + .NET 11 SDK + Git + PowerShell | AC-01, AC-24, DOC-02 | passed |2026-10-04 Windows 11/.NET 11 SDK: restore/build/test/pack succeeded; 17 Core + 15 CLI tests passed (32 total); package produced.|
 | VAL-05 | compare README/public docs to live M0002 behavior | public documentation / local repository | DOC-01 | passed |README examples, JSON/exit guidance, CLI-owned state, Windows-first status and M0003 deferrals manually compared with CLI behavior and authority.|
-| VAL-06 | human completion review | durable completion evidence / human reviewer | REV-01 | awaiting human review |REV-M0002-COMPLETION requested; decision not yet received.|
+| VAL-06 | human completion review | durable completion evidence / human reviewer | REV-01 | passed |Project owner approved `REV-M0002-COMPLETION` with “Ok, I approve” on 2026-10-04.|
 
 ## Resume Point
 
-Last completed work package: WP-06 (validation/docs/evidence reconciliation)
+Last completed work package: WP-07 (completion evidence audit and human review)
 
-Current work package: WP-07 (human completion review)
+Current work package: none; M0002 completion review accepted
 
-Next concrete action: obtain the project owner's REV-M0002-COMPLETION decision; if accepted, mark review complete and close the final reconciliation.
+Next concrete action: publish the completed PR for review; do not merge without the normal PR review.
 
 Known agent-resolvable gaps: none identified after the final isolated tests and current validation gates.
 
-External blockers or planning escalations: human completion review is pending.
+External blockers or planning escalations: none.
 
 ## Final Reconciliation
 
@@ -135,5 +135,5 @@ Before `COMPLETE`:
 - [x] verify each validation claim exercises exactly the behavior it claims to prove;
 - [x] confirm every required gate has current evidence from the declared target/locus;
 - [x] confirm no agent-resolvable gap remains;
-- [ ] obtain `REV-M0002-COMPLETION` human acceptance;
+- [x] obtain `REV-M0002-COMPLETION` human acceptance;
 - [x] write the compact durable completion reconciliation into the milestone before this ledger is eligible for cleanup.

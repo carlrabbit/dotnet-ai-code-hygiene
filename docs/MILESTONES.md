@@ -2,7 +2,7 @@
 
 ## M0001 — CLI Foundation
 
-**State:** done  
+**State:** done
 **Mode:** AI-executed, human-reviewed
 
 Established the Windows-first .NET 11 CLI repository skeleton, TUnit testing, `System.CommandLine` command surface, process-level CLI contract, local engineering validation, and packable .NET tool artifact.
@@ -15,7 +15,7 @@ docs/milestones/M0001-cli-foundation.md
 
 ## M0002 — Hygiene Vertical Slice
 
-**State:** ready  
+**State:** done
 **Mode:** AI-executed, human-reviewed
 
 Implement the first complete useful hygiene loop:

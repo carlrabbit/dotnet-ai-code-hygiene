@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Lifecycle state | ready |
+| Lifecycle state | done |
 | Mode | ai-executed-human-reviewed |
 | Baseline implementation model | GPT-5.6 Luna |
 | Baseline executor readiness | confirmed |
@@ -245,4 +245,4 @@ Implementation fills this section before `COMPLETE`.
 | AC-15–AC-19; EC-15*, EC-18*, EC-19* | `IgnoreRejectsSourceChangedSinceTheFindingRun`, `FingerprintsKeepRelevantIdentityAndMarkChangedOccurrencesStale`, `BlankLineResolvesAnIgnoredControlFlowOccurrence`, `SummaryIgnoreSurvivesSymbolMovement`; CLI ignore/recheck/unignore and filtered active/stale listings | VAL-01 and VAL-03; isolated SDK/Git fixtures | passed |
 | AC-20–AC-22; EC-21*, EC-22* | malformed config/decision exit-3/no-rewrite assertions; `DecisionWritesRejectConflictsAndCancellationWithoutLosingPreviousState`; config conflict/cancellation fixture; CLI exit 0/2/3/4 plus `UnexpectedHandlerExceptionUsesInternalFailureExitCode` | VAL-01 Core and VAL-02 CLI tests | passed |
 | AC-23–AC-24; DOC-01–DOC-02 | `FormatAndNormalizeRemainNonFunctionalScaffolding`, project/package/workflow inspection, README compared with command behavior and project authority | VAL-02, VAL-04 and VAL-05; Windows repository | passed |
-| REV-01 | `REV-M0002-COMPLETION` remains required; the amended project-context and XML-doc proof plus current reconciliation are prepared for the reviewer; no acceptance decision has been received. | VAL-06; project owner/delegated reviewer | awaiting human review |
+| REV-01 | Project owner approved `REV-M0002-COMPLETION` with “Ok, I approve” on 2026-10-04 after reviewing the durable reconciliation, project-aware context and XML-doc proof. | VAL-06; project owner | accepted |
