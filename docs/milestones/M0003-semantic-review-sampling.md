@@ -228,7 +228,7 @@ The CLI performs no model call and maintains no engine-managed semantic-review h
 
 Review ID: `REV-M0003-COMPLETION`.
 
-The previous human-review request is superseded by this amendment. Complete human review only after amendment implementation/evidence.
+The previous human-review request was superseded by this amendment. Amended implementation and evidence were reviewed before completion approval.
 
 Confirmed by user approval on 2026-10-04: sample/rubric usefulness, default `.hygiene/reviews/` PR behavior, explicit external file for decoupled review, embedded source context, absence of Git/network/model side effects, distinction between explicit review artifacts and engine-managed history, and preservation of M0004 scope.
 
