@@ -18,8 +18,9 @@ bounded semantic review/handoff
 
 ## Rule principles
 
-- Rule IDs have fixed semantics.
-- Rules have no user parameters.
+- One rule ID has one fixed semantic contract and no repository-supplied parameters.
+- Optional-rule configuration means enabling or disabling the whole fixed rule only; it does not configure language, thresholds, scope, severity, semantic questions, sampling, conventions, or remediation.
+- Independently applicable policies use separate rule IDs, not parameters or unrelated bundled semantics.
 - Rule-set membership does not alter rule meaning.
 - A rule may expose one fixed deterministic remediation.
 - Commands may choose whether to execute available remediation.
@@ -89,7 +90,7 @@ docs/specs/DOCUMENTATION.md
 
 M0005 does not impose StyleCop-style parameter/type-parameter/return documentation completeness.
 
-## Canonical M0005 rule order
+## Canonical normal rule order
 
 ```text
 1. profile.dotnet.analysis.required         v1
@@ -97,9 +98,10 @@ M0005 does not impose StyleCop-style parameter/type-parameter/return documentati
 3. docs.summary.required                    v2
 4. docs.xml.consistent                      v1
 5. docs.text.sentence                       v1
-6. docs.summary.quality.review              v2
-7. readability.long-line.review             v1
-8. readability.control-flow.visual-block    v1
+6. docs.summary.quality.review              v3
+7. docs.summary.language.german.review      v1
+8. readability.long-line.review             v1
+9. readability.control-flow.visual-block    v1
 ```
 
 ## Package/version

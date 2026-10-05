@@ -64,9 +64,9 @@ hygiene review expand <batch-handle>
 hygiene review handoff <batch-handle> [--file <path>]
 ```
 
-`hygiene check` reports deterministic findings and one semantic review batch for each enabled semantic review rule. The first rule, `docs.summary.quality.review`, samples up to five valid, non-empty XML summaries from the selected C# targets. An empty sample is valid and is reported explicitly as `sample 0/0`.
+`hygiene check` reports deterministic findings and one semantic review batch for each enabled semantic review rule. `docs.summary.quality.review` samples up to five valid, non-empty XML summaries for technical correctness, information value, and clarity/scope. `docs.summary.language.german.review` independently reviews whether summaries are natural, comprehensible German. Each rule is enabled or disabled as a whole; neither has language or other parameters. This English repository disables only the German-language rule in `.hygiene/config.json`.
 
-The current implementation agent reviews the normal sample against the four published questions: natural German, technical correctness, information value, and clarity/scope. Confidently acceptable answers need no further action. If any answer materially fails or the implementation agent is uncertain about any question, explicitly expand the batch and hand the complete eligible population to a frontier-capability reviewer:
+The implementation agent reviews each normal sample against that rule's published questions. Confidently acceptable answers need no further action. If an answer materially fails or the implementation agent is uncertain, explicitly expand that batch and hand the complete eligible population to a frontier-capability reviewer:
 
 ```text
 hygiene review expand B-1

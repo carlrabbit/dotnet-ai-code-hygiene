@@ -40,6 +40,8 @@ Version: `2`
 Classification: finding  
 Configurable: yes
 
+Rationale: summaries reduce human and agent reconstruction cost at important source-level API subjects. Public and internal coverage is deliberate comprehension policy and is not a proxy for externally shipped API surface. Requiring only a generic summary avoids completeness pressure and boilerplate volume.
+
 Covered API subject categories remain:
 
 - source-declared public/internal named types: class, struct, interface, enum, record, record struct, delegate;
@@ -73,6 +75,8 @@ Version 1 ignore occurrences do not silently migrate to version 2. Existing v1 i
 Version: `1`  
 Classification: finding  
 Configurable: yes
+
+Rationale: XML documentation remains optional, while prose and structure that are present should not be misleading, orphaned, duplicated, or structurally invalid. Presence-based checks preserve useful documentation without creating completeness pressure.
 
 This is presence-based. It never requires optional documentation merely because another optional element is present.
 
@@ -154,6 +158,8 @@ Version: `1`
 Classification: finding  
 Configurable: yes
 
+Rationale: a cheap deterministic baseline catches visibly unfinished documentation without pretending to judge semantic quality. Its scope is intentionally narrow and mechanical; semantic prose quality remains review work.
+
 Explicit non-empty prose in these elements must end, after trimming trailing whitespace, with:
 
 ```text
@@ -195,9 +201,9 @@ It does not apply to `<inheritdoc/>`, `<remarks>`, `<example>`, `<code>`, `<c>`,
 
 ## Summary quality review
 
-`docs.summary.quality.review` becomes version `2`.
+`docs.summary.quality.review` is version `3`; its contract and the separate German-language rule are defined in `docs/specs/SEMANTIC-REVIEWS.md`.
 
-Its semantic questions and max-five deterministic sampling contract remain unchanged.
+Its maximum sample of five and deterministic population/ranking protocol remain fixed; the v3 rubric is language-neutral.
 
 Population changes from literal `<summary>` elements to explicit non-empty documentation summaries resolved through the summary-carrier model:
 
@@ -212,7 +218,7 @@ Subject identity remains the API subject identity; content fingerprint uses the 
 
 ## Canonical normal-rule order
 
-M0005 normal order:
+Canonical normal order:
 
 ```text
 1. profile.dotnet.analysis.required         v1  mandatory finding
@@ -220,9 +226,10 @@ M0005 normal order:
 3. docs.summary.required                    v2  configurable finding
 4. docs.xml.consistent                      v1  configurable finding
 5. docs.text.sentence                       v1  configurable finding
-6. docs.summary.quality.review              v2  configurable review-batch
-7. readability.long-line.review             v1  configurable review-candidate
-8. readability.control-flow.visual-block    v1  configurable finding
+6. docs.summary.quality.review              v3  configurable review-batch
+7. docs.summary.language.german.review      v1  configurable review-batch
+8. readability.long-line.review             v1  configurable review-candidate
+9. readability.control-flow.visual-block    v1  configurable finding
 ```
 
 Structural documentation findings are evaluated before semantic summary review.

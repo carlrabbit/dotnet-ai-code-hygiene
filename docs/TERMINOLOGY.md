@@ -18,7 +18,7 @@
 
 **Mandatory profile rule** — fixed rule that defines supported-profile conformance. It cannot be disabled or ignored while that profile is installed.
 
-**Configurable hygiene rule** — source/review rule that participates in the existing enable/disable mechanism.
+**Configurable hygiene rule** — optional fixed source/review rule that participates in whole-rule enable/disable. It has no repository-supplied semantic parameters.
 
 **Rule set** — engine-defined list of fixed rules evaluated by an execution command. Membership selects rules; it does not parameterize or change rule semantics.
 

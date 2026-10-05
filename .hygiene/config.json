@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "disabledRules": [
+    "docs.summary.language.german.review"
+  ]
+}

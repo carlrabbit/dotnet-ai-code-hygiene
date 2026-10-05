@@ -2,7 +2,7 @@
 
 ## Rule model
 
-A rule ID denotes one fixed semantic contract. Rule-set membership never parameterizes a rule.
+A rule ID denotes one fixed semantic contract with no repository-supplied parameters. Optional-rule configuration means whole-rule enable/disable only. It cannot set language, thresholds, scope, severity, review questions, sampling, conventions, remediation, or modes. Independently applicable policies use separate rule IDs instead of parameter bags or bundled semantics. Rule-set membership never changes a rule's meaning.
 
 M0005 distinguishes:
 
@@ -18,7 +18,7 @@ Configurable rules retain the existing `.hygiene/config.json` `disabledRules` mo
 Canonical normal rule order and documentation rule semantics are defined in:
 
 ```text
-docs/specs/DOCUMENTATION.md
+docs/specs/DOCUMENTATION.md and docs/specs/SEMANTIC-REVIEWS.md
 ```
 
 Profile rule semantics and bootstrap/update sets are defined in:
@@ -90,9 +90,7 @@ Existing M0002/M0004 repository discovery, project-aware Roslyn context, target 
 
 Bootstrap/update are repository-wide profile commands and do not accept source targets or `--changed`.
 
-## Existing readability rules
-
-`readability.long-line.review` v1 and `readability.control-flow.visual-block` v1 retain their existing semantics.
+Readability rule contracts are defined in `docs/specs/READABILITY.md`.
 
 ## Persistence
 
