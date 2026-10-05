@@ -60,6 +60,16 @@ Do not attempt to replace Roslyn analyzers, dotnet format, IDE tooling, or every
 
 Add rules or rewrites where the tool can provide a distinct AI-development benefit, a stronger opinionated contract, useful agent-oriented output, or a workflow that existing tools do not provide well.
 
+### Quantify uncertainty instead of pretending sampling is coverage
+
+Expensive semantic rules may eventually inspect only part of an eligible population.
+
+When they do, prefer statistically defensible sampling with explicit uncertainty over arbitrary per-run sample counts. The product should be able to spend more persistent state only where a stronger individual-subject guarantee is worth its cost, while dense populations may use aggregate/cohort models.
+
+Sampling is not exhaustive verification. Its output and documentation must state the guarantee the chosen model can actually support.
+
+See docs/research/SAMPLING-RULES.md.
+
 ## Likely evolution themes
 
 These are planning candidates, not roadmap commitments.
@@ -69,6 +79,19 @@ These are planning candidates, not roadmap commitments.
 The current vertical slice proves behavior but concentrates rule evaluation inside the engine. More rules, shared semantic prerequisites, repository-level rules, or multi-file rules may justify an explicit analysis pipeline and shared context model.
 
 See docs/research/RULE-APPLICATION-ARCHITECTURE.md.
+
+### Statistical sampling for expensive rules
+
+Some high-value rules may be too dense or too expensive for exhaustive semantic review on every run.
+
+A future sampling subsystem may support both:
+
+- subject-state sampling, with decaying inspection value and randomized hazard thresholds when individual coverage matters;
+- aggregate population sampling, optionally with bounded cohorts, when population-level quality surveillance is sufficient and per-subject state would be disproportionate.
+
+The framework should provide the statistical machinery while rules provide interpretable population definitions and risk signals. Normal repositories should not require a database or opaque binary analysis index.
+
+See docs/research/SAMPLING-RULES.md.
 
 ### Higher-value hygiene rules
 
@@ -121,6 +144,7 @@ A mature version should provide a compact set of high-value hygiene operations t
 
 - deterministic behavior where determinism is appropriate;
 - bounded semantic review where judgment is required;
+- statistically defensible sampling where exhaustive semantic review would be disproportionate;
 - safe rewrite semantics;
 - predictable low-configuration policy;
 - repository-scale performance appropriate to normal agent workflows;
@@ -132,6 +156,7 @@ A mature version should provide a compact set of high-value hygiene operations t
 - Which AI-generated code pathologies provide the highest value for the next rules?
 - How much repository-level context should a rule be allowed to request?
 - When does the current engine need to become an explicit rule pipeline?
+- Which future semantic rules need individual sampling guarantees versus population-level statistical guarantees?
 - Should BORING become a named product principle with enforceable sub-rules, or remain a planning heuristic?
 - Which forms of deterministic remediation are sufficiently safe to belong in the CLI?
 - What evidence would justify moving model invocation or orchestration into the product boundary?
