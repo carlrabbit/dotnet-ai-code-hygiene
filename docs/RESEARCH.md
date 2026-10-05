@@ -17,5 +17,6 @@ Do not treat research as a specification. When planning resolves a material choi
 - docs/research/PRODUCT-DIRECTION.md — product thesis, design principles, likely evolution, and milestone-selection criteria.
 - docs/research/HUMAN-CONSUMABILITY.md — human-in-the-loop constraints, BORING-code direction, and review/catch-up pressure.
 - docs/research/RULE-APPLICATION-ARCHITECTURE.md — current rule-application shape, scaling concerns, and candidate pipeline direction.
+- docs/research/SAMPLING-RULES.md — statistical sampling direction for expensive/dense rule populations, including subject-state and aggregate/cohort models.
 
 These documents intentionally contain unresolved questions. A planning agent should use them to decide what deserves a milestone or further research; an implementation agent should follow the milestone and authoritative docs selected for its work.
