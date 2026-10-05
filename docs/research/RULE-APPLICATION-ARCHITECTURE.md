@@ -80,9 +80,29 @@ The current M0002 target contract already follows this principle conceptually: b
 
 ### Shared derived data
 
-Future rules may repeatedly need the same derived structures: declared symbols, control-flow facts, call/reference indexes, project relationships, or repository concept indexes.
+Future rules may repeatedly need the same derived structures: declared symbols, control-flow facts, call/reference indexes, project relationships, repository concept indexes, structural scope summaries, or sampling-population counts.
 
 A pipeline should support lazy shared derivation rather than letting each rule recompute equivalent data.
+
+### Statistical sampling state
+
+Future expensive rules may intentionally inspect only part of an eligible population.
+
+That introduces another distinction:
+
+~~~text
+analysis context
+sampling population
+persistent statistical state
+selected inspection work
+reporting scope
+~~~
+
+The rule pipeline should not require a detailed repository index merely because some sampling policies need persistence.
+
+Subject-state sampling may track individual subjects when the guarantee requires it. Aggregate population sampling may instead keep only scope/cohort summaries and materialize a concrete subject after a scope is selected.
+
+See docs/research/SAMPLING-RULES.md.
 
 ## Candidate direction
 
@@ -96,6 +116,7 @@ target selection
 -> shared derived facts
 -> rule evaluation
 -> cross-document/project aggregation
+-> optional sampling/work selection
 -> finding/review-batch materialization
 -> ignore/filter/order/presentation
 ~~~
@@ -122,13 +143,13 @@ Project loading, compilations, syntax trees, semantic models, and future reposit
 
 Adding a rule should not require editing a central monolithic traversal for ordinary cases.
 
-Rule semantics, candidate generation, fingerprints, and review-batch behavior should be independently testable.
+Rule semantics, candidate generation, fingerprints, sampling behavior, and review-batch behavior should be independently testable.
 
 ### Lazy cost
 
-Do not build semantic models, compilations, symbol indexes, or repository-wide structures for rules that do not need them.
+Do not build semantic models, compilations, symbol indexes, repository-wide structures, or detailed sampling indexes for rules that do not need them.
 
-A cheap text/syntax rule should remain cheap.
+A cheap text/syntax rule should remain cheap. An aggregate sampling rule should not inherit the state cost of subject-level tracking merely because both use the same scheduler.
 
 ### Deterministic ordering independent of execution
 
@@ -148,6 +169,8 @@ Large repository scans need cancellation boundaries and should avoid accidentall
 
 Any caching should initially be run/session scoped unless a later milestone proves durable caches worthwhile.
 
+Sampling state is different from a performance cache: it may intentionally persist evidence across runs. Its persistence contract should therefore be explicit rather than emerging accidentally from analysis caching.
+
 ### Parallelism is optional, not foundational
 
 An explicit pipeline should not be justified primarily by parallel execution.
@@ -162,15 +185,21 @@ One possible conceptual split is:
 RuleDescriptor
 - id/version/output kind/order
 - required scope/context
+- optional sampling model/population
 
 RuleEvaluator
 - receives immutable analysis context
-- emits deterministic occurrences and/or review subjects
+- emits deterministic occurrences and/or inspection candidates
 
 AnalysisSession
 - owns repository/project/document loading
 - lazily supplies shared facts
 - controls selected reporting scope
+
+SamplingScheduler
+- owns generic statistical selection mechanics
+- consumes rule-declared population/risk information
+- updates explicit statistical state
 
 ResultMaterializer
 - fingerprints/orders/IDs
@@ -190,7 +219,9 @@ Before making pipeline work its own milestone, obtain evidence on representative
 - per-document rule evaluation time;
 - repeated semantic queries as rule count increases;
 - memory retained by workspace/compilations;
-- changed-file scan latency versus full-repository scan latency.
+- changed-file scan latency versus full-repository scan latency;
+- candidate population sizes for likely sampled rules;
+- storage and update cost for subject-state versus aggregate/cohort sampling.
 
 The first architectural milestone should solve observed or strongly imminent constraints, not speculative scale.
 
@@ -202,6 +233,7 @@ Revisit the architecture when planning one of these:
 
 - several additional rules that need different context levels;
 - the first genuinely multi-file/repository rule;
+- the first statistical sampling rule that needs cross-run state;
 - a demonstrated unacceptable large-repository scan cost;
 - reuse of the same derived semantic/index data by multiple rules.
 
@@ -215,4 +247,5 @@ At that point, plan the analysis-session/pipeline contract before adding more ad
 - Can one Roslyn workspace/session safely serve all rule scopes without excessive memory retention?
 - Should changed-file runs construct repository indexes incrementally or scan broader context on demand?
 - Which derived facts are common enough to cache within a run?
+- How should persistent sampling state relate to transient analysis-session caches?
 - At what repository/rule scale does pipeline restructuring become materially valuable?
