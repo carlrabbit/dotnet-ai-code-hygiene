@@ -66,23 +66,23 @@ After a successful inspection, confidence in that evidence should decay as relev
 
 Let a subject accumulate integrated hazard:
 
-[
+$
 H_i = H_{baseline} + H_{age} + H_{change} + H_{risk} + ...
-]
+$
 
 A simple confidence interpretation is:
 
-[
+$
 C_i = e^{-H_i}
-]
+$
 
-and the probability that inspection has been triggered by accumulated hazard (H_i) is:
+and the probability that inspection has been triggered by accumulated hazard $H_i$ is:
 
-[
+$
 P(T_i \le H_i) = 1 - e^{-H_i}
-]
+$
 
-This permits policy statements in probabilities rather than arbitrary sample counts. For example, (H=3) implies only (e^{-3}), about 5%, probability that a subject has not yet crossed a randomized inspection threshold.
+This permits policy statements in probabilities rather than arbitrary sample counts. For example, $H=3$ implies only $e^{-3}$, about 5%, probability that a subject has not yet crossed a randomized inspection threshold.
 
 ### Random threshold formulation
 
@@ -90,15 +90,15 @@ Repeated random decisions on every repository run are unnecessary.
 
 For each subject, draw:
 
-[
+$
 T_i \sim Exp(1)
-]
+$
 
 Accumulate hazard until:
 
-[
+$
 H_i \ge T_i
-]
+$
 
 then inspect, reset accumulated hazard, and draw a new threshold.
 
@@ -156,31 +156,31 @@ The system does not need to remember which specific comments were inspected.
 
 ### Aggregate hazard mass
 
-For scope (C), let:
+For scope $C$, let:
 
-- (N_C) be the number of eligible subjects;
-- (X_C) be cheap features of the scope;
-- (E[h_i | X_C]) be the modeled expected hazard of a subject in the scope.
+- $N_C$ be the number of eligible subjects;
+- $X_C$ be cheap features of the scope;
+- $E[h_i | X_C]$ be the modeled expected hazard of a subject in the scope.
 
 Define aggregate hazard mass:
 
-[
+$
 H_C = N_C \cdot E[h_i | X_C]
-]
+$
 
 When selecting work, sample a scope proportional to its hazard mass:
 
-[
+$
 P(C) = \frac{H_C}{\sum_j H_j}
-]
+$
 
 Then select a concrete subject inside that scope when the expensive inspection is actually performed.
 
 If subjects are sampled uniformly inside a homogeneous scope:
 
-[
+$
 P(i) = P(C) \cdot \frac{1}{N_C}
-]
+$
 
 so subject selection is proportional to the modeled per-subject hazard without keeping persistent state for each subject.
 
@@ -203,9 +203,9 @@ comments
 
 Then:
 
-[
+$
 H_C = \sum_k N_{C,k} \cdot E[h | X_C, k]
-]
+$
 
 Sampling can select:
 
@@ -221,17 +221,17 @@ Aggregate sampling can maintain evidence about population quality rather than in
 
 For binary outcomes such as acceptable/unacceptable, a Beta-Binomial model is a useful candidate:
 
-[
+$
 p_C \sim Beta(\alpha, \beta)
-]
+$
 
-After observing failures (f) and passes (s):
+After observing failures $f$ and passes $s$:
 
-[
+$
 p_C | data \sim Beta(\alpha + f, \beta + s)
-]
+$
 
-where (p_C) denotes the population defect probability under that model.
+where $p_C$ denotes the population defect probability under that model.
 
 This naturally distinguishes:
 
