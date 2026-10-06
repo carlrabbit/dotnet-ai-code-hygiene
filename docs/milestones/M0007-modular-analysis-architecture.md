@@ -279,27 +279,27 @@ Implementation records verified repository evidence and automated validation her
 | Obligation / evidence case | Evidence | Validation gate / target | Result |
 |---|---|---|---|
 | AC-01 | Shared `RepositorySession` is consumed by check and rewrite; one root/target/project/workspace/document implementation. | VAL-01..03; Tier 1/3 | satisfied |
-| AC-02 | Lazy session workspace/project/compilation/fact access; compute-once and unused-fact tests. | VAL-01; Tier 1 | satisfied |
+| AC-02 | Production LongLineReviewRuleModule runs through RuleCatalog.Runner and requests only text; its focused test leaves workspace/projects/compilation absent. Registered production summary/quality/German consumers reuse one compilation and one DocumentationSubjectFact computation. | VAL-01; Tier 1 | satisfied |
 | AC-03 | Reporting documents are selected independently from loaded project context; changed/explicit scope regressions pass. | VAL-03; Tier 3 | satisfied |
-| AC-04 | Explicit `RuleCatalog.All` keeps canonical descriptor order and metadata; no runtime discovery. | VAL-01/02; Tier 1 | satisfied |
-| AC-05 | Current diagnosis lives in dedicated document/profile/review modules; coordinator delegates evaluation. | VAL-01/02; Tier 1 | satisfied |
-| AC-06 | Domain traversal resides in modules; no callback bus, dependency DAG, or context declaration DSL. | VAL-01; source review | satisfied |
+| AC-04 | RuleCatalog.Modules explicitly registers each production IRuleModule in canonical order; RuleCatalog.All retains descriptors and metadata. | VAL-01/02; Tier 1 | satisfied |
+| AC-05 | XML and sentence modules use separate evaluators; summary, profile, quality/German review, long-line and visual-block logic is module-owned. HygieneEngine.Check only selects/runs modules and handles generic results. | VAL-01/02; Tier 1 | satisfied |
+| AC-06 | Production modules receive RuleContext over RepositorySession and request only their needed resources/facts; the production lightweight-rule test demonstrates unloaded Roslyn resources. | VAL-01; source review | satisfied |
 | AC-07 | Shared immutable `DocumentationSubjectFact` handles summary carriers, positional records, direct inheritdoc, and review eligibility. | VAL-01/03; Tier 1/3 | satisfied |
 | AC-08 | Session fact and compilation factories are cached once per session key; no durable analysis cache. | VAL-01; focused tests | satisfied |
 | AC-09 | Host retains finding identity/order/ignore/stale/run/review persistence paths. | VAL-02/03; Tier 1/3 | satisfied |
 | AC-10 | Quality and German review modules share deterministic batch mechanics while retaining separate descriptors and behavior. | VAL-02/03; Tier 1/3 | satisfied |
 | AC-11 | Profile diagnosis modules are separate from bootstrap/update remediation; check remains diagnostic only. | VAL-02/03; Tier 1/3 | satisfied |
-| AC-12 | `RewriteCatalog` registers distinct format and normalize modules behind `RewriteRunner`. | VAL-01/02; Tier 1 | satisfied |
+| AC-12 | RewriteCatalog registers distinct format and normalize modules; normalization validation belongs to NormalizeRewriteModule hooks, and RewriteEngine has no command-specific recognition. | VAL-01/02; Tier 1 | satisfied |
 | AC-13 | Rewrite uses `RepositorySession`; transaction planning, validation, check-only, conflicts, atomic replacement, and rollback regressions pass. | VAL-02/03; Tier 1/3 | satisfied |
-| AC-14 | Test-only rule/rewrite modules run through their runners without production traversal/loader edits. | VAL-01; focused tests | satisfied |
-| AC-15 | Release Core 48/48 and CLI 21/21 pass; installed/repository self-host verifies M0006 quality active and German disabled. | VAL-02/03/05; Tier 1/2/3 | satisfied |
+| AC-14 | Test-only rule/rewrite modules run through the same runner contracts used by production without central orchestration/loader changes. | VAL-01; focused tests | satisfied |
+| AC-15 | Core 51/51 and CLI 22/22 pass; exact positional-record ReviewItem fields are asserted in Core and across CLI check/expand/handoff; self-host preserves M0006 quality active/German disabled. | VAL-02/03/05; Tier 1/2/3 | satisfied |
 | AC-16 | Exact locally packed package installed in isolated consumer; canonical Tier-4 workflow marker emitted. | VAL-04; Tier 4 | satisfied |
 | AC-17 | Source/project inspection confirms no prohibited framework, discovery, process, scheduler, persistent cache, sampler, rule, or rewrite. | VAL-05; source/dependency review | satisfied |
-| AC-18 | Coordinator delegates rules; duplicated rewrite project/workspace loader removed. | VAL-01/05; source review | satisfied |
+| AC-18 | HygieneEngine.Check has no summary-specific analysis branch/subject construction; RewriteEngine has no format/normalize semantic branch and reuses RepositorySession. | VAL-01/05; source review | satisfied |
 | DOC-01 | Architecture, engineering, terminology, milestone and rationale docs are consistent; architecture remains authority. | VAL-06; repository review | satisfied |
 | REV-01 | Required BORING/local-comprehensibility completion review. | VAL-07; project owner/delegate | pending — AWAITING HUMAN REVIEW |
-| EC-02a | Test-only rule leaves workspace, compilation, and fact counters at zero. | VAL-01; focused test | satisfied |
-| EC-02b | Two consumers reuse one fact factory and one loaded compilation. | VAL-01; focused tests | satisfied |
+| EC-02a | Production LongLineReviewRuleModule runs through RuleCatalog.Runner; short text requests no workspace/project/compilation and constructs only text. | VAL-01; ProductionLightweightRuleUsesLazyProductionContextWithoutLoadingRoslyn | satisfied |
+| EC-02b | Registered production summary/quality/German modules reuse one compilation and one DocumentationSubjectFact construction for their document. | VAL-01; RegisteredProductionRulesShareLazyDocumentationFactAndCompilation | satisfied |
 | EC-03a | Changed-target reporting remains scoped while project context is loaded. | VAL-03; isolated Git/MSBuild fixture | satisfied |
 | EC-03b | Explicit file/directory containment and de-duplication remain stable. | VAL-03; isolated Git/MSBuild fixture | satisfied |
 | EC-07a | Ordinary summary and direct-inheritdoc behavior pass shared-subject fixture. | VAL-01/03; focused/fixture tests | satisfied |
@@ -308,14 +308,14 @@ Implementation records verified repository evidence and automated validation her
 | EC-11a | Check diagnosis and authorized bootstrap/update repair plus re-evaluation pass. | VAL-02/03; Tier 1/3 | satisfied |
 | EC-13a | Rewrite check-only and successful format/normalize operations pass. | VAL-02/03; Tier 1/3 | satisfied |
 | EC-13b | Compiler rejection, conflict and multi-file rollback preserve original selected targets. | VAL-02/03; Tier 1/3 | satisfied |
-| EC-14a | Test-only rule executes via runner without production catalog change. | VAL-01; focused test | satisfied |
-| EC-14b | Test-only rewrite executes via runner without production command/loader change. | VAL-01; focused test | satisfied |
+| EC-14a | Test-only IRuleModule executes via the production RuleModuleRunner/context seam without production catalog/engine edits. | VAL-01; TestOnlyRuleAndRewriteModulesRunThroughTheirRunners | satisfied |
+| EC-14b | Test-only IRewriteModule executes via RewriteRunner without production engine command branching or loader edits. | VAL-01; TestOnlyRuleAndRewriteModulesRunThroughTheirRunners | satisfied |
 | EC-15a | Ordering, JSON, explain, ignore/stale and target compatibility regressions pass. | VAL-02/03; Tier 1/3 | satisfied |
 | EC-15b | Review fingerprints, independent expansion and handoff rubrics remain compatible. | VAL-02/03; Tier 1/3 | satisfied |
 | EC-15c | Repository self-host retains generic quality and disables German review. | VAL-05; Tier 2 | satisfied |
 | EC-16a | Exact packed artifact passes representative isolated lifecycle and rewrite workflow. | VAL-04; Tier 4 | satisfied |
 
-Automated validation: `eng/validate.ps1` exited 0 on Windows 11 with .NET SDK 11.0.100-rc.1.26425.128; Release build succeeded; Core 48/48 and CLI 21/21 passed; exact installed consumer and repository self-host markers passed; `git diff --check` passed. Detailed case mapping and resume state are in `.execution/M0007-modular-analysis-architecture.md`.
+Automated validation: `eng/validate.ps1` exited 0 on Windows 11 with .NET SDK 11.0.100-rc.1.26425.128; Release build succeeded; Core 51/51 and CLI 22/22 passed; exact installed consumer and repository self-host markers passed. Exact positional-record semantic-review fields passed Core and CLI check/expand/handoff assertions. `git diff --check` passed after evidence updates. Detailed case mapping and resume state are in `.execution/M0007-modular-analysis-architecture.md`.
 
 Prerequisite record: the project owner approved M0006 REV-01 in this task conversation on 2026-10-06. The acceptance is now recorded in the M0006 milestone and execution ledger before M0007 PR publication.
 

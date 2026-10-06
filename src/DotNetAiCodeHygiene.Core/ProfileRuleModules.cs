@@ -1,38 +1,36 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace DotNetAiCodeHygiene.Core;
 
-/// <inheritdoc/>
-internal interface IProfileRuleModule
+internal sealed class ProfileAnalysisRuleModule : IRuleModule
 {
-/// <inheritdoc/>
-    public string RuleId { get; }
-/// <inheritdoc/>
-    public IReadOnlyList<ProfileFinding> Evaluate(ProfileManager manager, RepositorySession session);
+    public Rule Descriptor => RuleCatalog.Get("profile.dotnet.analysis.required");
+
+    public RuleModuleResult Evaluate(RuleContext context)
+    {
+        IReadOnlyList<ProfileFinding> diagnosis = context.Session.GetFact(
+            ("profile-rule", Descriptor.Id), context.ProfileManager.AnalyzeRequiredProfile);
+        return RuleModuleResult.FindingsOnly(Materialize(diagnosis, Descriptor));
+    }
+
+    internal static IReadOnlyList<Finding> Materialize(IEnumerable<ProfileFinding> diagnosis, Rule rule) => diagnosis.Select(finding =>
+    {
+        string anchor = "profile:" + finding.Path;
+        string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + anchor + "\0" + finding.Message)));
+        return new Finding("", "", rule.Id, rule.Version, rule.Classification, finding.Path, 1, 1, null,
+            finding.Message, finding.Suggestion, finding.Message, finding.Message, finding.Suggestion, anchor, fingerprint);
+    }).ToArray();
 }
 
-/// <summary>Runs mandatory profile diagnosis modules.</summary>
-internal sealed class ProfileRuleRunner(IReadOnlyList<IProfileRuleModule> modules)
+internal sealed class ProfileStyleCopRuleModule : IRuleModule
 {
-    /// <summary>Returns deterministic profile findings without applying remediation.</summary>
-    internal IReadOnlyList<ProfileFinding> Run(ProfileManager manager, RepositorySession session) =>
-        modules.SelectMany(module => module.Evaluate(manager, session)).ToArray();
-}
+    public Rule Descriptor => RuleCatalog.Get("profile.stylecop.prohibited");
 
-/// <inheritdoc/>
-internal sealed class ProfileAnalysisRuleModule : IProfileRuleModule
-{
-/// <inheritdoc/>
-    public string RuleId => "profile.dotnet.analysis.required";
-/// <inheritdoc/>
-    public IReadOnlyList<ProfileFinding> Evaluate(ProfileManager manager, RepositorySession session) =>
-        session.GetFact("profile-diagnosis", manager.Analyze).Where(finding => finding.RuleId == RuleId).ToArray();
-}
-
-/// <inheritdoc/>
-internal sealed class ProfileStyleCopRuleModule : IProfileRuleModule
-{
-/// <inheritdoc/>
-    public string RuleId => "profile.stylecop.prohibited";
-/// <inheritdoc/>
-    public IReadOnlyList<ProfileFinding> Evaluate(ProfileManager manager, RepositorySession session) =>
-        session.GetFact("profile-diagnosis", manager.Analyze).Where(finding => finding.RuleId == RuleId).ToArray();
+    public RuleModuleResult Evaluate(RuleContext context)
+    {
+        IReadOnlyList<ProfileFinding> diagnosis = context.Session.GetFact(
+            ("profile-rule", Descriptor.Id), context.ProfileManager.AnalyzeStyleCop);
+        return RuleModuleResult.FindingsOnly(ProfileAnalysisRuleModule.Materialize(diagnosis, Descriptor));
+    }
 }

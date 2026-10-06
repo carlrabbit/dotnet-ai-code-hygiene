@@ -1,41 +1,57 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace DotNetAiCodeHygiene.Core;
 
-/// <inheritdoc/>
+internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item);
+
+internal sealed record RuleModuleResult(
+    IReadOnlyList<Finding> Findings,
+    IReadOnlyList<ReviewSubject> ReviewSubjects,
+    IReadOnlyDictionary<string, string> ReviewSourceContents)
+{
+    internal static RuleModuleResult FindingsOnly(IEnumerable<Finding> findings) => new(findings.ToArray(), [], new Dictionary<string, string>());
+    internal static RuleModuleResult Empty { get; } = FindingsOnly([]);
+}
+
+internal sealed record RuleModuleExecution(Rule Descriptor, RuleModuleResult Result);
+
+/// <summary>Lazy services available to production rule modules for this command.</summary>
 internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments)
 {
-/// <inheritdoc/>
+    private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
+
     internal RepositorySession Session { get; } = session;
-/// <inheritdoc/>
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
+    internal string RelativePath(Document document) => document.FilePath is string path ? Session.Relative(path) : document.Name;
+    internal SourceText Text(Document document) => Session.GetFact(("source-text", document.Id), () => document.GetTextAsync().GetAwaiter().GetResult());
+    internal SyntaxTree Tree(Document document) => Session.GetFact(("syntax-tree", document.Id), () => document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'."));
+    internal SyntaxNode Root(Document document) => Session.GetFact(("syntax-root", document.Id), () => Tree(document).GetRoot());
+    internal Compilation Compilation(Document document) => Session.GetCompilation(document.Project);
+    internal SemanticModel SemanticModel(Document document) => Session.GetFact(("semantic-model", document.Id), () => Compilation(document).GetSemanticModel(Tree(document)));
+    internal DocumentationSubjectFact DocumentationSubjects(Document document) =>
+        Session.GetFact(("documentation-subjects", document.Id), () => DocumentationSubjectFact.Create(Root(document), SemanticModel(document)));
+    internal Dictionary<string, int> OccurrenceCounts(string ruleId, Document document) =>
+        occurrenceCounts.GetValueOrDefault((ruleId, document.Id)) ?? (occurrenceCounts[(ruleId, document.Id)] = new(StringComparer.Ordinal));
+    internal ProfileManager ProfileManager => Session.GetFact("profile-manager", () => new ProfileManager(Session.Root));
 }
 
-/// <inheritdoc/>
 internal interface IRuleModule
 {
-/// <inheritdoc/>
     public Rule Descriptor { get; }
-/// <inheritdoc/>
-    public IReadOnlyList<Finding> Evaluate(RuleContext context);
+    public RuleModuleResult Evaluate(RuleContext context);
 }
 
-/// <summary>Executes explicitly supplied rule modules; the host remains responsible for result materialization.</summary>
-internal sealed class RuleModuleRunner
+/// <summary>Executes explicitly registered production rules; the host owns materialization and persistence.</summary>
+internal sealed class RuleModuleRunner(IReadOnlyList<IRuleModule> modules)
 {
-    private readonly IReadOnlyList<IRuleModule> modules;
-
-/// <inheritdoc/>
-    internal RuleModuleRunner(IReadOnlyList<IRuleModule> modules) => this.modules = modules;
-
-/// <inheritdoc/>
-    internal IReadOnlyList<Finding> Run(RuleContext context) => modules.SelectMany(module => module.Evaluate(context)).ToArray();
+    internal IReadOnlyList<RuleModuleExecution> Run(RuleContext context, IReadOnlySet<string> disabled) =>
+        modules.Where(module => !disabled.Contains(module.Descriptor.Id))
+            .Select(module => new RuleModuleExecution(module.Descriptor, module.Evaluate(context))).ToArray();
 }
 
-/// <summary>Collects rule execution metadata and explicit module registrations.</summary>
 internal static class RuleCatalog
 {
-    /// <summary>Canonical fixed rule identity, version, output, and order metadata.</summary>
     internal static readonly Rule[] All =
     [
         new("profile.dotnet.analysis.required", 1, "finding", "finding", "Require the supported .NET analysis profile.", false),
@@ -49,32 +65,18 @@ internal static class RuleCatalog
         new("readability.control-flow.visual-block", 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.")
     ];
 
-/// <inheritdoc/>
-    /// <summary>Explicit document evaluators registered for fixed rules.</summary>
-    internal static IReadOnlyList<IDocumentRuleModule> DocumentModules { get; } =
+    internal static Rule Get(string id) => All.Single(rule => rule.Id == id);
+
+    internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
-        new DocumentationXmlConsistencyRuleModule(),
-        new DocumentationSentenceRuleModule(),
-        new LongLineReviewRuleModule(),
-        new ControlFlowVisualBlockRuleModule()
+        new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(),
+        new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
+        new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
+        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule()
     ];
 
-    /// <summary>Runner for the explicit document evaluator registration.</summary>
-    internal static DocumentRuleRunner DocumentRunner { get; } = new(DocumentModules);
+    internal static RuleModuleRunner Runner { get; } = new(Modules);
 
-/// <inheritdoc/>
-    /// <summary>Explicit mandatory profile diagnosis modules.</summary>
-    internal static IReadOnlyList<IProfileRuleModule> ProfileModules { get; } =
-        [new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule()];
-
-    /// <summary>Runner for mandatory profile diagnosis modules.</summary>
-    internal static ProfileRuleRunner ProfileRunner { get; } = new(ProfileModules);
-
-/// <inheritdoc/>
-    /// <summary>Explicit semantic review rules with independent policy metadata.</summary>
-    internal static IReadOnlyList<ISemanticReviewRuleModule> SemanticReviewModules { get; } =
-        [new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule()];
-
-    /// <summary>Runner for the registered semantic review rules.</summary>
+    internal static IReadOnlyList<ISemanticReviewRuleModule> SemanticReviewModules { get; } = Modules.OfType<ISemanticReviewRuleModule>().ToArray();
     internal static SemanticReviewRuleRunner SemanticReviewRunner { get; } = new(SemanticReviewModules);
 }

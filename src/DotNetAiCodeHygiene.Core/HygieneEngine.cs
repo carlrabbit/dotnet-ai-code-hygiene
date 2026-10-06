@@ -157,68 +157,15 @@ public sealed class HygieneEngine
         Dictionary<string, (Project Project, Document Document)> projectsByTarget = session.AssignTargets(targets, paths);
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
-        var candidates = new List<Finding>();
-        var reviewSubjects = new List<(string Identity, string Content, ReviewItem Item)>();
-        var reviewSourceContents = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var projectGroup in projectsByTarget.GroupBy(item => item.Value.Project.Id))
-        {
-            Project project = session.Workspace.CurrentSolution.GetProject(projectGroup.Key)!;
-            Compilation compilation = session.GetCompilation(project);
-            foreach (Document document in projectGroup.Select(item => item.Value.Document))
-            {
-                SyntaxTree tree = document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'.");
-                string path = tree.FilePath;
-                string text = File.ReadAllText(path); string rel = Path.GetRelativePath(root, path).Replace('\\', '/');
-                var model = compilation.GetSemanticModel(tree);
-                var occurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-                SyntaxNode syntaxRoot = tree.GetRoot();
-                bool documentationRulesEnabled = !disabled.Contains(Rules[2].Id) || !disabled.Contains(Rules[3].Id)
-                    || !disabled.Contains(Rules[4].Id) || !disabled.Contains(Rules[5].Id) || !disabled.Contains(Rules[6].Id);
-                DocumentationSubjectFact documentationFact = documentationRulesEnabled
-                    ? session.GetFact(("documentation-subjects", document.Id), () => DocumentationSubjectFact.Create(syntaxRoot, model))
-                    : DocumentationSubjectFact.Empty;
-                var ordinarySummaryModule = new DocumentationSummaryRequiredRuleModule();
-                var recordSummaryModule = new PositionalRecordSummaryRequiredRuleModule();
-                foreach (DocumentationSummarySubject subject in documentationFact.SummarySubjects)
-                {
-                    if (!disabled.Contains(Rules[2].Id))
-                    {
-                        Finding? finding = subject.IsPositionalRecordProperty
-                            ? recordSummaryModule.Evaluate(subject, Rules[2], rel, tree)
-                            : ordinarySummaryModule.Evaluate(subject, Rules[2], rel, tree);
-                        if (finding is not null)
-                        {
-                            candidates.Add(finding);
-                        }
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(subject.Summary) && (!disabled.Contains(Rules[5].Id) || !disabled.Contains(Rules[6].Id)))
-                    {
-                        var position = tree.GetLineSpan(new TextSpan(subject.SourceOffset, 0)).StartLinePosition;
-                        ReviewItem item = new("", rel, position.Line + 1, position.Character + 1, subject.Symbol.ToDisplayString(), subject.Summary,
-                            subject.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
-                        reviewSubjects.Add((rel + "\0" + subject.Anchor, subject.CarrierContent, item));
-                        reviewSourceContents.TryAdd(rel, tree.GetText().ToString());
-                    }
-                }
-                var documentContext = new RuleDocumentContext(Rules[7], rel, tree, syntaxRoot, model, text, occurrenceCounts, compilation, documentationFact);
-                candidates.AddRange(RuleCatalog.DocumentRunner.Run(documentContext, disabled.ToHashSet(StringComparer.Ordinal)));
-            }
-        }
-        var profileManager = new ProfileManager(root);
-        foreach (ProfileFinding finding in RuleCatalog.ProfileRunner.Run(profileManager, session))
-        {
-            Rule rule = Rules.Single(r => r.Id == finding.RuleId);
-            string anchor = "profile:" + finding.Path;
-            string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + anchor + "\0" + finding.Message)));
-            candidates.Add(new Finding("", "", rule.Id, rule.Version, rule.Classification, finding.Path, 1, 1, null,
-                finding.Message, finding.Suggestion, finding.Message, finding.Message, finding.Suggestion, anchor, fingerprint));
-        }
+        Document[] reportingDocuments = projectsByTarget.Values.Select(value => value.Document).DistinctBy(document => document.Id).ToArray();
+        var ruleContext = new RuleContext(session, reportingDocuments);
+        IReadOnlyList<RuleModuleExecution> executions = RuleCatalog.Runner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
+        var candidates = executions.SelectMany(execution => execution.Result.Findings).ToList();
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        ReviewBatch[] batches = RuleCatalog.SemanticReviewRunner.BuildBatches(run, disabled.ToHashSet(StringComparer.Ordinal), reviewSubjects, reviewSourceContents);
+        ReviewBatch[] batches = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions);
         var result = new CheckResult(1, run, active, ignored, batches);
         if (publishLatest)
         {
@@ -240,7 +187,7 @@ public sealed class HygieneEngine
     internal static readonly ReviewQuestion[] GermanQuestions =
     [ new("Q1", "German language: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?") ];
 
-    internal static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, List<(string Identity, string Content, ReviewItem Item)> subjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions)
+    internal static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)

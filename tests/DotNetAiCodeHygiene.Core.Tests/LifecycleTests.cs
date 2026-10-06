@@ -68,7 +68,8 @@ public sealed class LifecycleTests
             using var session = new RepositorySession(repo);
             Rule rule = new("test.rule", 1, "finding", "finding", "Test module.");
             var runner = new RuleModuleRunner([new TestRuleModule(rule)]);
-            Finding[] findings = runner.Run(new RuleContext(session, [])).ToArray();
+            Finding[] findings = runner.Run(new RuleContext(session, []), new HashSet<string>())
+                .SelectMany(execution => execution.Result.Findings).ToArray();
             await Assert.That(findings.Length).IsEqualTo(1);
             await Assert.That(findings[0].RuleId).IsEqualTo("test.rule");
             await Assert.That(session.HasWorkspace).IsFalse();
@@ -89,14 +90,97 @@ public sealed class LifecycleTests
     private sealed class TestRuleModule(Rule descriptor) : IRuleModule
     {
         public Rule Descriptor => descriptor;
-        public IReadOnlyList<Finding> Evaluate(RuleContext context) =>
-        [new Finding("", "", descriptor.Id, descriptor.Version, descriptor.Classification, "", 1, 1, null, "test", "", "", "", "", "test", "test")];
+        public RuleModuleResult Evaluate(RuleContext context) => RuleModuleResult.FindingsOnly(
+            [new Finding("", "", descriptor.Id, descriptor.Version, descriptor.Classification, "", 1, 1, null, "test", "", "", "", "", "test", "test")]);
     }
 
     private sealed class TestRewriteModule : IRewriteModule
     {
         public string Command => "test-rewrite";
+        public bool ValidatesResult => false;
+        public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot) { }
+        public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot) { }
         public Document Rewrite(Document document, Compilation compilation) => document.WithText(SourceText.From("class After { }"));
+    }
+
+    [Test]
+    public async Task ProductionLightweightRuleUsesLazyProductionContextWithoutLoadingRoslyn()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-production-lazy-rule-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("lightweight", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "Short.cs", SourceText.From("class Short { }"));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [document]);
+            var disabled = RuleCatalog.All.Select(rule => rule.Id).Where(id => id != "readability.long-line.review").ToHashSet(StringComparer.Ordinal);
+            RuleModuleExecution execution = RuleCatalog.Runner.Run(context, disabled)
+                .Single(item => item.Descriptor.Id == "readability.long-line.review");
+
+            await Assert.That(execution.Result.Findings.Count).IsEqualTo(0);
+            await Assert.That(session.HasWorkspace).IsFalse();
+            await Assert.That(session.HasProjects).IsFalse();
+            await Assert.That(session.CompilationCount).IsEqualTo(0);
+            await Assert.That(session.FactCount).IsEqualTo(1);
+        }
+        finally
+        {
+            DeleteTree(repo);
+        }
+    }
+
+    [Test]
+    public async Task RegisteredProductionRulesShareLazyDocumentationFactAndCompilation()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-production-shared-fact-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("documentation", LanguageNames.CSharp)
+                .WithMetadataReferences([MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]);
+            Document document = workspace.AddDocument(project.Id, "Api.cs", SourceText.From("/// <summary>Useful API.</summary>\npublic class Api { }"));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [document]);
+            string[] enabled = ["docs.summary.required", "docs.summary.quality.review", "docs.summary.language.german.review"];
+            var disabled = RuleCatalog.All.Select(rule => rule.Id).Where(id => !enabled.Contains(id, StringComparer.Ordinal)).ToHashSet(StringComparer.Ordinal);
+            RuleModuleExecution[] executions = RuleCatalog.Runner.Run(context, disabled).ToArray();
+
+            await Assert.That(executions.Length).IsEqualTo(3);
+            await Assert.That(executions.Single(item => item.Descriptor.Id == "docs.summary.required").Result.Findings.Count).IsEqualTo(0);
+            await Assert.That(session.CompilationCount).IsEqualTo(1);
+            await Assert.That(session.FactComputations(("documentation-subjects", document.Id))).IsEqualTo(1);
+            await Assert.That(executions.Single(item => item.Descriptor.Id == "docs.summary.quality.review").Result.ReviewSubjects.Count).IsEqualTo(1);
+            await Assert.That(executions.Single(item => item.Descriptor.Id == "docs.summary.language.german.review").Result.ReviewSubjects.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            DeleteTree(repo);
+        }
+    }
+
+    [Test]
+    public async Task PositionalRecordSemanticReviewFieldsRemainCompatible()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-record-review-compat-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Api.cs"), "/// <summary>Ein gültiger Typ.</summary>\n/// <param name=\"Name\">Der Anzeigename.</param>\npublic record Person(string Name);\n");
+            CheckResult result = new HygieneEngine(repo).Check([], false);
+            ReviewItem item = result.ReviewBatches.Single(batch => batch.RuleId == "docs.summary.quality.review")
+                .PopulationItems!.Single(reviewItem => reviewItem.Symbol == "T:Person.Name");
+
+            await Assert.That(item).IsEqualTo(new ReviewItem("RI-2", "src/Api.cs", 3, 22, "T:Person.Name", "Der Anzeigename.", "Person"));
+        }
+        finally
+        {
+            DeleteTree(repo);
+        }
     }
 
     [Test]
@@ -117,7 +201,12 @@ public sealed class LifecycleTests
             await Assert.That(manager.Bootstrap().FindingCount).IsEqualTo(2);
             await Assert.That(manager.Update().ChangedPaths.Count).IsEqualTo(0);
             var engine = new HygieneEngine(repo);
-            Finding mandatory = engine.Check([], false).Findings.First(f => f.RuleId == "profile.dotnet.analysis.required");
+            IRuleModule[] profileModules = RuleCatalog.Modules.Where(module => module.Descriptor.Id.StartsWith("profile.", StringComparison.Ordinal)).ToArray();
+            await Assert.That(profileModules.Length).IsEqualTo(2);
+            await Assert.That(profileModules[0].GetType() == profileModules[1].GetType()).IsFalse();
+            Finding[] profileFindings = engine.Check([], false).Findings.Where(f => f.RuleId.StartsWith("profile.", StringComparison.Ordinal)).ToArray();
+            Finding mandatory = profileFindings.First(f => f.RuleId == "profile.dotnet.analysis.required");
+            await Assert.That(profileFindings.Any(f => f.RuleId == "profile.stylecop.prohibited")).IsTrue();
             bool disableRejected = false, ignoreRejected = false;
             try { engine.SetRule("profile.dotnet.analysis.required", false); } catch (ProductException) { disableRejected = true; }
             try { engine.Ignore(mandatory.Handle, "must not be suppressible"); } catch (ProductException) { ignoreRejected = true; }

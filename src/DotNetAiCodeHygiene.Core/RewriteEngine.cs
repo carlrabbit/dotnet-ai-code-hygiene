@@ -29,17 +29,40 @@ internal interface IRewriteModule
 {
     public string Command { get; }
     public Document Rewrite(Document document, Compilation compilation);
+    public bool ValidatesResult { get; }
+    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot);
+    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot);
 }
 
 internal sealed class FormatRewriteModule : IRewriteModule
 {
     public string Command => "format";
     public Document Rewrite(Document document, Compilation compilation) => Formatter.FormatAsync(document).GetAwaiter().GetResult();
+    public bool ValidatesResult => false;
+    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot) { }
+    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot) { }
 }
 
 internal sealed class NormalizeRewriteModule : IRewriteModule
 {
     public string Command => "normalize";
+    public bool ValidatesResult => true;
+    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot)
+    {
+        if (RewriteCompilerValidation.HasRepositoryErrors(compilation, repositoryRoot))
+        {
+            throw new ProductException($"Cannot normalize: project '{projectPath}' has compiler errors.");
+        }
+    }
+
+    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot)
+    {
+        if (RewriteCompilerValidation.HasRepositoryErrors(compilation, repositoryRoot))
+        {
+            throw new ProductException($"Normalization would introduce compiler errors in '{projectPath}'; no files were changed.");
+        }
+    }
+
     public Document Rewrite(Document document, Compilation compilation)
     {
         SyntaxNode root = document.GetSyntaxRootAsync().GetAwaiter().GetResult()!;
@@ -51,6 +74,13 @@ internal sealed class NormalizeRewriteModule : IRewriteModule
         updated = Simplifier.ReduceAsync(updated, Simplifier.Annotation).GetAwaiter().GetResult();
         return Formatter.FormatAsync(updated).GetAwaiter().GetResult();
     }
+}
+
+internal static class RewriteCompilerValidation
+{
+    internal static bool HasRepositoryErrors(Compilation compilation, string repositoryRoot) => compilation.GetDiagnostics().Any(d =>
+        d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null
+            || Path.GetFullPath(d.Location.SourceTree.FilePath).StartsWith(Path.GetFullPath(repositoryRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)));
 }
 
 internal sealed class RewriteRunner(IReadOnlyList<IRewriteModule> modules)
@@ -97,10 +127,7 @@ public sealed class RewriteEngine
         {
             Project project = group.First().Value.Project;
             Compilation compilation = session.GetCompilation(project);
-            if (module.Command == "normalize" && HasErrors(compilation))
-            {
-                throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
-            }
+            module.ValidateProject(compilation, Rel(project.FilePath!), root);
 
             foreach (var pair in group)
             {
@@ -125,7 +152,7 @@ public sealed class RewriteEngine
                 }
             }
         }
-        if (module.Command == "normalize" && plan.Count > 0)
+        if (module.ValidatesResult && plan.Count > 0)
         {
             foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
             {
@@ -146,10 +173,7 @@ public sealed class RewriteEngine
                     solution = solution.WithDocumentText(entry.Value.Document.Id, SourceText.From(text, Encoding.UTF8));
                 }
                 Compilation after = solution.GetProject(group.Key)!.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not validate the rewrite plan.");
-                if (HasErrors(after))
-                {
-                    throw new ProductException($"Normalization would introduce compiler errors in '{Rel(project.FilePath!)}'; no files were changed.");
-                }
+                module.ValidateResult(after, Rel(project.FilePath!), root);
             }
         }
         string[] changedPaths = plan.Keys.Select(Rel).Order(StringComparer.Ordinal).ToArray();
@@ -231,7 +255,5 @@ public sealed class RewriteEngine
         }
     }
 
-    private bool HasErrors(Compilation compilation) => compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null || IsInRepo(d.Location.SourceTree.FilePath)));
-    private bool IsInRepo(string path) => Path.GetFullPath(path).StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     private string Rel(string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
 }

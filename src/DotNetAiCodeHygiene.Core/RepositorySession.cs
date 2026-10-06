@@ -13,6 +13,7 @@ internal sealed class RepositorySession : IDisposable
     private readonly Lazy<Project[]> projects;
     private readonly ConcurrentDictionary<ProjectId, Lazy<Compilation>> compilations = new();
     private readonly ConcurrentDictionary<object, Lazy<object>> facts = new();
+    private readonly ConcurrentDictionary<object, int> factComputations = new();
 
 /// <inheritdoc/>
     internal RepositorySession(string root)
@@ -49,6 +50,7 @@ internal sealed class RepositorySession : IDisposable
     internal int CompilationCount => compilations.Count;
 /// <inheritdoc/>
     internal int FactCount => facts.Count;
+    internal int FactComputations(object key) => factComputations.GetValueOrDefault(key);
 
 /// <inheritdoc/>
     internal string[] ResolveTargets(string[] paths, bool changed)
@@ -143,7 +145,11 @@ internal sealed class RepositorySession : IDisposable
 
 /// <inheritdoc/>
     internal T GetFact<T>(object key, Func<T> factory) where T : notnull =>
-        (T)facts.GetOrAdd(key, _ => new Lazy<object>(() => factory(), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+        (T)facts.GetOrAdd(key, _ => new Lazy<object>(() =>
+        {
+            factComputations.AddOrUpdate(key, 1, static (_, count) => count + 1);
+            return factory();
+        }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
 
 /// <inheritdoc/>
     internal string Relative(string path) => Path.GetRelativePath(Root, path).Replace('\\', '/');

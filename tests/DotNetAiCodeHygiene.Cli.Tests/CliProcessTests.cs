@@ -241,6 +241,61 @@ public sealed class CliProcessTests
     }
 
     [Test]
+    public async Task PositionalRecordReviewItemFieldsPersistAcrossCheckExpandAndHandoff()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-record-review-cli-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await RunProcessAsync("git", repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Api.cs"), "/// <summary>Ein gültiger Typ.</summary>\n/// <param name=\"Name\">Der Anzeigename.</param>\npublic record Person(string Name);\n");
+
+            ProcessResult check = await RunCliInAsync(repo, "check", "--output", "json");
+            await Assert.That(check.ExitCode).IsEqualTo(0);
+            using JsonDocument checkJson = JsonDocument.Parse(check.StandardOutput);
+            JsonElement checkBatch = checkJson.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                .Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
+            JsonElement checkItem = checkBatch.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
+            AssertPositionalReviewItem(checkItem);
+
+            ProcessResult expanded = await RunCliInAsync(repo, "review", "expand", "B-1", "--output", "json");
+            await Assert.That(expanded.ExitCode).IsEqualTo(0);
+            using JsonDocument expandedJson = JsonDocument.Parse(expanded.StandardOutput);
+            JsonElement expandedItem = expandedJson.RootElement.GetProperty("reviewBatch").GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
+            AssertPositionalReviewItem(expandedItem);
+
+            ProcessResult handoff = await RunCliInAsync(repo, true, "review", "handoff", "B-1");
+            await Assert.That(handoff.ExitCode).IsEqualTo(0);
+            string handoffPath = handoff.StandardOutput["Review handoff written: ".Length..].Trim();
+            using JsonDocument handoffJson = JsonDocument.Parse(await File.ReadAllTextAsync(handoffPath));
+            JsonElement handoffItem = handoffJson.RootElement.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
+            AssertPositionalReviewItem(handoffItem);
+        }
+        finally
+        {
+            Directory.Delete(repo, true);
+        }
+    }
+
+    private static void AssertPositionalReviewItem(JsonElement item)
+    {
+        if (item.GetProperty("id").GetString() != "RI-2"
+            || item.GetProperty("path").GetString() != "src/Api.cs"
+            || item.GetProperty("line").GetInt32() != 3
+            || item.GetProperty("column").GetInt32() != 22
+            || item.GetProperty("symbol").GetString() != "T:Person.Name"
+            || item.GetProperty("summary").GetString() != "Der Anzeigename."
+            || item.GetProperty("declaration").GetString() != "Person")
+        {
+            throw new InvalidOperationException("Positional-record review item differs from the accepted M0006 public representation.");
+        }
+    }
+
+    [Test]
     public async Task EmptyReviewBatchIsPresentInJsonAndText()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-empty-review-" + Guid.NewGuid().ToString("N"));
