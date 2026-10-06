@@ -402,7 +402,7 @@ public sealed class M0005EvidenceTests
                 /// <param name="optional">This is optional parameter prose.</param>
                 public class Api { public void Run(int optional) { } }
                 """);
-            ReviewBatch batch = new HygieneEngine(repo).Check([], false).ReviewBatches.Single();
+            ReviewBatch batch = new HygieneEngine(repo).Check([], false).ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             string[] subjects = batch.PopulationItems!.Select(item => item.Symbol!).ToArray();
             await Assert.That(subjects.Any(name => name.Contains("Container", StringComparison.Ordinal))).IsTrue();
             await Assert.That(subjects.Any(name => name.Contains("Value", StringComparison.Ordinal))).IsTrue();

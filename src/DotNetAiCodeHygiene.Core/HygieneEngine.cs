@@ -37,7 +37,8 @@ public sealed class HygieneEngine
         new("docs.summary.required", 2, "finding", "finding", "Require documentation summaries on covered API symbols."),
         new("docs.xml.consistent", 1, "finding", "finding", "Check present XML documentation structure and references."),
         new("docs.text.sentence", 1, "finding", "finding", "Require sentence punctuation in selected documentation prose."),
-        new("docs.summary.quality.review", 2, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for quality."),
+        new("docs.summary.quality.review", 3, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for correctness, value, and clarity."),
+        new("docs.summary.language.german.review", 1, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for natural, comprehensible German."),
         new("readability.long-line.review", 1, "finding", "review-candidate", "Review unusually long physical source lines."),
         new("readability.control-flow.visual-block", 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.")
     ];
@@ -359,7 +360,7 @@ public sealed class HygieneEngine
                             candidates.Add(Make(Rules[2], rel, tree, member.GetLocation().SourceSpan.Start, symbol.ToDisplayString(), "Public or internal symbol has no non-empty documentation summary.", "Add a concise documentation summary for this API subject.", "The declaration has no summary text.", "This rule requires documentation, not a particular wording or language.", anchor, "missing-summary:" + anchor));
                         }
 
-                        if (!disabled.Contains(Rules[5].Id) && hasSummary)
+                        if ((!disabled.Contains(Rules[5].Id) || !disabled.Contains(Rules[6].Id)) && hasSummary)
                         {
                             string summary = GetSummaryText(member);
                             if (!string.IsNullOrWhiteSpace(summary))
@@ -393,7 +394,7 @@ public sealed class HygieneEngine
                                     "The matching record parameter has no summary prose.",
                                     "Ordinary parameters remain optional documentation subjects.", propertyAnchor, "missing-record-property-summary:" + propertyAnchor));
                             }
-                            else if (!string.IsNullOrWhiteSpace(parameterSummary))
+                            else if (!string.IsNullOrWhiteSpace(parameterSummary) && (!disabled.Contains(Rules[5].Id) || !disabled.Contains(Rules[6].Id)))
                             {
                                 var position = tree.GetLineSpan(parameter.Span).StartLinePosition;
                                 var item = new ReviewItem("", rel, position.Line + 1, position.Character + 1, recordAnchor + "." + parameterName, parameterSummary, recordSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
@@ -403,7 +404,7 @@ public sealed class HygieneEngine
                         }
                     }
                 }
-                if (!disabled.Contains(Rules[6].Id))
+                if (!disabled.Contains(Rules[7].Id))
                 {
                     SourceTextLines(text, (line, number, start) =>
                     {
@@ -413,12 +414,12 @@ public sealed class HygieneEngine
                             SyntaxNode? anchorNode = containing?.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax or BaseTypeDeclarationSyntax);
                             string anchor = anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol s ? s.GetDocumentationCommentId() ?? s.ToDisplayString() : rel;
                             string canonical = string.Join(" ", syntaxRoot.DescendantTokens(new Microsoft.CodeAnalysis.Text.TextSpan(start, line.Length)).Select(t => t.ToString()));
-                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[6], anchor, canonical);
-                            candidates.Add(Make(Rules[6], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
+                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[7], anchor, canonical);
+                            candidates.Add(Make(Rules[7], rel, tree, start, anchorNode is not null && model.GetDeclaredSymbol(anchorNode) is ISymbol symbol ? symbol.ToDisplayString() : null, "Physical line exceeds 200 characters.", "Review whether the line hides multiple concepts or structures that should be made visible or named.", "The physical line exceeds 200 UTF-16 code units.", "Do not split mechanically merely to satisfy a line-length limit.", anchor, canonical + "\0" + discriminator, discriminator));
                         }
                     });
                 }
-                if (!disabled.Contains(Rules[7].Id))
+                if (!disabled.Contains(Rules[8].Id))
                 {
                     foreach (BlockSyntax block in syntaxRoot.DescendantNodes().OfType<BlockSyntax>())
                     {
@@ -445,8 +446,8 @@ public sealed class HygieneEngine
                             ISymbol? container = model.GetEnclosingSymbol(current.SpanStart);
                             string anchor = container?.GetDocumentationCommentId() ?? container?.ToDisplayString() ?? rel;
                             string evidence = previous.Kind().ToString() + ":" + string.Join(" ", previous.DescendantTokens().Select(t => t.ToString())) + "|" + current.Kind() + ":" + string.Join(" ", current.DescendantTokens().Select(t => t.ToString()));
-                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[7], anchor, evidence);
-                            candidates.Add(Make(Rules[7], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
+                            string discriminator = NextDiscriminator(occurrenceCounts, Rules[8], anchor, evidence);
+                            candidates.Add(Make(Rules[8], rel, tree, boundary, container?.ToDisplayString(), "Control-flow statement needs a blank line after the preceding linear statement.", "Insert one completely blank line before this control-flow group.", "A control-flow statement immediately follows a linear statement without a blank line.", "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
                         }
                     }
                 }
@@ -464,7 +465,9 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        ReviewBatch[] batches = disabled.Contains(Rules[5].Id) ? [] : [BuildReviewBatch(run, reviewSubjects, reviewSourceContents)];
+        ReviewBatch[] batches = Rules.Skip(5).Take(2).Where(rule => !disabled.Contains(rule.Id))
+            .Select(rule => (Rule: rule, BatchNumber: Array.FindIndex(Rules, r => r.Id == rule.Id) - 4))
+            .Select(entry => BuildReviewBatch(run, entry.Rule, entry.BatchNumber, reviewSubjects, reviewSourceContents)).ToArray();
         var result = new CheckResult(1, run, active, ignored, batches);
         if (publishLatest)
         {
@@ -476,23 +479,25 @@ public sealed class HygieneEngine
         return result;
     }
 
-    private static readonly ReviewQuestion[] SummaryQuestions =
+    private static readonly ReviewQuestion[] QualityQuestions =
     [
-        new("Q1", "German quality: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?"),
-        new("Q2", "Technical correctness: Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?"),
-        new("Q3", "Information value: Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature? A concise summary is acceptable only when it still communicates useful purpose/domain meaning."),
-        new("Q4", "Clarity and scope: Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?")
+        new("Q1", "Technical correctness: Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?"),
+        new("Q2", "Information value: Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature? A concise summary is acceptable only when it still communicates useful purpose/domain meaning."),
+        new("Q3", "Clarity and scope: Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?")
     ];
 
-    private static ReviewBatch BuildReviewBatch(string run, List<(string Identity, string Content, ReviewItem Item)> subjects, Dictionary<string, string> sourceContents)
+    private static readonly ReviewQuestion[] GermanQuestions =
+    [ new("Q1", "German language: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?") ];
+
+    private static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, List<(string Identity, string Content, ReviewItem Item)> subjects, Dictionary<string, string> sourceContents)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
             .Select(s => (s.Identity, s.Content, s.Item, ContentFingerprint: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s.Content)))))
             .ToArray();
         string populationData = string.Join("\n", ordered.Select(s => s.Identity + "\0" + s.ContentFingerprint));
-        string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[5].Id + "\0" + Rules[5].Version + "\0" + populationData)));
-        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Rules[5].Id + "\0" + Rules[5].Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
+        string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + rule.Version + "\0" + populationData)));
+        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + rule.Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
             .OrderBy(x => x.Rank, StringComparer.Ordinal).ThenBy(x => x.Subject.Identity, StringComparer.Ordinal).Take(5).ToArray();
         ReviewItem[] all = ordered.Select((s, i) => s.Item with { Id = "RI-" + (i + 1) }).ToArray();
         var ids = all.ToDictionary(x => x.Path + "\0" + x.Line + "\0" + x.Symbol, x => x.Id, StringComparer.Ordinal);
@@ -500,8 +505,10 @@ public sealed class HygieneEngine
         ReviewSource[] sources = ordered.Select(s => s.Item.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
             .Select(path => sourceContents.TryGetValue(path, out string? content) && content is not null ? new ReviewSource(path, content) : throw new ProductException($"Source context for '{path}' is unavailable."))
             .ToArray();
-        return new ReviewBatch("B-1", run + "/B-1", Rules[5].Id, 2, "sample", "implementer", ordered.Length, sample.Length, SummaryQuestions,
-            new ReviewEscalation("Expand if any sampled summary materially fails Q1-Q4 or the implementer cannot confidently answer any required question.", "hygiene review expand " + run + "/B-1", "frontier"), sample, population, all, sources);
+        string batchId = "B-" + batchNumber;
+        ReviewQuestion[] questions = rule.Id == "docs.summary.language.german.review" ? GermanQuestions : QualityQuestions;
+        return new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", "implementer", ordered.Length, sample.Length, questions,
+            new ReviewEscalation("Expand if any sampled summary materially fails a required question or the implementer cannot confidently answer it.", "hygiene review expand " + run + "/" + batchId, "frontier"), sample, population, all, sources);
     }
 
     public ReviewBatch ExpandReview(string handle)

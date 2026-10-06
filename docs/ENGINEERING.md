@@ -1,5 +1,9 @@
 # Engineering
 
+## Repository self-hosting policy
+
+The repository is English. `.hygiene/config.json` disables only `docs.summary.language.german.review`; generic summary-quality review, required summaries, and visual control-flow separation remain enabled. The German policy remains fixed and available to consuming repositories that choose to enable it.
+
 ## Baseline
 
 ```text

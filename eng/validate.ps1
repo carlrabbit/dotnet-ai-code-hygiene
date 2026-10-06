@@ -90,6 +90,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.summary.required')) { throw 'Installed check did not report a missing API summary.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.text.sentence')) { throw 'Installed check did not report missing summary punctuation.' }
+    $quality = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
+    $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
+    if (-not $quality -or $quality.ruleVersion -ne 3 -or -not $german -or $german.ruleVersion -ne 1) { throw 'Installed check did not emit the independent v3 quality and v1 German review batches.' }
+    if (-not ($german.questions[0].text -match 'natural, comprehensible German')) { throw 'Installed German review rubric is incorrect.' }
+    & $hygiene rules disable docs.summary.language.german.review | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
+    $qualityOnly = & $hygiene check --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 1 -or $qualityOnly.reviewBatches[0].ruleId -ne 'docs.summary.quality.review') { throw 'Disabling the installed German rule changed or removed language-neutral quality review.' }
 }
 finally {
     Pop-Location

@@ -30,6 +30,8 @@ Use semantic/model review for questions where deterministic enforcement would ei
 
 Early hygiene rules should have a strong project-owned opinion rather than exposing thresholds, severity matrices, ordering, or per-rule parameter surfaces.
 
+The durable rule model is **fixed opinion, optional applicability**: each rule ID has one semantic contract with no repository-supplied parameters; optional configuration enables or disables that whole rule. Language, thresholds, scope, severity, questions, sampling, convention, and remediation are not parameter bags. When policies can apply independently, give them separate rule IDs.
+
 Configuration has a maintenance and reasoning cost for both humans and agents. Add it only when a real use case proves that one fixed policy is insufficient.
 
 ### BORING is generally desirable
