@@ -1,13 +1,104 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using DotNetAiCodeHygiene.Core;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
 
 public sealed class LifecycleTests
 {
+    [Test]
+    public async Task SessionFactsAreLazyAndSharedWithinTheSession()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-session-facts-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var session = new RepositorySession(repo);
+            int computations = 0;
+            await Assert.That(session.FactCount).IsEqualTo(0);
+            string first = session.GetFact("shared-fixture-fact", () => { computations++; return "value"; });
+            string second = session.GetFact("shared-fixture-fact", () => { computations++; return "other"; });
+            await Assert.That(computations).IsEqualTo(1);
+            await Assert.That(first).IsEqualTo("value");
+            await Assert.That(second).IsEqualTo("value");
+            await Assert.That(session.HasWorkspace).IsFalse();
+            await Assert.That(session.HasProjects).IsFalse();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task SessionLoadsProjectAndCompilationOnceForMultipleConsumers()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-session-project-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repo, "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string source = Path.Combine(repo, "Api.cs");
+            await File.WriteAllTextAsync(source, "public class Api { }");
+            using var session = new RepositorySession(repo);
+            await Assert.That(session.HasWorkspace).IsFalse();
+            await Assert.That(session.HasProjects).IsFalse();
+            string[] targets = session.ResolveTargets([source], false);
+            Dictionary<string, (Project Project, Document Document)> assigned = session.AssignTargets(targets, [source]);
+            await Assert.That(session.HasWorkspace).IsTrue();
+            await Assert.That(session.HasProjects).IsTrue();
+            await Assert.That(session.CompilationCount).IsEqualTo(0);
+            Project project = assigned[source].Project;
+            Compilation first = session.GetCompilation(project);
+            Compilation second = session.GetCompilation(project);
+            await Assert.That(ReferenceEquals(first, second)).IsTrue();
+            await Assert.That(session.CompilationCount).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task TestOnlyRuleAndRewriteModulesRunThroughTheirRunners()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-module-seams-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var session = new RepositorySession(repo);
+            Rule rule = new("test.rule", 1, "finding", "finding", "Test module.");
+            var runner = new RuleModuleRunner([new TestRuleModule(rule)]);
+            Finding[] findings = runner.Run(new RuleContext(session, [])).ToArray();
+            await Assert.That(findings.Length).IsEqualTo(1);
+            await Assert.That(findings[0].RuleId).IsEqualTo("test.rule");
+            await Assert.That(session.HasWorkspace).IsFalse();
+            await Assert.That(session.CompilationCount).IsEqualTo(0);
+            await Assert.That(session.FactCount).IsEqualTo(0);
+
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("rewrite-test", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "input.cs", SourceText.From("class Before { }"));
+            Compilation compilation = document.Project.GetCompilationAsync().GetAwaiter().GetResult()!;
+            var rewriteRunner = new RewriteRunner([new TestRewriteModule()]);
+            Document rewritten = rewriteRunner.Rewrite("test-rewrite", document, compilation);
+            await Assert.That(rewritten.GetTextAsync().GetAwaiter().GetResult().ToString()).IsEqualTo("class After { }");
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    private sealed class TestRuleModule(Rule descriptor) : IRuleModule
+    {
+        public Rule Descriptor => descriptor;
+        public IReadOnlyList<Finding> Evaluate(RuleContext context) =>
+        [new Finding("", "", descriptor.Id, descriptor.Version, descriptor.Classification, "", 1, 1, null, "test", "", "", "", "", "test", "test")];
+    }
+
+    private sealed class TestRewriteModule : IRewriteModule
+    {
+        public string Command => "test-rewrite";
+        public Document Rewrite(Document document, Compilation compilation) => document.WithText(SourceText.From("class After { }"));
+    }
+
     [Test]
     public async Task ProfileBootstrapIsIdempotentPreservesUserContentAndReportsMandatoryViolations()
     {

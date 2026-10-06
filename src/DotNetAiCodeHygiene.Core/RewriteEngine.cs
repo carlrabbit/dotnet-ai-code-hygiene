@@ -1,6 +1,4 @@
 using System.Text;
-using System.Xml.Linq;
-using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,6 +6,7 @@ using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Build.Locator;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -26,6 +25,47 @@ internal static class RoslynWorkspaceRegistration
     }
 }
 
+internal interface IRewriteModule
+{
+    public string Command { get; }
+    public Document Rewrite(Document document, Compilation compilation);
+}
+
+internal sealed class FormatRewriteModule : IRewriteModule
+{
+    public string Command => "format";
+    public Document Rewrite(Document document, Compilation compilation) => Formatter.FormatAsync(document).GetAwaiter().GetResult();
+}
+
+internal sealed class NormalizeRewriteModule : IRewriteModule
+{
+    public string Command => "normalize";
+    public Document Rewrite(Document document, Compilation compilation)
+    {
+        SyntaxNode root = document.GetSyntaxRootAsync().GetAwaiter().GetResult()!;
+        SemanticModel model = compilation.GetSemanticModel(document.GetSyntaxTreeAsync().GetAwaiter().GetResult()!);
+        var candidates = root.DescendantNodesAndSelf().Where(node => node is NameSyntax or MemberAccessExpressionSyntax or ThisExpressionSyntax)
+            .Where(node => node is not ThisExpressionSyntax || model.GetTypeInfo(node).Type is not null).ToArray();
+        SyntaxNode annotated = root.ReplaceNodes(candidates, (oldNode, rewritten) => rewritten.WithAdditionalAnnotations(Simplifier.Annotation));
+        Document updated = document.WithSyntaxRoot(annotated);
+        updated = Simplifier.ReduceAsync(updated, Simplifier.Annotation).GetAwaiter().GetResult();
+        return Formatter.FormatAsync(updated).GetAwaiter().GetResult();
+    }
+}
+
+internal sealed class RewriteRunner(IReadOnlyList<IRewriteModule> modules)
+{
+    internal IRewriteModule Get(string command) => modules.SingleOrDefault(m => m.Command == command)
+        ?? throw new ArgumentException("Unknown rewrite command.");
+    internal Document Rewrite(string command, Document document, Compilation compilation) => Get(command).Rewrite(document, compilation);
+}
+
+internal static class RewriteCatalog
+{
+    internal static IReadOnlyList<IRewriteModule> Modules { get; } = [new FormatRewriteModule(), new NormalizeRewriteModule()];
+    internal static RewriteRunner Runner { get; } = new(Modules);
+}
+
 public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> ChangedPaths);
 
 /// <summary>Plans Roslyn rewrites completely before applying an all-target transaction.</summary>
@@ -41,53 +81,23 @@ public sealed class RewriteEngine
         this.beforeCommit = beforeCommit;
         this.afterFileCommit = afterFileCommit;
         this.plannedTextForTesting = plannedTextForTesting;
-        string dir = Path.GetFullPath(cwd ?? Environment.CurrentDirectory);
-        while (!Directory.Exists(Path.Combine(dir, ".git")) && !File.Exists(Path.Combine(dir, ".git")))
-        {
-            dir = Directory.GetParent(dir)?.FullName ?? throw new ProductException("Current directory is not inside a Git repository.");
-        }
-
-        root = dir;
+        root = RepositorySession.FindRoot(cwd);
     }
 
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
-        if (command is not ("format" or "normalize"))
-        {
-            throw new ArgumentException("Unknown rewrite command.");
-        }
-
-        var hygieneEngine = new HygieneEngine(root);
-        string[] targets = hygieneEngine.ResolveTargets(paths, changed);
-        var directlyTargetedFiles = paths.Select(raw => Path.GetFullPath(Path.IsPathRooted(raw) ? raw : Path.Combine(root, raw)))
-            .Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IRewriteModule module = RewriteCatalog.Runner.Get(command);
+        using var session = new RepositorySession(root);
+        string[] targets = session.ResolveTargets(paths, changed);
         var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
-        using var workspace = CreateWorkspace();
-        var projects = LoadProjects(workspace);
-        var assigned = new Dictionary<string, (Project Project, Document Document)>(StringComparer.OrdinalIgnoreCase);
-        foreach (string path in targets)
-        {
-            var match = projects.SelectMany(p => p.Documents.Select(d => (Project: p, Document: d)))
-                .Where(x => x.Document.FilePath is not null && Path.GetFullPath(x.Document.FilePath).Equals(path, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => Path.GetFullPath(x.Project.FilePath ?? "").Length).FirstOrDefault();
-            if (match.Document is null)
-            {
-                if (directlyTargetedFiles.Contains(path))
-                {
-                    throw new ProductException($"C# file is not included by a discoverable SDK-style project: {Rel(path)}");
-                }
-
-                continue;
-            }
-            assigned[path] = match;
-        }
+        Dictionary<string, (Project Project, Document Document)> assigned = session.AssignTargets(targets, paths);
         var plan = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var changedByProject = new Dictionary<ProjectId, Dictionary<string, string>>();
         foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
         {
             Project project = group.First().Value.Project;
-            Compilation compilation = project.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not create a project compilation.");
-            if (command == "normalize" && HasErrors(compilation))
+            Compilation compilation = session.GetCompilation(project);
+            if (module.Command == "normalize" && HasErrors(compilation))
             {
                 throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
             }
@@ -96,9 +106,7 @@ public sealed class RewriteEngine
             {
                 Document document = pair.Value.Document;
                 SourceText source = document.GetTextAsync().GetAwaiter().GetResult();
-                Document changedDocument = command == "format"
-                    ? Formatter.FormatAsync(document).GetAwaiter().GetResult()
-                    : Normalize(document, compilation);
+                Document changedDocument = RewriteCatalog.Runner.Rewrite(command, document, compilation);
                 SourceText rewritten = changedDocument.GetTextAsync().GetAwaiter().GetResult();
                 string content = plannedTextForTesting?.Invoke(rewritten.ToString()) ?? rewritten.ToString();
                 if (!StringComparer.Ordinal.Equals(source.ToString(), content))
@@ -117,7 +125,7 @@ public sealed class RewriteEngine
                 }
             }
         }
-        if (command == "normalize" && plan.Count > 0)
+        if (module.Command == "normalize" && plan.Count > 0)
         {
             foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
             {
@@ -151,18 +159,6 @@ public sealed class RewriteEngine
         }
 
         return new(command, checkOnly, targets.Length, plan.Count, targets.Length - plan.Count, changedPaths);
-    }
-
-    private static Document Normalize(Document document, Compilation compilation)
-    {
-        SyntaxNode root = document.GetSyntaxRootAsync().GetAwaiter().GetResult()!;
-        SemanticModel model = compilation.GetSemanticModel(document.GetSyntaxTreeAsync().GetAwaiter().GetResult()!);
-        var candidates = root.DescendantNodesAndSelf().Where(node => node is NameSyntax or MemberAccessExpressionSyntax or ThisExpressionSyntax)
-            .Where(node => node is not ThisExpressionSyntax || model.GetTypeInfo(node).Type is not null).ToArray();
-        SyntaxNode annotated = root.ReplaceNodes(candidates, (oldNode, rewritten) => rewritten.WithAdditionalAnnotations(Simplifier.Annotation));
-        Document updated = document.WithSyntaxRoot(annotated);
-        updated = Simplifier.ReduceAsync(updated, Simplifier.Annotation).GetAwaiter().GetResult();
-        return Formatter.FormatAsync(updated).GetAwaiter().GetResult();
     }
 
     private void Commit(Dictionary<string, byte[]> plan, Dictionary<string, byte[]> original)
@@ -238,30 +234,4 @@ public sealed class RewriteEngine
     private bool HasErrors(Compilation compilation) => compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null || IsInRepo(d.Location.SourceTree.FilePath)));
     private bool IsInRepo(string path) => Path.GetFullPath(path).StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     private string Rel(string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
-    private static MSBuildWorkspace CreateWorkspace()
-    {
-        RoslynWorkspaceRegistration.EnsureRegistered();
-        return MSBuildWorkspace.Create(new Dictionary<string, string> { ["DesignTimeBuild"] = "true" });
-    }
-    private Project[] LoadProjects(MSBuildWorkspace workspace)
-    {
-        var list = new List<Project>();
-        foreach (string project in Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(p => !p.Split(Path.DirectorySeparatorChar).Any(x => x is ".git" or ".hygiene" or "bin" or "obj")))
-        {
-            try
-            {
-                XDocument doc = XDocument.Load(project);
-                if (!SdkProjectDetection.IsSdkStyle(doc))
-                {
-                    continue;
-                }
-
-                Project? existing = workspace.CurrentSolution.Projects.FirstOrDefault(p => Path.GetFullPath(p.FilePath ?? "").Equals(Path.GetFullPath(project), StringComparison.OrdinalIgnoreCase));
-                Project loaded = existing ?? workspace.OpenProjectAsync(project).GetAwaiter().GetResult();
-                list.Add(workspace.CurrentSolution.GetProject(loaded.Id)!);
-            }
-            catch (Exception e) when (e is not OperationCanceledException) { throw new ProductException($"Unable to evaluate SDK-style project '{Rel(project)}': {e.Message}"); }
-        }
-        return list.ToArray();
-    }
 }

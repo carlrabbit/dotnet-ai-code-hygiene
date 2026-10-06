@@ -28,7 +28,7 @@ Planning seeded the obligation/evidence registry only. Implementation owns work 
 | AC-16 | acceptance | Prior deterministic/profile/rewrite/review behavior remains compatible except explicit changes. | WP-03; WP-05 | Existing regression coverage retained; Core 45/45 and CLI 21/21 pass, including rewrite/profile/ignore/target regressions. | VAL-01/02/04 passed | complete |
 | DOC-01 | documentation | Public/agent guidance describes generic quality and German-language policy separately. | WP-04 | README explains fixed separate German rule and repository disable policy; semantic/spec guidance separated. | VAL-05 passed | complete |
 | DOC-02 | documentation | Every current rule has authoritative rationale or direct rationale reference. | WP-04 | Rationales added for documentation, profile, semantic, and readability rules in canonical specifications. | VAL-05 passed | complete |
-| REV-01 | review | Human completion review confirms intended rule model and rationale fidelity. | WP-01..WP-05 evidence complete | This review is reserved for project owner/delegate as required by milestone. | VAL-06 pending | pending |
+| REV-01 | review | Human completion review confirms intended rule model and rationale fidelity. | WP-01..WP-05 evidence complete | Project owner approved the completion review in this task conversation on 2026-10-06, confirming the fixed-rule split, M0006 rationale fidelity, and repository German-disable policy. | VAL-06 passed | complete |
 
 ## Implementation Work Packages
 
@@ -64,8 +64,8 @@ Planning seeded the obligation/evidence registry only. Implementation owns work 
 | VAL-03 | Tier 3 | Isolated English/German SDK-style Git fixtures | Isolated net11.0 SDK/Git split fixture plus full Core fixture suite: 45/45 passed. | passed |
 | VAL-04 | Tier 2 | Complete repository via `./eng/validate.ps1` | Restore/build passed; Release tests 66/66 passed; exact 0.5.0 package packed/installed and script's installed consumer checks completed. Live repository CLI check also passed: one quality batch, sample 2/2. | passed |
 | VAL-05 | documentation | Authority/spec/research/public consistency | Reviewed `SPECS`, HYGIENE, DOCUMENTATION, SEMANTIC-REVIEWS, READABILITY, PROFILE, PRODUCT-DIRECTION, README, ENGINEERING, TERMINOLOGY, and self-host config; `git diff --check` clean. | passed |
-| VAL-06 | human | Completion review | Required human review remains outstanding; review criteria REV-01 are described in milestone. | pending |
+| VAL-06 | human | Completion review | Project owner approved M0006 completion review in this task conversation on 2026-10-06; REV-01 criteria reviewed and accepted. | passed |
 
 ## Resume State
 
-Implementation and all validation gates are complete. Branch is reviewable and validated. Await the required human review for REV-01; inspect the rule split/no-parameter contract, repository German disable, retained internal-summary and visual-block policies, and rationale fidelity before marking the milestone complete.
+Implementation, automated validation, and the required project-owner completion review are complete. The approved M0006 state is the behavioral baseline for M0007.

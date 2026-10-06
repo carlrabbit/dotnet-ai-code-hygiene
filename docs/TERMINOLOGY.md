@@ -12,6 +12,22 @@
 
 **Normalizer** — deterministic semantics-preserving structural source transformation.
 
+**Repository session** — command-scoped shared repository-analysis substrate that owns or coordinates target resolution, project/workspace loading, Roslyn context, and lazy session facts. It is not persisted between commands.
+
+**Reporting scope** — files/subjects for which the current invocation may emit source findings or review work.
+
+**Readable context** — broader repository/project information a rule may inspect to evaluate subjects in the reporting scope correctly.
+
+**Rule module** — independent in-process implementation of one fixed rule contract. It owns domain-specific analysis/traversal but uses the shared repository session and host result mechanics.
+
+**Rule catalog** — explicit engine-owned ordered registration of product rule modules and their descriptors. It is not dynamic plugin discovery.
+
+**Session fact** — immutable lazily derived analysis data cached for one repository session and shared by multiple rule/rewrite consumers when justified.
+
+**Rewrite module** — independent in-process implementation of one deterministic source transformation such as formatting or normalization. Rewrite modules share repository/session infrastructure with rules but use a distinct execution contract.
+
+**Rewrite transaction** — all-target planning/validation/commit boundary that prevents a failed rewrite command from leaving a mixed selected-target state.
+
 **Hygiene profile** — versioned project policy describing the supported .NET analysis baseline and mandatory repository invariants. It is distinct from the external guide-system profile metadata.
 
 **Profile marker** — committed `.hygiene/profile.json` recording the installed hygiene profile ID/version.
@@ -32,4 +48,4 @@
 
 **Summary carrier** — source XML documentation element that carries a documentation summary for a subject. Ordinary subjects use `<summary>`; a synthesized positional-record property uses the matching `<param>` on the record declaration. Direct `<inheritdoc/>` can satisfy a missing summary without supplying local prose.
 
-**Explicit documentation prose** — locally written text in a prose-bearing XML documentation element. M0005 sentence checks apply only to the specified prose-bearing elements, not arbitrary/custom XML documentation.
+**Explicit documentation prose** — locally written text in a prose-bearing XML documentation element. Sentence checks apply only to the specified prose-bearing elements, not arbitrary/custom XML documentation.

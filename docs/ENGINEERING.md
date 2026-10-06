@@ -18,6 +18,20 @@ Roslyn/MSBuild project-aware loading
 
 No GitHub Actions/workflows.
 
+## M0007 architecture test seams
+
+Architecture tests should prove behavior through small internal seams rather than through implementation-shape assertions alone.
+
+Useful focused seams include:
+
+- a test rule supplied to the rule runner without editing production orchestration;
+- a test rewrite supplied to the rewrite runner without editing a command switch;
+- observable session factories/counters proving expensive project/compilation/fact creation is lazy and reused within one command session;
+- a test fact provider proving one computation is shared by multiple consumers;
+- targeted fixture runs proving reporting scope remains narrower than readable project context.
+
+Do not introduce production plugin discovery or a DI framework solely to obtain these seams. Internal constructors/factories/test doubles are sufficient.
+
 ## M0005 profile fixtures
 
 Use isolated SDK-style Git repositories covering:
@@ -54,7 +68,10 @@ Use Roslyn/project-aware C# fixtures for:
 - optional returns/value/exception structures;
 - inline `<see/>` before sentence punctuation;
 - excluded elements such as `<example>`;
-- semantic review population for ordinary and record-property summary carriers.
+- semantic review population for ordinary and record-property summary carriers;
+- independent quality and German-language review batches when both are enabled.
+
+The documentation-subject/carrier fixture set is also the primary M0007 shared-fact regression surface.
 
 ## Effective configuration
 
@@ -75,31 +92,42 @@ TreatWarningsAsErrors=true -> finding
 WarningsAsErrors non-empty -> finding
 ```
 
-User per-rule severity configuration for unrelated diagnostics is not an M0005 violation unless it weakens a required profile diagnostic.
+User per-rule severity configuration for unrelated diagnostics is not a profile violation unless it weakens a required profile diagnostic.
 
 ## Mutation validation
 
-Bootstrap/update reuse M0004 transactional planning/commit behavior.
+Bootstrap/update and source rewrites retain all-or-nothing mutation behavior.
 
-A failed profile run must not leave a partial marker/props/import/editorconfig update.
+A failed profile run must not leave a partial marker/props/import/editorconfig update. A failed source rewrite must not leave a mixed selected-target state.
+
+M0007 may share planning/transaction infrastructure where sensible, but profile mutation and source rewrite semantics must remain independently regression-covered.
 
 ## Validation topology
 
 | Depth | Target | Locus |
 |---|---|---|
-| Tier 1 | Core rule sets/profile/documentation/remediation | Windows 11 + .NET 11 |
+| Tier 1 | rule runner/catalog/session/facts/result materialization + existing Core behavior | Windows 11 + .NET 11 |
 | Tier 1 | built CLI process | Windows 11 + .NET 11 |
-| Tier 3 | isolated SDK-style Git fixture repositories | Windows 11 + .NET 11 + Git |
-| Tier 4 | exact locally packed/installed 0.5.0 tool | isolated Windows consumer repository |
+| Tier 3 | isolated SDK-style Git fixture repositories, including full/explicit/changed scope and rewrite commands | Windows 11 + .NET 11 + Git |
+| Tier 4 | exact current locally packed/installed tool | isolated Windows consumer repository |
 | Tier 2 | complete repository | `./eng/validate.ps1` |
-| Human | profile artifacts + documentation policy usability | project owner/delegate |
+| Documentation | architecture/spec consistency | repository review |
+| Human | modularity/BORING architecture and behavior preservation | project owner/delegate |
 
-Tier 4 must invoke the installed `hygiene` command and exercise bootstrap, update, check, rules/help, and representative documentation/profile findings.
+Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact.
 
-## Regression
+## Architecture regression expectations
 
-Retain M0002 deterministic finding/ignore/target behavior, M0003 review/handoff behavior, and M0004 format/normalize/installed-tool behavior.
+M0007 must preserve:
+
+- M0002 target/finding/ignore/explain behavior;
+- M0003/M0006 semantic-review population, independent batches, expansion, and handoff behavior;
+- M0004 format/normalize/check-only and transactional mutation behavior;
+- M0005 profile/bootstrap/update/documentation behavior;
+- M0006 fixed-rule/toggle-only policy and repository German-rule disablement.
+
+Architecture tests may inspect internal collaboration boundaries, but the primary correctness signal remains externally observable product behavior plus focused tests for session reuse/laziness and module independence.
 
 ## Deferred
 
-No external specialist analyzer is approved in M0005. No StyleCop compatibility, model client, MCP, IDE integration, other language, hosted CI, or arbitrary analyzer-profile configuration.
+No external specialist analyzer is currently approved. No StyleCop compatibility, model client, MCP, IDE integration, other language, hosted CI, public plugin architecture, statistical sampling subsystem, persistent analysis cache, or speculative repository index is introduced by M0007.
