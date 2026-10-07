@@ -33,7 +33,7 @@ Planner-owned columns are `ID`, `Type`, and `Obligation`. Implementation must no
 | AC-17 | acceptance | M0007 adds no public plugin API, new runtime framework/dependency solely for orchestration, DI framework, reflection discovery, separate rule process/protocol, uncontrolled parallelism, persistent analysis cache/index, future statistical sampling subsystem, new rule, or new rewrite transformation. | WP-01..WP-05 | Project/dependency/source inspection shows no new runtime framework, reflection/plugin discovery, process boundary, scheduler, cache/index, sampler, rule, or rewrite. | VAL-05 | satisfied |
 | AC-18 | acceptance | The post-refactor coordinator/engine is structurally limited to orchestration and shared product mechanics: current rule-specific analysis logic and duplicated rewrite repository-loading logic are absent from the central coordinator surfaces. | WP-03; WP-04 | Source inspection confirms HygieneEngine.Check contains no summary-specific branch/subject construction and no rule semantic decisions; it runs selected modules, materializes results and owns host persistence/review handling. RewriteEngine has no command-specific format/normalize branch and uses shared RepositorySession. | VAL-01/05 | satisfied |
 | DOC-01 | documentation | Current architecture, engineering, terminology, milestone, and rule-application research documents describe the modular-rule/shared-session architecture consistently and distinguish authoritative architecture from research rationale. | WP-05 | Overlay reconciles ARCHITECTURE, ENGINEERING, TERMINOLOGY, MILESTONES, AGENTS and rule-application research. | VAL-06 | satisfied |
-| REV-01 | review | Human completion review confirms the result is BORING and locally comprehensible: a new ordinary rule/rewrite has a small locality boundary, shared infrastructure is not over-generalized, central orchestration no longer owns rule semantics, public behavior is preserved, and no speculative plugin/pipeline/sampling framework was introduced. | WP-05 | Pending project-owner review; approval has not been asserted. | VAL-07 | pending |
+| REV-01 | review | Human completion review confirms the result is BORING and locally comprehensible: a new ordinary rule/rewrite has a small locality boundary, shared infrastructure is not over-generalized, central orchestration no longer owns rule semantics, public behavior is preserved, and no speculative plugin/pipeline/sampling framework was introduced. | WP-05 | Project owner approved M0007 in this task conversation on 2026-10-07 after PR 10 merged to main at `aa690728d555e5781f455d831a94a1c1ab03857a`; approval recorded in the milestone Completion Evidence. | VAL-07 | satisfied |
 
 ## Evidence Case Registry
 
@@ -68,7 +68,7 @@ Implementation decomposition (derived after live M0006 inspection):
 | WP-02 | Lazy session facts and documentation subjects | Add session-scoped lazy fact store; unify documentation subject/carrier representation and tests for ordinary, positional-record, and inheritdoc paths | complete |
 | WP-03 | Independent rule modules and host result mechanics | Explicit static ordered catalog, per-rule evaluators, rule runner/context, host materialization/persistence, and shared semantic-review mechanics | complete |
 | WP-04 | Rewrite modules and transaction integration | Explicit format/normalize modules and runner over RepositorySession; retain complete-plan and transactional guarantees | complete |
-| WP-05 | Architecture tests, authority sync, validation, audit | Test module locality/laziness/reuse; reconcile docs; execute VAL-01..VAL-07 and durable completion audit | automated work complete; human review pending |
+| WP-05 | Architecture tests, authority sync, validation, audit | Test module locality/laziness/reuse; reconcile docs; execute VAL-01..VAL-07 and durable completion audit | complete |
 ## Validation Gates
 
 Planning seeds required validation gates before `ready`. Implementation records execution evidence and status.
@@ -81,28 +81,28 @@ Planning seeds required validation gates before `ready`. Implementation records 
 | VAL-04 | Pack current tool, install exact produced artifact into isolated consumer, and invoke representative check/rules/review/bootstrap/update/format/normalize workflows | Tier 4 / isolated Windows consumer repository | AC-15, AC-16; EC-16a | passed | Canonical `eng/validate.ps1` exact-package isolated-consumer tier passed; script emitted `Tier-4 exact installed consumer validation passed`. |
 | VAL-05 | `./eng/validate.ps1` including repository self-hosting checks | Tier 2 / local Windows 11 | AC-15..AC-18; EC-15c | passed | Canonical `eng/validate.ps1` exited 0 and emitted `repository M0006 self-host behavior passed`; generic-quality batch active and German rule disabled. |
 | VAL-06 | Authority consistency review across M0007 architecture/engineering/terminology/milestone/research documents | Documentation / repository-local | DOC-01 | passed | Reviewed ARCHITECTURE, ENGINEERING, TERMINOLOGY, MILESTONES, AGENTS, and research rationale; architecture is authoritative and research is explicitly rationale; `git diff --check` passed. |
-| VAL-07 | `REV-M0007-COMPLETION` architecture review | Human / project owner or delegate | REV-01 | pending | |
+| VAL-07 | `REV-M0007-COMPLETION` architecture review | Human / project owner or delegate | REV-01 | passed | Project owner explicitly approved the M0007 milestone in this task conversation on 2026-10-07, against the merged main commit `aa690728d555e5781f455d831a94a1c1ab03857a`. |
 
 ## Resume Point
 
 Last completed work package:
 
-WP-01 through WP-05 implementation, required automated validation, authority consistency review, and completion audit are complete. The required project-owner review remains outstanding.
+WP-01 through WP-05 implementation, required automated validation, authority consistency review, completion audit, and project-owner review are complete.
 
 Current work package:
 
-Human review `REV-M0007-COMPLETION` (VAL-07).
+No remaining work. M0007 is complete.
 
 Next concrete action:
 
-Project owner/delegate reviews the implementation and evidence package recorded in the primary milestone, then records explicit acceptance or review outcome. Until then M0007 status is `AWAITING HUMAN REVIEW`.
+Project owner approved `REV-M0007-COMPLETION` on 2026-10-07; approval is recorded in the primary milestone against merged main commit `aa690728d555e5781f455d831a94a1c1ab03857a`.
 
 Prerequisite record: project owner approved M0006 REV-01 in this task conversation on 2026-10-06; M0006 REV-01/VAL-06 are now recorded complete/passed in its milestone and execution ledger.
 
 Known agent-resolvable gaps:
 
-None. All automated gates passed; only the required human judgment remains.
+None. Automated gates and required human review passed.
 
 External blockers or planning escalations:
 
-None for implementation. Completion is awaiting `REV-M0007-COMPLETION`.
+None. M0007 is complete.
