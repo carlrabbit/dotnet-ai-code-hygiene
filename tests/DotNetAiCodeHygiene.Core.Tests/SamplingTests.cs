@@ -112,7 +112,7 @@ public sealed class SamplingTests
         await Assert.That(resetSubjectSampler.Observe(oldSubjectTicket)).IsFalse();
         var sameEpochSubjectSampler = new SubjectHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
         sameEpochSubjectSampler.AddHazard("subject", 100);
-        await Assert.That(sameEpochSubjectSampler.Observe(oldSubjectTicket)).IsFalse();
+        await Assert.That(sameEpochSubjectSampler.Observe(oldSubjectTicket)).IsTrue();
 
         var oldPopulationSampler = new PopulationHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
         oldPopulationSampler.AddHazard("scope", 100);
@@ -124,7 +124,44 @@ public sealed class SamplingTests
         await Assert.That(resetPopulationSampler.Observe(oldPopulationTicket)).IsFalse();
         var sameEpochPopulationSampler = new PopulationHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
         sameEpochPopulationSampler.AddHazard("scope", 100);
-        await Assert.That(sameEpochPopulationSampler.Observe(oldPopulationTicket)).IsFalse();
+        await Assert.That(sameEpochPopulationSampler.Observe(oldPopulationTicket)).IsTrue();
+    }
+
+    [Test]
+    public async Task ObservationTicketsSurvivePersistenceAcrossSessionsAndAdvanceOnce()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "sampling-ticket-session-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            var sessionA = new SamplingSession(repo);
+            var subjectsA = sessionA.SubjectSampler("ticket.rule", 1);
+            subjectsA.AddHazard("subject", 100);
+            SubjectTicket subjectTicket = subjectsA.Due("subject")!.Ticket;
+            var populationsA = sessionA.PopulationSampler("ticket.rule", 1);
+            populationsA.AddHazard("scope", 100);
+            PopulationTicket populationTicket = populationsA.DueEvents("scope")[0].Ticket;
+            sessionA.Commit();
+
+            var sessionB = new SamplingSession(repo);
+            var subjectsB = sessionB.SubjectSampler("ticket.rule", 1);
+            var populationsB = sessionB.PopulationSampler("ticket.rule", 1);
+            await Assert.That(subjectsB.Observe(subjectTicket)).IsTrue();
+            await Assert.That(subjectsB.State("subject").Generation).IsEqualTo(subjectTicket.Generation + 1);
+            await Assert.That(subjectsB.Observe(subjectTicket)).IsFalse();
+            await Assert.That(populationsB.Observe(populationTicket)).IsTrue();
+            await Assert.That(populationsB.State("scope").Generation).IsEqualTo(populationTicket.Generation + 1);
+            await Assert.That(populationsB.Observe(populationTicket)).IsFalse();
+            sessionB.Commit();
+
+            var sessionC = new SamplingSession(repo);
+            await Assert.That(sessionC.SubjectSampler("ticket.rule", 1).Observe(subjectTicket)).IsFalse();
+            await Assert.That(sessionC.PopulationSampler("ticket.rule", 1).Observe(populationTicket)).IsFalse();
+
+            await Assert.That(typeof(SubjectTicket).GetProperties().Any(p => p.PropertyType == typeof(object) || p.Name.Contains("Identity", StringComparison.Ordinal))).IsFalse();
+            await Assert.That(typeof(PopulationTicket).GetProperties().Any(p => p.PropertyType == typeof(object) || p.Name.Contains("Identity", StringComparison.Ordinal))).IsFalse();
+        }
+        finally { if (Directory.Exists(repo)) { Directory.Delete(repo, true); } }
     }
 
     [Test]
@@ -207,6 +244,16 @@ public sealed class SamplingTests
             await Assert.That(multiVersionRejected).IsTrue();
             sameSession.Commit();
             _ = new SamplingSession(repo).PopulationSampler("conflict.rule", 1);
+            var subjectVersionOneSession = new SamplingSession(repo);
+            var subjectVersionOne = subjectVersionOneSession.SubjectSampler("subject-version.rule", 1);
+            subjectVersionOne.AddHazard("subject", 100);
+            SubjectTicket oldSubjectVersionTicket = subjectVersionOne.Due("subject")!.Ticket;
+            subjectVersionOneSession.Commit();
+            var subjectInvalidated = new SamplingSession(repo);
+            var subjectVersionTwo = subjectInvalidated.SubjectSampler("subject-version.rule", 2);
+            await Assert.That(subjectVersionTwo.State("subject").Hazard).IsEqualTo(0d);
+            await Assert.That(subjectVersionTwo.Observe(oldSubjectVersionTicket)).IsFalse();
+            subjectInvalidated.Commit();
             var invalidated = new SamplingSession(repo);
             var versionTwo = invalidated.PopulationSampler("rule", 2);
             await Assert.That(versionTwo.State("scope").ResidualHazard).IsEqualTo(0d);
