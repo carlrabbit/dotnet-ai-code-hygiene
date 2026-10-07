@@ -1,6 +1,6 @@
 # M0009 — Statistical Sampling Core
 
-**State:** awaiting human review
+**State:** complete
 **Mode:** AI-executed, human-reviewed  
 **Depends on:** completed M0008 rule locality and agent routing hygiene
 
@@ -724,10 +724,10 @@ Implemented the two shared sampling algorithms without migrating any production 
 
 Validation on Windows 11 / .NET SDK 11.0.100-rc.1.26425.128: `eng/validate.ps1` passed; Release build had zero warnings/errors; Core 62/62 and CLI 22/22 tests passed; the exact locally packed/installed consumer workflow and repository self-host checks passed. The validation includes 100,000 fixed hash-derived threshold draws at four hazard levels and a 50,000-unit aggregate rate-ratio simulation. Regression cases cover subject and aggregate tickets surviving persistence/reload, single-use generation advancement, rejection across delete/version reset, elapsed-hazard cursor idempotence, read-only internal revalidation, multi-version session rejection, and reset semantics. Final `git diff --check` is recorded in `.execution/M0009-statistical-sampling-core.md`.
 
-Planner-owned obligation/evidence wording and IDs were reconciled against the live milestone, ledger, source, tests, and documentation. `REV-M0009-COMPLETION` is the remaining human decision; the implementation is stopped at that review.
+Planner-owned obligation/evidence wording and IDs were reconciled against the live milestone, ledger, source, tests, and documentation. Project owner approved `REV-M0009-COMPLETION` in this task conversation on 2026-10-07 after the cross-session ticket correction was pushed to PR #12 at `a46b3c0`.
 
 Current milestone outcome:
 
 ```text
-AWAITING REV-M0009-COMPLETION
+COMPLETE
 ```

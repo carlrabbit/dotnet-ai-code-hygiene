@@ -34,7 +34,7 @@ Planner-owned columns are `ID`, `Type`, and `Obligation`. Implementation must no
 | AC-18 | acceptance | Deterministic large-N tests with fixed inputs demonstrate the exponential threshold distribution and proportional aggregate event behavior within explicit non-flaky tolerances, in addition to exact state-machine/unit tests. | WP-02, WP-05 | Fixed 100,000-threshold tests at four H values and 50,000-unit 1:2 hazard-rate simulation use documented fixed tolerances. | VAL-02 | complete |
 | AC-19 | documentation | `docs/specs/SAMPLING.md` becomes the authoritative sampling mechanics contract; `docs/ARCHITECTURE.md`, `docs/ENGINEERING.md`, `docs/TERMINOLOGY.md`, and milestone/index documentation consistently describe the implemented boundary while research remains rationale/provenance. | WP-01, WP-05 | SAMPLING.md plus Architecture/Engineering/Terminology/SPECS/Milestone index reviewed against source. | VAL-07 | complete |
 | AC-20 | acceptance | M0009 adds no database/binary index, runtime statistics dependency, new rule, rule semantic change, public plugin API, generic scheduler, model client, broad repository index, or unrelated cleanup. | WP-01..WP-05 | Diff/source review: no dependency, rule, database, index, plugin, scheduler, model client, or current-rule integration added. | VAL-03; VAL-05; VAL-06; VAL-07 | complete |
-| REV-01 | review | Project owner/delegate confirms that the sampling subsystem is mathematically defensible, BORING to consume from a future rule, clearly separates due work from observed evidence, preserves the normal-repository lightweight-state goal, and does not create a hidden rule framework. | WP-05 | Owner review package assembled; approval intentionally pending at REV-M0009-COMPLETION. | VAL-08 | pending |
+| REV-01 | review | Project owner/delegate confirms that the sampling subsystem is mathematically defensible, BORING to consume from a future rule, clearly separates due work from observed evidence, preserves the normal-repository lightweight-state goal, and does not create a hidden rule framework. | WP-05 | Project owner approved REV-M0009-COMPLETION in this task conversation on 2026-10-07 after the cross-session ticket correction was pushed to PR #12 at `a46b3c0`. | VAL-08 | satisfied |
 
 ## Evidence Case Registry
 
@@ -72,7 +72,7 @@ Planner-owned columns are `ID`, `Parent obligation`, and `Required evidence case
 | VAL-05 | exact locally packed/installed current tool representative workflow | Tier 4 / isolated Windows consumer repository | AC-17, AC-20 | passed | Passed in eng/validate.ps1: exact 0.5.0 package packed, installed into isolated tool path, and representative format/normalize/bootstrap/update/rules/check/review/expand/handoff workflows passed. |
 | VAL-06 | `./eng/validate.ps1` plus final `git diff --check` | Tier 2 / complete repository | AC-17..AC-20 | passed | Passed: `eng/validate.ps1` completed successfully (Release build, Core 62/62, CLI 22/22, exact installed-tool workflow and M0006 self-host); final `git diff --check` recorded after reconciliation. |
 | VAL-07 | direct source/document review of subsystem simplicity, rule-policy separation, state shape, and authority consistency | repository review | AC-01, AC-09, AC-14, AC-19, AC-20; EC-09a, EC-19a | passed | Freshly reviewed Sampling source, RuleContext/host commit placement, durable-value ticket fields, epoch/cursor JSON shape, explicit read-only boundary, unchanged rule catalog/review hashing and `Take(5)`, milestone/spec and repository authority; exact planner registries retained. |
-| VAL-08 | `REV-M0009-COMPLETION` | Human / project owner or delegate | REV-01 | pending | Pending: stop at required REV-M0009-COMPLETION human review. |
+| VAL-08 | `REV-M0009-COMPLETION` | Human / project owner or delegate | REV-01 | passed | Project owner approved REV-M0009-COMPLETION in this task conversation on 2026-10-07 after PR #12 was updated with commit `a46b3c0`. |
 
 ## Work Packages
 
@@ -91,7 +91,7 @@ Planner-owned columns are `ID`, `Parent obligation`, and `Required evidence case
 Current state:
 
 ```text
-AWAITING REV-M0009-COMPLETION
+COMPLETE
 ```
 
 Prerequisite status:
@@ -100,8 +100,7 @@ Prerequisite status:
 
 Next action:
 
-1. project owner/delegate reviews the completion package against REV-M0009-COMPLETION acceptance questions;
-2. record the explicit review decision and final milestone outcome.
+None. REV-M0009-COMPLETION is approved and recorded.
 
 Known agent-resolvable gaps:
 
@@ -109,16 +108,16 @@ None.
 
 External blockers or planning escalations:
 
-None.
+None; implementation, validation, and human review are complete.
 
 ## Completion Evidence
 
-WP-01..WP-04 are implemented. WP-05 validation passed except for the deliberately pending human review gate VAL-08. `eng/validate.ps1` completed on Windows 11 / .NET 11.0.100-rc.1.26425.128 with a clean Release build, Core 62/62 and CLI 22/22 tests, exact locally packed/installed tool validation, and repository self-host checks. Fixed deterministic tests cover the documented hash vector, 100,000 exponential threshold draws at four hazard values, and a 50,000-unit 1:2 aggregate hazard simulation. Regression evidence also covers subject and aggregate tickets surviving persistence/reload, single-use generation advancement, stale ticket rejection across delete and incompatible reset, elapsed-hazard cursor idempotence, discarded internal revalidation for Check/ExpandReview/ignore validation/listing, multi-version session rejection, durable-value-only ticket shape, and zero-hazard/evidence/cursor reset semantics. `git diff --check` passed. All 21 AC/REV registry rows and all 18 EC rows were compared losslessly with the milestone; no planner-owned ID or wording changed.
+WP-01..WP-05 are implemented and validated. `eng/validate.ps1` completed on Windows 11 / .NET 11.0.100-rc.1.26425.128 with a clean Release build, Core 62/62 and CLI 22/22 tests, exact locally packed/installed tool validation, and repository self-host checks. Fixed deterministic tests cover the documented hash vector, 100,000 exponential threshold draws at four hazard values, and a 50,000-unit 1:2 aggregate hazard simulation. Regression evidence also covers subject and aggregate tickets surviving persistence/reload, single-use generation advancement, stale ticket rejection across delete and incompatible reset, elapsed-hazard cursor idempotence, discarded internal revalidation for Check/ExpandReview/ignore validation/listing, multi-version session rejection, durable-value-only ticket shape, and zero-hazard/evidence/cursor reset semantics. `git diff --check` passed. All 21 AC/REV registry rows and all 18 EC rows were compared losslessly with the milestone; no planner-owned ID or wording changed. Project owner approved REV-M0009-COMPLETION on 2026-10-07; VAL-08 is satisfied.
 
 Review package: `docs/specs/SAMPLING.md`; `src/DotNetAiCodeHygiene.Core/Sampling/SamplingMechanics.cs`; `src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs`; `RuleContext` and host commit placement; sampling tests; regression evidence in `LifecycleTests` and `CliProcessTests`; and this ledger's AC/EC/VAL mappings.
 
 Current milestone outcome:
 
 ```text
-AWAITING REV-M0009-COMPLETION
+COMPLETE
 ```
