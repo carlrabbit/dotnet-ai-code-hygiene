@@ -47,6 +47,12 @@ The only M0005 hygiene profile is:
 dotnet-11 v1
 ```
 
+Shared statistical sampling mechanics and their rule-policy boundary are specified in:
+
+```text
+docs/specs/SAMPLING.md
+```
+
 Detailed contract:
 
 ```text

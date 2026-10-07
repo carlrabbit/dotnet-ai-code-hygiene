@@ -50,6 +50,8 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
+Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. Current production rules do not request it. The two supported shared mechanics are subject-state hazard sampling and aggregate population/cohort hazard sampling; rule modules retain all domain and risk policy.
+
 ## Reporting scope versus readable context
 
 The architecture distinguishes:

@@ -35,13 +35,17 @@ public sealed class HygieneEngine
     private readonly string root;
     private readonly string hygiene;
     private readonly Action? beforeAtomicReplace;
+    private readonly RuleModuleRunner ruleRunner;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = false };
 
-    public HygieneEngine(string? cwd = null) : this(cwd, null) { }
+    public HygieneEngine(string? cwd = null) : this(cwd, null, null) { }
 
-    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace)
+    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace) : this(cwd, beforeAtomicReplace, null) { }
+
+    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace, IReadOnlyList<IRuleModule>? modules)
     {
         this.beforeAtomicReplace = beforeAtomicReplace;
+        ruleRunner = new RuleModuleRunner(modules ?? RuleCatalog.Modules);
         string dir = RepositorySession.FindRoot(cwd);
         root = dir; hygiene = Path.Combine(root, ".hygiene");
     }
@@ -149,7 +153,10 @@ public sealed class HygieneEngine
         return session.ResolveTargets(paths, changed);
     }
 
-    public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true)
+    public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true) =>
+        CheckCore(paths, changed, applyIgnores, includeDisabled, publishLatest, SamplingExecutionBoundary.Commit);
+
+    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, SamplingExecutionBoundary samplingBoundary)
     {
         RequireProfile();
         using var session = new RepositorySession(root);
@@ -158,8 +165,8 @@ public sealed class HygieneEngine
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
         Document[] reportingDocuments = projectsByTarget.Values.Select(value => value.Document).DistinctBy(document => document.Id).ToArray();
-        var ruleContext = new RuleContext(session, reportingDocuments);
-        IReadOnlyList<RuleModuleExecution> executions = RuleCatalog.Runner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
+        var ruleContext = new RuleContext(session, reportingDocuments, samplingBoundary);
+        IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
         var candidates = executions.SelectMany(execution => execution.Result.Findings).ToList();
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
@@ -174,6 +181,7 @@ public sealed class HygieneEngine
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs), json));
         }
+        ruleContext.CompleteSampling();
         return result;
     }
 
@@ -220,7 +228,7 @@ public sealed class HygieneEngine
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
         CheckResult fresh;
         string[] revalidationPaths = snapshot.ChangedScope ? snapshot.TargetPaths : snapshot.InputPaths ?? snapshot.TargetPaths;
-        try { fresh = Check(revalidationPaths, false, true, false, false); }
+        try { fresh = CheckCore(revalidationPaths, false, true, false, false, SamplingExecutionBoundary.Discard); }
         catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
         ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId) ?? throw new ProductException("Review population changed; rerun hygiene check.");
         if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
@@ -356,7 +364,7 @@ public sealed class HygieneEngine
             throw new ProductException($"Mandatory profile finding '{reference.RuleId}' cannot be ignored.");
         }
 
-        CheckResult fresh = Check([reference.Path], false, false, true, false);
+        CheckResult fresh = CheckCore([reference.Path], false, false, true, false, SamplingExecutionBoundary.Discard);
         Finding? current = fresh.Findings.FirstOrDefault(f => Same(new IgnoreDecision("", reference.RuleId, reference.RuleVersion, reference.Path, reference.Anchor, reference.Fingerprint, "", default, reference.Discriminator), f));
         if (current is null)
         {
@@ -398,7 +406,7 @@ public sealed class HygieneEngine
         return scoped.Select(d =>
         {
             bool active = false;
-            try { active = Check([d.Path], false, false, true, false).Findings.Any(f => Same(d, f)); } catch (ProductException) { }
+            try { active = CheckCore([d.Path], false, false, true, false, SamplingExecutionBoundary.Discard).Findings.Any(f => Same(d, f)); } catch (ProductException) { }
             return new IgnoreView(d.Id, d.RuleId, d.Path, active ? "active" : "stale", d.Reason);
         }).ToArray();
     }

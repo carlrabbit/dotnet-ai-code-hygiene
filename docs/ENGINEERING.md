@@ -171,3 +171,5 @@ Architecture/refactoring work must preserve:
 ## Deferred
 
 No external specialist analyzer is currently approved. No StyleCop compatibility, model client, MCP, IDE integration, other language, hosted CI, public plugin architecture, statistical sampling subsystem, persistent analysis cache, speculative repository index, localization framework, or rule metadata DSL is introduced merely for rule locality.
+
+Statistical sampling mechanics are specified by `docs/specs/SAMPLING.md`. Future rules may explicitly use the lazy subject-state or aggregate population sampler; they own their hazard, cohort, retention, and prior policy. Sampling state is transparent JSON under `.hygiene/.state/` and remains separate from transient session facts. Existing rules do not opt in by default.

@@ -62,3 +62,20 @@ Primary milestone:
 ```text
 docs/milestones/M0008-rule-locality-and-agent-routing.md
 ```
+
+
+## M0009 — Statistical Sampling Core
+**State:** done
+**Mode:** AI-executed, human-reviewed
+
+`REV-M0009-COMPLETION` is durably recorded as approved in the completed M0009 milestone and execution ledger.
+
+Implements two shared statistically defensible sampling mechanics for future expensive rules: subject-state hazard sampling for individual reinspection guarantees and aggregate population/cohort hazard sampling for dense populations, with deterministic hash-derived randomness, transparent lightweight persistence, and explicit due-versus-observed semantics.
+
+M0009 does not migrate existing rules. Current summary-review SHA-256 ranking and exact five-item maximum sample remain unchanged.
+
+Primary milestone:
+
+```text
+docs/milestones/M0009-statistical-sampling-core.md
+```
