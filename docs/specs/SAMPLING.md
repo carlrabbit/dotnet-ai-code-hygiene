@@ -14,7 +14,9 @@ Fixed vector: seed bytes `00 01 ... 1F`, key list containing `test`, generation 
 
 ## Subject-state model
 
-A rule supplies finite non-negative hazard increments for stable subject IDs. The shared subject sampler adds them to each subject's integrated hazard and considers a subject due exactly when hazard reaches its generation's deterministic exponential threshold. Due tickets identify rule/version/model, subject, and generation. Reporting or selection is pure; only a matching explicit observation resets hazard and advances one generation. Stale tickets do nothing. Bounded selection orders due subjects by threshold overshoot, with subject ID as stable tie-breaker. Unselected subjects remain due.
+A rule supplies finite non-negative hazard increments for stable subject IDs. The shared subject sampler adds them to each subject's integrated hazard and considers a subject due exactly when hazard reaches its generation's deterministic exponential threshold. Due tickets identify rule/version/model, subject, generation, and active sampling-state epoch bound to the repository seed. Reporting or selection is pure; only a matching explicit observation resets hazard and advances one generation. Tickets from before deletion, seed replacement, or incompatible version reset are rejected even if identity and generation match. Bounded selection orders due subjects by threshold overshoot, with subject ID as stable tie-breaker. Unselected subjects remain due.
+
+Subject states persist a generic evaluation cursor in Unix milliseconds. A rule may ask the sampler to accrue elapsed seconds multiplied by its supplied hazard rate per second; the first cursor establishes the baseline without retroactive accrual, subsequent calls accrue only the interval since the prior cursor, and a repeated cursor adds zero. Backwards cursors are rejected. The sampler owns no clock, age, eligibility, or risk policy.
 
 Subject state can support individual revisit guarantees when the rule supplies appropriate identity and non-zero long-run hazard. Its storage grows with tracked subjects.
 
@@ -22,7 +24,7 @@ Subject state can support individual revisit guarantees when the rule supplies a
 
 A rule supplies finite non-negative hazard increments for a structural unit (scope plus optional rule-defined cohort). State is stored only per unit; transient concrete candidate IDs are not persisted. Due events use sequential generation-derived thresholds against residual hazard. Reporting is pure and may return multiple tickets. Each matching observed event consumes one threshold, advances generation, and retains remaining hazard. Duplicate/out-of-order tickets do nothing.
 
-For each due ticket, callers may rank current candidates using deterministic SHA-256-derived values. One workload avoids selecting the same candidate twice while unused alternatives exist. A later workload may select the same candidate again. Aggregate sampling supports population-level surveillance; it does not track the inspection history of an individual unpersisted subject.
+For each due ticket, callers may rank current candidates using deterministic SHA-256-derived values. One workload avoids selecting the same candidate twice while unused alternatives exist. A later workload may select the same candidate again. Aggregate sampling supports population-level surveillance; it does not track the inspection history of an individual unpersisted subject. Population states persist the same generic evaluation cursor and use the same caller-supplied elapsed-hazard accrual rules as subject states.
 
 ## Discounted binary evidence
 
@@ -30,9 +32,9 @@ The small evidence helper stores finite non-negative effective pass and fail cou
 
 ## State and host boundary
 
-State is transparent versioned JSON at `.hygiene/.state/sampling.json`, containing a repository seed and per-rule/model state. There is no database, binary index, syntax tree, or per-candidate aggregate row. Missing state creates a new seed and empty evidence. Malformed or unsupported state fails clearly; it is never silently replaced. Rule and model version mismatches start empty for that model. Explicit state deletion is a conservative reset.
+State is transparent versioned JSON at `.hygiene/.state/sampling.json`, containing a repository seed and per-rule/model state including an epoch, hazard, and optional evaluation cursor. There is no database, binary index, syntax tree, or per-candidate aggregate row. Missing state creates a new seed and empty evidence. Malformed or unsupported state fails clearly; it is never silently replaced. Rule and model version mismatches start empty for that model with a new epoch. Explicit state deletion is a conservative reset: it starts with a new seed and epochs, zero accumulated hazard, no cursor, and no historical evidence. This promises no inherited confidence, but makes no claim that near-term inspection frequency can only increase.
 
-A sampling session stages in-memory state and atomically replaces the JSON file only after the host completes rule execution and result materialization. A failed check before commit leaves the existing file unchanged. The store checks for concurrent changes. Partial reporting views never imply that omitted subjects or units disappeared. No pruning is currently implemented; a future pruning operation would need an explicit complete-population view.
+A sampling session stages in-memory state and atomically replaces the JSON file only after the host completes rule execution and result materialization. A failed check before commit leaves the existing file unchanged. Internal revalidation uses an explicit discard boundary and never commits sampling changes, regardless of latest-result publication. One session rejects conflicting active versions of the same `(ruleId, model)` so it cannot write state its loader rejects. The store checks for concurrent changes. Partial reporting views never imply that omitted subjects or units disappeared. No pruning is currently implemented; a future pruning operation would need an explicit complete-population view.
 
 ## Compatibility boundary
 

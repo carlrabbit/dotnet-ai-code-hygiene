@@ -41,13 +41,16 @@ internal static class SamplingRandom
     internal static double Threshold(ReadOnlySpan<byte> seed, IReadOnlyList<string> keys, long generation) => -Math.Log(Uniform(seed, keys, generation));
 }
 
-internal sealed record SubjectTicket(string RuleId, string SubjectId, int RuleVersion, int ModelVersion, long Generation);
-internal sealed record SubjectHazardState(string SubjectId, long Generation, double Hazard, double? LastObservedUnixSeconds = null, bool? LastOutcome = null);
+internal sealed record SubjectTicket(string RuleId, string SubjectId, int RuleVersion, int ModelVersion, long Generation, string StateEpoch, object SamplerIdentity);
+internal sealed record SubjectHazardState(string SubjectId, long Generation, double Hazard, long? LastEvaluationCursorUnixMilliseconds = null, double? LastObservedUnixSeconds = null, bool? LastOutcome = null);
 internal sealed record DueSubject(SubjectTicket Ticket, double Hazard, double Threshold, double Urgency);
 
-internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion)
+internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion, string stateEpoch = "default")
 {
     private readonly Dictionary<string, SubjectHazardState> states = new(StringComparer.Ordinal);
+    private readonly object samplerIdentity = new();
+    internal string StateEpoch { get; } = stateEpoch;
+    private readonly string ticketEpoch = stateEpoch + ":" + Convert.ToHexString(seed);
     internal IReadOnlyCollection<SubjectHazardState> States => states.Values;
     internal SubjectHazardState State(string id) => states.TryGetValue(id, out var value) ? value : new(id, 0, 0);
     internal void AddHazard(string id, double increment)
@@ -58,11 +61,27 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
         ValidateHazard(hazard);
         states[id] = old with { Hazard = hazard };
     }
+    internal void AccrueElapsed(string id, long evaluationCursorUnixMilliseconds, double hazardPerSecond)
+    {
+        ValidateCursor(evaluationCursorUnixMilliseconds);
+        ValidateHazard(hazardPerSecond);
+        var old = State(id);
+        if (old.LastEvaluationCursorUnixMilliseconds is long previous && evaluationCursorUnixMilliseconds < previous)
+        {
+            throw new ArgumentOutOfRangeException(nameof(evaluationCursorUnixMilliseconds), "Evaluation cursor cannot move backwards.");
+        }
+        long elapsedMilliseconds = old.LastEvaluationCursorUnixMilliseconds is long last ? evaluationCursorUnixMilliseconds - last : 0;
+        double increment = (elapsedMilliseconds / 1000d) * hazardPerSecond;
+        ValidateHazard(increment);
+        double hazard = old.Hazard + increment;
+        ValidateHazard(hazard);
+        states[id] = old with { Hazard = hazard, LastEvaluationCursorUnixMilliseconds = evaluationCursorUnixMilliseconds };
+    }
     internal DueSubject? Due(string id)
     {
         var s = State(id); double threshold = SamplingRandom.Threshold(seed, [ruleId, ruleVersion.ToString(CultureInfo.InvariantCulture), modelVersion.ToString(CultureInfo.InvariantCulture), "subject", id], s.Generation);
         if (s.Hazard < threshold) { return null; }
-        return new(new(ruleId, id, ruleVersion, modelVersion, s.Generation), s.Hazard, threshold, s.Hazard - threshold);
+        return new(new(ruleId, id, ruleVersion, modelVersion, s.Generation, ticketEpoch, samplerIdentity), s.Hazard, threshold, s.Hazard - threshold);
     }
     internal IReadOnlyList<DueSubject> SelectDue(IEnumerable<string> ids, int budget)
     {
@@ -83,23 +102,43 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
     {
         states.Clear(); foreach (var value in values) { states.Add(value.SubjectId, value); }
     }
-    private bool TicketMatches(SubjectTicket t) => t.RuleId == ruleId && t.RuleVersion == ruleVersion && t.ModelVersion == modelVersion && State(t.SubjectId).Generation == t.Generation;
+    private bool TicketMatches(SubjectTicket t) => ReferenceEquals(t.SamplerIdentity, samplerIdentity) && t.RuleId == ruleId && t.RuleVersion == ruleVersion && t.ModelVersion == modelVersion && t.StateEpoch == ticketEpoch && State(t.SubjectId).Generation == t.Generation;
     internal static void ValidateHazard(double h) { if (!double.IsFinite(h) || h < 0) { throw new ArgumentOutOfRangeException(nameof(h), "Hazard must be finite and non-negative."); } }
+    internal static void ValidateCursor(long cursor) { if (cursor < 0) { throw new ArgumentOutOfRangeException(nameof(cursor), "Evaluation cursor must be a non-negative Unix millisecond value."); } }
 }
 
-internal sealed record PopulationTicket(string RuleId, string UnitId, int RuleVersion, int ModelVersion, long Generation);
-internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0);
+internal sealed record PopulationTicket(string RuleId, string UnitId, int RuleVersion, int ModelVersion, long Generation, string StateEpoch, object SamplerIdentity);
+internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0, long? LastEvaluationCursorUnixMilliseconds = null);
 internal sealed record DuePopulationEvent(PopulationTicket Ticket, double Threshold, double ResidualAfterThreshold);
 
-internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion)
+internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion, string stateEpoch = "default")
 {
     private readonly Dictionary<string, PopulationHazardState> states = new(StringComparer.Ordinal);
+    private readonly object samplerIdentity = new();
+    internal string StateEpoch { get; } = stateEpoch;
+    private readonly string ticketEpoch = stateEpoch + ":" + Convert.ToHexString(seed);
     internal IReadOnlyCollection<PopulationHazardState> States => states.Values;
     internal PopulationHazardState State(string id) => states.TryGetValue(id, out var value) ? value : new(id, 0, 0);
     internal void AddHazard(string unit, double increment)
     {
         SubjectHazardSampler.ValidateHazard(increment); var s = State(unit); double residual = s.ResidualHazard + increment;
         SubjectHazardSampler.ValidateHazard(residual); states[unit] = s with { ResidualHazard = residual };
+    }
+    internal void AccrueElapsed(string unit, long evaluationCursorUnixMilliseconds, double hazardPerSecond)
+    {
+        SubjectHazardSampler.ValidateCursor(evaluationCursorUnixMilliseconds);
+        SubjectHazardSampler.ValidateHazard(hazardPerSecond);
+        var old = State(unit);
+        if (old.LastEvaluationCursorUnixMilliseconds is long previous && evaluationCursorUnixMilliseconds < previous)
+        {
+            throw new ArgumentOutOfRangeException(nameof(evaluationCursorUnixMilliseconds), "Evaluation cursor cannot move backwards.");
+        }
+        long elapsedMilliseconds = old.LastEvaluationCursorUnixMilliseconds is long last ? evaluationCursorUnixMilliseconds - last : 0;
+        double increment = (elapsedMilliseconds / 1000d) * hazardPerSecond;
+        SubjectHazardSampler.ValidateHazard(increment);
+        double residual = old.ResidualHazard + increment;
+        SubjectHazardSampler.ValidateHazard(residual);
+        states[unit] = old with { ResidualHazard = residual, LastEvaluationCursorUnixMilliseconds = evaluationCursorUnixMilliseconds };
     }
     internal IReadOnlyList<DuePopulationEvent> DueEvents(string unit, int maximum = 10000)
     {
@@ -109,7 +148,7 @@ internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ru
         {
             double threshold = Threshold(unit, generation);
             if (residual < threshold) { break; }
-            due.Add(new(new(ruleId, unit, ruleVersion, modelVersion, generation), threshold, residual - threshold));
+            due.Add(new(new(ruleId, unit, ruleVersion, modelVersion, generation, ticketEpoch, samplerIdentity), threshold, residual - threshold));
             residual -= threshold;
         }
         return due;
@@ -118,7 +157,7 @@ internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ru
     {
         if (!double.IsFinite(retention) || retention < 0 || retention > 1) { throw new ArgumentOutOfRangeException(nameof(retention)); }
         var s = State(ticket.UnitId);
-        if (ticket.RuleId != ruleId || ticket.RuleVersion != ruleVersion || ticket.ModelVersion != modelVersion || ticket.Generation != s.Generation) { return false; }
+        if (!ReferenceEquals(ticket.SamplerIdentity, samplerIdentity) || ticket.RuleId != ruleId || ticket.RuleVersion != ruleVersion || ticket.ModelVersion != modelVersion || ticket.StateEpoch != ticketEpoch || ticket.Generation != s.Generation) { return false; }
         var due = DueEvents(ticket.UnitId, 1);
         if (due.Count == 0 || due[0].Ticket.Generation != ticket.Generation) { return false; }
         if (s.Generation == long.MaxValue) { throw new InvalidOperationException("Sampling population generation is exhausted; reset its state."); }

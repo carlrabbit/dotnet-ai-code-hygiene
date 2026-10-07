@@ -17,8 +17,14 @@ internal sealed record RuleModuleResult(
 
 internal sealed record RuleModuleExecution(Rule Descriptor, RuleModuleResult Result);
 
+internal enum SamplingExecutionBoundary
+{
+    Commit,
+    Discard
+}
+
 /// <summary>Lazy services available to production rule modules for this command.</summary>
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments)
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
     private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
@@ -38,7 +44,10 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal ProfileManager ProfileManager => Session.GetFact("profile-manager", () => new ProfileManager(Session.Root));
     internal SamplingSession Sampling => sampling.Value;
     internal bool HasSampling => sampling.IsValueCreated;
-    internal void CommitSampling() { if (sampling.IsValueCreated) { sampling.Value.Commit(); } }
+    internal void CompleteSampling()
+    {
+        if (samplingBoundary == SamplingExecutionBoundary.Commit && sampling.IsValueCreated) { sampling.Value.Commit(); }
+    }
 }
 
 internal interface IRuleModule

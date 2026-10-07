@@ -457,11 +457,11 @@ Existing atomic/concurrent-state protection conventions should be reused or fact
 
 ### Missing/corrupt state
 
-Missing state starts conservatively with a new local seed and no historical evidence.
+Missing state starts with a new local seed, per-model sampling-state epochs, zero accumulated hazard, no elapsed-time cursor, and no historical evidence. This conservative reset preserves no prior confidence; it does not promise a direction for near-term inspection frequency.
 
 Malformed/unsupported state must fail clearly rather than being silently interpreted as valid evidence.
 
-Deleting sampling state is supported as a conservative reset: it may cause additional future inspection but must never fabricate prior confidence.
+Deleting sampling state is supported as a conservative reset: it starts a new local seed and per-model epochs with zero accumulated hazard, no elapsed-time cursor, and no historical evidence. It must never fabricate prior confidence. A reset can change near-term inspection timing in either direction.
 
 ### Rule/model invalidation
 
@@ -473,7 +473,11 @@ At minimum, state compatibility is keyed by:
 - rule version;
 - sampling model/algorithm version.
 
-An incompatible version resets that rule/model state conservatively.
+An incompatible version resets that rule/model state to zero accumulated hazard, no elapsed-time cursor, no historical evidence, and a new per-model epoch. This preserves no prior confidence and makes no promise about near-term inspection frequency.
+
+Subject and population observation tickets are bound to the active sampling-state epoch and repository seed. A ticket from before deletion, seed replacement, or incompatible model reset cannot mutate the replacement state, even if its rule/model identity and generation match.
+
+Subject and population states persist a generic evaluation cursor. A rule may supply its evaluation time and hazard rate per second; the shared sampler accrues only the interval after the stored cursor, advances the cursor once, and adds no hazard for a repeated cursor. A backwards cursor is rejected. The sampler does not define the rule's clock, eligibility, or risk policy.
 
 ## Partial reporting scopes and population reconciliation
 
@@ -718,7 +722,7 @@ Passing ordinary unit tests alone is insufficient. The milestone requires exact 
 
 Implemented the two shared sampling algorithms without migrating any production rule. `docs/specs/SAMPLING.md` now defines the random derivation and state semantics. The lazy rule-context service stages transparent versioned JSON state and commits after host result materialization. Focused tests cover deterministic vectors, both samplers, discounted evidence, persistence/reset/corruption, lazy use, and an isolated SDK/Git fixture. Existing summary-review ranking/sample/fingerprint/expand/handoff behavior remains unchanged.
 
-Validation on Windows 11 / .NET SDK 11.0.100-rc.1.26425.128: `eng/validate.ps1` passed; Release build had zero warnings/errors; Core 58/58 and CLI 22/22 tests passed; the exact locally packed/installed consumer workflow and repository self-host checks passed. The validation includes 100,000 fixed hash-derived threshold draws at four hazard levels and a 50,000-unit aggregate rate-ratio simulation. Final `git diff --check` is recorded in `.execution/M0009-statistical-sampling-core.md`.
+Validation on Windows 11 / .NET SDK 11.0.100-rc.1.26425.128: `eng/validate.ps1` passed; Release build had zero warnings/errors; Core 61/61 and CLI 22/22 tests passed; the exact locally packed/installed consumer workflow and repository self-host checks passed. The validation includes 100,000 fixed hash-derived threshold draws at four hazard levels and a 50,000-unit aggregate rate-ratio simulation. Regression cases cover ticket rejection across delete/version reset and sampler-instance replacement, elapsed-hazard cursor idempotence, read-only internal revalidation, multi-version session rejection, and reset semantics. Final `git diff --check` is recorded in `.execution/M0009-statistical-sampling-core.md`.
 
 Planner-owned obligation/evidence wording and IDs were reconciled against the live milestone, ledger, source, tests, and documentation. `REV-M0009-COMPLETION` is the remaining human decision; the implementation is stopped at that review.
 

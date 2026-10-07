@@ -72,6 +72,62 @@ public sealed class SamplingTests
     }
 
     [Test]
+    public async Task ElapsedHazardCursorsAccrueEachEffectiveIntervalOnce()
+    {
+        var subjects = new SubjectHazardSampler(Seed, "clock.rule", 1, 1, "clock-epoch");
+        subjects.AccrueElapsed("subject", 1_000, 2);
+        await Assert.That(subjects.State("subject").Hazard).IsEqualTo(0d);
+        subjects.AccrueElapsed("subject", 4_000, 2);
+        await Assert.That(subjects.State("subject").Hazard).IsEqualTo(6d);
+        subjects.AccrueElapsed("subject", 4_000, 2);
+        await Assert.That(subjects.State("subject").Hazard).IsEqualTo(6d);
+        subjects.AccrueElapsed("subject", 5_000, 3);
+        await Assert.That(subjects.State("subject").Hazard).IsEqualTo(9d);
+        await Assert.That(subjects.State("subject").LastEvaluationCursorUnixMilliseconds).IsEqualTo(5_000L);
+
+        var populations = new PopulationHazardSampler(Seed, "clock.rule", 1, 1, "clock-epoch");
+        populations.AccrueElapsed("scope", 1_000, 2);
+        populations.AccrueElapsed("scope", 4_000, 2);
+        populations.AccrueElapsed("scope", 4_000, 2);
+        await Assert.That(populations.State("scope").ResidualHazard).IsEqualTo(6d);
+        await Assert.That(populations.State("scope").LastEvaluationCursorUnixMilliseconds).IsEqualTo(4_000L);
+        bool backwardsRejected = false;
+        try { populations.AccrueElapsed("scope", 3_999, 2); } catch (ArgumentOutOfRangeException) { backwardsRejected = true; }
+        await Assert.That(backwardsRejected).IsTrue();
+    }
+
+    [Test]
+    public async Task ObservationTicketsCannotCrossSamplingEpochOrSeedReset()
+    {
+        var oldSeed = Seed;
+        var oldSubjectSampler = new SubjectHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
+        oldSubjectSampler.AddHazard("subject", 100);
+        SubjectTicket oldSubjectTicket = oldSubjectSampler.Due("subject")!.Ticket;
+        var newSeed = Seed;
+        newSeed[0] ^= 0x80;
+        var resetSubjectSampler = new SubjectHazardSampler(newSeed, "epoch.rule", 1, 1, "new-epoch");
+        resetSubjectSampler.AddHazard("subject", 100);
+        SubjectTicket resetSubjectTicket = resetSubjectSampler.Due("subject")!.Ticket;
+        await Assert.That(resetSubjectTicket.Generation).IsEqualTo(oldSubjectTicket.Generation);
+        await Assert.That(resetSubjectSampler.Observe(oldSubjectTicket)).IsFalse();
+        var sameEpochSubjectSampler = new SubjectHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
+        sameEpochSubjectSampler.AddHazard("subject", 100);
+        await Assert.That(sameEpochSubjectSampler.Observe(oldSubjectTicket)).IsFalse();
+
+        var oldPopulationSampler = new PopulationHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
+        oldPopulationSampler.AddHazard("scope", 100);
+        PopulationTicket oldPopulationTicket = oldPopulationSampler.DueEvents("scope")[0].Ticket;
+        var resetPopulationSampler = new PopulationHazardSampler(newSeed, "epoch.rule", 1, 1, "new-epoch");
+        resetPopulationSampler.AddHazard("scope", 100);
+        PopulationTicket resetPopulationTicket = resetPopulationSampler.DueEvents("scope")[0].Ticket;
+        await Assert.That(resetPopulationTicket.Generation).IsEqualTo(oldPopulationTicket.Generation);
+        await Assert.That(resetPopulationSampler.Observe(oldPopulationTicket)).IsFalse();
+        var sameEpochPopulationSampler = new PopulationHazardSampler(oldSeed, "epoch.rule", 1, 1, "old-epoch");
+        sameEpochPopulationSampler.AddHazard("scope", 100);
+        await Assert.That(sameEpochPopulationSampler.Observe(oldPopulationTicket)).IsFalse();
+    }
+
+    [Test]
     public async Task AggregateEventsArePureUntilSequentialObservationsAndSubjectsAreTransient()
     {
         var sampler = new PopulationHazardSampler(Seed, "test.rule", 1, 1);
@@ -141,11 +197,44 @@ public sealed class SamplingTests
             var reread = new SamplingSession(repo).PopulationSampler("rule", 1);
             await Assert.That(reread.State("scope").ResidualHazard).IsEqualTo(2d);
             await Assert.That(reread.State("scope-two").ResidualHazard).IsEqualTo(1d);
+            var versionOne = new SamplingSession(repo).PopulationSampler("rule", 1);
+            versionOne.AddHazard("version-ticket", 100);
+            PopulationTicket oldVersionTicket = versionOne.DueEvents("version-ticket")[0].Ticket;
+            var sameSession = new SamplingSession(repo);
+            _ = sameSession.PopulationSampler("conflict.rule", 1);
+            bool multiVersionRejected = false;
+            try { _ = sameSession.PopulationSampler("conflict.rule", 2); } catch (ProductException) { multiVersionRejected = true; }
+            await Assert.That(multiVersionRejected).IsTrue();
+            sameSession.Commit();
+            _ = new SamplingSession(repo).PopulationSampler("conflict.rule", 1);
             var invalidated = new SamplingSession(repo);
             var versionTwo = invalidated.PopulationSampler("rule", 2);
             await Assert.That(versionTwo.State("scope").ResidualHazard).IsEqualTo(0d);
+            await Assert.That(versionTwo.StateEpoch).IsNotEqualTo(oldVersionTicket.StateEpoch);
+            versionTwo.AddHazard("version-ticket", 100);
+            PopulationTicket newVersionTicket = versionTwo.DueEvents("version-ticket")[0].Ticket;
+            await Assert.That(newVersionTicket.Generation).IsEqualTo(oldVersionTicket.Generation);
+            await Assert.That(versionTwo.Observe(oldVersionTicket)).IsFalse();
             invalidated.Commit();
             await Assert.That(new SamplingSession(repo).PopulationSampler("rule", 2).State("scope").ResidualHazard).IsEqualTo(0d);
+            var beforeDelete = new SamplingSession(repo).PopulationSampler("rule", 2);
+            PopulationTicket beforeDeleteTicket = beforeDelete.DueEvents("version-ticket")[0].Ticket;
+            string beforeDeleteEpoch = beforeDelete.StateEpoch;
+            File.Delete(path);
+            var afterDeleteSession = new SamplingSession(repo);
+            var afterDelete = afterDeleteSession.PopulationSampler("rule", 2);
+            await Assert.That(afterDelete.StateEpoch).IsNotEqualTo(beforeDeleteEpoch);
+            await Assert.That(afterDelete.State("version-ticket").ResidualHazard).IsEqualTo(0d);
+            afterDelete.AddHazard("version-ticket", 100);
+            PopulationTicket afterDeleteTicket = afterDelete.DueEvents("version-ticket")[0].Ticket;
+            await Assert.That(afterDeleteTicket.Generation).IsEqualTo(beforeDeleteTicket.Generation);
+            await Assert.That(afterDelete.Observe(beforeDeleteTicket)).IsFalse();
+            afterDelete.AccrueElapsed("scope", 10_000, 2);
+            afterDeleteSession.Commit();
+            var persistedCursor = new SamplingSession(repo).PopulationSampler("rule", 2);
+            await Assert.That(persistedCursor.State("scope").LastEvaluationCursorUnixMilliseconds).IsEqualTo(10_000L);
+            persistedCursor.AccrueElapsed("scope", 10_000, 2);
+            await Assert.That(persistedCursor.State("scope").ResidualHazard).IsEqualTo(0d);
             string rollbackBaseline = await File.ReadAllTextAsync(path);
             var failing = new SamplingSession(repo, () => throw new IOException("injected"));
             failing.PopulationSampler("rule", 1).AddHazard("scope", 1);
@@ -157,9 +246,12 @@ public sealed class SamplingTests
             await Assert.That(rejected).IsTrue();
             await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo("{");
             File.Delete(path);
-            var resetState = new SamplingSession(repo).PopulationSampler("rule", 1).State("scope");
+            var resetSampler = new SamplingSession(repo).PopulationSampler("rule", 1);
+            var resetState = resetSampler.State("scope");
             await Assert.That(resetState.PassEvidence).IsEqualTo(0d);
             await Assert.That(resetState.FailEvidence).IsEqualTo(0d);
+            await Assert.That(resetState.ResidualHazard).IsEqualTo(0d);
+            await Assert.That(resetState.LastEvaluationCursorUnixMilliseconds).IsNull();
         }
         finally { if (Directory.Exists(repo)) { Directory.Delete(repo, true); } }
     }
@@ -184,7 +276,7 @@ public sealed class SamplingTests
             await Assert.That(File.Exists(statePath)).IsFalse();
             var sampler = context.Sampling.PopulationSampler("fixture.rule", 1);
             sampler.AddHazard("scope-one/cohort", 1);
-            context.CommitSampling();
+            context.CompleteSampling();
             var partial = new SamplingSession(repo);
             partial.PopulationSampler("fixture.rule", 1).AddHazard("scope-two/cohort", 2);
             partial.Commit();

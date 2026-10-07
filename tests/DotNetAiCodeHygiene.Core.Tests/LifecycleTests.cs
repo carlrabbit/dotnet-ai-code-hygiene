@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using DotNetAiCodeHygiene.Core;
+using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
 
@@ -526,6 +527,56 @@ public sealed class LifecycleTests
             await Assert.That(empty.Items.Count).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ExpandIgnoreValidationAndIgnoreListingDiscardSamplingMutations()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-sampling-revalidation-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>A useful summary for this public type.</summary>\npublic class Reviewed { }\npublic class MissingSummary { }");
+            var mutator = new SamplingCursorRule();
+            var modules = RuleCatalog.Modules.Append(mutator).ToArray();
+            var engine = new HygieneEngine(repo, null, modules);
+            CheckResult first = engine.Check([], false);
+            ReviewBatch batch = first.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
+            Finding finding = first.Findings.Single(f => f.RuleId == "docs.summary.required");
+            string statePath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
+            string baseline = await File.ReadAllTextAsync(statePath);
+            await Assert.That(mutator.Evaluations).IsEqualTo(1);
+
+            _ = engine.ExpandReview(batch.Handle);
+            await Assert.That(mutator.Evaluations).IsEqualTo(2);
+            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
+
+            _ = engine.Ignore(finding.Id, "reviewed");
+            await Assert.That(mutator.Evaluations).IsEqualTo(3);
+            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
+
+            _ = engine.ListIgnores([]);
+            await Assert.That(mutator.Evaluations).IsEqualTo(4);
+            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    private sealed class SamplingCursorRule : IRuleModule
+    {
+        private long cursor;
+        internal int Evaluations { get; private set; }
+        public Rule Descriptor { get; } = new("test.sampling.cursor", 1, "finding", "finding", "Test-only sampling persistence seam.");
+
+        public RuleModuleResult Evaluate(RuleContext context)
+        {
+            Evaluations++;
+            cursor += 1_000;
+            context.Sampling.PopulationSampler(Descriptor.Id, Descriptor.Version).AccrueElapsed("test-unit", cursor, 1);
+            return RuleModuleResult.Empty;
+        }
     }
 
     [Test]
