@@ -41,7 +41,7 @@ internal static class DocumentationRuleEvaluation
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
-                    issue = $"<param name=\"{name}\"> must contain prose.";
+                    issue = DocumentationXmlConsistencyRuleModule.EmptyParamFor(name);
                 }
             }
             else if (tag == "typeparam")
@@ -56,7 +56,7 @@ internal static class DocumentationRuleEvaluation
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
-                    issue = $"<typeparam name=\"{name}\"> must contain prose.";
+                    issue = DocumentationXmlConsistencyRuleModule.EmptyTypeParamFor(name);
                 }
             }
             else if (tag == "returns")
@@ -134,7 +134,7 @@ internal static class DocumentationRuleEvaluation
             {
                 string message = DocumentationXmlConsistencyRuleModule.InvalidReference(tag);
                 findings.Add(HygieneEngine.Make(rule, path, tree, reference.SpanStart, symbol.ToDisplayString(), message,
-                    DocumentationXmlConsistencyRuleModule.ReferenceSuggestion, name ?? "missing name",
+                    DocumentationXmlConsistencyRuleModule.ReferenceSuggestion, DocumentationXmlConsistencyRuleModule.ReferenceObservation(name),
                     DocumentationXmlConsistencyRuleModule.ReferenceConstraint, anchor, tag + ":" + reference.ToFullString()));
             }
         }

@@ -28,11 +28,13 @@ internal sealed class DocumentationXmlConsistencyRuleModule : IRuleModule
     internal const string XmlConstraint = "Optional XML elements are checked only when present.";
     internal const string ReferenceSuggestion = "Use a parameter or type parameter declared by this API.";
     internal const string ReferenceConstraint = "References are validated without requiring documentation for parameters.";
+    internal const string MissingNameObservation = "missing name";
     internal static string DuplicateParamFor(string name) => string.Format(System.Globalization.CultureInfo.InvariantCulture, DuplicateParam, name);
     internal static string EmptyParamFor(string name) => string.Format(System.Globalization.CultureInfo.InvariantCulture, EmptyParam, name);
-    internal static string DuplicateTypeParamFor(string name) => string.Format(System.Globalization.CultureInfo.InvariantCulture, DuplicateTypeParam, name);
     internal static string EmptyTypeParamFor(string name) => string.Format(System.Globalization.CultureInfo.InvariantCulture, EmptyTypeParam, name);
+    internal static string DuplicateTypeParamFor(string name) => string.Format(System.Globalization.CultureInfo.InvariantCulture, DuplicateTypeParam, name);
     internal static string InvalidReference(string tag) => $"<{tag}> must reference a declaration parameter of the matching kind.";
+    internal static string ReferenceObservation(string? name) => name ?? MissingNameObservation;
     public Rule Descriptor => RuleDescriptor;
 
     public RuleModuleResult Evaluate(RuleContext context)
