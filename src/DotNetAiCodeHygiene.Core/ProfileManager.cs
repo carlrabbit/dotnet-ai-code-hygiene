@@ -62,10 +62,13 @@ public sealed class ProfileManager
         { throw new ProductException("Invalid .hygiene/profile.json; run hygiene bootstrap after resolving the malformed profile state."); }
     }
 
-    public IReadOnlyList<ProfileFinding> Analyze()
+    public IReadOnlyList<ProfileFinding> Analyze() => AnalyzeRequiredProfile().Concat(AnalyzeStyleCop())
+        .GroupBy(f => (f.RuleId, f.Path, f.Message)).Select(g => g.First())
+        .OrderBy(f => f.RuleId, StringComparer.Ordinal).ThenBy(f => f.Path, StringComparer.Ordinal).ToArray();
+
+    internal IReadOnlyList<ProfileFinding> AnalyzeRequiredProfile()
     {
         var findings = new List<ProfileFinding>();
-        var styleCopSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var evaluatedSources = new HashSet<string>(PathComparer);
         if (!File.Exists(P(".hygiene/profile/Hygiene.props")) || File.ReadAllText(P(".hygiene/profile/Hygiene.props")) != Props)
         {
@@ -96,10 +99,6 @@ public sealed class ProfileManager
                         findings.Add(new("profile.dotnet.analysis.required", Rel(config), $"Repository-configured {property} violates the supported profile.", "Remove the global warning-promotion setting."));
                     }
                 }
-                if (doc.Descendants().Any(e => (e.Name.LocalName is "PackageReference" or "Analyzer") && IsStyleCop(((string?)e.Attribute("Include") ?? (string?)e.Attribute("Update") ?? ""))))
-                {
-                    styleCopSources.Add(config);
-                }
             }
             catch (System.Xml.XmlException) { findings.Add(new("profile.dotnet.analysis.required", Rel(config), "Build configuration could not be parsed for profile analysis.", "Repair the project XML.")); }
         }
@@ -113,7 +112,6 @@ public sealed class ProfileManager
                     continue;
                 }
                 string[] configurations = ["Debug", "Release"];
-                bool hasRepositoryConfiguredStyleCopSource = false;
                 var projectSources = new HashSet<string>(PathComparer);
                 foreach (string configuration in configurations)
                 {
@@ -144,50 +142,6 @@ public sealed class ProfileManager
                             projectSources.Add(Path.GetFullPath(fullPath));
                         }
                     }
-                    foreach (JsonElement item in items.GetProperty("Analyzer").EnumerateArray())
-                    {
-                        string identity = ItemProperty(item, "Identity");
-                        if (IsStyleCop(identity))
-                        {
-                            string source = ItemProperty(item, "DefiningProjectFullPath");
-                            if (File.Exists(source) && IsWithinRoot(source))
-                            {
-                                styleCopSources.Add(source);
-                                hasRepositoryConfiguredStyleCopSource = true;
-                            }
-                            else
-                            {
-                                styleCopSources.Add(project);
-                                hasRepositoryConfiguredStyleCopSource = true;
-                            }
-                        }
-                    }
-                    foreach (JsonElement item in items.GetProperty("PackageReference").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
-                    {
-                        string source = ItemProperty(item, "DefiningProjectFullPath");
-                        if (File.Exists(source) && IsWithinRoot(source))
-                        {
-                            styleCopSources.Add(source);
-                            hasRepositoryConfiguredStyleCopSource = true;
-                        }
-                    }
-                    bool centralManagementActive = Property(properties, "ManagePackageVersionsCentrally").Equals("true", StringComparison.OrdinalIgnoreCase);
-                    if (centralManagementActive && items.GetProperty("PackageReference").EnumerateArray().Any(item => IsStyleCop(ItemProperty(item, "Identity"))))
-                    {
-                        foreach (JsonElement item in items.GetProperty("PackageVersion").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
-                        {
-                            string source = ItemProperty(item, "DefiningProjectFullPath");
-                            if (File.Exists(source) && IsWithinRoot(source))
-                            {
-                                styleCopSources.Add(source);
-                                hasRepositoryConfiguredStyleCopSource = true;
-                            }
-                        }
-                    }
-                }
-                if (HasResolvedStyleCopAnalyzer(project) && !hasRepositoryConfiguredStyleCopSource)
-                {
-                    styleCopSources.Add(project);
                 }
                 evaluatedSources.UnionWith(projectSources);
             }
@@ -209,11 +163,86 @@ public sealed class ProfileManager
             }
         }
 
-        foreach (string source in styleCopSources)
+        return findings.GroupBy(f => (f.RuleId, f.Path, f.Message)).Select(g => g.First()).OrderBy(f => f.Path, StringComparer.Ordinal).ToArray();
+    }
+
+    internal IReadOnlyList<ProfileFinding> AnalyzeStyleCop()
+    {
+        var sources = new HashSet<string>(PathComparer);
+        string[] projectFiles = Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(p => !Ignored(p)).ToArray();
+        string[] buildFiles = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(p => !Ignored(p) && (Path.GetExtension(p).ToLowerInvariant() is ".csproj" or ".props" or ".targets" or ".vbproj" or ".fsproj")).ToArray();
+        foreach (string config in buildFiles)
         {
-            findings.Add(new("profile.stylecop.prohibited", Rel(source), "StyleCop analyzers are prohibited by the supported profile.", "Resolve the analyzer dependency and its policy impact explicitly."));
+            try
+            {
+                XDocument document = XDocument.Load(config);
+                if (document.Descendants().Any(element => (element.Name.LocalName is "PackageReference" or "Analyzer")
+                    && IsStyleCop(((string?)element.Attribute("Include") ?? (string?)element.Attribute("Update") ?? ""))))
+                {
+                    sources.Add(config);
+                }
+            }
+            catch (System.Xml.XmlException) { }
         }
-        return findings.GroupBy(f => (f.RuleId, f.Path, f.Message)).Select(g => g.First()).OrderBy(f => f.RuleId, StringComparer.Ordinal).ThenBy(f => f.Path, StringComparer.Ordinal).ToArray();
+        foreach (string project in projectFiles)
+        {
+            if (!SdkProjectDetection.IsSdkStyle(project))
+            {
+                continue;
+            }
+
+            bool configuredSource = false;
+            try
+            {
+                foreach (string configuration in new[] { "Debug", "Release" })
+                {
+                    using JsonDocument evaluation = Evaluate(project, configuration,
+                        "-getProperty:AnalysisLevel,EnableNETAnalyzers,EnforceCodeStyleInBuild,ManagePackageVersionsCentrally",
+                        "-getItem:Analyzer,PackageReference,PackageVersion,Compile");
+                    JsonElement properties = evaluation.RootElement.GetProperty("Properties");
+                    JsonElement items = evaluation.RootElement.GetProperty("Items");
+                    foreach (JsonElement item in items.GetProperty("Analyzer").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                    {
+                        string source = ItemProperty(item, "DefiningProjectFullPath");
+                        sources.Add(File.Exists(source) && IsWithinRoot(source) ? source : project);
+                        configuredSource = true;
+                    }
+                    foreach (JsonElement item in items.GetProperty("PackageReference").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                    {
+                        string source = ItemProperty(item, "DefiningProjectFullPath");
+                        if (File.Exists(source) && IsWithinRoot(source))
+                        {
+                            sources.Add(source);
+                        }
+
+                        configuredSource = true;
+                    }
+                    bool central = Property(properties, "ManagePackageVersionsCentrally").Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (central && items.GetProperty("PackageReference").EnumerateArray().Any(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                    {
+                        foreach (JsonElement item in items.GetProperty("PackageVersion").EnumerateArray().Where(item => IsStyleCop(ItemProperty(item, "Identity"))))
+                        {
+                            string source = ItemProperty(item, "DefiningProjectFullPath");
+                            if (File.Exists(source) && IsWithinRoot(source))
+                            {
+                                sources.Add(source);
+                            }
+
+                            configuredSource = true;
+                        }
+                    }
+                }
+                if (HasResolvedStyleCopAnalyzer(project) && !configuredSource)
+                {
+                    sources.Add(project);
+                }
+            }
+            catch (Exception e) when (e is IOException or InvalidOperationException or JsonException or ProductException) { }
+        }
+        return sources.Order(StringComparer.OrdinalIgnoreCase).Select(source =>
+            new ProfileFinding("profile.stylecop.prohibited", Rel(source), "StyleCop analyzers are prohibited by the supported profile.",
+                "Resolve the analyzer dependency and its policy impact explicitly.")).ToArray();
     }
 
     private static bool IsStyleCop(string value) => value.Contains("stylecop", StringComparison.OrdinalIgnoreCase);

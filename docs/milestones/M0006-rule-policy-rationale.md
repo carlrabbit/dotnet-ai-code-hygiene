@@ -277,3 +277,9 @@ Document the reason briefly in engineering/self-hosting guidance.
 The milestone intentionally changes authority as well as code. Documentation is not cleanup after implementation; the rule rationale and semantic boundaries are part of the deliverable.
 
 The implementation must avoid copying long historical milestone prose into current specs. Promote only the stable rationale necessary to explain the current contract.
+
+## Completion Evidence
+
+- Automated validation: VAL-01 through VAL-05 passed; Release Core 45/45 and CLI 21/21; canonical repository validation and installed-tool checks passed; repository self-check retained generic summary quality while German review was disabled.
+- Human review: the project owner approved REV-01 in this task conversation on 2026-10-06. The review accepted the separate fixed quality/German rule contracts, repository German-disable rationale, preserved internal-summary and visual-block policies, and rationale fidelity.
+- Durable operational status and review evidence: `.execution/M0006-rule-policy-rationale.md` (REV-01 complete; VAL-06 passed).

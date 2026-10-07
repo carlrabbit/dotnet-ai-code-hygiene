@@ -85,6 +85,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $update.findingCount -ne 0 -or $update.changedPaths.Count -ne 0) { throw 'Installed update was not clean and idempotent.' }
     $rules = & $hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
+    if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
     Set-Content -NoNewline -Path Sample.cs -Value "/// <summary>Sample API</summary>`npublic class Sample { public void Run() { } }`n"
     $check = & $hygiene check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
@@ -94,6 +95,10 @@ try {
     $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
     if (-not $quality -or $quality.ruleVersion -ne 3 -or -not $german -or $german.ruleVersion -ne 1) { throw 'Installed check did not emit the independent v3 quality and v1 German review batches.' }
     if (-not ($german.questions[0].text -match 'natural, comprehensible German')) { throw 'Installed German review rubric is incorrect.' }
+    $expanded = & $hygiene review expand $quality.handle --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $expanded.reviewBatch.mode -ne 'expanded' -or $expanded.reviewBatch.ruleId -ne 'docs.summary.quality.review') { throw 'Installed summary review expansion failed or selected the wrong batch.' }
+    $handoff = & $hygiene review handoff $german.handle
+    if ($LASTEXITCODE -ne 0 -or $handoff -notmatch 'Review handoff written: ') { throw 'Installed German review handoff failed.' }
     & $hygiene rules disable docs.summary.language.german.review | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
     $qualityOnly = & $hygiene check --output json | ConvertFrom-Json
@@ -104,3 +109,10 @@ finally {
     $env:NUGET_PACKAGES = $previousNugetPackages
     Remove-Item -LiteralPath $tierRoot -Recurse -Force
 }
+
+$selfCheck = & dotnet .\src\DotNetAiCodeHygiene.Cli\bin\Release\net11.0\DotNetAiCodeHygiene.Cli.dll check --output json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Repository self-host hygiene check failed.' }
+$qualityBatch = $selfCheck.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
+$germanBatch = $selfCheck.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
+if (-not $qualityBatch -or $germanBatch) { throw 'Repository self-host check did not retain M0006 German-disable and generic-quality behavior.' }
+Write-Output 'Tier-4 exact installed consumer validation passed; repository M0006 self-host behavior passed.'
