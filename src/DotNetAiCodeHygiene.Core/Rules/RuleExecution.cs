@@ -52,21 +52,6 @@ internal sealed class RuleModuleRunner(IReadOnlyList<IRuleModule> modules)
 
 internal static class RuleCatalog
 {
-    internal static readonly Rule[] All =
-    [
-        new("profile.dotnet.analysis.required", 1, "finding", "finding", "Require the supported .NET analysis profile.", false),
-        new("profile.stylecop.prohibited", 1, "finding", "finding", "Prohibit StyleCop analyzers.", false),
-        new("docs.summary.required", 2, "finding", "finding", "Require documentation summaries on covered API symbols."),
-        new("docs.xml.consistent", 1, "finding", "finding", "Check present XML documentation structure and references."),
-        new("docs.text.sentence", 1, "finding", "finding", "Require sentence punctuation in selected documentation prose."),
-        new("docs.summary.quality.review", 3, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for correctness, value, and clarity."),
-        new("docs.summary.language.german.review", 1, "review-batch", "review-batch", "Review a deterministic sample of explicit documentation summaries for natural, comprehensible German."),
-        new("readability.long-line.review", 1, "finding", "review-candidate", "Review unusually long physical source lines."),
-        new("readability.control-flow.visual-block", 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.")
-    ];
-
-    internal static Rule Get(string id) => All.Single(rule => rule.Id == id);
-
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
         new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(),
@@ -75,8 +60,9 @@ internal static class RuleCatalog
         new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule()
     ];
 
+    internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor).ToArray();
+    internal static Rule Get(string id) => All.Single(rule => rule.Id == id);
     internal static RuleModuleRunner Runner { get; } = new(Modules);
-
     internal static IReadOnlyList<ISemanticReviewRuleModule> SemanticReviewModules { get; } = Modules.OfType<ISemanticReviewRuleModule>().ToArray();
     internal static SemanticReviewRuleRunner SemanticReviewRunner { get; } = new(SemanticReviewModules);
 }

@@ -33,11 +33,11 @@ internal static class DocumentationRuleEvaluation
             {
                 if (string.IsNullOrWhiteSpace(name) || !scope.Parameters.Contains(name))
                 {
-                    issue = "<param> must name a declaration parameter.";
+                    issue = DocumentationXmlConsistencyRuleModule.InvalidParam;
                 }
                 else if (!counts.Add("param:" + name))
                 {
-                    issue = $"Duplicate <param> for '{name}'.";
+                    issue = DocumentationXmlConsistencyRuleModule.DuplicateParamFor(name);
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
@@ -48,11 +48,11 @@ internal static class DocumentationRuleEvaluation
             {
                 if (string.IsNullOrWhiteSpace(name) || !scope.TypeParameters.Contains(name))
                 {
-                    issue = "<typeparam> must name a declaration type parameter.";
+                    issue = DocumentationXmlConsistencyRuleModule.InvalidTypeParam;
                 }
                 else if (!counts.Add("typeparam:" + name))
                 {
-                    issue = $"Duplicate <typeparam> for '{name}'.";
+                    issue = DocumentationXmlConsistencyRuleModule.DuplicateTypeParamFor(name);
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
@@ -69,30 +69,30 @@ internal static class DocumentationRuleEvaluation
                 };
                 if (!counts.Add("returns"))
                 {
-                    issue = "Only one <returns> element is allowed.";
+                    issue = DocumentationXmlConsistencyRuleModule.DuplicateReturns;
                 }
                 else if (!returnsValue)
                 {
-                    issue = "<returns> is only valid on a value-returning callable.";
+                    issue = DocumentationXmlConsistencyRuleModule.InvalidReturns;
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
-                    issue = "<returns> must contain prose.";
+                    issue = DocumentationXmlConsistencyRuleModule.EmptyReturns;
                 }
             }
             else if (tag == "value")
             {
                 if (!counts.Add("value"))
                 {
-                    issue = "Only one <value> element is allowed.";
+                    issue = DocumentationXmlConsistencyRuleModule.DuplicateValue;
                 }
                 else if (symbol is not IPropertySymbol)
                 {
-                    issue = "<value> is only valid on a property or indexer.";
+                    issue = DocumentationXmlConsistencyRuleModule.InvalidValue;
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
-                    issue = "<value> must contain prose.";
+                    issue = DocumentationXmlConsistencyRuleModule.EmptyValue;
                 }
             }
             else if (tag == "exception")
@@ -103,18 +103,18 @@ internal static class DocumentationRuleEvaluation
                 bool valid = target is INamedTypeSymbol exceptionType && baseException is not null && IsDerivedFrom(exceptionType, baseException);
                 if (!valid)
                 {
-                    issue = "<exception cref> must resolve to an exception type.";
+                    issue = DocumentationXmlConsistencyRuleModule.InvalidException;
                 }
                 else if (string.IsNullOrWhiteSpace(prose))
                 {
-                    issue = "<exception> must contain prose.";
+                    issue = DocumentationXmlConsistencyRuleModule.EmptyException;
                 }
             }
 
             if (issue is not null)
             {
                 findings.Add(HygieneEngine.Make(rule, path, tree, element.SpanStart, symbol.ToDisplayString(), issue,
-                    "Correct or remove the optional XML element.", issue, "Optional XML elements are checked only when present.", anchor,
+                    DocumentationXmlConsistencyRuleModule.XmlSuggestion, issue, DocumentationXmlConsistencyRuleModule.XmlConstraint, anchor,
                     tag + ":" + element.ToFullString()));
             }
         }
@@ -132,10 +132,10 @@ internal static class DocumentationRuleEvaluation
                 : !string.IsNullOrEmpty(name) && scope.InScopeTypeParameters.Contains(name);
             if (!valid)
             {
-                string message = $"<{tag}> must reference a declaration parameter of the matching kind.";
+                string message = DocumentationXmlConsistencyRuleModule.InvalidReference(tag);
                 findings.Add(HygieneEngine.Make(rule, path, tree, reference.SpanStart, symbol.ToDisplayString(), message,
-                    "Use a parameter or type parameter declared by this API.", name ?? "missing name",
-                    "References are validated without requiring documentation for parameters.", anchor, tag + ":" + reference.ToFullString()));
+                    DocumentationXmlConsistencyRuleModule.ReferenceSuggestion, name ?? "missing name",
+                    DocumentationXmlConsistencyRuleModule.ReferenceConstraint, anchor, tag + ":" + reference.ToFullString()));
             }
         }
         return findings;
@@ -165,10 +165,10 @@ internal static class DocumentationRuleEvaluation
                 continue;
             }
 
-            string message = $"Explicit <{tag}> prose must end with '.', '?' or '!'.";
+            string message = DocumentationSentenceRuleModule.Message(tag);
             findings.Add(HygieneEngine.Make(rule, path, tree, element.SpanStart, symbol.ToDisplayString(), message,
-                "Finish the prose with sentence punctuation.", prose,
-                "Sentence punctuation is mechanical and does not judge prose quality.", anchor, tag + ":" + element.ToFullString()));
+                DocumentationSentenceRuleModule.Suggestion, prose,
+                DocumentationSentenceRuleModule.Constraint, anchor, tag + ":" + element.ToFullString()));
         }
         return findings;
     }

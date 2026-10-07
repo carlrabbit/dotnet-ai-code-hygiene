@@ -24,12 +24,10 @@ Established deterministic `format`/`normalize`, agent-facing CLI help, transacti
 Established the supported .NET hygiene profile, bootstrap/update lifecycle, mandatory profile rules, documentation subject/carrier semantics, and documentation hygiene rules.
 
 ## M0006 — Rule Policy Rationale & Semantic Review Separation
-**State:** prerequisite for M0007
+**State:** done
 **Mode:** AI-executed, human-reviewed
 
-Clarifies fixed rule semantics versus enable/disable-only participation, separates language-neutral summary quality from the fixed German-language review policy, and promotes rule-by-rule rationale into current authority.
-
-M0007 must not execute until M0006 is complete and accepted.
+Clarified fixed rule semantics versus enable/disable-only participation, separated language-neutral summary quality from the fixed German-language review policy, and promoted rule-by-rule rationale into current authority.
 
 Primary milestone:
 
@@ -38,13 +36,27 @@ docs/milestones/M0006-rule-policy-rationale.md
 ```
 
 ## M0007 — Modular Analysis Architecture
-**State:** ready after M0006 completion
+**State:** done
 **Mode:** AI-executed, human-reviewed
 
-Refactors the current monolithic rule/rewrite execution into independent in-process rule and rewrite modules over a shared lazy repository-analysis session, while preserving public behavior. Establishes the BORING architecture intended to support a larger 1.0 rule and formatter catalogue without introducing a general plugin framework or formal callback pipeline.
+Refactored monolithic rule/rewrite execution into independent in-process rule and rewrite modules over a shared lazy repository-analysis session while preserving public behavior.
+
+`REV-M0007-COMPLETION` is durably recorded as approved in the completed M0007 milestone and execution ledger. M0008 does not reopen that completed milestone.
 
 Primary milestone:
 
 ```text
 docs/milestones/M0007-modular-analysis-architecture.md
+```
+
+## M0008 — Rule Locality & Agent Routing Hygiene
+**State:** ready
+**Mode:** AI-executed, human-reviewed
+
+Makes the M0007 logical module boundary physically obvious: stable repository-level `AGENTS.md`, family-based rule folders, one product rule per file, and rule-owned fixed interface text without introducing a metadata/message framework or changing product behavior.
+
+Primary milestone:
+
+```text
+docs/milestones/M0008-rule-locality-and-agent-routing.md
 ```

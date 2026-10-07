@@ -8,6 +8,7 @@ internal interface ISemanticReviewRuleModule : IRuleModule
 {
     public int BatchNumber { get; }
     public IReadOnlyList<ReviewQuestion> Questions { get; }
+    public string EscalationCondition { get; }
 }
 
 internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRuleModule> modules)
@@ -20,27 +21,14 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
             {
                 RuleModuleResult result = byId[module.Descriptor.Id].Result;
                 return HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
-                    result.ReviewSubjects, result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), module.Questions);
+                    result.ReviewSubjects, result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), module.Questions, module.EscalationCondition);
             }).ToArray();
     }
 }
 
-internal sealed class SummaryQualityReviewRuleModule : ISemanticReviewRuleModule
-{
-    public Rule Descriptor => RuleCatalog.Get("docs.summary.quality.review");
-    public int BatchNumber => 1;
-    public IReadOnlyList<ReviewQuestion> Questions => HygieneEngine.QualityQuestions;
-    public RuleModuleResult Evaluate(RuleContext context) => BuildPopulation(context);
-    internal static RuleModuleResult BuildPopulation(RuleContext context) => SummaryReviewPopulation.CreatePopulation(context);
-}
 
-internal sealed class SummaryGermanReviewRuleModule : ISemanticReviewRuleModule
-{
-    public Rule Descriptor => RuleCatalog.Get("docs.summary.language.german.review");
-    public int BatchNumber => 2;
-    public IReadOnlyList<ReviewQuestion> Questions => HygieneEngine.GermanQuestions;
-    public RuleModuleResult Evaluate(RuleContext context) => SummaryQualityReviewRuleModule.BuildPopulation(context);
-}
+
+
 
 internal static class SummaryReviewPopulation
 {

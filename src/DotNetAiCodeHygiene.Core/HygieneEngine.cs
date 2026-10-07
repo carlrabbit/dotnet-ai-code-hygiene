@@ -177,17 +177,7 @@ public sealed class HygieneEngine
         return result;
     }
 
-    internal static readonly ReviewQuestion[] QualityQuestions =
-    [
-        new("Q1", "Technical correctness: Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?"),
-        new("Q2", "Information value: Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature? A concise summary is acceptable only when it still communicates useful purpose/domain meaning."),
-        new("Q3", "Clarity and scope: Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?")
-    ];
-
-    internal static readonly ReviewQuestion[] GermanQuestions =
-    [ new("Q1", "German language: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?") ];
-
-    internal static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions)
+    internal static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
@@ -205,7 +195,7 @@ public sealed class HygieneEngine
             .ToArray();
         string batchId = "B-" + batchNumber;
         return new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", "implementer", ordered.Length, sample.Length, questions,
-            new ReviewEscalation("Expand if any sampled summary materially fails a required question or the implementer cannot confidently answer it.", "hygiene review expand " + run + "/" + batchId, "frontier"), sample, population, all, sources);
+            new ReviewEscalation(escalationCondition, "hygiene review expand " + run + "/" + batchId, "frontier"), sample, population, all, sources);
     }
 
     public ReviewBatch ExpandReview(string handle)
