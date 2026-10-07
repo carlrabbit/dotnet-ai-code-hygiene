@@ -26,10 +26,10 @@ Planner-owned columns are `ID`, `Type`, and `Obligation`. Implementation must no
 | AC-10 | acceptance | Rule IDs, versions, order, output kinds, classifications, purposes, configurability, and mandatory/configurable participation exactly match the accepted M0006/M0007 baseline. | WP-02, WP-03 | Built CLI rules JSON returned nine canonical descriptor records; tests and installed workflow passed. | VAL-01..05 | satisfied |
 | AC-11 | acceptance | Established deterministic finding text, profile diagnostic text, semantic-review questions/rubrics/escalation behavior, JSON/text output, fingerprints/discriminators, and review batch/expand/handoff behavior remain regression-compatible. | WP-02, WP-03 | Core/CLI behavior suites, isolated fixture suite, and installed-tool lifecycle passed unchanged. | VAL-01..05 | satisfied |
 | AC-12 | acceptance | M0007's shared lazy `RepositorySession`, explicit production runner, shared facts, host-owned result mechanics, and distinct rewrite architecture remain intact; the cleanup does not re-centralize rule semantics. | WP-02 | Shared session/facts and host materialization remain; rewrite contracts are untouched; focused session tests passed. | VAL-01, VAL-03, VAL-05, VAL-06 | satisfied |
-| AC-13 | acceptance | `docs/MILESTONES.md` records M0006 and M0007 as done, records M0008 as ready, and does not reopen or rewrite the already-complete M0007 milestone/ledger. | WP-01 | On entry, M0007 was already complete; the conditional completion/review reconciliation was already satisfied/no-op. The milestone index now records M0006/M0007 done and M0008 ready; M0007 records remain untouched. | VAL-06 | satisfied |
+| AC-13 | acceptance | `docs/MILESTONES.md` records M0006 and M0007 as done, records M0008 as ready, and does not reopen or rewrite the already-complete M0007 milestone/ledger. | WP-01 | On entry, M0007 was already complete; the conditional completion/review reconciliation was already satisfied/no-op. At implementation completion, the index recorded M0006/M0007 done and M0008 ready; after this approval it records M0008 done. M0007 records remain untouched. | VAL-06 | satisfied |
 | AC-14 | documentation | Architecture, engineering, terminology, milestone index, and agent-routing documentation consistently describe the rule-locality and stable-agent-routing model. | WP-01, WP-02 | AGENTS.md and Architecture, Engineering, Terminology, Milestones docs describe locality/routing. | VAL-06 | satisfied |
 | AC-15 | acceptance | The diff is limited to M0008 locality/routing work, required tests/evidence, and direct documentation/index updates; unrelated hygiene findings remain deferred. | WP-01..03 | Diff is limited to M0008 routing, family moves/text ownership, docs/index, and evidence. | VAL-05, VAL-06 | satisfied |
-| REV-01 | review | Project owner/delegate confirms that a future ordinary rule has an obvious small home, its fixed contract text is easy to find, shared infrastructure has not been over-generalized, and `AGENTS.md` is stable rather than milestone-bound. | Human review | Awaiting explicit project owner/delegate review. | VAL-07 | pending |
+| REV-01 | review | Project owner/delegate confirms that a future ordinary rule has an obvious small home, its fixed contract text is easy to find, shared infrastructure has not been over-generalized, and `AGENTS.md` is stable rather than milestone-bound. | Human review | Project owner approved REV-M0008-COMPLETION in this task conversation on 2026-10-07 after PR 11 merged to main at `56ce4a5`. | VAL-07 | satisfied |
 
 ## Evidence Case Registry
 
@@ -58,25 +58,24 @@ Planner-owned columns are `ID`, `Parent obligation`, and `Required evidence case
 | VAL-04 | exact locally packed/installed tool representative workflow | Tier 4 / isolated Windows consumer repository | AC-10, AC-11; EC-10a, EC-11a, EC-11b | satisfied | Canonical rerun: exact locally packed/installed 0.5.0 consumer workflow passed after corrections. |
 | VAL-05 | `./eng/validate.ps1` including repository self-host validation and `git diff --check` | Tier 2 / complete repository | AC-09..AC-15 | satisfied | Canonical eng/validate.ps1 rerun passed, including Release build, both test suites (73/73), Tier-4, repository self-host, and final git diff --check. |
 | VAL-06 | direct source/document review of `AGENTS.md`, `Rules/` layout, text ownership, docs consistency, and M0007 completion bookkeeping | repository review | AC-01..AC-09, AC-13..AC-15; EC-01a, EC-04a, EC-05a, EC-06a, EC-07a, EC-13a | satisfied | Freshly extracted the specified package ZIP (SHA256 52E25A1465BD206ACD700F1EFEF5A644D891991B913CBA40447FA5AF24451D14) and compared planner-owned wording directly: all 16 milestone AC/REV rows, 10 milestone EC rows, 16 ledger AC/REV obligation fields, and 10 ledger EC required-evidence fields match. The alternate AC-13, AC-15, and EC-13a strings supplied in the correction request are not present in this ZIP; the package wording is preserved unchanged. M0007 was already complete on entry, so its conditional AC-13/EC-13a reconciliation path was satisfied/no-op. |
-| VAL-07 | `REV-M0008-COMPLETION` | Human / project owner or delegate | REV-01 | pending | Pending explicit REV-M0008-COMPLETION project owner/delegate decision. |
+| VAL-07 | `REV-M0008-COMPLETION` | Human / project owner or delegate | REV-01 | passed | Project owner approved REV-M0008-COMPLETION in this task conversation on 2026-10-07 after PR 11 merged to main at `56ce4a5`. |
 
 ## Work Packages
 
 - **WP-01 — Routing and authority index:** restore stable root AGENTS.md; reconcile docs/MILESTONES.md; apply the package architecture, engineering, and terminology updates.
 - **WP-02 — Rule locality:** split the nine production modules into family directories and one class per file; move descriptors and fixed rule-specific text to the owning modules; keep shared facts, review/profile/session/host mechanisms shared.
-- **WP-03 — Compatibility and evidence:** run focused/full canonical validation, inspect source/docs and built CLI descriptor output, reconcile each criterion/evidence case, and preserve pending human review.
+- **WP-03 — Compatibility and evidence:** run focused/full canonical validation, inspect source/docs and built CLI descriptor output, reconcile each criterion/evidence case, and record the required human review.
 ## Resume Point
 
 Current state:
 
 ```text
-AWAITING HUMAN REVIEW
+COMPLETE
 ```
 
 Next action:
 
-1. obtain the explicit project owner/delegate decision for REV-M0008-COMPLETION;
-2. if approved, record the human decision and update the terminal state.
+None. REV-M0008-COMPLETION is approved and recorded.
 
 
 Known agent-resolvable gaps:
@@ -85,4 +84,4 @@ None; implementation and automated validation are complete.
 
 External blockers or planning escalations:
 
-None. Human completion review remains pending.
+None.

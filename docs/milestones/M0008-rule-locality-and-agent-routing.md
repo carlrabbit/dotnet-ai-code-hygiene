@@ -392,10 +392,10 @@ Implementation and automated validation are complete. Nine production rules now 
 
 Validation: eng/validate.ps1 passed on Windows 11/.NET 11.0.100-rc.1.26425.128; Release build succeeded; Core 51/51 and CLI 22/22 passed; exact locally packed/installed consumer validation and repository self-host checks passed. Built Release rules --output json returned all nine descriptors in canonical order. Final git diff --check passed. Detailed criterion/evidence mapping is in .execution/M0008-rule-locality-and-agent-routing.md.
 
-Human completion review REV-M0008-COMPLETION remains pending.
+Project owner approved REV-M0008-COMPLETION on 2026-10-07 in this task conversation after PR 11 merged to main at `56ce4a5`; approval is recorded in the execution ledger.
 
 Current milestone outcome:
 
 ```text
-AWAITING HUMAN REVIEW
+COMPLETE
 ```
