@@ -20,7 +20,11 @@
 
 **Rule module** — independent in-process implementation of one fixed rule contract. It owns domain-specific analysis/traversal but uses the shared repository session and host result mechanics.
 
-**Rule catalog** — explicit engine-owned ordered registration of product rule modules and their descriptors. It is not dynamic plugin discovery.
+**Rule locality boundary** — the physical source location where one product rule's descriptor, fixed rule-specific interface text, and primary evaluator are discoverable together, with only clearly named shared facts/helpers followed as needed.
+
+**Rule interface text** — fixed user/reviewer-facing text that is part of one rule's contract, such as descriptor purpose, finding message/suggestion/observation/reason/constraint templates, semantic-review questions, and rule-specific escalation wording. Dynamic evidence values are not themselves interface text.
+
+**Rule catalog** — explicit engine-owned ordered registration of product rule modules. It establishes deterministic registration/order and is not dynamic plugin discovery or a second rule-definition store.
 
 **Session fact** — immutable lazily derived analysis data cached for one repository session and shared by multiple rule/rewrite consumers when justified.
 
@@ -40,12 +44,12 @@
 
 **Deterministic remediation** — fixed, rule-owned repository transformation that establishes the rule's desired state where safe. Commands may choose whether to execute it; the rule's diagnosis and remediation meaning remain fixed.
 
-**Bootstrap** — repository-wide command that installs/reconciles the current hygiene profile and applies available deterministic profile remediations.
+**Bootstrap** — repository-wide command that installs/reconciles the current supported hygiene profile.
 
-**Update** — repository-wide command that reconciles an already-profiled repository to the current supported profile and applies current/future fixed migration/remediation rules.
+**Update** — repository-wide command that reconciles an already installed supported profile to the tool's current fixed representation.
 
-**Documentation summary** — the concise documentation synopsis for one covered API subject. It is a semantic concept, not synonymous with the XML `<summary>` element.
+**Ignore decision** — persisted explicit user acceptance of one deterministic finding identity/fingerprint.
 
-**Summary carrier** — source XML documentation element that carries a documentation summary for a subject. Ordinary subjects use `<summary>`; a synthesized positional-record property uses the matching `<param>` on the record declaration. Direct `<inheritdoc/>` can satisfy a missing summary without supplying local prose.
+**Stale ignore** — persisted ignore decision whose subject still exists but whose current evidence no longer matches the accepted fingerprint/discriminator.
 
-**Explicit documentation prose** — locally written text in a prose-bearing XML documentation element. Sentence checks apply only to the specified prose-bearing elements, not arbitrary/custom XML documentation.
+**Semantic review handoff** — explicit persisted request that transfers expanded semantic-review work and source context to an external frontier reviewer without invoking a model inside the CLI.

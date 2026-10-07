@@ -72,15 +72,15 @@ public sealed class ProfileManager
         var evaluatedSources = new HashSet<string>(PathComparer);
         if (!File.Exists(P(".hygiene/profile/Hygiene.props")) || File.ReadAllText(P(".hygiene/profile/Hygiene.props")) != Props)
         {
-            findings.Add(new("profile.dotnet.analysis.required", ".hygiene/profile/Hygiene.props", "The generated supported-profile MSBuild artifact is missing or drifted.", "Run hygiene update to reconcile hygiene-owned profile state."));
+            findings.Add(new(ProfileAnalysisRuleModule.RuleId, ".hygiene/profile/Hygiene.props", ProfileAnalysisRuleModule.ArtifactMissing, ProfileAnalysisRuleModule.ArtifactSuggestion));
         }
         if (!File.Exists(P("Directory.Build.props")) || !File.ReadAllText(P("Directory.Build.props")).Contains(Import, StringComparison.Ordinal) || !File.ReadAllText(P("Directory.Build.props")).Contains(ImportEnd, StringComparison.Ordinal))
         {
-            findings.Add(new("profile.dotnet.analysis.required", "Directory.Build.props", "The root hygiene profile import is missing or drifted.", "Run hygiene update to reconcile the managed import."));
+            findings.Add(new(ProfileAnalysisRuleModule.RuleId, "Directory.Build.props", ProfileAnalysisRuleModule.ImportMissing, ProfileAnalysisRuleModule.ImportSuggestion));
         }
         if (!File.Exists(P(".editorconfig")) || !File.ReadAllText(P(".editorconfig")).Contains(EditorBlock, StringComparison.Ordinal) || !File.ReadAllText(P(".editorconfig")).Split('\n').Any(line => line.Trim().Equals("root = true", StringComparison.OrdinalIgnoreCase)))
         {
-            findings.Add(new("profile.dotnet.analysis.required", ".editorconfig", "The root hygiene profile EditorConfig block is missing or drifted.", "Run hygiene update to reconcile the managed section."));
+            findings.Add(new(ProfileAnalysisRuleModule.RuleId, ".editorconfig", ProfileAnalysisRuleModule.EditorBlockMissing, ProfileAnalysisRuleModule.EditorBlockSuggestion));
         }
         string[] projects = Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories).Where(p => !Ignored(p)).ToArray();
         string[] msbuildFiles = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
@@ -96,11 +96,11 @@ public sealed class ProfileManager
                     string property = value.Name.LocalName;
                     if (property == "TreatWarningsAsErrors" ? value.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) : !string.IsNullOrWhiteSpace(value.Value))
                     {
-                        findings.Add(new("profile.dotnet.analysis.required", Rel(config), $"Repository-configured {property} violates the supported profile.", "Remove the global warning-promotion setting."));
+                        findings.Add(new(ProfileAnalysisRuleModule.RuleId, Rel(config), ProfileAnalysisRuleModule.WarningPromotion(property), ProfileAnalysisRuleModule.WarningPromotionSuggestion));
                     }
                 }
             }
-            catch (System.Xml.XmlException) { findings.Add(new("profile.dotnet.analysis.required", Rel(config), "Build configuration could not be parsed for profile analysis.", "Repair the project XML.")); }
+            catch (System.Xml.XmlException) { findings.Add(new(ProfileAnalysisRuleModule.RuleId, Rel(config), ProfileAnalysisRuleModule.BuildParseFailure, ProfileAnalysisRuleModule.BuildParseSuggestion)); }
         }
 
         foreach (string project in projects)
@@ -122,7 +122,7 @@ public sealed class ProfileManager
                         string actual = Property(properties, property);
                         if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
                         {
-                            findings.Add(new("profile.dotnet.analysis.required", Rel(project), $"Effective project property {property} must be {expected} for {configuration} (found '{actual}').", "Correct the effective MSBuild property."));
+                            findings.Add(new(ProfileAnalysisRuleModule.RuleId, Rel(project), ProfileAnalysisRuleModule.PropertyMismatch(property, expected, configuration, actual), ProfileAnalysisRuleModule.PropertySuggestion));
                         }
                     }
                     JsonElement items = evaluation.RootElement.GetProperty("Items");
@@ -147,7 +147,7 @@ public sealed class ProfileManager
             }
             catch (Exception e) when (e is IOException or InvalidOperationException or JsonException or ProductException)
             {
-                findings.Add(new("profile.dotnet.analysis.required", Rel(project), "Effective MSBuild configuration could not be evaluated.", "Repair the project/import configuration and retry profile analysis."));
+                findings.Add(new(ProfileAnalysisRuleModule.RuleId, Rel(project), ProfileAnalysisRuleModule.EvaluationFailure, ProfileAnalysisRuleModule.EvaluationSuggestion));
             }
         }
 
@@ -158,7 +158,7 @@ public sealed class ProfileManager
             {
                 if (!effective.TryGetValue(key, out string? actual) || !OptionEquals(key, actual, expected))
                 {
-                    findings.Add(new("profile.dotnet.analysis.required", Rel(source), $"Effective EditorConfig setting {key} must be {expected} (found '{actual ?? "<unset>"}').", $"Set {key} = {expected} in the effective configuration."));
+                    findings.Add(new(ProfileAnalysisRuleModule.RuleId, Rel(source), ProfileAnalysisRuleModule.EditorSettingMismatch(key, expected, actual), ProfileAnalysisRuleModule.EditorSettingSuggestion(key, expected)));
                 }
             }
         }
@@ -241,8 +241,8 @@ public sealed class ProfileManager
             catch (Exception e) when (e is IOException or InvalidOperationException or JsonException or ProductException) { }
         }
         return sources.Order(StringComparer.OrdinalIgnoreCase).Select(source =>
-            new ProfileFinding("profile.stylecop.prohibited", Rel(source), "StyleCop analyzers are prohibited by the supported profile.",
-                "Resolve the analyzer dependency and its policy impact explicitly.")).ToArray();
+            new ProfileFinding(ProfileStyleCopRuleModule.RuleId, Rel(source), ProfileStyleCopRuleModule.FindingMessage,
+                ProfileStyleCopRuleModule.FindingSuggestion)).ToArray();
     }
 
     private static bool IsStyleCop(string value) => value.Contains("stylecop", StringComparison.OrdinalIgnoreCase);

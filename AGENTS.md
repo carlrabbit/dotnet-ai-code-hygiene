@@ -1,31 +1,45 @@
 # Agent Instructions
 
-Start with:
+## Default implementation path
 
-```text
-docs/milestones/M0007-modular-analysis-architecture.md
-```
+Read:
 
-Read only the project authority required by that milestone. Maintain:
+- `docs/ENGINEERING.md`;
+- the relevant milestone or task;
+- authority documents listed by that milestone;
+- relevant source and test files.
 
-```text
-.execution/M0007-modular-analysis-architecture.md
-```
+Use canonical `eng/` commands only.
 
-M0007 is executed only after M0006 is complete and accepted. Treat the accepted M0006 rule IDs, versions, order, rationales, and repository self-hosting configuration as the behavioral baseline.
+## Coordination metadata
 
-Preserve planner-owned obligation and evidence-case IDs/wording exactly. Implementation owns work-package decomposition, concrete mechanics, evidence, validation execution, and resume state.
+During ordinary implementation, ignore unless explicitly in scope:
 
-Core constraints:
+- `.guide-profile.json`;
+- `.guide-sync/`;
+- `.review/`.
 
-- This is an internal architecture milestone; do not add new product rules, rewrites, user configuration, or public CLI behavior.
-- Rules are independent in-process modules over one shared command-scoped repository session; they are not separate OS processes or dynamically loaded plugins.
-- The host owns repository/target/project loading, expensive shared context, rule selection, result materialization, persistence, and mutation policy.
-- A rule owns its domain-specific traversal and decision logic. Do not replace this with a central syntax callback/event pipeline, a rule dependency DAG, or a declarative required-context DSL.
-- Shared facts are lazy, immutable, session-scoped, and extracted only where semantic consistency or repeated expensive derivation justifies them.
-- Rule execution and rewrite execution remain distinct contracts even though they share repository/session infrastructure.
-- Existing deterministic ordering, occurrence identity, ignores, semantic-review batches/handles, bootstrap/update behavior, rewrite transactionality, and targeting semantics must remain compatible.
-- Do not implement the future subject-state or aggregate statistical sampling models in this milestone.
-- Do not introduce a DI framework, reflection-based discovery, uncontrolled parallelism, persistent analysis caches, model/provider calls, GitHub workflows, or non-.NET language scope.
+Read `.review/` only when the active milestone requires human-review evidence or review validation.
 
-Before completion, reconcile milestone <-> ledger <-> live repository/evidence, run every required validation gate, preserve durable completion evidence, and obtain the required human review.
+## Repository-local authority
+
+Implementation agents use repository-local authority. Do not require the external guide repository or a planning conversation to reconstruct the project contract.
+
+Treat `docs/research/` as non-authoritative planning knowledge unless the active milestone explicitly references it as evidence or investigation input.
+
+Treat `.execution/<milestone-id>.md` as operational progress/evidence state, never as authority over the milestone.
+
+## Constrained execution
+
+When a validation command exposes a resumable/sharded plan, use the repository-defined plan/shard/verify flow rather than attempting to escape execution limits.
+
+Do not claim aggregate success from partial logs.
+
+## Do not
+
+- invent commands;
+- broaden scope;
+- perform broad documentation synchronization unless requested;
+- put milestone-specific instructions into this file;
+- treat external guide documents as repository authority;
+- put complex project semantics into shell launchers.

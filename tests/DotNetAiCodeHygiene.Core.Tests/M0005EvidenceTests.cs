@@ -280,6 +280,11 @@ public sealed class M0005EvidenceTests
                     /// <param name="orphan">Orphan.</param>
                     /// <param name="value">Duplicate.</param>
                     public U Map<U>(int value, int other) => default!;
+
+                    /// <summary>Has empty documentation tags.</summary>
+                    /// <typeparam name="V"></typeparam>
+                    /// <param name="target"></param>
+                    public T Empty<V>(int target) => default!;
                 }
                 """);
             CheckResult result = new HygieneEngine(repo).Check([], false);
@@ -290,6 +295,8 @@ public sealed class M0005EvidenceTests
             await Assert.That(structural.Any(f => f.Message.Contains("Duplicate <typeparam>", StringComparison.Ordinal))).IsTrue();
             await Assert.That(structural.Any(f => f.Message.Contains("declaration parameter", StringComparison.Ordinal))).IsTrue();
             await Assert.That(structural.Any(f => f.Message.Contains("declaration type parameter", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(structural.Any(f => f.Message == "<param name=\"target\"> must contain prose.")).IsTrue();
+            await Assert.That(structural.Any(f => f.Message == "<typeparam name=\"V\"> must contain prose.")).IsTrue();
         }
         finally { DeleteTree(repo); }
     }
@@ -310,12 +317,15 @@ public sealed class M0005EvidenceTests
                     /// <param name="value">The value.</param>
                     /// <returns>The mapped value.</returns>
                     public U Map<U>(int value) => default!;
+                    /// <summary>Missing <paramref/> name.</summary>
+                    public void MissingName() { }
                     /// <summary>Missing <typeparamref name="Lost"/>.</summary>
                     public void Invalid() { }
                 }
                 """);
             Finding[] references = new HygieneEngine(repo).Check([], false).Findings.Where(f => f.RuleId == "docs.xml.consistent" && f.Message.Contains("must reference", StringComparison.Ordinal)).ToArray();
-            await Assert.That(references.Length).IsEqualTo(2);
+            await Assert.That(references.Length).IsEqualTo(3);
+            await Assert.That(references.Single(f => f.Observation == "missing name").Observation).IsEqualTo("missing name");
         }
         finally { DeleteTree(repo); }
     }
