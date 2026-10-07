@@ -1,6 +1,6 @@
 # M0009 — Statistical Sampling Core
 
-**State:** ready  
+**State:** awaiting human review
 **Mode:** AI-executed, human-reviewed  
 **Depends on:** completed M0008 rule locality and agent routing hygiene
 
@@ -716,10 +716,14 @@ Passing ordinary unit tests alone is insufficient. The milestone requires exact 
 
 ## Completion evidence
 
-Not yet implemented.
+Implemented the two shared sampling algorithms without migrating any production rule. `docs/specs/SAMPLING.md` now defines the random derivation and state semantics. The lazy rule-context service stages transparent versioned JSON state and commits after host result materialization. Focused tests cover deterministic vectors, both samplers, discounted evidence, persistence/reset/corruption, lazy use, and an isolated SDK/Git fixture. Existing summary-review ranking/sample/fingerprint/expand/handoff behavior remains unchanged.
+
+Validation on Windows 11 / .NET SDK 11.0.100-rc.1.26425.128: `eng/validate.ps1` passed; Release build had zero warnings/errors; Core 58/58 and CLI 22/22 tests passed; the exact locally packed/installed consumer workflow and repository self-host checks passed. The validation includes 100,000 fixed hash-derived threshold draws at four hazard levels and a 50,000-unit aggregate rate-ratio simulation. Final `git diff --check` is recorded in `.execution/M0009-statistical-sampling-core.md`.
+
+Planner-owned obligation/evidence wording and IDs were reconciled against the live milestone, ledger, source, tests, and documentation. `REV-M0009-COMPLETION` is the remaining human decision; the implementation is stopped at that review.
 
 Current milestone outcome:
 
 ```text
-READY
+AWAITING REV-M0009-COMPLETION
 ```

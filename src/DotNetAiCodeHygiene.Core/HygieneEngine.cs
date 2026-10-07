@@ -174,6 +174,7 @@ public sealed class HygieneEngine
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs), json));
         }
+        ruleContext.CommitSampling();
         return result;
     }
 

@@ -65,7 +65,7 @@ docs/milestones/M0008-rule-locality-and-agent-routing.md
 
 
 ## M0009 — Statistical Sampling Core
-**State:** ready
+**State:** awaiting human review
 **Mode:** AI-executed, human-reviewed
 
 Implements two shared statistically defensible sampling mechanics for future expensive rules: subject-state hazard sampling for individual reinspection guarantees and aggregate population/cohort hazard sampling for dense populations, with deterministic hash-derived randomness, transparent lightweight persistence, and explicit due-versus-observed semantics.

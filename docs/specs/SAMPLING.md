@@ -1,0 +1,41 @@
+# Statistical sampling mechanics
+
+This specification defines the shared statistical substrate available to future rule modules. Rules own eligibility, stable identities, cohort definitions, hazard increments, observation meanings, evidence retention, and any prior. Sampling code owns only reproducible random derivation and the two hazard state machines.
+
+The production implementation currently has no sampling consumer. A rule may request `RuleContext.Sampling` explicitly; its state is loaded only on that access. RepositorySession facts remain transient and do not contain durable sampling history. Existing rules, including summary quality and German review, do not use this path.
+
+## Deterministic random derivation (version 1)
+
+The repository seed is 32 random bytes represented as uppercase hexadecimal in `.hygiene/.state/sampling.json`. To derive a value, concatenate the seed bytes; each UTF-8 key preceded by its four-byte signed big-endian length; and the generation as a signed eight-byte big-endian integer. Hash the bytes with SHA-256. Interpret the first eight digest bytes as an unsigned big-endian integer, discard the low eleven bits, and call the remaining 53-bit value `n`. Define `U = (n + 0.5) / 2^53`, strictly inside `(0,1)`, and `T = -ln(U)`. Separate keys identify rule, rule version, model version, algorithm, unit, generation, and where applicable transient candidate. Do not use process-random `Random` for these decisions.
+
+The digest encoding and fixed vectors are part of algorithm version 1. Changing them requires a model/algorithm version change. IEEE-754 rounding can round the largest midpoint to exactly one, so the implementation caps that endpoint at the largest representable `double` below one. The uniform transform makes `T` exponentially distributed with unit rate; for integrated hazard `H`, `P(T <= H) = 1 - exp(-H)`.
+
+Fixed vector: seed bytes `00 01 ... 1F`, key list containing `test`, generation `7` produces SHA-256 `D4EC04956522E039638C20F9E75D089F2CBDA28D75E4BF085802ADFCDFF1A7B2`, `U = 0.8317263474210779`, and `T = 0.18425180161313817`.
+
+## Subject-state model
+
+A rule supplies finite non-negative hazard increments for stable subject IDs. The shared subject sampler adds them to each subject's integrated hazard and considers a subject due exactly when hazard reaches its generation's deterministic exponential threshold. Due tickets identify rule/version/model, subject, and generation. Reporting or selection is pure; only a matching explicit observation resets hazard and advances one generation. Stale tickets do nothing. Bounded selection orders due subjects by threshold overshoot, with subject ID as stable tie-breaker. Unselected subjects remain due.
+
+Subject state can support individual revisit guarantees when the rule supplies appropriate identity and non-zero long-run hazard. Its storage grows with tracked subjects.
+
+## Aggregate population/cohort model
+
+A rule supplies finite non-negative hazard increments for a structural unit (scope plus optional rule-defined cohort). State is stored only per unit; transient concrete candidate IDs are not persisted. Due events use sequential generation-derived thresholds against residual hazard. Reporting is pure and may return multiple tickets. Each matching observed event consumes one threshold, advances generation, and retains remaining hazard. Duplicate/out-of-order tickets do nothing.
+
+For each due ticket, callers may rank current candidates using deterministic SHA-256-derived values. One workload avoids selecting the same candidate twice while unused alternatives exist. A later workload may select the same candidate again. Aggregate sampling supports population-level surveillance; it does not track the inspection history of an individual unpersisted subject.
+
+## Discounted binary evidence
+
+The small evidence helper stores finite non-negative effective pass and fail counts. A rule supplies retention `d` in `[0,1]`; each observation first discounts both counts by `d`, then adds one to its pass or fail count. A rule may combine these effective counts with its own positive Beta prior: defect-probability mean `(alpha0 + fail)/(alpha0 + beta0 + fail + pass)`. With discounting, this is effective/discounted Beta evidence, not a strict stationary-population posterior. Priors and retention remain rule policy.
+
+## State and host boundary
+
+State is transparent versioned JSON at `.hygiene/.state/sampling.json`, containing a repository seed and per-rule/model state. There is no database, binary index, syntax tree, or per-candidate aggregate row. Missing state creates a new seed and empty evidence. Malformed or unsupported state fails clearly; it is never silently replaced. Rule and model version mismatches start empty for that model. Explicit state deletion is a conservative reset.
+
+A sampling session stages in-memory state and atomically replaces the JSON file only after the host completes rule execution and result materialization. A failed check before commit leaves the existing file unchanged. The store checks for concurrent changes. Partial reporting views never imply that omitted subjects or units disappeared. No pruning is currently implemented; a future pruning operation would need an explicit complete-population view.
+
+## Compatibility boundary
+
+The modular rule runner remains explicit, static, and in-process. Sampling is an opt-in `RuleContext` service, not a rule hierarchy, descriptor DSL, scheduler, dependency graph, plugin API, or feature-weight model. No production rule opts in as part of this change.
+
+The existing semantic-review rules retain their population fingerprints, SHA-256 ranking, exact `Take(5)` maximum, batch identities, expansion, and handoff behavior.
