@@ -22,7 +22,7 @@ Both commands support `--output text|json` and `--check`.
 
 `--check` computes the same rewrite plan without committing source changes. A successful command returns exit `0` whether zero or more changes are needed/applied; nonzero exits retain existing error semantics.
 
-JSON schema version 1 exposes: `command`, `checkOnly`, `targetCount`, `changedCount`, `unchangedCount`, and deterministic repository-relative `changedPaths`.
+JSON schema version 1 exposes: `command`, `checkOnly`, `targetCount`, `changedCount`, `unchangedCount`, deterministic repository-relative `changedPaths`, and ordered `selectedRuleIds`.
 
 ## Mutation transaction
 
@@ -41,13 +41,13 @@ No selected source file is replaced before plan construction and required valida
 
 ## Formatting
 
-`hygiene format` is presentation-only. It uses Roslyn formatting against actual loaded document/project context and applicable project/editor configuration available to Roslyn. It may change whitespace/trivia presentation but must not intentionally perform semantic simplification, structural modernization, naming changes, or normalization policy rewrites.
+`hygiene format` selects enabled `format-remediate` rules from the canonical rule catalogue. The initial `format.csharp.roslyn` rule owns Roslyn formatting against actual loaded document/project context and applicable project/editor configuration available to Roslyn. It may change whitespace/trivia presentation but must not intentionally perform semantic simplification, structural modernization, naming changes, or normalization policy rewrites.
 
 Formatting is idempotent and does not require a clean semantic compilation when Roslyn can load and parse the selected source sufficiently.
 
 ## Normalization
 
-`hygiene normalize` is deterministic, project-aware, and semantics-preserving.
+`hygiene normalize` selects enabled `normalize-remediate` rules from the canonical rule catalogue, then applies enabled format rules to changed documents. It is deterministic, project-aware, and semantics-preserving.
 
 Relevant loaded projects must compile without compiler errors before transformation. Rewritten relevant project context must also compile without compiler errors before commit. Changed normalized documents are formatted before final comparison/commit.
 
@@ -57,11 +57,10 @@ Normalization is idempotent.
 
 M0004 intentionally limits normalization to Roslyn-backed simplification where semantic services establish equivalence:
 
-1. simplify redundant member/type/namespace qualification where Roslyn semantic simplification proves it removable;
-2. simplify qualified or explicit type/name syntax to the Roslyn-recommended equivalent where semantic simplification proves equivalence;
-3. remove unnecessary explicit `this.` qualification only where semantic simplification proves it redundant.
+1. `style.qualification.this.unnecessary` removes only explicit `this.` qualification proven redundant by Roslyn;
+2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence.
 
-These are one fixed policy and are not individually configurable in M0004.
+These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 
 Do not introduce transformations for `var` policy, expression-bodied members, namespace style, collection expressions, target-typed `new`, modifier/member ordering, naming, or broad modernization.
 

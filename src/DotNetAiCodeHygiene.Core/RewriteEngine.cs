@@ -34,48 +34,6 @@ internal interface IRewriteModule
     public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot);
 }
 
-internal sealed class FormatRewriteModule : IRewriteModule
-{
-    public string Command => "format";
-    public Document Rewrite(Document document, Compilation compilation) => Formatter.FormatAsync(document).GetAwaiter().GetResult();
-    public bool ValidatesResult => false;
-    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot) { }
-    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot) { }
-}
-
-internal sealed class NormalizeRewriteModule : IRewriteModule
-{
-    public string Command => "normalize";
-    public bool ValidatesResult => true;
-    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot)
-    {
-        if (RewriteCompilerValidation.HasRepositoryErrors(compilation, repositoryRoot))
-        {
-            throw new ProductException($"Cannot normalize: project '{projectPath}' has compiler errors.");
-        }
-    }
-
-    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot)
-    {
-        if (RewriteCompilerValidation.HasRepositoryErrors(compilation, repositoryRoot))
-        {
-            throw new ProductException($"Normalization would introduce compiler errors in '{projectPath}'; no files were changed.");
-        }
-    }
-
-    public Document Rewrite(Document document, Compilation compilation)
-    {
-        SyntaxNode root = document.GetSyntaxRootAsync().GetAwaiter().GetResult()!;
-        SemanticModel model = compilation.GetSemanticModel(document.GetSyntaxTreeAsync().GetAwaiter().GetResult()!);
-        var candidates = root.DescendantNodesAndSelf().Where(node => node is NameSyntax or MemberAccessExpressionSyntax or ThisExpressionSyntax)
-            .Where(node => node is not ThisExpressionSyntax || model.GetTypeInfo(node).Type is not null).ToArray();
-        SyntaxNode annotated = root.ReplaceNodes(candidates, (oldNode, rewritten) => rewritten.WithAdditionalAnnotations(Simplifier.Annotation));
-        Document updated = document.WithSyntaxRoot(annotated);
-        updated = Simplifier.ReduceAsync(updated, Simplifier.Annotation).GetAwaiter().GetResult();
-        return Formatter.FormatAsync(updated).GetAwaiter().GetResult();
-    }
-}
-
 internal static class RewriteCompilerValidation
 {
     internal static bool HasRepositoryErrors(Compilation compilation, string repositoryRoot) => compilation.GetDiagnostics().Any(d =>
@@ -90,13 +48,7 @@ internal sealed class RewriteRunner(IReadOnlyList<IRewriteModule> modules)
     internal Document Rewrite(string command, Document document, Compilation compilation) => Get(command).Rewrite(document, compilation);
 }
 
-internal static class RewriteCatalog
-{
-    internal static IReadOnlyList<IRewriteModule> Modules { get; } = [new FormatRewriteModule(), new NormalizeRewriteModule()];
-    internal static RewriteRunner Runner { get; } = new(Modules);
-}
-
-public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> ChangedPaths);
+public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> ChangedPaths, IReadOnlyList<string> SelectedRuleIds);
 
 /// <summary>Plans Roslyn rewrites completely before applying an all-target transaction.</summary>
 public sealed class RewriteEngine
@@ -116,7 +68,19 @@ public sealed class RewriteEngine
 
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
-        IRewriteModule module = RewriteCatalog.Runner.Get(command);
+        if (command is not ("format" or "normalize"))
+        {
+            throw new ArgumentException("Unknown rewrite command.");
+        }
+        IReadOnlyList<(Rule Rule, bool Enabled)> listedRules = new HygieneEngine(root).ListRules();
+        HashSet<string> enabled = listedRules.Where(item => item.Enabled).Select(item => item.Rule.Id).ToHashSet(StringComparer.Ordinal);
+        IFormatRemediationRule[] formatRules = RuleCatalog.Modules.OfType<IFormatRemediationRule>()
+            .Where(module => enabled.Contains(((IRuleModule)module).Descriptor.Id)).ToArray();
+        INormalizeRemediationRule[] normalizeRules = RuleCatalog.Modules.OfType<INormalizeRemediationRule>()
+            .Where(module => enabled.Contains(((IRuleModule)module).Descriptor.Id)).ToArray();
+        string[] selectedRuleIds = command == "format"
+            ? formatRules.Select(module => ((IRuleModule)module).Descriptor.Id).ToArray()
+            : normalizeRules.Select(module => ((IRuleModule)module).Descriptor.Id).Concat(formatRules.Select(module => ((IRuleModule)module).Descriptor.Id)).ToArray();
         using var session = new RepositorySession(root);
         string[] targets = session.ResolveTargets(paths, changed);
         var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
@@ -127,13 +91,32 @@ public sealed class RewriteEngine
         {
             Project project = group.First().Value.Project;
             Compilation compilation = session.GetCompilation(project);
-            module.ValidateProject(compilation, Rel(project.FilePath!), root);
+            if (command == "normalize")
+            {
+                if (RewriteCompilerValidation.HasRepositoryErrors(compilation, root))
+                {
+                    throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
+                }
+            }
 
             foreach (var pair in group)
             {
                 Document document = pair.Value.Document;
                 SourceText source = document.GetTextAsync().GetAwaiter().GetResult();
-                Document changedDocument = RewriteCatalog.Runner.Rewrite(command, document, compilation);
+                Document changedDocument = document;
+                if (command == "normalize")
+                {
+                    foreach (INormalizeRemediationRule rule in normalizeRules)
+                    {
+                        changedDocument = rule.Normalize(changedDocument, compilation);
+                        compilation = changedDocument.Project.GetCompilationAsync().GetAwaiter().GetResult()
+                            ?? throw new ProductException("Roslyn could not load the intermediate normalization state.");
+                    }
+                }
+                foreach (IFormatRemediationRule rule in formatRules)
+                {
+                    changedDocument = rule.Format(changedDocument, compilation);
+                }
                 SourceText rewritten = changedDocument.GetTextAsync().GetAwaiter().GetResult();
                 string content = plannedTextForTesting?.Invoke(rewritten.ToString()) ?? rewritten.ToString();
                 if (!StringComparer.Ordinal.Equals(source.ToString(), content))
@@ -152,7 +135,7 @@ public sealed class RewriteEngine
                 }
             }
         }
-        if (module.ValidatesResult && plan.Count > 0)
+        if (command == "normalize" && plan.Count > 0)
         {
             foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
             {
@@ -173,7 +156,10 @@ public sealed class RewriteEngine
                     solution = solution.WithDocumentText(entry.Value.Document.Id, SourceText.From(text, Encoding.UTF8));
                 }
                 Compilation after = solution.GetProject(group.Key)!.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not validate the rewrite plan.");
-                module.ValidateResult(after, Rel(project.FilePath!), root);
+                if (RewriteCompilerValidation.HasRepositoryErrors(after, root))
+                {
+                    throw new ProductException($"Normalization would introduce compiler errors in '{Rel(project.FilePath!)}'; no files were changed.");
+                }
             }
         }
         string[] changedPaths = plan.Keys.Select(Rel).Order(StringComparer.Ordinal).ToArray();
@@ -182,7 +168,7 @@ public sealed class RewriteEngine
             Commit(plan, original);
         }
 
-        return new(command, checkOnly, targets.Length, plan.Count, targets.Length - plan.Count, changedPaths);
+        return new(command, checkOnly, targets.Length, plan.Count, targets.Length - plan.Count, changedPaths, selectedRuleIds);
     }
 
     private void Commit(Dictionary<string, byte[]> plan, Dictionary<string, byte[]> original)

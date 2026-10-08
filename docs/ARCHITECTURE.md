@@ -21,12 +21,12 @@ check/bootstrap/update
 -> ignore/filter/order/persistence
 
 format/normalize
--> explicit RewriteCatalog
--> independent rewrite modules
+-> RuleCatalog capability selection
+-> rule-owned remediations
 -> shared rewrite transaction
 ```
 
-The architecture deliberately separates **module independence** from **process independence**. A rule or rewrite is a small logical program with its own analysis/transformation logic, but all modules for one command run in-process over one shared command-scoped substrate.
+The architecture deliberately separates **module independence** from **process independence**. A rule is a small logical program with its own diagnosis, remediation, or projection behavior, while all selected modules for one command run in-process over one shared command-scoped substrate.
 
 ## Repository session
 
@@ -75,6 +75,7 @@ Implementation architecture is conceptually:
 ```text
 RuleDescriptor
   identity/version/output metadata/order/participation
+  optional diagnosis/remediation/projection capabilities
 
 RuleModule
   evaluate immutable RuleContext
@@ -195,7 +196,7 @@ bootstrap/update
 
 Profile lifecycle/remediation infrastructure may remain shared. Rule-specific diagnostic text remains owned by the corresponding profile rule even when shared inspection code emits the underlying condition.
 
-Profile ownership, effective-configuration semantics, StyleCop prohibition, and mutation safety remain governed by `docs/specs/PROFILE.md`.
+Profile v2 owns mandatory analysis infrastructure. Enabled rules own optional EditorConfig contributions and effective-setting diagnosis. Profile ownership, StyleCop prohibition, and mutation safety remain governed by `docs/specs/PROFILE.md`.
 
 ## Rewrite architecture
 
@@ -215,7 +216,7 @@ RewriteRunner
   pass plan to RewriteTransaction
 ```
 
-`format` and `normalize` are independent rewrite modules rather than branches of one command switch.
+`format` and `normalize` remain commands that select enabled rule-owned remediation capabilities from the canonical `RuleCatalog`. The rewrite transaction is shared execution machinery, not an independent semantic rewrite catalogue.
 
 The existing all-target transactional contract remains authoritative:
 

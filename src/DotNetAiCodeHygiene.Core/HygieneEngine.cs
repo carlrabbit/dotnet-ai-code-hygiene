@@ -13,7 +13,8 @@ using System.Text.RegularExpressions;
 
 namespace DotNetAiCodeHygiene.Core;
 
-public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose, bool Configurable = true);
+public sealed record Rule(string Id, int Version, string OutputKind, string Classification, string Purpose, bool Configurable = true,
+    bool Diagnose = true, bool FormatRemediate = false, bool NormalizeRemediate = false, bool EditorConfigProject = false, bool ProfileRemediate = false);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
 public sealed record ReviewQuestion(string Id, string Text);
 public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
@@ -140,10 +141,11 @@ public sealed class HygieneEngine
             throw new ProductException($"Rule '{id}' is mandatory and cannot be enabled or disabled.");
         }
 
-        string? original = Snapshot(ConfigPath);
         string[] current = Disabled;
+        string? original = Snapshot(ConfigPath);
         string[] next = enabled ? current.Where(x => x != id).ToArray() : current.Append(id).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        WriteAtomic(ConfigPath, JsonSerializer.Serialize(new Config(1, next), json), original, true);
+        string updated = JsonSerializer.Serialize(new Config(1, next), json);
+        new ProfileManager(root).ReconcileRuleToggle(updated, next, original, beforeAtomicReplace);
     }
     public IReadOnlyList<(Rule Rule, bool Enabled)> ListRules() => Rules.Select(r => (r, !r.Configurable || !Disabled.Contains(r.Id, StringComparer.Ordinal))).ToArray();
 

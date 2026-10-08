@@ -56,11 +56,26 @@ internal interface IRuleModule
     public RuleModuleResult Evaluate(RuleContext context);
 }
 
+internal interface IFormatRemediationRule
+{
+    public Document Format(Document document, Compilation compilation);
+}
+
+internal interface INormalizeRemediationRule
+{
+    public Document Normalize(Document document, Compilation compilation);
+}
+
+internal interface IEditorConfigProjectionRule
+{
+    public IReadOnlyList<KeyValuePair<string, string>> EditorConfigEntries { get; }
+}
+
 /// <summary>Executes explicitly registered production rules; the host owns materialization and persistence.</summary>
 internal sealed class RuleModuleRunner(IReadOnlyList<IRuleModule> modules)
 {
     internal IReadOnlyList<RuleModuleExecution> Run(RuleContext context, IReadOnlySet<string> disabled) =>
-        modules.Where(module => !disabled.Contains(module.Descriptor.Id))
+        modules.Where(module => module.Descriptor.Diagnose && !disabled.Contains(module.Descriptor.Id))
             .Select(module => new RuleModuleExecution(module.Descriptor, module.Evaluate(context))).ToArray();
 }
 
@@ -68,13 +83,19 @@ internal static class RuleCatalog
 {
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
-        new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(),
+        new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(), new BracesStyleRuleModule(), new AccessibilityStyleRuleModule(),
+        new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(),
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
         new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule()
     ];
 
-    internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor).ToArray();
+    internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor with
+    {
+        FormatRemediate = module is IFormatRemediationRule,
+        NormalizeRemediate = module is INormalizeRemediationRule,
+        EditorConfigProject = module is IEditorConfigProjectionRule
+    }).ToArray();
     internal static Rule Get(string id) => All.Single(rule => rule.Id == id);
     internal static RuleModuleRunner Runner { get; } = new(Modules);
     internal static IReadOnlyList<ISemanticReviewRuleModule> SemanticReviewModules { get; } = Modules.OfType<ISemanticReviewRuleModule>().ToArray();

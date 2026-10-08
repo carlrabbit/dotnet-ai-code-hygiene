@@ -34,6 +34,6 @@ Documentation policy must state:
 - `<example>` and other non-governed/custom tags are not forbidden;
 - semantic summary-quality review remains separate from deterministic structure/punctuation checks.
 
-Public docs must also retain M0004 installed-tool/format/normalize usage and M0003 review/handoff workflow.
+Public docs must also retain installed-tool/format/normalize usage and review/handoff workflow. M0010 documents rule-owned remediation and EditorConfig projection, including the profile v1-to-v2 migration and whole-rule toggles.
 
 Do not claim support for StyleCop, third-party async analyzers, non-.NET languages, or arbitrary analyzer stacks.

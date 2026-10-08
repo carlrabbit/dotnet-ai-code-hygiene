@@ -4,7 +4,7 @@
 
 A rule ID denotes one fixed semantic contract with no repository-supplied parameters. Optional-rule configuration means whole-rule enable/disable only. It cannot set language, thresholds, scope, severity, review questions, sampling, conventions, remediation, or modes. Independently applicable policies use separate rule IDs instead of parameter bags or bundled semantics. Rule-set membership never changes a rule's meaning.
 
-M0005 distinguishes:
+The product distinguishes:
 
 ```text
 mandatory profile rules
@@ -15,11 +15,13 @@ Mandatory profile rules cannot be disabled or ignored.
 
 Configurable rules retain the existing `.hygiene/config.json` `disabledRules` model.
 
-Canonical normal rule order and documentation rule semantics are defined in:
+Canonical rule order and capabilities are defined in:
 
 ```text
-docs/specs/DOCUMENTATION.md and docs/specs/SEMANTIC-REVIEWS.md
+docs/specs/RULE-CAPABILITIES.md
 ```
+
+Documentation and semantic-review rule semantics remain defined in `docs/specs/DOCUMENTATION.md` and `docs/specs/SEMANTIC-REVIEWS.md`.
 
 Profile rule semantics and bootstrap/update sets are defined in:
 
@@ -69,6 +71,7 @@ Malformed profile/config/state and unsupported profile versions use product exit
 - rule ID/version;
 - output kind/classification;
 - whether the rule is configurable.
+- whether it participates in diagnosis, format remediation, normalize remediation, profile remediation, and EditorConfig projection.
 
 `enable`/`disable` remain idempotent for configurable rules.
 
