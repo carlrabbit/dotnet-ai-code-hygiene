@@ -478,6 +478,18 @@ public sealed class CliProcessTests
             await Assert.That(await File.ReadAllTextAsync(decisions)).IsEqualTo(decisionsBefore);
             await Assert.That(await File.ReadAllTextAsync(latest)).IsEqualTo(latestBefore);
 
+            await File.WriteAllTextAsync(file, "public class Fixture{public int Value=>1;}");
+            byte[] sourceBeforeDisabledNormalize = await File.ReadAllBytesAsync(file);
+            ProcessResult disableThis = await RunCliInAsync(repo, "rules", "disable", "style.qualification.this.unnecessary");
+            await Assert.That(disableThis.ExitCode).IsEqualTo(0);
+            ProcessResult disableRedundant = await RunCliInAsync(repo, "rules", "disable", "style.qualification.redundant");
+            await Assert.That(disableRedundant.ExitCode).IsEqualTo(0);
+            ProcessResult disabledNormalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
+            await Assert.That(disabledNormalizeCheck.ExitCode).IsEqualTo(0);
+            using JsonDocument disabledNormalizeJson = JsonDocument.Parse(disabledNormalizeCheck.StandardOutput);
+            await Assert.That(disabledNormalizeJson.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeDisabledNormalize)).IsTrue();
+
             ProcessResult conflictingTargets = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--changed");
             await Assert.That(conflictingTargets.ExitCode).IsEqualTo(2);
             ProcessResult unsupported = await RunCliInAsync(repo, "format", "src/Fixture.csproj");
