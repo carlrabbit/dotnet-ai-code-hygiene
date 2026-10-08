@@ -118,7 +118,7 @@ The documentation-subject/carrier fixture set is the primary shared-fact regress
 
 Profile validation must exercise effective MSBuild/analyzer configuration, not merely string-match generated files.
 
-The canonical profile uses .NET 11 `AnalysisLevel=11`, explicit built-in analyzer enablement, build-time code-style enforcement, and individual IDE0011/IDE0040 error severities.
+The mandatory profile uses .NET 11 `AnalysisLevel=11`, explicit built-in analyzer enablement, and build-time code-style enforcement. Enabled `style.braces.required` and `style.accessibility.explicit` rules project IDE0011/IDE0040 settings and diagnose their effective values.
 
 Do not introduce `latest` AnalysisLevel in the supported profile.
 
@@ -155,7 +155,7 @@ Profile mutation and source rewrite semantics remain independently regression-co
 | Documentation | architecture/spec consistency | repository review |
 | Human | modularity/BORING architecture, locality, and behavior preservation | project owner/delegate |
 
-Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact.
+Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. For M0010, this includes the exact 0.6.0 package and dotnet-11 v1-to-v2 migration.
 
 ## Regression expectations
 

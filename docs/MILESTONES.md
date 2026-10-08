@@ -53,16 +53,15 @@ docs/milestones/M0007-modular-analysis-architecture.md
 **State:** done
 **Mode:** AI-executed, human-reviewed
 
-`REV-M0008-COMPLETION` is durably recorded as approved in the completed M0008 milestone and execution ledger.
-
 Makes the M0007 logical module boundary physically obvious: stable repository-level `AGENTS.md`, family-based rule folders, one product rule per file, and rule-owned fixed interface text without introducing a metadata/message framework or changing product behavior.
+
+`REV-M0008-COMPLETION` is durably recorded as approved in the completed M0008 milestone and execution ledger.
 
 Primary milestone:
 
 ```text
 docs/milestones/M0008-rule-locality-and-agent-routing.md
 ```
-
 
 ## M0009 — Statistical Sampling Core
 **State:** done
@@ -78,4 +77,18 @@ Primary milestone:
 
 ```text
 docs/milestones/M0009-statistical-sampling-core.md
+```
+
+## M0010 — Rule-Owned Remediation & Policy Projection
+**State:** done
+**Mode:** AI-executed, human-reviewed
+
+`REV-M0010-COMPLETION` is durably recorded as approved in the completed M0010 milestone and execution ledger.
+
+Makes rule IDs the semantic owners of diagnosis, deterministic format/normalize remediation, and hygiene-generated EditorConfig policy. Splits the current opaque rewrite policies into explicit configurable rules and advances the supported profile to v2 so braces/accessibility become independent disableable policies while preserving default behavior.
+
+Primary milestone:
+
+```text
+docs/milestones/M0010-rule-owned-remediation-and-policy-projection.md
 ```

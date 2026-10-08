@@ -1,5 +1,7 @@
 # Readability Rules
 
+`readability.control-flow.visual-block` remains diagnosis-only in M0010. `format` and `normalize` do not add braces/accessibility source fixers or auto-remediate this readability rule.
+
 ## `readability.long-line.review`
 
 Version: `1`  

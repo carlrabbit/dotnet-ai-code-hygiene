@@ -2,8 +2,12 @@ root = true
 
 <!-- hygiene profile:begin -->
 [*.cs]
+# hygiene rule: style.braces.required
 csharp_prefer_braces = true
 dotnet_diagnostic.IDE0011.severity = error
+
+# hygiene rule: style.accessibility.explicit
 dotnet_style_require_accessibility_modifiers = always
 dotnet_diagnostic.IDE0040.severity = error
+
 <!-- hygiene profile:end -->

@@ -6,7 +6,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class ProfileAnalysisRuleModule : IRuleModule
 {
     internal const string RuleId = "profile.dotnet.analysis.required";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "finding", "finding", "Require the supported .NET analysis profile.", false);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "finding", "finding", "Require the supported .NET analysis infrastructure.", false, ProfileRemediate: true);
 
     internal const string ArtifactMissing = "The generated supported-profile MSBuild artifact is missing or drifted.";
     internal const string ArtifactSuggestion = "Run hygiene update to reconcile hygiene-owned profile state.";

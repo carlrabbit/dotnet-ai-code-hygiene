@@ -32,6 +32,10 @@
 
 **Rewrite transaction** — all-target planning/validation/commit boundary that prevents a failed rewrite command from leaving a mixed selected-target state.
 
+**Rule capability** — optional, fixed participation owned by one rule ID, such as diagnosis, format remediation, normalize remediation, profile remediation, or EditorConfig projection.
+
+**EditorConfig projection** — deterministic hygiene-managed configuration content composed from the enabled rule-owned policy contributions.
+
 **Hygiene profile** — versioned project policy describing the supported .NET analysis baseline and mandatory repository invariants. It is distinct from the external guide-system profile metadata.
 
 **Profile marker** — committed `.hygiene/profile.json` recording the installed hygiene profile ID/version.

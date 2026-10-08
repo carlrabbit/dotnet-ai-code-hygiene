@@ -32,7 +32,7 @@ internal static class Program
         }
         foreach (string name in new[] { "format", "normalize" })
         {
-            var command = new Command(name, name == "format" ? "Format selected C# source using Roslyn." : "Apply safe semantic simplifications to selected C# source.");
+            var command = new Command(name, name == "format" ? "Apply enabled presentation-only format rules to selected C# source." : "Apply enabled semantics-preserving normalize rules to selected C# source.");
             var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
             var changedOpt = new Option<bool>("--changed"); var checkOpt = new Option<bool>("--check");
             command.Arguments.Add(pathsArg); command.Options.Add(changedOpt); command.Options.Add(checkOpt); command.Options.Add(output);
@@ -121,10 +121,10 @@ internal static class Program
     }
     private const string AgentGuidance = """
         hygiene is a repository-scoped .NET hygiene tool. Run it from a Git repository.
-        Workflow: hygiene bootstrap (once per repository) -> implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check. Use hygiene update to reconcile the installed dotnet-11 v1 profile.
+        Workflow: hygiene bootstrap (once per repository) -> implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check. Use hygiene update to reconcile the installed dotnet-11 v2 profile.
         Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
         Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
-        format is presentation-only. normalize applies a small fixed Roslyn semantic simplification catalogue, validates compilation before and after, formats changed files, and commits all selected changes together. Both support non-mutating --check and are idempotent.
+        format is presentation-only and applies enabled format-remediation rules. normalize applies enabled semantics-preserving normalization rules, then enabled format rules on changed documents, validates compilation before and after, and commits all selected changes together. Both support non-mutating --check and are idempotent.
         check reports deterministic findings and semantic review samples. Use explain for a finding, ignore only reviewed exceptions, and unignore to remove an exception. Review batches are not findings.
         If any sampled answer materially fails or is uncertain, use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for frontier review.
         The CLI invokes no model. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
@@ -139,11 +139,12 @@ internal static class Program
         RewriteResult r = engine.Rewrite(command, paths, changed, checkOnly);
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths }, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths, r.SelectedRuleIds }, Json));
         }
         else if (output == "text")
         {
-            Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}"); foreach (string path in r.ChangedPaths)
+            Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}");
+            Console.WriteLine("Rules: " + string.Join(", ", r.SelectedRuleIds)); foreach (string path in r.ChangedPaths)
             {
                 Console.WriteLine($"  {path}");
             }
@@ -211,7 +212,8 @@ internal static class Program
     }
     private static int RenderRules(HygieneEngine e, string output)
     {
-        var values = e.ListRules().Select(x => new { x.Rule.Id, x.Rule.Version, x.Rule.OutputKind, x.Rule.Classification, x.Rule.Purpose, x.Rule.Configurable, x.Enabled });
+        var values = e.ListRules().Select(x => new { x.Rule.Id, x.Rule.Version, x.Rule.OutputKind, x.Rule.Classification, x.Rule.Purpose, x.Rule.Configurable, x.Enabled,
+            capabilities = new { check = x.Rule.Diagnose, format = x.Rule.FormatRemediate, normalize = x.Rule.NormalizeRemediate, editorConfig = x.Rule.EditorConfigProject, profile = x.Rule.ProfileRemediate } });
         if (output == "json")
         {
             Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, rules = values }, Json));
@@ -220,7 +222,7 @@ internal static class Program
         {
             foreach (var r in values)
             {
-                Console.WriteLine($"{r.Id} v{r.Version} [{r.OutputKind}; {(r.Configurable ? "configurable" : "mandatory")}; {(r.Enabled ? "enabled" : "disabled")}] {r.Purpose}");
+                Console.WriteLine($"{r.Id} v{r.Version} [{string.Join(",", new[] { r.capabilities.check ? "check" : null, r.capabilities.format ? "format" : null, r.capabilities.normalize ? "normalize" : null, r.capabilities.editorConfig ? "editorconfig" : null, r.capabilities.profile ? "profile" : null }.Where(x => x is not null))}; {(r.Configurable ? "configurable" : "mandatory")}; {(r.Enabled ? "enabled" : "disabled")}] {r.Purpose}");
             }
         }
         else

@@ -4,7 +4,7 @@ AI-first code hygiene tooling for deterministic hygiene analysis and bounded sem
 
 ## Status
 
-The project targets Windows 11 and the .NET 11 SDK line. The installable `0.5.0` tool provides a fixed supported profile, deterministic formatting/normalization, and installed-consumer validation.
+The project targets Windows 11 and the .NET 11 SDK line. The installable `0.6.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and installed-consumer validation.
 
 M0003 adds bounded semantic review batches. The CLI selects what should be reviewed; the current implementation agent judges the sample. If the sample is materially poor or uncertain, the caller explicitly expands the batch for frontier-capability review. The CLI itself never invokes a model.
 
@@ -24,16 +24,16 @@ Windows 11 and the .NET 11 SDK line are the supported platform. The package is l
 Install the tool package from the configured NuGet source:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.5.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.6.0
 hygiene --version
 hygiene help --agent
 ```
 
 ## Supported profile
 
-Each repository runs `hygiene bootstrap` once to establish the supported `dotnet-11` v1 profile, then `hygiene update` to reconcile its profile-owned state and `hygiene check` to analyze source. Normal checking requires the committed `.hygiene/profile.json` marker. Bootstrap and update are repository-wide, idempotent operations; they preserve content outside the delimited hygiene blocks in root `.editorconfig` and `Directory.Build.props`.
+Each repository runs `hygiene bootstrap` once to establish the supported `dotnet-11` v2 profile, then `hygiene update` to reconcile its profile-owned state and `hygiene check` to analyze source. Update migrates valid v1 markers. Normal checking requires the committed `.hygiene/profile.json` marker. Bootstrap and update are repository-wide, idempotent operations; they preserve content outside the delimited hygiene blocks in root `.editorconfig` and `Directory.Build.props`.
 
-The generated `.hygiene/profile/Hygiene.props` pins `AnalysisLevel=11`, enables built-in .NET analyzers, and enforces code-style analyzers during builds. The root EditorConfig requires braces (IDE0011) and explicit accessibility (IDE0040) as errors. The profile does not promote other diagnostics or set a global warnings-as-errors policy. Mandatory profile findings cannot be disabled or ignored. StyleCop analyzers are prohibited and are reported for caller resolution; hygiene does not remove them automatically.
+The generated `.hygiene/profile/Hygiene.props` pins `AnalysisLevel=11`, enables built-in .NET analyzers, and enforces code-style analyzers during builds. By default, the configurable `style.braces.required` and `style.accessibility.explicit` rules project braces (IDE0011) and explicit accessibility (IDE0040) as errors; their managed EditorConfig contributions include visible rule-ID comments and are reconciled immediately when toggled. The profile does not promote other diagnostics or set a global warnings-as-errors policy. Mandatory profile findings cannot be disabled or ignored. StyleCop analyzers are prohibited and are reported for caller resolution; hygiene does not remove them automatically.
 
 ## Documentation hygiene
 
@@ -52,9 +52,9 @@ implement/change code
 -> rerun tests/check as needed
 ```
 
-`hygiene format [paths...]` applies Roslyn presentation formatting only. `hygiene normalize [paths...]` applies the fixed conservative Roslyn simplification policy in `docs/specs/REWRITES.md`, validates project compilation before and after, and formats changed documents. Both commands support repository-default, explicit file/directory, and `--changed` targets; explicit paths cannot be combined with `--changed`. Both support non-mutating `--check` and text/JSON output. Rewrite plans cover the selected set before mutation, commits roll back on failure, and repeated runs are idempotent. A successful `--check` means the command succeeded even when paths would change.
+`hygiene format [paths...]` applies enabled format-remediation rules and remains presentation-only. `hygiene normalize [paths...]` applies enabled semantics-preserving normalization rules, validates project compilation before and after, and applies enabled format rules to changed documents. The canonical rule catalogue owns these policies; `hygiene rules` and rewrite results expose capability participation. Both commands support repository-default, explicit file/directory, and `--changed` targets; explicit paths cannot be combined with `--changed`. Both support non-mutating `--check` and text/JSON output. Rewrite plans cover the selected set before mutation, commits roll back on failure, and repeated runs are idempotent. A successful `--check` means the command succeeded even when paths would change.
 
-Analysis rules and rewrite transformations are separate: disabling an analysis rule does not disable normalization. Findings remain deterministic and can be explained or explicitly ignored. Semantic review remains caller-judged; uncertain or materially negative sample answers can be escalated with `hygiene review expand` or written as a durable handoff with `hygiene review handoff`, locally or to an explicit external file. The CLI invokes no model.
+Commands select enabled rule capabilities: disabling an unrelated diagnostic rule does not disable normalization, and disabling a rewrite rule prevents its own transformation. Findings remain deterministic and can be explained or explicitly ignored. Semantic review remains caller-judged; uncertain or materially negative sample answers can be escalated with `hygiene review expand` or written as a durable handoff with `hygiene review handoff`, locally or to an explicit external file. The CLI invokes no model.
 
 M0003 review workflow:
 

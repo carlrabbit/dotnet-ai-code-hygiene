@@ -19,6 +19,7 @@ bounded semantic review/handoff
 ## Rule principles
 
 - One rule ID has one fixed semantic contract and no repository-supplied parameters.
+- Optional fixed capabilities are owned by the same rule ID and gated by whole-rule enable/disable participation.
 - Optional-rule configuration means enabling or disabling the whole fixed rule only; it does not configure language, thresholds, scope, severity, semantic questions, sampling, conventions, or remediation.
 - Independently applicable policies use separate rule IDs, not parameters or unrelated bundled semantics.
 - Rule-set membership does not alter rule meaning.
@@ -41,10 +42,10 @@ Bootstrap/update are repository-wide and do not accept source targets or `--chan
 
 ## Supported profile
 
-The only M0005 hygiene profile is:
+The current hygiene profile is:
 
 ```text
-dotnet-11 v1
+dotnet-11 v2
 ```
 
 Shared statistical sampling mechanics and their rule-policy boundary are specified in:
@@ -65,20 +66,17 @@ Normal checking requires a current profile marker.
 
 M0005 intentionally uses built-in .NET analyzers/code-style analyzers as first-class supported-profile infrastructure where they already implement the desired rule well.
 
-Profile v1 enforces:
+Profile v2 requires mandatory analyzer infrastructure and projects braces/accessibility policy from enabled configurable rules:
 
 ```text
 AnalysisLevel = 11
 EnableNETAnalyzers = true
 EnforceCodeStyleInBuild = true
-
-IDE0011 braces required = error
-IDE0040 explicit accessibility required = error
 ```
 
 No global warnings-as-errors repository policy is allowed.
 
-Only explicitly enforced profile diagnostics are assigned `error` by the hygiene-managed configuration; other diagnostics remain at platform/analyzer defaults unless the user independently configures them without weakening mandatory profile diagnostics.
+The enabled `style.braces.required` and `style.accessibility.explicit` rules own their individual `error` severities. Other diagnostics remain at platform/analyzer defaults unless the user independently configures them without weakening a required enabled rule.
 
 StyleCop is prohibited rather than treated as a supported extension.
 
@@ -99,23 +97,30 @@ M0005 does not impose StyleCop-style parameter/type-parameter/return documentati
 ## Canonical normal rule order
 
 ```text
-1. profile.dotnet.analysis.required         v1
+1. profile.dotnet.analysis.required         v2
 2. profile.stylecop.prohibited              v1
-3. docs.summary.required                    v2
-4. docs.xml.consistent                      v1
-5. docs.text.sentence                       v1
-6. docs.summary.quality.review              v3
-7. docs.summary.language.german.review      v1
-8. readability.long-line.review             v1
-9. readability.control-flow.visual-block    v1
+3. style.braces.required                    v1
+4. style.accessibility.explicit             v1
+5. format.csharp.roslyn                     v1
+6. style.qualification.this.unnecessary     v1
+7. style.qualification.redundant            v1
+8. docs.summary.required                    v2
+9. docs.xml.consistent                      v1
+10. docs.text.sentence                      v1
+11. docs.summary.quality.review             v3
+12. docs.summary.language.german.review     v1
+13. readability.long-line.review            v1
+14. readability.control-flow.visual-block   v1
 ```
+
+The full capability contract is `docs/specs/RULE-CAPABILITIES.md`. Commands select enabled rules from this single catalogue by capability.
 
 ## Package/version
 
-M0005 product/package version is:
+M0010 product/package version is:
 
 ```text
-0.5.0
+0.6.0
 ```
 
 Installed-tool Tier-4 validation remains required for affected public CLI/profile behavior.

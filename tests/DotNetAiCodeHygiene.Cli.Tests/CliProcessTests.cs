@@ -64,7 +64,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.5.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.6.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -369,6 +369,11 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("rules", "--output", "json");
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
+        JsonElement rules = json.RootElement.GetProperty("rules");
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(14);
+        JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
+        await Assert.That(formatter.GetProperty("configurable").GetBoolean()).IsTrue();
+        await Assert.That(formatter.GetProperty("capabilities").GetProperty("format").GetBoolean()).IsTrue();
         JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray().Single(x => x.GetProperty("id").GetString() == "docs.summary.quality.review");
         await Assert.That(rule.GetProperty("outputKind").GetString()).IsEqualTo("review-batch");
         await Assert.That(rule.GetProperty("classification").GetString()).IsEqualTo("review-batch");
@@ -438,6 +443,7 @@ public sealed class CliProcessTests
             await Assert.That(format.GetProperty("checkOnly").GetBoolean()).IsTrue();
             await Assert.That(format.GetProperty("targetCount").GetInt32()).IsEqualTo(1);
             await Assert.That(format.GetProperty("changedPaths").GetArrayLength()).IsEqualTo(format.GetProperty("changedCount").GetInt32());
+            await Assert.That(format.GetProperty("selectedRuleIds")[0].GetString()).IsEqualTo("format.csharp.roslyn");
             await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(sourceBeforeFormat);
             ProcessResult invalidOutput = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "yaml");
             await Assert.That(invalidOutput.ExitCode).IsEqualTo(2);
@@ -458,6 +464,7 @@ public sealed class CliProcessTests
             await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
             using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
             string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
+            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("style.qualification.this.unnecessary,style.qualification.redundant,format.csharp.roslyn");
             await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
             await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
             ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");
@@ -470,6 +477,18 @@ public sealed class CliProcessTests
             await Assert.That(await File.ReadAllTextAsync(config)).IsEqualTo(configBefore);
             await Assert.That(await File.ReadAllTextAsync(decisions)).IsEqualTo(decisionsBefore);
             await Assert.That(await File.ReadAllTextAsync(latest)).IsEqualTo(latestBefore);
+
+            await File.WriteAllTextAsync(file, "public class Fixture{public int Value=>1;}");
+            byte[] sourceBeforeDisabledNormalize = await File.ReadAllBytesAsync(file);
+            ProcessResult disableThis = await RunCliInAsync(repo, "rules", "disable", "style.qualification.this.unnecessary");
+            await Assert.That(disableThis.ExitCode).IsEqualTo(0);
+            ProcessResult disableRedundant = await RunCliInAsync(repo, "rules", "disable", "style.qualification.redundant");
+            await Assert.That(disableRedundant.ExitCode).IsEqualTo(0);
+            ProcessResult disabledNormalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
+            await Assert.That(disabledNormalizeCheck.ExitCode).IsEqualTo(0);
+            using JsonDocument disabledNormalizeJson = JsonDocument.Parse(disabledNormalizeCheck.StandardOutput);
+            await Assert.That(disabledNormalizeJson.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeDisabledNormalize)).IsTrue();
 
             ProcessResult conflictingTargets = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--changed");
             await Assert.That(conflictingTargets.ExitCode).IsEqualTo(2);
