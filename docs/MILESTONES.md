@@ -41,6 +41,8 @@ docs/milestones/M0006-rule-policy-rationale.md
 
 Refactored monolithic rule/rewrite execution into independent in-process rule and rewrite modules over a shared lazy repository-analysis session while preserving public behavior.
 
+`REV-M0007-COMPLETION` is durably recorded as approved in the completed M0007 milestone and execution ledger. M0008 does not reopen that completed milestone.
+
 Primary milestone:
 
 ```text
@@ -52,6 +54,8 @@ docs/milestones/M0007-modular-analysis-architecture.md
 **Mode:** AI-executed, human-reviewed
 
 Makes the M0007 logical module boundary physically obvious: stable repository-level `AGENTS.md`, family-based rule folders, one product rule per file, and rule-owned fixed interface text without introducing a metadata/message framework or changing product behavior.
+
+`REV-M0008-COMPLETION` is durably recorded as approved in the completed M0008 milestone and execution ledger.
 
 Primary milestone:
 

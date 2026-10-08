@@ -1,7 +1,7 @@
 # M0010 — Rule-Owned Remediation & Policy Projection
 
-**State:** ready  
-**Mode:** AI-executed, human-reviewed  
+**State:** ready\
+**Mode:** AI-executed, human-reviewed\
 **Depends on:** completed M0009 Statistical Sampling Core
 
 ## Goal
