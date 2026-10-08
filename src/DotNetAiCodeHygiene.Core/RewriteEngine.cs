@@ -113,9 +113,14 @@ public sealed class RewriteEngine
                             ?? throw new ProductException("Roslyn could not load the intermediate normalization state.");
                     }
                 }
-                foreach (IFormatRemediationRule rule in formatRules)
+                bool normalizationChanged = command == "normalize"
+                    && !source.ContentEquals(changedDocument.GetTextAsync().GetAwaiter().GetResult());
+                if (command == "format" || normalizationChanged)
                 {
-                    changedDocument = rule.Format(changedDocument, compilation);
+                    foreach (IFormatRemediationRule rule in formatRules)
+                    {
+                        changedDocument = rule.Format(changedDocument, compilation);
+                    }
                 }
                 SourceText rewritten = changedDocument.GetTextAsync().GetAwaiter().GetResult();
                 string content = plannedTextForTesting?.Invoke(rewritten.ToString()) ?? rewritten.ToString();

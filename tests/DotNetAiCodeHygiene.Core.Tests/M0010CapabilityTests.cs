@@ -113,6 +113,83 @@ public sealed class M0010CapabilityTests
         }
     }
 
+    [Test]
+    public async Task NormalizeDoesNotFormatAlreadyNormalizedPoorlyFormattedDocuments()
+    {
+        (string repo, string source) = await CreateRewriteFixture("hygiene-normalize-no-structural-change", "public class App{public int Value=>1;}");
+        try
+        {
+            byte[] before = await File.ReadAllBytesAsync(source);
+            var engine = new RewriteEngine(repo);
+            RewriteResult formatCheck = engine.Rewrite("format", [], false, true);
+            await Assert.That(formatCheck.ChangedCount).IsEqualTo(1);
+
+            RewriteResult normalizeCheck = engine.Rewrite("normalize", [], false, true);
+            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+            RewriteResult normalize = engine.Rewrite("normalize", [], false, false);
+            await Assert.That(normalize.ChangedCount).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NormalizeDoesNotFormatWhenEveryNormalizeRuleIsDisabled()
+    {
+        (string repo, string source) = await CreateRewriteFixture("hygiene-normalize-no-enabled-normalizers", "public class App{public int Value=>1;}");
+        try
+        {
+            byte[] before = await File.ReadAllBytesAsync(source);
+            var hygiene = new HygieneEngine(repo);
+            hygiene.SetRule("style.qualification.this.unnecessary", false);
+            hygiene.SetRule("style.qualification.redundant", false);
+            var engine = new RewriteEngine(repo);
+
+            RewriteResult normalizeCheck = engine.Rewrite("normalize", [], false, true);
+            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+            RewriteResult normalize = engine.Rewrite("normalize", [], false, false);
+            await Assert.That(normalize.ChangedCount).IsEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+            await Assert.That(engine.Rewrite("format", [], false, true).ChangedCount).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NormalizeFormatsDocumentsChangedByStructuralRules()
+    {
+        const string initial = "public class App{public string Read(){return this.Value;}public string Value=>System.String.Empty;}";
+        const string expected = "public class App { public string Read() { return Value; } public string Value => string.Empty; }";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-normalize-then-format", initial);
+        try
+        {
+            var engine = new RewriteEngine(repo);
+            RewriteResult check = engine.Rewrite("normalize", [], false, true);
+            await Assert.That(check.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            RewriteResult normalize = engine.Rewrite("normalize", [], false, false);
+            await Assert.That(normalize.ChangedCount).IsEqualTo(1);
+            string result = await File.ReadAllTextAsync(source);
+            await Assert.That(result).IsEqualTo(expected);
+            await Assert.That(engine.Rewrite("normalize", [], false, false).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    private static async Task<(string Root, string Source)> CreateRewriteFixture(string name, string sourceText)
+    {
+        string repo = Path.Combine(Path.GetTempPath(), name + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        await Git(repo, "init", "-q");
+        await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        string source = Path.Combine(repo, "src", "App.cs");
+        await File.WriteAllTextAsync(source, sourceText);
+        return (repo, source);
+    }
+
     private static async Task Git(string dir, params string[] args)
     {
         var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
