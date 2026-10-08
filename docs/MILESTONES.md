@@ -92,3 +92,15 @@ Primary milestone:
 ```text
 docs/milestones/M0010-rule-owned-remediation-and-policy-projection.md
 ```
+
+## M0011 — Statistical Semantic Review Adoption
+**State:** awaiting human review
+**Mode:** AI-executed, human-reviewed
+
+Migrates the two documentation-summary semantic reviews to M0009 subject-state hazard sampling, adds aggregate-sampled architectural BORINGness review with planner escalation, and adds explicit accepted-review observation so sampling history advances only from actual acceptable review evidence.
+
+Primary milestone:
+
+```text
+docs/milestones/M0011-statistical-semantic-review-adoption.md
+```

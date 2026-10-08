@@ -35,6 +35,7 @@ Rules/
   Documentation/
   SemanticReview/
   Readability/
+  Architecture/
   Profile/
 ```
 
@@ -155,7 +156,7 @@ Profile mutation and source rewrite semantics remain independently regression-co
 | Documentation | architecture/spec consistency | repository review |
 | Human | modularity/BORING architecture, locality, and behavior preservation | project owner/delegate |
 
-Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. For M0010, this includes the exact 0.6.0 package and dotnet-11 v1-to-v2 migration.
+Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. M0010 validated the exact 0.6.0 package and dotnet-11 v1-to-v2 migration. M0011 validates the exact 0.7.0 package, explicit review acceptance, summary rotation, and BORINGness planner handoff.
 
 ## Regression expectations
 

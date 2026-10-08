@@ -56,7 +56,7 @@
 
 **Stale ignore** — persisted ignore decision whose subject still exists but whose current evidence no longer matches the accepted fingerprint/discriminator.
 
-**Semantic review handoff** — explicit persisted request that transfers expanded semantic-review work and source context to an external frontier reviewer without invoking a model inside the CLI.
+**Semantic review handoff** — explicit persisted request that transfers expanded semantic-review work and source context to the rule's frontier or planner reviewer class without invoking a model inside the CLI.
 # Sampling terms
 
 - **Hazard:** rule-supplied non-negative cumulative inspection pressure.

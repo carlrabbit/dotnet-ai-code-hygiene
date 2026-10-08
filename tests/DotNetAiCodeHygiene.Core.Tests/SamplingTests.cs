@@ -97,6 +97,40 @@ public sealed class SamplingTests
     }
 
     [Test]
+    public async Task EvaluationMetadataDistinguishesFirstUnchangedAndChangedSubjectAndAggregateEvaluations()
+    {
+        var subject = new SubjectHazardSampler(Seed, "metadata.subject", 1, 1);
+        var first = subject.State("subject");
+        await Assert.That(first.LastEvaluationFingerprint).IsNull();
+        subject.AddHazard("subject", 1);
+        subject.AccrueElapsed("subject", 1_000, 1d / (365 * 24 * 60 * 60));
+        subject.SetEvaluationFingerprint("subject", new string('A', 64));
+        double initialHazard = subject.State("subject").Hazard;
+        await Assert.That(initialHazard).IsEqualTo(1d);
+        subject.AccrueElapsed("subject", 1_000, 1d / (365 * 24 * 60 * 60));
+        await Assert.That(subject.State("subject").Hazard).IsEqualTo(initialHazard);
+        subject.AddHazard("subject", 1);
+        subject.SetEvaluationFingerprint("subject", new string('B', 64));
+        await Assert.That(subject.State("subject").Hazard).IsEqualTo(2d);
+
+        var population = new PopulationHazardSampler(Seed, "metadata.population", 1, 1);
+        population.AddHazard("file.cs", 1);
+        population.AccrueElapsed("file.cs", 1_000, 0);
+        population.SetEvaluationMetadata("file.cs", new string('A', 64), 4);
+        await Assert.That(population.State("file.cs").LastCandidateCount).IsEqualTo(4);
+        double beforeElapsed = population.State("file.cs").ResidualHazard;
+        population.AccrueElapsed("file.cs", 31_536_001_000, 4d / (365 * 24 * 60 * 60));
+        population.SetEvaluationMetadata("file.cs", new string('A', 64), 6);
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(4d);
+        await Assert.That(population.State("file.cs").LastCandidateCount).IsEqualTo(6);
+        population.AccrueElapsed("file.cs", 31_536_001_000, 6d / (365 * 24 * 60 * 60));
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(4d);
+        population.AddHazard("file.cs", 1);
+        population.SetEvaluationMetadata("file.cs", new string('B', 64), 3);
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(5d);
+    }
+
+    [Test]
     public async Task ObservationTicketsCannotCrossSamplingEpochOrSeedReset()
     {
         var oldSeed = Seed;

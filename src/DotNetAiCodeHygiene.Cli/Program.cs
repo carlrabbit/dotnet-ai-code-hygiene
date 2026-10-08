@@ -58,7 +58,12 @@ internal static class Program
         var enableId = new Argument<string>("rule-id"); var enable = new Command("enable", "Enable a rule."); enable.Arguments.Add(enableId); enable.SetAction(parse => Run(() => { new HygieneEngine().SetRule(parse.GetValue(enableId)!, true); return 0; })); rules.Subcommands.Add(enable);
         var disableId = new Argument<string>("rule-id"); var disable = new Command("disable", "Disable a rule."); disable.Arguments.Add(disableId); disable.SetAction(parse => Run(() => { new HygieneEngine().SetRule(parse.GetValue(disableId)!, false); return 0; })); rules.Subcommands.Add(disable);
         root.Subcommands.Add(rules);
-        var review = new Command("review", "Expand or create a durable handoff for a semantic review batch.");
+        var review = new Command("review", "Accept sampled review work or expand/create a durable handoff.");
+        var acceptHandle = new Argument<string>("batch-handle"); var acceptItems = new Argument<string[]>("item-id") { Arity = ArgumentArity.ZeroOrMore };
+        var acceptAll = new Option<bool>("--all") { Description = "Accept every item in the current normal sample." };
+        var accept = new Command("accept", "Record explicit acceptance of current sampled review items.");
+        accept.Arguments.Add(acceptHandle); accept.Arguments.Add(acceptItems); accept.Options.Add(acceptAll); accept.Options.Add(output);
+        accept.SetAction(parse => Run(() => RenderAcceptance(new HygieneEngine().AcceptReview(parse.GetValue(acceptHandle)!, parse.GetValue(acceptItems) ?? [], parse.GetValue(acceptAll)), parse.GetValue(output) ?? "text")));
         var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand the latest run's complete eligible review population.");
         expand.Arguments.Add(expandHandle); expand.Options.Add(output);
         expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
@@ -66,7 +71,7 @@ internal static class Program
         var handoff = new Command("handoff", "Create a durable, transport-neutral frontier-review request.");
         handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile);
         handoff.SetAction(parse => Run(() => { string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile)); Console.WriteLine($"Review handoff written: {path}"); return 0; }));
-        review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
+        review.Subcommands.Add(accept); review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
         return root;
     }
     internal static int Run(Func<int> action)
@@ -125,9 +130,10 @@ internal static class Program
         Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
         Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
         format is presentation-only and applies enabled format-remediation rules. normalize applies enabled semantics-preserving normalization rules, then enabled format rules on changed documents, validates compilation before and after, and commits all selected changes together. Both support non-mutating --check and are idempotent.
-        check reports deterministic findings and semantic review samples. Use explain for a finding, ignore only reviewed exceptions, and unignore to remove an exception. Review batches are not findings.
-        If any sampled answer materially fails or is uncertain, use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for frontier review.
-        The CLI invokes no model. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
+        check reports deterministic findings and statistical semantic-review batches. A batch can be 0/N when eligible work is not due. Review batches are not findings.
+        After every required question is confidently acceptable and no escalation applies, use hygiene review accept <batch-handle> <item-id>... or --all to record observations. Acceptance revalidates tickets and commits them atomically.
+        Negative or uncertain items remain due. Use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for the rule's full-population escalation (frontier for summaries, planner for BORINGness).
+        Expansion, handoff, check, and rendering do not consume sampling state. The CLI invokes no model/provider. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
     {
@@ -173,6 +179,20 @@ internal static class Program
             throw new ArgumentException("--output must be text or json.");
         }
 
+        return 0;
+    }
+
+    private static int RenderAcceptance(ReviewAcceptance acceptance, string output)
+    {
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, acceptance.BatchHandle, acceptance.RuleId, acceptedItemIds = acceptance.ItemIds, acceptance.AcceptedCount }, Json));
+        }
+        else if (output == "text")
+        {
+            Console.WriteLine($"Accepted {acceptance.AcceptedCount} review item(s) from {acceptance.BatchHandle} ({acceptance.RuleId}): {string.Join(", ", acceptance.ItemIds)}");
+        }
+        else { throw new ArgumentException("--output must be text or json."); }
         return 0;
     }
     private static void RenderBatchText(ReviewBatch b)

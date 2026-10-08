@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.Build.Locator;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
+using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -20,6 +21,10 @@ public sealed record ReviewQuestion(string Id, string Text);
 public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
 public sealed record ReviewEscalation(string Condition, string Command, string ReviewerClass);
 public sealed record ReviewSource(string Path, string Content);
+public sealed record ReviewAcceptance(string BatchHandle, string RuleId, IReadOnlyList<string> ItemIds)
+{
+    public int AcceptedCount => ItemIds.Count;
+}
 public sealed record ReviewBatch(string Id, string Handle, string RuleId, int RuleVersion, string Mode, string ReviewerClass, int PopulationCount, int SampleCount, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewItem> Items, string PopulationFingerprint, IReadOnlyList<ReviewItem>? PopulationItems = null, IReadOnlyList<ReviewSource>? SourceContents = null);
 public sealed record ReviewRequestSource(string RunId, string BatchHandle);
 public sealed record ReviewRequestRule(string Id, int Version);
@@ -130,7 +135,7 @@ public sealed class HygieneEngine
         return value;
     }
     private sealed record Config(int SchemaVersion, string[] DisabledRules);
-    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null, bool ChangedScope = false, string[]? InputPaths = null);
+    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null, bool ChangedScope = false, string[]? InputPaths = null, ReviewTicketAssociation[]? ReviewTickets = null);
     private sealed record DecisionFile(int SchemaVersion, IgnoreDecision[] Decisions);
 
     public void SetRule(string id, bool enabled)
@@ -158,7 +163,7 @@ public sealed class HygieneEngine
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true) =>
         CheckCore(paths, changed, applyIgnores, includeDisabled, publishLatest, SamplingExecutionBoundary.Commit);
 
-    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, SamplingExecutionBoundary samplingBoundary)
+    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, SamplingExecutionBoundary samplingBoundary, List<ReviewTicketAssociation>? ticketSink = null)
     {
         RequireProfile();
         using var session = new RepositorySession(root);
@@ -174,20 +179,22 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        ReviewBatch[] batches = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions);
+        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions);
+        ticketSink?.AddRange(review.Tickets);
+        ReviewBatch[] batches = review.Batches;
         var result = new CheckResult(1, run, active, ignored, batches);
         if (publishLatest)
         {
             string[] storedTargets = targets.Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             string[] storedInputs = changed ? storedTargets : paths.Select(p => Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(root, p)))
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
-            WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs), json));
+            WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs, review.Tickets), json));
         }
         ruleContext.CompleteSampling();
         return result;
     }
 
-    internal static ReviewBatch BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition)
+    internal static ReviewBatchMaterialization BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, IReadOnlyList<ReviewSubject> selectedSubjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition, string escalatedReviewerClass, string reviewerClass)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
@@ -195,17 +202,17 @@ public sealed class HygieneEngine
             .ToArray();
         string populationData = string.Join("\n", ordered.Select(s => s.Identity + "\0" + s.ContentFingerprint));
         string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + rule.Version + "\0" + populationData)));
-        var ranked = ordered.Select(s => (Subject: s, Rank: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + rule.Version + "\0" + population + "\0" + s.Identity + "\0" + s.ContentFingerprint)))))
-            .OrderBy(x => x.Rank, StringComparer.Ordinal).ThenBy(x => x.Subject.Identity, StringComparer.Ordinal).Take(5).ToArray();
         ReviewItem[] all = ordered.Select((s, i) => s.Item with { Id = "RI-" + (i + 1) }).ToArray();
-        var ids = all.ToDictionary(x => x.Path + "\0" + x.Line + "\0" + x.Symbol, x => x.Id, StringComparer.Ordinal);
-        ReviewItem[] sample = ranked.Select(x => x.Subject.Item with { Id = ids[x.Subject.Item.Path + "\0" + x.Subject.Item.Line + "\0" + x.Subject.Item.Symbol] }).ToArray();
+        var ids = ordered.Select((s, i) => (s.Identity, Id: "RI-" + (i + 1))).ToDictionary(x => x.Identity, x => x.Id, StringComparer.Ordinal);
+        ReviewItem[] sample = selectedSubjects.Select(s => s.Item with { Id = ids.TryGetValue(s.Identity, out string? id) ? id : throw new ProductException("A rule selected review work outside its eligible population.") }).ToArray();
         ReviewSource[] sources = ordered.Select(s => s.Item.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
             .Select(path => sourceContents.TryGetValue(path, out string? content) && content is not null ? new ReviewSource(path, content) : throw new ProductException($"Source context for '{path}' is unavailable."))
             .ToArray();
         string batchId = "B-" + batchNumber;
-        return new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", "implementer", ordered.Length, sample.Length, questions,
-            new ReviewEscalation(escalationCondition, "hygiene review expand " + run + "/" + batchId, "frontier"), sample, population, all, sources);
+        var batch = new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", reviewerClass, ordered.Length, sample.Length, questions,
+            new ReviewEscalation(escalationCondition, "hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);
+        var tickets = selectedSubjects.Select(s => new ReviewTicketAssociation(batchId, ids[s.Identity], s.SubjectTicket, s.PopulationTicket)).ToArray();
+        return new(batch, tickets);
     }
 
     public ReviewBatch ExpandReview(string handle)
@@ -241,7 +248,7 @@ public sealed class HygieneEngine
         return stored with
         {
             Mode = "expanded",
-            ReviewerClass = "frontier",
+            ReviewerClass = stored.Escalation.ReviewerClass,
             PopulationCount = current.PopulationCount,
             SampleCount = current.PopulationCount,
             Items = current.PopulationItems ?? [],
@@ -259,13 +266,81 @@ public sealed class HygieneEngine
         string batchToken = expanded.Id.Replace("-", "", StringComparison.Ordinal);
         string handoffId = "HR-" + Regex.Replace(runToken, "[^A-Za-z0-9]", "", RegexOptions.CultureInvariant).ToUpperInvariant() + "-" + Regex.Replace(batchToken, "[^A-Za-z0-9]", "", RegexOptions.CultureInvariant).ToUpperInvariant();
         var request = new SemanticReviewRequest(1, "semantic-review-request", handoffId, DateTimeOffset.UtcNow.ToString("O"),
-            new ReviewRequestSource(runId, expanded.Handle), new ReviewRequestRule(expanded.RuleId, expanded.RuleVersion), "expanded", "frontier",
+            new ReviewRequestSource(runId, expanded.Handle), new ReviewRequestRule(expanded.RuleId, expanded.RuleVersion), "expanded", expanded.ReviewerClass,
             expanded.PopulationCount, expanded.Questions, expanded.Items, expanded.SourceContents ?? []);
         string destination = Path.GetFullPath(string.IsNullOrWhiteSpace(filePath)
             ? Path.Combine(root, ".hygiene", "reviews", handoffId, "request.json")
             : Path.IsPathRooted(filePath) ? filePath : Path.Combine(root, filePath));
         WriteNewAtomic(destination, JsonSerializer.Serialize(request, json));
         return destination;
+    }
+
+    public ReviewAcceptance AcceptReview(string handle, string[] itemIds, bool acceptAll = false)
+    {
+        RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
+        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null)
+        { throw new ProductException("Review batch is unavailable; run check again."); }
+        string batchId = ResolveBatchId(handle, snapshot);
+        ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (acceptAll) { itemIds = stored.Items.Select(item => item.Id).ToArray(); }
+        if (itemIds.Length == 0 && !acceptAll) { throw new ArgumentException("Provide one or more sampled item IDs or use --all."); }
+        if (itemIds.Distinct(StringComparer.Ordinal).Count() != itemIds.Length) { throw new ProductException("Review acceptance contains a duplicate item ID; rerun hygiene check."); }
+        var storedItems = stored.Items.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        ReviewTicketAssociation[] tickets = snapshot.ReviewTickets ?? [];
+        var associations = new List<ReviewTicketAssociation>(itemIds.Length);
+        foreach (string id in itemIds)
+        {
+            if (!storedItems.ContainsKey(id)) { throw new ProductException($"Review item '{id}' was not in the current normal sample; rerun hygiene check."); }
+            ReviewTicketAssociation association = tickets.SingleOrDefault(x => x.BatchId == batchId && x.ItemId == id)
+                ?? throw new ProductException($"Review item '{id}' has no current sampling ticket; rerun hygiene check.");
+            if ((association.SubjectTicket is null) == (association.PopulationTicket is null)) { throw new ProductException("Review ticket state is invalid; rerun hygiene check."); }
+            associations.Add(association);
+        }
+        if (associations.Count == 0) { return new(stored.Handle, stored.RuleId, []); }
+
+        string[] revalidationPaths = snapshot.ChangedScope ? snapshot.TargetPaths : snapshot.InputPaths ?? snapshot.TargetPaths;
+        CheckResult fresh;
+        var freshTickets = new List<ReviewTicketAssociation>();
+        try { fresh = CheckCore(revalidationPaths, false, true, false, false, SamplingExecutionBoundary.Discard, freshTickets); }
+        catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
+        ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId)
+            ?? throw new ProductException("Review population changed; rerun hygiene check.");
+        if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
+        { throw new ProductException("Review population changed; rerun hygiene check."); }
+        foreach (ReviewTicketAssociation association in associations)
+        {
+            if (!freshTickets.Contains(association)) { throw new ProductException("A sampled review ticket is stale or no longer selected; rerun hygiene check."); }
+        }
+
+        var sampling = new SamplingSession(root);
+        foreach (ReviewTicketAssociation association in associations)
+        {
+            bool observed;
+            if (association.SubjectTicket is SubjectTicket subject)
+            {
+                if (subject.RuleId != stored.RuleId) { throw new ProductException("Review ticket state is invalid; rerun hygiene check."); }
+                var sampler = sampling.SubjectSampler(subject.RuleId, subject.RuleVersion, subject.ModelVersion);
+                observed = sampler.Due(subject.SubjectId)?.Ticket == subject && sampler.Observe(subject);
+            }
+            else
+            {
+                PopulationTicket population = association.PopulationTicket!;
+                if (population.RuleId != stored.RuleId) { throw new ProductException("Review ticket state is invalid; rerun hygiene check."); }
+                var sampler = sampling.PopulationSampler(population.RuleId, population.RuleVersion, population.ModelVersion);
+                observed = sampler.DueEvents(population.UnitId, 1).FirstOrDefault()?.Ticket == population && sampler.Observe(population);
+            }
+            if (!observed) { throw new ProductException("A sampled review ticket is stale or already consumed; rerun hygiene check."); }
+        }
+        sampling.Commit();
+        return new(stored.Handle, stored.RuleId, itemIds);
+    }
+
+    private static string ResolveBatchId(string handle, RunSnapshot snapshot)
+    {
+        if (!handle.Contains('/')) { return handle; }
+        string[] parts = handle.Split('/');
+        if (parts.Length != 2 || parts[0] != snapshot.RunId) { throw new ProductException("Review batch handle does not refer to the latest available run."); }
+        return parts[1];
     }
 
     private void WriteNewAtomic(string path, string content)

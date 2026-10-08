@@ -109,16 +109,17 @@ internal sealed class SamplingSession
         {
             SubjectHazardState[] subjects = value.Subjects ?? [];
             return value.Populations is null && subjects.All(x => x is not null) && subjects.Select(x => x.SubjectId).Distinct(StringComparer.Ordinal).Count() == subjects.Length
-                && subjects.All(x => x is not null && !string.IsNullOrEmpty(x.SubjectId) && x.Generation >= 0 && double.IsFinite(x.Hazard) && x.Hazard >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastObservedUnixSeconds is null || double.IsFinite(x.LastObservedUnixSeconds.Value)));
+                && subjects.All(x => x is not null && !string.IsNullOrEmpty(x.SubjectId) && x.Generation >= 0 && double.IsFinite(x.Hazard) && x.Hazard >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastObservedUnixSeconds is null || double.IsFinite(x.LastObservedUnixSeconds.Value)) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)));
         }
         if (value.Model == "population")
         {
             PopulationHazardState[] populations = value.Populations ?? [];
             return value.Subjects is null && populations.All(x => x is not null) && populations.Select(x => x.UnitId).Distinct(StringComparer.Ordinal).Count() == populations.Length
-                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0));
+                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)) && (x.LastCandidateCount is null || x.LastCandidateCount >= 0));
         }
         return false;
     }
+    private static bool IsFingerprint(string fingerprint) => fingerprint.Length == 64 && fingerprint.All(Uri.IsHexDigit) && fingerprint == fingerprint.ToUpperInvariant();
     private static string Key(string id, int ruleVersion, int modelVersion, string model) => $"{model}\0{id}\0{ruleVersion}\0{modelVersion}";
     private void EnsureSingleActiveVersion(string ruleId, string model, int ruleVersion, int modelVersion)
     {

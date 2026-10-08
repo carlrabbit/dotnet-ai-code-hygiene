@@ -50,7 +50,7 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
-Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. Current production rules do not request it. The two supported shared mechanics are subject-state hazard sampling and aggregate population/cohort hazard sampling; rule modules retain all domain and risk policy.
+Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. The summary quality and German-language semantic-review rules use subject-state sampling; the BORINGness review uses aggregate population sampling. The shared substrate stores opaque rule evaluation fingerprints and cursors, while rule modules retain eligibility, hazard, selection, and observation policy.
 
 ## Reporting scope versus readable context
 
@@ -109,6 +109,7 @@ Rules/
   Documentation/
   SemanticReview/
   Readability/
+  Architecture/
   Profile/
 ```
 
@@ -232,7 +233,7 @@ No selected source file is committed before complete planning and required valid
 
 ## Sampling boundary
 
-Future statistical sampling models remain research/planning scope. The modular rule + session-fact architecture must leave a straightforward place for future shared sampling/state tooling, but no subject-state sampler, aggregate/cohort sampler, persistent repository index, hazard model, prior, or statistical state schema is introduced merely for architectural completeness.
+Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists only transparent per-subject or per-population-unit state and generic evaluation metadata. It does not introduce a candidate index, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
 
 Existing deterministic semantic-review sampling remains supported.
 

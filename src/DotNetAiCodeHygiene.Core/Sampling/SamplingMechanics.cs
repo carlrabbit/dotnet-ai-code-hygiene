@@ -42,7 +42,7 @@ internal static class SamplingRandom
 }
 
 internal sealed record SubjectTicket(string RuleId, string SubjectId, int RuleVersion, int ModelVersion, long Generation, string StateEpoch);
-internal sealed record SubjectHazardState(string SubjectId, long Generation, double Hazard, long? LastEvaluationCursorUnixMilliseconds = null, double? LastObservedUnixSeconds = null, bool? LastOutcome = null);
+internal sealed record SubjectHazardState(string SubjectId, long Generation, double Hazard, long? LastEvaluationCursorUnixMilliseconds = null, double? LastObservedUnixSeconds = null, bool? LastOutcome = null, string? LastEvaluationFingerprint = null);
 internal sealed record DueSubject(SubjectTicket Ticket, double Hazard, double Threshold, double Urgency);
 
 internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion, string stateEpoch = "default")
@@ -76,6 +76,11 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
         ValidateHazard(hazard);
         states[id] = old with { Hazard = hazard, LastEvaluationCursorUnixMilliseconds = evaluationCursorUnixMilliseconds };
     }
+    internal void SetEvaluationFingerprint(string id, string fingerprint)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+        states[id] = State(id) with { LastEvaluationFingerprint = fingerprint };
+    }
     internal DueSubject? Due(string id)
     {
         var s = State(id); double threshold = SamplingRandom.Threshold(seed, [ruleId, ruleVersion.ToString(CultureInfo.InvariantCulture), modelVersion.ToString(CultureInfo.InvariantCulture), "subject", id], s.Generation);
@@ -107,7 +112,7 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
 }
 
 internal sealed record PopulationTicket(string RuleId, string UnitId, int RuleVersion, int ModelVersion, long Generation, string StateEpoch);
-internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0, long? LastEvaluationCursorUnixMilliseconds = null);
+internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0, long? LastEvaluationCursorUnixMilliseconds = null, string? LastEvaluationFingerprint = null, int? LastCandidateCount = null);
 internal sealed record DuePopulationEvent(PopulationTicket Ticket, double Threshold, double ResidualAfterThreshold);
 
 internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion, string stateEpoch = "default")
@@ -137,6 +142,12 @@ internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ru
         double residual = old.ResidualHazard + increment;
         SubjectHazardSampler.ValidateHazard(residual);
         states[unit] = old with { ResidualHazard = residual, LastEvaluationCursorUnixMilliseconds = evaluationCursorUnixMilliseconds };
+    }
+    internal void SetEvaluationMetadata(string unit, string fingerprint, int candidateCount)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+        if (candidateCount < 0) { throw new ArgumentOutOfRangeException(nameof(candidateCount)); }
+        states[unit] = State(unit) with { LastEvaluationFingerprint = fingerprint, LastCandidateCount = candidateCount };
     }
     internal IReadOnlyList<DuePopulationEvent> DueEvents(string unit, int maximum = 10000)
     {
