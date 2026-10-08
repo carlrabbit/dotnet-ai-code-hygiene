@@ -257,16 +257,29 @@ public sealed class CliProcessTests
         {
             await RunProcessAsync("git", repo, "init", "-q");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Api.cs"), "/// <summary>Ein gültiger Typ.</summary>\n/// <param name=\"Name\">Der Anzeigename.</param>\npublic record Person(string Name);\n");
+            string apiPath = Path.Combine(repo, "src", "Api.cs");
+            const string apiSource = "/// <summary>Ein gültiger Typ.</summary>\n/// <param name=\"Name\">Der Anzeigename.</param>\npublic record Person(string Name);\n";
+            await File.WriteAllTextAsync(apiPath, apiSource);
 
-            ProcessResult check = await RunCliInAsync(repo, "check", "--output", "json");
-            await Assert.That(check.ExitCode).IsEqualTo(0);
-            using JsonDocument checkJson = JsonDocument.Parse(check.StandardOutput);
-            JsonElement checkBatch = checkJson.RootElement.GetProperty("reviewBatches").EnumerateArray()
-                .Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
-            JsonElement checkItem = checkBatch.GetProperty("items").EnumerateArray()
-                .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
+            JsonDocument? checkJson = null;
+            JsonElement checkItem = default;
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                ProcessResult check = await RunCliInAsync(repo, "check", "--output", "json");
+                await Assert.That(check.ExitCode).IsEqualTo(0);
+                checkJson?.Dispose();
+                checkJson = JsonDocument.Parse(check.StandardOutput);
+                JsonElement checkBatch = checkJson.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                    .Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
+                checkItem = checkBatch.GetProperty("items").EnumerateArray()
+                    .FirstOrDefault(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
+                if (checkItem.ValueKind != JsonValueKind.Undefined) { break; }
+
+                await File.WriteAllTextAsync(apiPath, apiSource.Replace("Ein gültiger Typ.", $"Ein gültiger Typ, Änderung {attempt}.", StringComparison.Ordinal));
+            }
+            if (checkJson is null || checkItem.ValueKind == JsonValueKind.Undefined) { throw new InvalidOperationException("The changed positional-record subject did not become due within the bounded fixture loop."); }
             AssertPositionalReviewItem(checkItem);
+            checkJson.Dispose();
 
             ProcessResult expanded = await RunCliInAsync(repo, "review", "expand", "B-1", "--output", "json");
             await Assert.That(expanded.ExitCode).IsEqualTo(0);
@@ -345,6 +358,13 @@ public sealed class CliProcessTests
             await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsEqualTo(5);
             string handle = quality.GetProperty("handle").GetString()!;
             string itemId = quality.GetProperty("items")[0].GetProperty("id").GetString()!;
+            string samplingPath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
+            string beforeMixed = await File.ReadAllTextAsync(samplingPath);
+            ProcessResult mixed = await RunCliInAsync(repo, "review", "accept", handle, itemId, "--all");
+            await Assert.That(mixed.ExitCode).IsEqualTo(2);
+            await Assert.That(mixed.StandardError).Contains("Use either item IDs or --all");
+            await Assert.That(await File.ReadAllTextAsync(samplingPath)).IsEqualTo(beforeMixed);
+
             ProcessResult accepted = await RunCliInAsync(repo, "review", "accept", handle, itemId, "--output", "json");
             await Assert.That(accepted.ExitCode).IsEqualTo(0);
             using (JsonDocument json = JsonDocument.Parse(accepted.StandardOutput))
@@ -361,6 +381,15 @@ public sealed class CliProcessTests
             ProcessResult duplicate = await RunCliInAsync(repo, "review", "accept", handle, itemId);
             await Assert.That(duplicate.ExitCode).IsEqualTo(3);
             await Assert.That(duplicate.StandardError).Contains("rerun hygiene check");
+
+            ProcessResult nextCheck = await RunCliInAsync(repo, "check", "--output", "json");
+            await Assert.That(nextCheck.ExitCode).IsEqualTo(0);
+            using JsonDocument next = JsonDocument.Parse(nextCheck.StandardOutput);
+            JsonElement nextQuality = next.RootElement.GetProperty("reviewBatches").EnumerateArray().Single(x => x.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
+            ProcessResult acceptAll = await RunCliInAsync(repo, "review", "accept", nextQuality.GetProperty("handle").GetString()!, "--all", "--output", "json");
+            await Assert.That(acceptAll.ExitCode).IsEqualTo(0);
+            using JsonDocument allResult = JsonDocument.Parse(acceptAll.StandardOutput);
+            await Assert.That(allResult.RootElement.GetProperty("acceptedCount").GetInt32()).IsEqualTo(nextQuality.GetProperty("sampleCount").GetInt32());
         }
         finally { DeleteTree(repo); }
     }

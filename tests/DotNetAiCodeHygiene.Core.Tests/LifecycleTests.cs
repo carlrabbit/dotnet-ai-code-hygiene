@@ -616,6 +616,44 @@ public sealed class LifecycleTests
     }
 
     [Test]
+    public async Task CheckPublishesLatestRunAndSamplingStateTogetherOnFailures()
+    {
+        foreach (bool failLatestPublication in new[] { false, true })
+        {
+            string repo = Path.Combine(Path.GetTempPath(), "hygiene-check-pair-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(repo, "src"));
+            try
+            {
+                await Git(repo, "init", "-q");
+                await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+                string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
+                await File.WriteAllTextAsync(sourcePath, "/// <summary>A useful description for the original API.</summary>\npublic class Reviewed { }\n");
+                CheckResult successful = new HygieneEngine(repo).Check([], false);
+                string stateDirectory = Path.Combine(repo, ".hygiene", ".state");
+                string latestPath = Path.Combine(stateDirectory, "latest-run.json");
+                string samplingPath = Path.Combine(stateDirectory, "sampling.json");
+                byte[] previousLatest = await File.ReadAllBytesAsync(latestPath);
+                byte[] previousSampling = await File.ReadAllBytesAsync(samplingPath);
+                await Assert.That(successful.ReviewBatches.Any(batch => batch.RuleId == "docs.summary.quality.review")).IsTrue();
+
+                await File.WriteAllTextAsync(sourcePath, "/// <summary>A materially changed description for the original API.</summary>\npublic class Reviewed { }\n");
+                Action? failReplace = failLatestPublication ? () => throw new IOException("injected latest-run publication failure") : null;
+                Action? failSampling = failLatestPublication ? null : () => throw new IOException("injected sampling preparation failure");
+                bool failed = false;
+                try { _ = new HygieneEngine(repo, failReplace, null, failSampling).Check([], false); }
+                catch (IOException) { failed = true; }
+
+                await Assert.That(failed).IsTrue();
+                await Assert.That(await File.ReadAllBytesAsync(latestPath)).IsEquivalentTo(previousLatest);
+                await Assert.That(await File.ReadAllBytesAsync(samplingPath)).IsEquivalentTo(previousSampling);
+                string[] leftovers = Directory.GetFiles(stateDirectory).Where(path => path.EndsWith(".tmp", StringComparison.Ordinal) || path.EndsWith(".rollback", StringComparison.Ordinal)).ToArray();
+                await Assert.That(leftovers).IsEmpty();
+            }
+            finally { DeleteTree(repo); }
+        }
+    }
+
+    [Test]
     public async Task SemanticReviewAcceptanceConsumesOnlyValidatedCurrentTicketsAtomically()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-review-accept-" + Guid.NewGuid().ToString("N"));

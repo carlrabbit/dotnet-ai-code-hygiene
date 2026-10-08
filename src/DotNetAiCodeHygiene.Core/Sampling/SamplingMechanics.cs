@@ -98,8 +98,15 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
         if (!TicketMatches(ticket) || Due(ticket.SubjectId) is null) { return false; }
         var current = State(ticket.SubjectId);
         if (current.Generation == long.MaxValue) { throw new InvalidOperationException("Sampling subject generation is exhausted; reset its state."); }
+        DateTimeOffset observedAt = at ?? DateTimeOffset.UtcNow;
+        long observationCursor = observedAt.ToUnixTimeMilliseconds();
+        if (current.LastEvaluationCursorUnixMilliseconds is long previous && observationCursor < previous)
+        {
+            throw new ArgumentOutOfRangeException(nameof(at), "Observation time cannot precede the latest evaluation cursor.");
+        }
         states[ticket.SubjectId] = current with { Generation = current.Generation + 1, Hazard = 0,
-            LastObservedUnixSeconds = (at ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds(), LastOutcome = outcome };
+            LastEvaluationCursorUnixMilliseconds = observationCursor,
+            LastObservedUnixSeconds = observedAt.ToUnixTimeSeconds(), LastOutcome = outcome };
         return true;
     }
     internal void Restore(IEnumerable<SubjectHazardState> values)

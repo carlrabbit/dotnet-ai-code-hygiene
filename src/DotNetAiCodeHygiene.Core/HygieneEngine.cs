@@ -41,16 +41,20 @@ public sealed class HygieneEngine
     private readonly string root;
     private readonly string hygiene;
     private readonly Action? beforeAtomicReplace;
+    private readonly Action? beforeSamplingCommit;
     private readonly RuleModuleRunner ruleRunner;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = false };
 
     public HygieneEngine(string? cwd = null) : this(cwd, null, null) { }
 
-    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace) : this(cwd, beforeAtomicReplace, null) { }
+    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace) : this(cwd, beforeAtomicReplace, null, null) { }
 
-    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace, IReadOnlyList<IRuleModule>? modules)
+    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace, IReadOnlyList<IRuleModule>? modules) : this(cwd, beforeAtomicReplace, modules, null) { }
+
+    internal HygieneEngine(string? cwd, Action? beforeAtomicReplace, IReadOnlyList<IRuleModule>? modules, Action? beforeSamplingCommit)
     {
         this.beforeAtomicReplace = beforeAtomicReplace;
+        this.beforeSamplingCommit = beforeSamplingCommit;
         ruleRunner = new RuleModuleRunner(modules ?? RuleCatalog.Modules);
         string dir = RepositorySession.FindRoot(cwd);
         root = dir; hygiene = Path.Combine(root, ".hygiene");
@@ -172,7 +176,7 @@ public sealed class HygieneEngine
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
         Document[] reportingDocuments = projectsByTarget.Values.Select(value => value.Document).DistinctBy(document => document.Id).ToArray();
-        var ruleContext = new RuleContext(session, reportingDocuments, samplingBoundary);
+        var ruleContext = new RuleContext(session, reportingDocuments, samplingBoundary, beforeSamplingCommit);
         IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
         var candidates = executions.SelectMany(execution => execution.Result.Findings).ToList();
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
@@ -188,9 +192,21 @@ public sealed class HygieneEngine
             string[] storedTargets = targets.Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             string[] storedInputs = changed ? storedTargets : paths.Select(p => Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(root, p)))
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
-            WriteAtomic(LatestPath, JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs, review.Tickets), json));
+            string latest = JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed, storedInputs, review.Tickets), json);
+            using PreparedSamplingCommit? preparedSampling = ruleContext.PrepareSamplingCommit();
+            try
+            {
+                preparedSampling?.Publish();
+                WriteAtomic(LatestPath, latest);
+                preparedSampling?.Complete();
+            }
+            catch
+            {
+                preparedSampling?.Rollback();
+                throw;
+            }
         }
-        ruleContext.CompleteSampling();
+        else { ruleContext.CompleteSampling(); }
         return result;
     }
 

@@ -97,6 +97,22 @@ public sealed class SamplingTests
     }
 
     [Test]
+    public async Task AcceptedSubjectObservationStartsElapsedAgingAtObservationTime()
+    {
+        var sampler = new SubjectHazardSampler(Seed, "observation-clock.rule", 1, 1, "observation-clock-epoch");
+        sampler.AddHazard("subject", 100d);
+        sampler.AccrueElapsed("subject", 1_000, 1d);
+        SubjectTicket ticket = sampler.Due("subject")!.Ticket;
+
+        await Assert.That(sampler.Observe(ticket, at: DateTimeOffset.FromUnixTimeMilliseconds(11_000))).IsTrue();
+        await Assert.That(sampler.State("subject").LastEvaluationCursorUnixMilliseconds).IsEqualTo(11_000L);
+        await Assert.That(sampler.State("subject").Hazard).IsEqualTo(0d);
+
+        sampler.AccrueElapsed("subject", 16_000, 1d);
+        await Assert.That(sampler.State("subject").Hazard).IsEqualTo(5d);
+    }
+
+    [Test]
     public async Task EvaluationMetadataDistinguishesFirstUnchangedAndChangedSubjectAndAggregateEvaluations()
     {
         var subject = new SubjectHazardSampler(Seed, "metadata.subject", 1, 1);

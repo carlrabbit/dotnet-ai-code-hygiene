@@ -26,10 +26,10 @@ internal enum SamplingExecutionBoundary
 }
 
 /// <summary>Lazy services available to production rule modules for this command.</summary>
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit)
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit, Action? beforeSamplingCommit = null)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
-    private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root, beforeSamplingCommit), LazyThreadSafetyMode.ExecutionAndPublication);
 
     internal RepositorySession Session { get; } = session;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
@@ -50,6 +50,11 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal void CompleteSampling()
     {
         if (samplingBoundary == SamplingExecutionBoundary.Commit && sampling.IsValueCreated) { sampling.Value.Commit(); }
+    }
+    internal PreparedSamplingCommit? PrepareSamplingCommit()
+    {
+        if (samplingBoundary != SamplingExecutionBoundary.Commit || !sampling.IsValueCreated) { return null; }
+        return sampling.Value.PrepareCommit();
     }
 }
 

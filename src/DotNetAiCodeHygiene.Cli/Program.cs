@@ -63,7 +63,13 @@ internal static class Program
         var acceptAll = new Option<bool>("--all") { Description = "Accept every item in the current normal sample." };
         var accept = new Command("accept", "Record explicit acceptance of current sampled review items.");
         accept.Arguments.Add(acceptHandle); accept.Arguments.Add(acceptItems); accept.Options.Add(acceptAll); accept.Options.Add(output);
-        accept.SetAction(parse => Run(() => RenderAcceptance(new HygieneEngine().AcceptReview(parse.GetValue(acceptHandle)!, parse.GetValue(acceptItems) ?? [], parse.GetValue(acceptAll)), parse.GetValue(output) ?? "text")));
+        accept.SetAction(parse => Run(() =>
+        {
+            string[] itemIds = parse.GetValue(acceptItems) ?? [];
+            bool all = parse.GetValue(acceptAll);
+            if (all && itemIds.Length > 0) { throw new ArgumentException("Use either item IDs or --all, not both."); }
+            return RenderAcceptance(new HygieneEngine().AcceptReview(parse.GetValue(acceptHandle)!, itemIds, all), parse.GetValue(output) ?? "text");
+        }));
         var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand the latest run's complete eligible review population.");
         expand.Arguments.Add(expandHandle); expand.Options.Add(output);
         expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
