@@ -34,7 +34,7 @@ The execution ledger may compress work. It must not compress obligations.
 | AC-20 | acceptance | Pre-M0010 rule IDs/versions/diagnostic behavior remain compatible except the deliberately versioned `profile.dotnet.analysis.required` v2 change; documentation/review/sampling behavior is unchanged. | WP-01, WP-02, WP-03 | Integrated branch includes M0009 `SamplingMechanics`, `SamplingSession`, and sampling lifecycle changes. All 10 `SamplingTests` cases and `LifecycleTests.ExpandIgnoreValidationAndIgnoreListingDiscardSamplingMutations` passed in the complete integrated run. Existing rule IDs/versions and documentation/review regressions also passed. | VAL-01, VAL-02, and VAL-05 passed; Core 67/67, CLI 22/22, total 89/89. | complete |
 | AC-21 | acceptance | Product/package version is 0.6.0 and exact locally packed/installed validation proves the M0010 catalogue, profile v2 migration, rule toggles/projections, format, and normalize surfaces. | WP-03 | eng/validate.ps1 packed exact 0.6.0, installed it to isolated path, and passed migration/toggle/list/format/normalize/check workflow. | VAL-04 and VAL-05 passed. | complete |
 | DOC-01 | documentation | Architecture, engineering, terminology, general specs, profile, rewrites, readability references, rule-capability spec, milestone index, and public/help text consistently describe rule-owned capabilities and projection. | WP-01, WP-02, WP-03 | Architecture, engineering, terminology, specs, profile, rewrites, readability, capability spec, milestone index, README, and CLI help reconciled. | VAL-05 and VAL-06 passed. | complete |
-| REV-01 | review | Project owner/delegate confirms the resulting model is more explainable without becoming a framework: one rule owns one policy, generated settings are traceable, disabling is coherent across surfaces, format/normalize remain safe commands, and the initial rule split is appropriately small. | WP-03 | Awaiting REV-M0010-COMPLETION human review. | Pending VAL-07 human review. | pending human review |
+| REV-01 | review | Project owner/delegate confirms the resulting model is more explainable without becoming a framework: one rule owns one policy, generated settings are traceable, disabling is coherent across surfaces, format/normalize remain safe commands, and the initial rule split is appropriately small. | WP-03 | Project owner approved REV-M0010-COMPLETION in this task conversation on 2026-10-08. | VAL-07 passed. | approved |
 
 ## Evidence Case Registry
 
@@ -69,7 +69,7 @@ The execution ledger may compress work. It must not compress obligations.
 | VAL-04 | exact locally packed/installed 0.6.0 consumer workflow | Tier 4 / isolated Windows consumer repository | AC-16, AC-17, AC-21; EC-15a, EC-16a, EC-17a, EC-21a | passed | Integrated `eng/validate.ps1` packed the exact `DotNetAiCodeHygiene.Tool.0.6.0` artifact, installed version 0.6.0 in the isolated consumer, and passed v1-to-v2 migration, toggles, rules listing, format, normalize, and check. |
 | VAL-05 | `./eng/validate.ps1` including repository self-host and `git diff --check` | Tier 2 / complete repository | AC-18..AC-21, DOC-01 | passed | Integrated `eng/validate.ps1` passed build, Core 67/67 and CLI 22/22 (89/89 total), exact 0.6.0 pack/install and Tier-4 consumer workflow, repository self-host validation, and its `git diff --check`. The PR-range `git diff --check origin/main...HEAD` also passed on the recorded branch. |
 | VAL-06 | direct source/document review of catalogue ownership, absence of separate rewrite policy registry, projection ownership, docs consistency, and diff scope | repository review | AC-01, AC-02, AC-08..AC-12, AC-19, AC-20, DOC-01; EC-01a, EC-11a | passed | Integrated source/document review confirmed the single ordered M0010 RuleCatalog, explicit capabilities, no production rewrite registry or generalized framework, unique projection keys, and retained M0009 sampling mechanics, lifecycle integration, spec, milestone, and tests. |
-| VAL-07 | `REV-M0010-COMPLETION` | Human / project owner or delegate | REV-01 | pending | REV-M0010-COMPLETION remains for project owner/delegate. |
+| VAL-07 | `REV-M0010-COMPLETION` | Human / project owner or delegate | REV-01 | passed | Project owner approved REV-M0010-COMPLETION in this task conversation on 2026-10-08 after reviewing the integrated M0009+M0010 implementation and validation evidence. |
 
 ## Work Packages
 
@@ -84,10 +84,19 @@ The execution ledger may compress work. It must not compress obligations.
 Current state:
 
 ```text
-AWAITING HUMAN REVIEW
+COMPLETE
 ```
 
 Next actions:
 
-1. project owner/delegate completes `REV-M0010-COMPLETION` against the review questions in the milestone;
-2. record the explicit review outcome and update `REV-01`/`VAL-07` only when that review is provided.
+None. REV-M0010-COMPLETION is approved and recorded.
+
+## Completion Evidence
+
+WP-01..WP-03 are implemented and validated. `eng/validate.ps1` completed on Windows 11 / .NET 11 with a clean Release build, Core 67/67 and CLI 22/22 tests, exact packed/installed 0.6.0 consumer validation, repository self-host checks, and `git diff --check`. Focused normalize regressions prove already-normalized poorly formatted files remain untouched, all normalize rules disabled makes `normalize --check` a no-op while formatting remains enabled, and structural normalization still produces the accepted formatted output. The integrated M0009 sampling suite remains included: all 10 `SamplingTests` cases and the sampling-discard lifecycle regression pass. All planner-owned AC/REV/EC wording remains unchanged. Project owner approved REV-M0010-COMPLETION on 2026-10-08; VAL-07 is satisfied.
+
+Current milestone outcome:
+
+```text
+COMPLETE
+```

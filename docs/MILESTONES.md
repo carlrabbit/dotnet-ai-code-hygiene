@@ -80,8 +80,10 @@ docs/milestones/M0009-statistical-sampling-core.md
 ```
 
 ## M0010 — Rule-Owned Remediation & Policy Projection
-**State:** ready
+**State:** done
 **Mode:** AI-executed, human-reviewed
+
+`REV-M0010-COMPLETION` is durably recorded as approved in the completed M0010 milestone and execution ledger.
 
 Makes rule IDs the semantic owners of diagnosis, deterministic format/normalize remediation, and hygiene-generated EditorConfig policy. Splits the current opaque rewrite policies into explicit configurable rules and advances the supported profile to v2 so braces/accessibility become independent disableable policies while preserving default behavior.
 
