@@ -18,6 +18,7 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         new("Q5", "Unclear ownership: After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?")
     ];
     internal const string EscalationText = "Escalate to the planner when Q4 is yes or at least two of Q1, Q2, Q3, and Q5 are yes. Legitimate external-service, persistence, platform, and interoperability boundaries may justify abstraction.";
+    private const double YearlyHazardRate = 1d / (365d * 24d * 60d * 60d);
 
     public Rule Descriptor => RuleDescriptor;
     public int BatchNumber => 3;
@@ -31,11 +32,23 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         return answers[3] || answers.Where((_, index) => index != 3).Count(answer => answer) >= 2;
     }
 
+    internal static string PopulationFingerprint(IEnumerable<string> orderedCandidates) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\0", orderedCandidates))));
+
+    internal static void RecordPopulationEvaluation(DotNetAiCodeHygiene.Core.Sampling.PopulationHazardSampler sampler,
+        string unit, string fingerprint, int candidateCount, long cursor)
+    {
+        var old = sampler.State(unit);
+        if (old.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(old.LastEvaluationFingerprint, fingerprint)) { sampler.AddHazard(unit, 1); }
+        double previousCount = old.LastCandidateCount ?? 0;
+        sampler.AccrueElapsed(unit, cursor, previousCount * YearlyHazardRate);
+        sampler.SetEvaluationMetadata(unit, fingerprint, candidateCount);
+    }
+
     public RuleModuleResult Evaluate(RuleContext context)
     {
         var populationSampler = context.Sampling.PopulationSampler(RuleId, 1);
         long cursor = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        const double yearlyRate = 1d / (365d * 24d * 60d * 60d);
         var subjects = new List<ReviewSubject>();
         var sourceContents = new Dictionary<string, string>(StringComparer.Ordinal);
         var units = new List<(string Path, string Fingerprint, List<ReviewSubject> Subjects)>();
@@ -51,8 +64,6 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
                 .Where(pair => pair.Symbol is not null)
                 .Select(pair => (pair.Node, Symbol: pair.Symbol!, Identity: pair.Symbol!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                 .OrderBy(pair => pair.Node.SpanStart).ThenBy(pair => pair.Identity, StringComparer.Ordinal).ToArray();
-            if (declarations.Length == 0) { continue; }
-
             var current = new List<ReviewSubject>(declarations.Length);
             foreach (var declaration in declarations)
             {
@@ -63,12 +74,10 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
                     declaration.Identity, "", declaration.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
                 current.Add(new ReviewSubject(itemIdentity, declarationText, item));
             }
-            string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\0", current.Select(x => x.Content)))));
-            var old = populationSampler.State(path);
-            if (old.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(old.LastEvaluationFingerprint, fingerprint)) { populationSampler.AddHazard(path, 1); }
-            double previousCount = old.LastCandidateCount ?? 0;
-            populationSampler.AccrueElapsed(path, cursor, previousCount * yearlyRate);
-            populationSampler.SetEvaluationMetadata(path, fingerprint, current.Count);
+            if (current.Count == 0 && !populationSampler.States.Any(state => StringComparer.Ordinal.Equals(state.UnitId, path))) { continue; }
+            string fingerprint = PopulationFingerprint(current.Select(x => x.Content));
+            RecordPopulationEvaluation(populationSampler, path, fingerprint, current.Count, cursor);
+            if (current.Count == 0) { continue; }
             subjects.AddRange(current);
             sourceContents[path] = source;
             units.Add((path, fingerprint, current));
