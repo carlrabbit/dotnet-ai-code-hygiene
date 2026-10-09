@@ -82,23 +82,41 @@ internal sealed class SamplingSession
     internal bool IsLoaded => true;
     internal void Commit()
     {
-        if (!dirty) { return; }
+        using PreparedSamplingCommit? prepared = PrepareCommit();
+        if (prepared is null) { return; }
+        prepared.Publish();
+        prepared.Complete();
+    }
+
+    internal PreparedSamplingCommit? PrepareCommit()
+    {
+        if (!dirty) { return null; }
         var active = subjects.Keys.Concat(populations.Keys).Select(ParseKey).ToArray();
         var rules = state.Rules.Where(old => !active.Any(current => current.Rule == old.RuleId && current.Model == old.Model)).ToList();
         rules.AddRange(subjects.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "subject", x.Value.StateEpoch, x.Value.States.ToArray())));
         rules.AddRange(populations.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "population", x.Value.StateEpoch, Populations: x.Value.States.ToArray())));
         string content = JsonSerializer.Serialize(state with { Rules = rules.ToArray() }, Json);
-        if (File.Exists(path) ? File.ReadAllText(path) != original : original is not null) { throw new ProductException("Sampling state changed concurrently; retry the command."); }
+        VerifyUnchanged();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             File.WriteAllText(temp, content, new UTF8Encoding(false));
             beforeCommit?.Invoke();
-            if (File.Exists(path) ? File.ReadAllText(path) != original : original is not null) { throw new ProductException("Sampling state changed concurrently; retry the command."); }
-            if (File.Exists(path)) { File.Replace(temp, path, null); } else { File.Move(temp, path); }
+            VerifyUnchanged();
+            return new PreparedSamplingCommit(path, temp, original, content, VerifyUnchanged);
         }
-        finally { if (File.Exists(temp)) { File.Delete(temp); } }
+        catch
+        {
+            if (File.Exists(temp)) { File.Delete(temp); }
+            throw;
+        }
+    }
+
+    private void VerifyUnchanged()
+    {
+        if (File.Exists(path) ? File.ReadAllText(path) != original : original is not null)
+        { throw new ProductException("Sampling state changed concurrently; retry the command."); }
     }
 
     private static bool IsSeed(string seed) { try { return Convert.FromHexString(seed).Length == 32 && seed == seed.ToUpperInvariant(); } catch (FormatException) { return false; } }
@@ -109,16 +127,17 @@ internal sealed class SamplingSession
         {
             SubjectHazardState[] subjects = value.Subjects ?? [];
             return value.Populations is null && subjects.All(x => x is not null) && subjects.Select(x => x.SubjectId).Distinct(StringComparer.Ordinal).Count() == subjects.Length
-                && subjects.All(x => x is not null && !string.IsNullOrEmpty(x.SubjectId) && x.Generation >= 0 && double.IsFinite(x.Hazard) && x.Hazard >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastObservedUnixSeconds is null || double.IsFinite(x.LastObservedUnixSeconds.Value)));
+                && subjects.All(x => x is not null && !string.IsNullOrEmpty(x.SubjectId) && x.Generation >= 0 && double.IsFinite(x.Hazard) && x.Hazard >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastObservedUnixSeconds is null || double.IsFinite(x.LastObservedUnixSeconds.Value)) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)));
         }
         if (value.Model == "population")
         {
             PopulationHazardState[] populations = value.Populations ?? [];
             return value.Subjects is null && populations.All(x => x is not null) && populations.Select(x => x.UnitId).Distinct(StringComparer.Ordinal).Count() == populations.Length
-                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0));
+                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)) && (x.LastCandidateCount is null || x.LastCandidateCount >= 0));
         }
         return false;
     }
+    private static bool IsFingerprint(string fingerprint) => fingerprint.Length == 64 && fingerprint.All(Uri.IsHexDigit) && fingerprint == fingerprint.ToUpperInvariant();
     private static string Key(string id, int ruleVersion, int modelVersion, string model) => $"{model}\0{id}\0{ruleVersion}\0{modelVersion}";
     private void EnsureSingleActiveVersion(string ruleId, string model, int ruleVersion, int modelVersion)
     {
@@ -130,4 +149,55 @@ internal sealed class SamplingSession
         if (string.IsNullOrWhiteSpace(ruleId) || ruleVersion < 1 || modelVersion < 1) { throw new ArgumentException("Sampling rule identity and versions must be valid."); }
     }
     private static (string Model, string Rule, int RuleVersion, int ModelVersion) ParseKey(string key) { var p = key.Split('\0'); return (p[0], p[1], int.Parse(p[2]), int.Parse(p[3])); }
+}
+
+/// <summary>A prepared sampling-state replacement that can be rolled back while a check publishes its latest-run file.</summary>
+internal sealed class PreparedSamplingCommit(string path, string tempPath, string? original, string content, Action verifyUnchanged) : IDisposable
+{
+    private readonly string backupPath = path + "." + Guid.NewGuid().ToString("N") + ".rollback";
+    private bool published;
+    private bool completed;
+
+    internal void Publish()
+    {
+        verifyUnchanged();
+        if (File.Exists(path)) { File.Replace(tempPath, path, backupPath); }
+        else { File.Move(tempPath, path); }
+        published = true;
+    }
+
+    internal void Rollback()
+    {
+        if (!published || completed) { return; }
+        if (original is null)
+        {
+            if (File.Exists(path) && File.ReadAllText(path) == content) { File.Delete(path); }
+        }
+        else
+        {
+            if (!File.Exists(backupPath)) { throw new IOException("Sampling rollback copy is unavailable."); }
+            if (!File.Exists(path) || File.ReadAllText(path) != content)
+            { throw new ProductException("Sampling state changed concurrently; retry the command."); }
+            File.Replace(backupPath, path, null);
+        }
+        published = false;
+    }
+
+    internal void Complete()
+    {
+        completed = true;
+        Cleanup();
+    }
+
+    public void Dispose()
+    {
+        try { if (!completed && published) { Rollback(); } }
+        finally { Cleanup(); }
+    }
+
+    private void Cleanup()
+    {
+        if (File.Exists(tempPath)) { File.Delete(tempPath); }
+        if (File.Exists(backupPath)) { File.Delete(backupPath); }
+    }
 }

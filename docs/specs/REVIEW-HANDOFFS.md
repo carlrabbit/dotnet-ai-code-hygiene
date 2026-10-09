@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A semantic review handoff is a durable, transport-neutral request for frontier/planner review.
+A semantic review handoff is a durable, transport-neutral request for the rule's escalated reviewer class (`frontier` or `planner`).
 
 It supports both operating modes:
 
@@ -108,7 +108,7 @@ Required semantics:
 - `createdAtUtc` records artifact creation, not semantic acceptance.
 - `source.runId` and `source.batchHandle` tie the artifact to latest-run evidence.
 - `mode` is exactly `expanded`.
-- `reviewerClass` is exactly `frontier`.
+- `reviewerClass` is the fixed escalated reviewer class owned by the rule: `frontier` for summary rules and `planner` for `architecture.boringness.review`.
 - `populationCount` equals `items.length`.
 - `questions` are exactly the rule's fixed rubric.
 - `items` represent the complete revalidated eligible population.

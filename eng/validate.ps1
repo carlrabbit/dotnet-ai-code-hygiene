@@ -15,7 +15,7 @@ dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --confi
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
 
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.6.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.7.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -42,7 +42,7 @@ if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256
 "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
 $previousNugetPackages = $env:NUGET_PACKAGES
 $env:NUGET_PACKAGES = $nugetCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.6.0
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.7.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { $hygiene = Join-Path $toolPath 'hygiene' }
@@ -56,7 +56,7 @@ try {
     & $hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = & $hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.6\.0') { throw 'Installed hygiene version does not match 0.6.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.7\.0') { throw 'Installed hygiene version does not match 0.7.0.' }
     & $hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = & $hygiene bootstrap --output json | ConvertFrom-Json
@@ -109,25 +109,47 @@ try {
     if ($LASTEXITCODE -ne 0 -or $updateAgain.findingCount -ne 0 -or $updateAgain.changedPaths.Count -ne 0) { throw 'Installed update was not idempotent after migration.' }
     $rules = & $hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
-    if ($rules.rules.Count -ne 14 -or -not (($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format)) { throw 'Installed rule capabilities are incomplete.' }
+    if ($rules.rules.Count -ne 15 -or -not (($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format)) { throw 'Installed rule capabilities are incomplete.' }
     if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
-    Set-Content -NoNewline -Path Sample.cs -Value "/// <summary>Sample API</summary>`npublic class Sample { public void Run() { } }`n"
+    if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }
+    $reviewSource = @('/// <summary>Sample API</summary>', 'public class Sample { public void Run() { } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
+    Set-Content -NoNewline -Path Sample.cs -Value ($reviewSource -join "`n")
     $check = & $hygiene check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.summary.required')) { throw 'Installed check did not report a missing API summary.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.text.sentence')) { throw 'Installed check did not report missing summary punctuation.' }
     $quality = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
     $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
-    if (-not $quality -or $quality.ruleVersion -ne 3 -or -not $german -or $german.ruleVersion -ne 1) { throw 'Installed check did not emit the independent v3 quality and v1 German review batches.' }
+    if (-not $quality -or $quality.ruleVersion -ne 4 -or $quality.sampleCount -ne 5 -or -not $german -or $german.ruleVersion -ne 2) { throw 'Installed check did not emit the independent v4 quality and v2 German review batches.' }
+    if (-not ($check.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Installed check omitted BORINGness review.' }
+    $internalFields = 'samplingTicket|stateEpoch|repositorySeed|hazard|threshold|evaluationFingerprint|aggregateEvidence'
+    if (($check | ConvertTo-Json -Depth 32) -match $internalFields) { throw 'Installed check exposed internal sampling metadata.' }
+    $firstQualityItem = $quality.items[0].id
+    $accepted = & $hygiene review accept $quality.handle $firstQualityItem --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $accepted.acceptedCount -ne 1 -or $accepted.ruleId -ne 'docs.summary.quality.review') { throw 'Installed explicit review accept failed.' }
+    $checkAgain = & $hygiene check --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Installed follow-up hygiene check failed.' }
+    $qualityAgain = $checkAgain.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
+    $germanAgain = $checkAgain.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
+    $boringness = $checkAgain.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review'
+    $acceptedAll = & $hygiene review accept $qualityAgain.handle --all --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $acceptedAll.acceptedCount -ne $qualityAgain.sampleCount) { throw 'Installed review accept --all did not consume exactly the current normal sample.' }
     if (-not ($german.questions[0].text -match 'natural, comprehensible German')) { throw 'Installed German review rubric is incorrect.' }
-    $expanded = & $hygiene review expand $quality.handle --output json | ConvertFrom-Json
+    $expanded = & $hygiene review expand $qualityAgain.handle --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $expanded.reviewBatch.mode -ne 'expanded' -or $expanded.reviewBatch.ruleId -ne 'docs.summary.quality.review') { throw 'Installed summary review expansion failed or selected the wrong batch.' }
-    $handoff = & $hygiene review handoff $german.handle
+    $boringExpanded = & $hygiene review expand $boringness.handle --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $boringExpanded.reviewBatch.items.Count -lt 32) { throw 'Installed BORINGness expansion did not retain the complete type population.' }
+    $handoff = & $hygiene review handoff $germanAgain.handle
     if ($LASTEXITCODE -ne 0 -or $handoff -notmatch 'Review handoff written: ') { throw 'Installed German review handoff failed.' }
+    $plannerHandoff = & $hygiene review handoff $boringness.handle
+    if ($LASTEXITCODE -ne 0 -or $plannerHandoff -notmatch 'Review handoff written: ') { throw 'Installed BORINGness planner handoff failed.' }
+    $plannerPath = $plannerHandoff.Substring('Review handoff written: '.Length).Trim()
+    $plannerRequest = Get-Content -LiteralPath $plannerPath -Raw | ConvertFrom-Json
+    if ($plannerRequest.reviewerClass -ne 'planner' -or $plannerRequest.populationCount -lt 32 -or $plannerRequest.PSObject.Properties.Name -match 'result|ticket|hazard') { throw 'Installed BORINGness planner handoff contract is invalid.' }
     & $hygiene rules disable docs.summary.language.german.review | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
     $qualityOnly = & $hygiene check --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 1 -or $qualityOnly.reviewBatches[0].ruleId -ne 'docs.summary.quality.review') { throw 'Disabling the installed German rule changed or removed language-neutral quality review.' }
+    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 2 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Disabling the installed German rule changed or removed other semantic-review rules.' }
 }
 finally {
     Pop-Location
@@ -139,7 +161,7 @@ $selfCheck = & dotnet .\src\DotNetAiCodeHygiene.Cli\bin\Release\net11.0\DotNetAi
 if ($LASTEXITCODE -ne 0) { throw 'Repository self-host hygiene check failed.' }
 $qualityBatch = $selfCheck.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
 $germanBatch = $selfCheck.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
-if (-not $qualityBatch -or $germanBatch) { throw 'Repository self-host check did not retain M0006 German-disable and generic-quality behavior.' }
+if (-not $qualityBatch -or $germanBatch -or -not ($selfCheck.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Repository self-host check did not retain the German disable, quality review, and BORINGness rule behavior.' }
 git diff --check
 if ($LASTEXITCODE -ne 0) { throw 'Repository diff whitespace check failed.' }
 Write-Output 'Tier-4 exact installed consumer validation passed; repository M0006 self-host behavior passed.'

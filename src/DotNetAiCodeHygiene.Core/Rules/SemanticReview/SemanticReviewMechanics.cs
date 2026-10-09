@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -9,20 +10,28 @@ internal interface ISemanticReviewRuleModule : IRuleModule
     public int BatchNumber { get; }
     public IReadOnlyList<ReviewQuestion> Questions { get; }
     public string EscalationCondition { get; }
+    public string EscalatedReviewerClass { get; }
 }
+
+internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, SubjectTicket? SubjectTicket, PopulationTicket? PopulationTicket);
+internal sealed record ReviewBatchMaterialization(ReviewBatch Batch, IReadOnlyList<ReviewTicketAssociation> Tickets);
+internal sealed record SemanticReviewMaterialization(ReviewBatch[] Batches, ReviewTicketAssociation[] Tickets);
 
 internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRuleModule> modules)
 {
-    internal ReviewBatch[] BuildBatches(string run, IReadOnlyList<RuleModuleExecution> executions)
+    internal SemanticReviewMaterialization BuildBatches(string run, IReadOnlyList<RuleModuleExecution> executions)
     {
         var byId = executions.ToDictionary(execution => execution.Descriptor.Id, StringComparer.Ordinal);
-        return modules.Where(module => byId.ContainsKey(module.Descriptor.Id))
+        ReviewBatchMaterialization[] built = modules.Where(module => byId.ContainsKey(module.Descriptor.Id))
             .Select(module =>
             {
                 RuleModuleResult result = byId[module.Descriptor.Id].Result;
                 return HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
-                    result.ReviewSubjects, result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), module.Questions, module.EscalationCondition);
+                    result.ReviewSubjects, result.SelectedReviewSubjects ?? result.ReviewSubjects,
+                    result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+                    module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass);
             }).ToArray();
+        return new(built.Select(x => x.Batch).ToArray(), built.SelectMany(x => x.Tickets).ToArray());
     }
 }
 
@@ -50,6 +59,7 @@ internal static class SummaryReviewPopulation
                 var position = tree.GetLineSpan(new Microsoft.CodeAnalysis.Text.TextSpan(subject.SourceOffset, 0)).StartLinePosition;
                 string reviewSymbol;
                 string declaration;
+                string project = context.ProjectIdentity(document);
                 if (subject.IsPositionalRecordProperty)
                 {
                     ISymbol recordSymbol = context.SemanticModel(document).GetDeclaredSymbol(subject.Declaration)!;
@@ -62,7 +72,8 @@ internal static class SummaryReviewPopulation
                     declaration = subject.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 }
                 var item = new ReviewItem("", path, position.Line + 1, position.Character + 1, reviewSymbol, subject.Summary, declaration);
-                subjects.Add(new ReviewSubject(path + "\0" + subject.Anchor, subject.CarrierContent, item));
+                subjects.Add(new ReviewSubject(project + "\0" + path + "\0" + subject.Anchor,
+                    subject.CarrierContent + "\0" + subject.Declaration.ToFullString(), item));
                 sourceContents.TryAdd(path, context.Text(document).ToString());
             }
         }

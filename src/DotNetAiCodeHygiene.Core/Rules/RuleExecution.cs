@@ -4,12 +4,14 @@ using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
-internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item);
+internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, SubjectTicket? SubjectTicket = null, PopulationTicket? PopulationTicket = null);
 
 internal sealed record RuleModuleResult(
     IReadOnlyList<Finding> Findings,
     IReadOnlyList<ReviewSubject> ReviewSubjects,
-    IReadOnlyDictionary<string, string> ReviewSourceContents)
+    IReadOnlyDictionary<string, string> ReviewSourceContents,
+    IReadOnlyList<ReviewSubject>? SelectedReviewSubjects = null,
+    string ReviewerClass = "implementer")
 {
     internal static RuleModuleResult FindingsOnly(IEnumerable<Finding> findings) => new(findings.ToArray(), [], new Dictionary<string, string>());
     internal static RuleModuleResult Empty { get; } = FindingsOnly([]);
@@ -24,14 +26,15 @@ internal enum SamplingExecutionBoundary
 }
 
 /// <summary>Lazy services available to production rule modules for this command.</summary>
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit)
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit, Action? beforeSamplingCommit = null)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
-    private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root, beforeSamplingCommit), LazyThreadSafetyMode.ExecutionAndPublication);
 
     internal RepositorySession Session { get; } = session;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
     internal string RelativePath(Document document) => document.FilePath is string path ? Session.Relative(path) : document.Name;
+    internal string ProjectIdentity(Document document) => document.Project.FilePath is string path ? Session.Relative(path) : document.Project.Name;
     internal SourceText Text(Document document) => Session.GetFact(("source-text", document.Id), () => document.GetTextAsync().GetAwaiter().GetResult());
     internal SyntaxTree Tree(Document document) => Session.GetFact(("syntax-tree", document.Id), () => document.GetSyntaxTreeAsync().GetAwaiter().GetResult() ?? throw new ProductException($"Roslyn did not provide syntax for '{document.FilePath}'."));
     internal SyntaxNode Root(Document document) => Session.GetFact(("syntax-root", document.Id), () => Tree(document).GetRoot());
@@ -47,6 +50,11 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal void CompleteSampling()
     {
         if (samplingBoundary == SamplingExecutionBoundary.Commit && sampling.IsValueCreated) { sampling.Value.Commit(); }
+    }
+    internal PreparedSamplingCommit? PrepareSamplingCommit()
+    {
+        if (samplingBoundary != SamplingExecutionBoundary.Commit || !sampling.IsValueCreated) { return null; }
+        return sampling.Value.PrepareCommit();
     }
 }
 
@@ -87,7 +95,7 @@ internal static class RuleCatalog
         new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(),
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
-        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule()
+        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule()
     ];
 
     internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor with

@@ -4,16 +4,16 @@ AI-first code hygiene tooling for deterministic hygiene analysis and bounded sem
 
 ## Status
 
-The project targets Windows 11 and the .NET 11 SDK line. The installable `0.6.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and installed-consumer validation.
+The project targets Windows 11 and the .NET 11 SDK line. The installable `0.7.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and statistically scheduled semantic review.
 
-M0003 adds bounded semantic review batches. The CLI selects what should be reviewed; the current implementation agent judges the sample. If the sample is materially poor or uncertain, the caller explicitly expands the batch for frontier-capability review. The CLI itself never invokes a model.
+The CLI discovers complete review populations and selects due work using each semantic rule's fixed statistical policy. A coding agent or human answers the questions. Confidently acceptable normal sample items advance local sampling state only after explicit `review accept`; negative or uncertain items remain due and can be expanded or handed off. The CLI itself never invokes a model or provider.
 
 ```text
 generated or edited code
 -> deterministic findings
--> bounded semantic review sample
--> implementer review
--> explicit frontier escalation only when needed
+-> statistically selected semantic review work
+-> explicit accepted observation
+-> frontier or planner escalation when needed
 -> remediation by the calling agent
 ```
 
@@ -24,7 +24,7 @@ Windows 11 and the .NET 11 SDK line are the supported platform. The package is l
 Install the tool package from the configured NuGet source:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.6.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.7.0
 hygiene --version
 hygiene help --agent
 ```
@@ -56,23 +56,32 @@ implement/change code
 
 Commands select enabled rule capabilities: disabling an unrelated diagnostic rule does not disable normalization, and disabling a rewrite rule prevents its own transformation. Findings remain deterministic and can be explained or explicitly ignored. Semantic review remains caller-judged; uncertain or materially negative sample answers can be escalated with `hygiene review expand` or written as a durable handoff with `hygiene review handoff`, locally or to an explicit external file. The CLI invokes no model.
 
-M0003 review workflow:
+M0011 semantic review workflow:
 
 ```text
 hygiene check
+hygiene review accept <batch-handle> <item-id>...
+hygiene review accept <batch-handle> --all
 hygiene review expand <batch-handle>
 hygiene review handoff <batch-handle> [--file <path>]
 ```
 
-`hygiene check` reports deterministic findings and one semantic review batch for each enabled semantic review rule. `docs.summary.quality.review` samples up to five valid, non-empty XML summaries for technical correctness, information value, and clarity/scope. `docs.summary.language.german.review` independently reviews whether summaries are natural, comprehensible German. Each rule is enabled or disabled as a whole; neither has language or other parameters. This English repository disables only the German-language rule in `.hygiene/config.json`.
+`hygiene check` reports deterministic findings and one semantic-review batch for each enabled semantic-review rule. Each batch shows `SampleCount/PopulationCount`; a non-empty eligible population can have zero currently due items. The quality and German rules independently sample documentation subjects. `architecture.boringness.review` samples at most one source-backed type from each due C# file and uses the fixed five-question rubric to identify architectural pressure for planner attention. Legitimate external-service, persistence, platform, and interoperability boundaries may be justified. Each rule is enabled or disabled as a whole; none has repository-supplied sampling or rubric parameters. This English repository disables only the German-language rule in `.hygiene/config.json`.
 
-The implementation agent reviews each normal sample against that rule's published questions. Confidently acceptable answers need no further action. If an answer materially fails or the implementation agent is uncertain, explicitly expand that batch and hand the complete eligible population to a frontier-capability reviewer:
+The reviewer checks each normal sampled item against that rule's questions. When all required answers are confidently acceptable and no escalation condition applies, record the observation explicitly:
+
+```text
+hygiene review accept B-1 RI-1 RI-3
+hygiene review accept B-1 --all
+```
+
+`--all` accepts only the current normal sample. Acceptance revalidates the batch and its tickets and commits requested observations atomically. If an answer materially fails or is uncertain, leave it unaccepted and expand or hand off the complete eligible population:
 
 ```text
 hygiene review expand B-1
 ```
 
-`review expand B-1` is a transient stdout operation for a colocated frontier reviewer. It accepts a bare batch ID or a fully qualified latest-run handle such as `R-7K2M9P/B-1` and emits the full revalidated population.
+`review expand B-1` is a transient stdout operation for the rule's escalated reviewer (`frontier` for summaries, `planner` for BORINGness). It accepts a bare batch ID or a fully qualified latest-run handle such as `R-7K2M9P/B-1` and emits the full revalidated population, including items that were not due in the normal sample.
 
 `review handoff B-1` creates a durable JSON request at `.hygiene/reviews/<handoff-id>/request.json`. This namespaced folder is intentionally not Git-ignored, so a team can include the request in the same branch or PR. The CLI does not commit it; whether to add the artifact is a caller/team decision.
 
@@ -82,8 +91,6 @@ For a completely decoupled frontier reviewer, choose an external destination:
 hygiene review handoff B-1 --file "G:\My Drive\Transfer\HR-R7K2M9P-B1-request.json"
 ```
 
-Both handoff forms use the same latest-run and population revalidation as `review expand`. The request embeds full source text for each file containing a review item, and no unrelated source files. Choose only a destination appropriate for that repository source. The CLI writes the file locally; it does not transmit source, invoke Git, or commit the request.
+Both handoff forms use the same latest-run and population revalidation as `review expand`. Summary handoffs target a frontier reviewer; BORINGness handoffs target a planner. The request embeds full source text for each file containing a review item. The CLI writes the file locally; it does not transmit source, invoke Git, or commit the request.
 
-The CLI never invokes a model or determines whether prose passes. No engine-managed semantic-review history or result ingestion exists; a request is an explicit review work product, not review acceptance state.
-
-Formatting, normalization, and installed-tool consumer validation move to M0004.
+The CLI never invokes a model/provider and does not determine whether a review passes. `.hygiene/.state/sampling.json` owns transparent local statistical state. Expansion and handoff do not advance it; there is no negative/uncertain observation command or external result import.

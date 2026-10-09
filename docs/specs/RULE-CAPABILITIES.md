@@ -287,7 +287,7 @@ With all new M0010 configurable rules enabled:
 
 A deliberate disable changes only the disabled rule's owned capabilities.
 
-## Canonical rule order after M0010
+## Canonical rule order after M0011
 
 ```text
 1.  profile.dotnet.analysis.required          v2
@@ -300,13 +300,14 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 8.  docs.summary.required                     v2
 9.  docs.xml.consistent                       v1
 10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v3
-12. docs.summary.language.german.review       v1
+11. docs.summary.quality.review               v4
+12. docs.summary.language.german.review       v2
 13. readability.long-line.review              v1
 14. readability.control-flow.visual-block     v1
+15. architecture.boringness.review            v1
 ```
 
-The relative order of all pre-M0010 rules remains unchanged.
+The relative order of all pre-M0011 rules remains unchanged. M0011 adds the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. It owns aggregate document sampling and the fixed BORINGness rubric defined in `docs/specs/SEMANTIC-REVIEWS.md`.
 
 ## Non-goals
 

@@ -35,6 +35,7 @@ Rules/
   Documentation/
   SemanticReview/
   Readability/
+  Architecture/
   Profile/
 ```
 
@@ -155,7 +156,7 @@ Profile mutation and source rewrite semantics remain independently regression-co
 | Documentation | architecture/spec consistency | repository review |
 | Human | modularity/BORING architecture, locality, and behavior preservation | project owner/delegate |
 
-Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. For M0010, this includes the exact 0.6.0 package and dotnet-11 v1-to-v2 migration.
+Tier 4 must invoke the installed `hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. M0010 validated the exact 0.6.0 package and dotnet-11 v1-to-v2 migration. M0011 validates the exact 0.7.0 package, explicit review acceptance, summary rotation, and BORINGness planner handoff.
 
 ## Regression expectations
 
@@ -172,4 +173,4 @@ Architecture/refactoring work must preserve:
 
 No external specialist analyzer is currently approved. No StyleCop compatibility, model client, MCP, IDE integration, other language, hosted CI, public plugin architecture, statistical sampling subsystem, persistent analysis cache, speculative repository index, localization framework, or rule metadata DSL is introduced merely for rule locality.
 
-Statistical sampling mechanics are specified by `docs/specs/SAMPLING.md`. Future rules may explicitly use the lazy subject-state or aggregate population sampler; they own their hazard, cohort, retention, and prior policy. Sampling state is transparent JSON under `.hygiene/.state/` and remains separate from transient session facts. Existing rules do not opt in by default.
+Statistical sampling is an exceptional policy for expensive semantic judgment, not a universal rule default. The two documentation-summary semantic-review rules use independent subject-state sampling; `architecture.boringness.review` uses aggregate population sampling over source documents with transient type candidates. Each rule owns its hazard, population, and rubric policy as specified in `docs/specs/SEMANTIC-REVIEWS.md`; the shared mechanics and state are specified in `docs/specs/SAMPLING.md`. Mechanical deterministic rules remain exhaustive unless a milestone explicitly versions them to opt into sampling. Sampling state is transparent JSON under `.hygiene/.state/` and remains separate from transient session facts.

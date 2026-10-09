@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
@@ -94,6 +95,115 @@ public sealed class SamplingTests
         bool backwardsRejected = false;
         try { populations.AccrueElapsed("scope", 3_999, 2); } catch (ArgumentOutOfRangeException) { backwardsRejected = true; }
         await Assert.That(backwardsRejected).IsTrue();
+    }
+
+    [Test]
+    public async Task AcceptedSubjectObservationStartsElapsedAgingAtObservationTime()
+    {
+        var sampler = new SubjectHazardSampler(Seed, "observation-clock.rule", 1, 1, "observation-clock-epoch");
+        sampler.AddHazard("subject", 100d);
+        sampler.AccrueElapsed("subject", 1_000, 1d);
+        SubjectTicket ticket = sampler.Due("subject")!.Ticket;
+
+        await Assert.That(sampler.Observe(ticket, at: DateTimeOffset.FromUnixTimeMilliseconds(11_000))).IsTrue();
+        await Assert.That(sampler.State("subject").LastEvaluationCursorUnixMilliseconds).IsEqualTo(11_000L);
+        await Assert.That(sampler.State("subject").Hazard).IsEqualTo(0d);
+
+        sampler.AccrueElapsed("subject", 16_000, 1d);
+        await Assert.That(sampler.State("subject").Hazard).IsEqualTo(5d);
+    }
+
+    [Test]
+    public async Task EvaluationMetadataDistinguishesFirstUnchangedAndChangedSubjectAndAggregateEvaluations()
+    {
+        var subject = new SubjectHazardSampler(Seed, "metadata.subject", 1, 1);
+        var first = subject.State("subject");
+        await Assert.That(first.LastEvaluationFingerprint).IsNull();
+        subject.AddHazard("subject", 1);
+        subject.AccrueElapsed("subject", 1_000, 1d / (365 * 24 * 60 * 60));
+        subject.SetEvaluationFingerprint("subject", new string('A', 64));
+        double initialHazard = subject.State("subject").Hazard;
+        await Assert.That(initialHazard).IsEqualTo(1d);
+        subject.AccrueElapsed("subject", 1_000, 1d / (365 * 24 * 60 * 60));
+        await Assert.That(subject.State("subject").Hazard).IsEqualTo(initialHazard);
+        subject.AddHazard("subject", 1);
+        subject.SetEvaluationFingerprint("subject", new string('B', 64));
+        await Assert.That(subject.State("subject").Hazard).IsEqualTo(2d);
+
+        var population = new PopulationHazardSampler(Seed, "metadata.population", 1, 1);
+        population.AddHazard("file.cs", 1);
+        population.AccrueElapsed("file.cs", 1_000, 0);
+        population.SetEvaluationMetadata("file.cs", new string('A', 64), 4);
+        await Assert.That(population.State("file.cs").LastCandidateCount).IsEqualTo(4);
+        double beforeElapsed = population.State("file.cs").ResidualHazard;
+        population.AccrueElapsed("file.cs", 31_536_001_000, 4d / (365 * 24 * 60 * 60));
+        population.SetEvaluationMetadata("file.cs", new string('A', 64), 6);
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(4d);
+        await Assert.That(population.State("file.cs").LastCandidateCount).IsEqualTo(6);
+        population.AccrueElapsed("file.cs", 31_536_001_000, 6d / (365 * 24 * 60 * 60));
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(4d);
+        population.AddHazard("file.cs", 1);
+        population.SetEvaluationMetadata("file.cs", new string('B', 64), 3);
+        await Assert.That(population.State("file.cs").ResidualHazard - beforeElapsed).IsEqualTo(5d);
+    }
+
+    [Test]
+    public async Task BoringnessZeroCandidatePopulationTransitionsResetTheAggregateBaseline()
+    {
+        const long yearMilliseconds = 365L * 24 * 60 * 60 * 1000;
+        const string unit = "src/Tracked.cs";
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-boringness-zero-population-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            string populated = BoringnessReviewRuleModule.PopulationFingerprint(["type-a", "type-b", "type-c", "type-d"]);
+            string empty = BoringnessReviewRuleModule.PopulationFingerprint([]);
+            var firstSession = new SamplingSession(repository);
+            var firstSampler = firstSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 1);
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, populated, 4, 0);
+            await Assert.That(firstSampler.State(unit).ResidualHazard).IsEqualTo(1d);
+            await Assert.That(firstSampler.State(unit).LastCandidateCount).IsEqualTo(4);
+            await Assert.That(firstSampler.State(unit).LastEvaluationCursorUnixMilliseconds).IsEqualTo(0L);
+
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, empty, 0, yearMilliseconds);
+            var zero = firstSampler.State(unit);
+            await Assert.That(zero.LastEvaluationFingerprint).IsEqualTo(empty);
+            await Assert.That(zero.LastCandidateCount).IsEqualTo(0);
+            await Assert.That(zero.LastEvaluationCursorUnixMilliseconds).IsEqualTo(yearMilliseconds);
+            await Assert.That(zero.ResidualHazard).IsEqualTo(6d);
+            await Assert.That(firstSampler.SelectSubjects(unit, [], 1)).IsEmpty();
+            await Assert.That(firstSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
+            firstSession.Commit();
+
+            using (JsonDocument persistedZero = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, ".hygiene", ".state", "sampling.json"))))
+            {
+                JsonElement persisted = persistedZero.RootElement.GetProperty("Rules").EnumerateArray().Single(rule => rule.GetProperty("RuleId").GetString() == BoringnessReviewRuleModule.RuleId).GetProperty("Populations")[0];
+                await Assert.That(persisted.GetProperty("LastCandidateCount").GetInt32()).IsEqualTo(0);
+                await Assert.That(persisted.GetProperty("LastEvaluationFingerprint").GetString()).IsEqualTo(empty);
+                await Assert.That(persisted.GetProperty("LastEvaluationCursorUnixMilliseconds").GetInt64()).IsEqualTo(yearMilliseconds);
+                await Assert.That(persisted.GetProperty("UnitId").GetString()).IsEqualTo(unit);
+            }
+
+            var secondSession = new SamplingSession(repository);
+            var secondSampler = secondSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 1);
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, empty, 0, 2 * yearMilliseconds);
+            var stillZero = secondSampler.State(unit);
+            await Assert.That(stillZero.LastEvaluationCursorUnixMilliseconds).IsEqualTo(2 * yearMilliseconds);
+            await Assert.That(stillZero.LastCandidateCount).IsEqualTo(0);
+            await Assert.That(stillZero.ResidualHazard).IsEqualTo(6d);
+
+            string returned = BoringnessReviewRuleModule.PopulationFingerprint(["type-e"]);
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, returned, 1, 3 * yearMilliseconds);
+            var reappeared = secondSampler.State(unit);
+            await Assert.That(reappeared.LastEvaluationFingerprint).IsEqualTo(returned);
+            await Assert.That(reappeared.LastCandidateCount).IsEqualTo(1);
+            await Assert.That(reappeared.LastEvaluationCursorUnixMilliseconds).IsEqualTo(3 * yearMilliseconds);
+            await Assert.That(reappeared.ResidualHazard).IsEqualTo(7d);
+            await Assert.That(secondSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
+            await Assert.That(secondSampler.SelectSubjects(unit, ["transient-type-e"], 1).Count).IsEqualTo(1);
+            secondSession.Commit();
+        }
+        finally { Directory.Delete(repository, recursive: true); }
     }
 
     [Test]
