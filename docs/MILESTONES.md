@@ -104,3 +104,19 @@ Primary milestone:
 ```text
 docs/milestones/M0011-statistical-semantic-review-adoption.md
 ```
+
+## M0012 — Activity-Based Sampling Age
+**State:** planned
+**Mode:** AI-executed, human-reviewed
+
+Replace day-based hazard policies with a minimal project-scoped source-churn age approximation while keeping the two statistical samplers and rule-owned hazard contracts.
+
+Primary milestone: `docs/milestones/M0012-activity-based-sampling-age.md`.
+
+## M0013 — Cross-Repository Sampling Age Experiment
+**State:** proposed; not executed
+**Mode:** AI-executed, human-reviewed
+
+Replay and compare sampling policies across diverse repositories, then publish reproducible findings in project documentation. Depends on completed M0012.
+
+Primary milestone: `docs/milestones/M0013-cross-repository-age-validation.md`.
