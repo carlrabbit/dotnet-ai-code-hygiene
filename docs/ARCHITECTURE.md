@@ -50,7 +50,7 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
-Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. The summary quality and German-language semantic-review rules use subject-state sampling; the BORINGness review uses aggregate population sampling. The shared substrate stores opaque rule evaluation fingerprints and cursors, while rule modules retain eligibility, hazard, selection, and observation policy.
+Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. The summary quality and German-language semantic-review rules use subject-state sampling; the BORINGness review uses aggregate population sampling and consumes a versioned project-scoped source-activity total. The shared substrate stores opaque rule evaluation fingerprints, optional elapsed cursors for future time-based rules, and BORINGness age positions; rule modules retain eligibility, hazard, selection, and observation policy.
 
 ## Reporting scope versus readable context
 
@@ -233,7 +233,7 @@ No selected source file is committed before complete planning and required valid
 
 ## Sampling boundary
 
-Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists only transparent per-subject or per-population-unit state and generic evaluation metadata. It does not introduce a candidate index, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
+Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists transparent per-subject or per-population-unit state and generic evaluation metadata. M0012 also persists eligible source snapshots and normalized activity totals per project for BORINGness; it introduces no candidate index, external telemetry, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
 
 Existing deterministic semantic-review sampling remains supported.
 

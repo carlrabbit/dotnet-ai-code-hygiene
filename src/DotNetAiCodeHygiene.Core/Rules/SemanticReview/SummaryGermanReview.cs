@@ -9,7 +9,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class SummaryGermanReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "docs.summary.language.german.review";
-    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for natural, comprehensible German.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 3, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for natural, comprehensible German.", true);
 
     public Rule Descriptor => RuleDescriptor;
     internal static readonly ReviewQuestion[] RuleQuestions = [ new("Q1", "German language: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?") ];
@@ -22,15 +22,12 @@ internal sealed class SummaryGermanReviewRuleModule : ISemanticReviewRuleModule
     public RuleModuleResult Evaluate(RuleContext context)
     {
         RuleModuleResult population = SummaryQualityReviewRuleModule.BuildPopulation(context);
-        var sampler = context.Sampling.SubjectSampler(RuleId, 2);
-        long cursor = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        const double yearlyRate = 1d / (365d * 24d * 60d * 60d);
+        var sampler = context.Sampling.SubjectSampler(RuleId, 3);
         foreach (ReviewSubject subject in population.ReviewSubjects)
         {
             string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject.Content)));
             var state = sampler.State(subject.Identity);
             if (state.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(state.LastEvaluationFingerprint, fingerprint)) { sampler.AddHazard(subject.Identity, 1); }
-            sampler.AccrueElapsed(subject.Identity, cursor, yearlyRate);
             sampler.SetEvaluationFingerprint(subject.Identity, fingerprint);
         }
         var selected = sampler.SelectDue(population.ReviewSubjects.Select(s => s.Identity), 5)

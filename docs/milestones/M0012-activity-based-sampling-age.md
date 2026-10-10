@@ -1,6 +1,6 @@
 # M0012 — Activity-Based Sampling Age
 
-**State:** planned  
+**State:** implementation complete; awaiting human review
 **Mode:** AI-executed, human-reviewed  
 **Depends on:** M0011 completion
 

@@ -150,7 +150,6 @@ public sealed class SamplingTests
     [Test]
     public async Task BoringnessZeroCandidatePopulationTransitionsResetTheAggregateBaseline()
     {
-        const long yearMilliseconds = 365L * 24 * 60 * 60 * 1000;
         const string unit = "src/Tracked.cs";
         string repository = Path.Combine(Path.GetTempPath(), "hygiene-boringness-zero-population-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repository);
@@ -159,17 +158,20 @@ public sealed class SamplingTests
             string populated = BoringnessReviewRuleModule.PopulationFingerprint(["type-a", "type-b", "type-c", "type-d"]);
             string empty = BoringnessReviewRuleModule.PopulationFingerprint([]);
             var firstSession = new SamplingSession(repository);
-            var firstSampler = firstSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 1);
+            var firstSampler = firstSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 2);
             BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, populated, 4, 0);
             await Assert.That(firstSampler.State(unit).ResidualHazard).IsEqualTo(1d);
             await Assert.That(firstSampler.State(unit).LastCandidateCount).IsEqualTo(4);
-            await Assert.That(firstSampler.State(unit).LastEvaluationCursorUnixMilliseconds).IsEqualTo(0L);
+            await Assert.That(firstSampler.State(unit).LastActivityAgeUnits).IsEqualTo(0d);
 
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, empty, 0, yearMilliseconds);
+            BoringnessReviewRuleModule.HazardContribution contribution = BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, empty, 0, 365);
+            await Assert.That(contribution.FingerprintHazard).IsEqualTo(1d);
+            await Assert.That(contribution.ActivityHazard).IsEqualTo(4d);
+            await Assert.That(contribution.Total).IsEqualTo(5d);
             var zero = firstSampler.State(unit);
             await Assert.That(zero.LastEvaluationFingerprint).IsEqualTo(empty);
             await Assert.That(zero.LastCandidateCount).IsEqualTo(0);
-            await Assert.That(zero.LastEvaluationCursorUnixMilliseconds).IsEqualTo(yearMilliseconds);
+            await Assert.That(zero.LastActivityAgeUnits).IsEqualTo(365d);
             await Assert.That(zero.ResidualHazard).IsEqualTo(6d);
             await Assert.That(firstSampler.SelectSubjects(unit, [], 1)).IsEmpty();
             await Assert.That(firstSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
@@ -180,30 +182,159 @@ public sealed class SamplingTests
                 JsonElement persisted = persistedZero.RootElement.GetProperty("Rules").EnumerateArray().Single(rule => rule.GetProperty("RuleId").GetString() == BoringnessReviewRuleModule.RuleId).GetProperty("Populations")[0];
                 await Assert.That(persisted.GetProperty("LastCandidateCount").GetInt32()).IsEqualTo(0);
                 await Assert.That(persisted.GetProperty("LastEvaluationFingerprint").GetString()).IsEqualTo(empty);
-                await Assert.That(persisted.GetProperty("LastEvaluationCursorUnixMilliseconds").GetInt64()).IsEqualTo(yearMilliseconds);
+                await Assert.That(persisted.GetProperty("LastActivityAgeUnits").GetDouble()).IsEqualTo(365d);
                 await Assert.That(persisted.GetProperty("UnitId").GetString()).IsEqualTo(unit);
             }
 
             var secondSession = new SamplingSession(repository);
-            var secondSampler = secondSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 1);
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, empty, 0, 2 * yearMilliseconds);
+            var secondSampler = secondSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 2);
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, empty, 0, 730);
             var stillZero = secondSampler.State(unit);
-            await Assert.That(stillZero.LastEvaluationCursorUnixMilliseconds).IsEqualTo(2 * yearMilliseconds);
+            await Assert.That(stillZero.LastActivityAgeUnits).IsEqualTo(730d);
             await Assert.That(stillZero.LastCandidateCount).IsEqualTo(0);
             await Assert.That(stillZero.ResidualHazard).IsEqualTo(6d);
 
             string returned = BoringnessReviewRuleModule.PopulationFingerprint(["type-e"]);
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, returned, 1, 3 * yearMilliseconds);
+            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, returned, 1, 1095);
             var reappeared = secondSampler.State(unit);
             await Assert.That(reappeared.LastEvaluationFingerprint).IsEqualTo(returned);
             await Assert.That(reappeared.LastCandidateCount).IsEqualTo(1);
-            await Assert.That(reappeared.LastEvaluationCursorUnixMilliseconds).IsEqualTo(3 * yearMilliseconds);
+            await Assert.That(reappeared.LastActivityAgeUnits).IsEqualTo(1095d);
             await Assert.That(reappeared.ResidualHazard).IsEqualTo(7d);
             await Assert.That(secondSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
             await Assert.That(secondSampler.SelectSubjects(unit, ["transient-type-e"], 1).Count).IsEqualTo(1);
             secondSession.Commit();
         }
         finally { Directory.Delete(repository, recursive: true); }
+    }
+
+    [Test]
+    public async Task ProjectActivityUsesExactSourceDiffAndPreviousSizeNormalization()
+    {
+        var monotonicSampler = new PopulationHazardSampler(Seed, "activity-position.rule", 1, 1);
+        monotonicSampler.SetEvaluationMetadata("unit", new string('A', 64), 1);
+        monotonicSampler.AccrueActivity("unit", 20);
+        await Assert.That(monotonicSampler.AccrueActivity("unit", 15)).IsEqualTo(0d);
+        await Assert.That(monotonicSampler.State("unit").LastActivityAgeUnits).IsEqualTo(20d);
+        await Assert.That(monotonicSampler.AccrueActivity("unit", 25)).IsEqualTo(5d / 365d);
+
+        string hundredLines = string.Join("\n", Enumerable.Range(0, 100).Select(i => "line-" + i)) + "\n";
+        var baseline = ProjectActivity.Create("src/App.csproj", new Dictionary<string, string> { ["A.cs"] = hundredLines, ["Keep.cs"] = "same\n" });
+        ActivityTransition first = ProjectActivity.Observe(null, new Dictionary<string, string> { ["A.cs"] = hundredLines });
+        await Assert.That(first.Initialized).IsTrue();
+        await Assert.That(first.TotalAgeUnits).IsEqualTo(0d);
+
+        ActivityTransition changed = ProjectActivity.Observe(baseline, new Dictionary<string, string>
+        {
+            ["Renamed.cs"] = hundredLines,
+            ["Keep.cs"] = "same\n",
+            ["New.cs"] = "added-one\nadded-two\n"
+        });
+        await Assert.That(changed.AddedLines).IsEqualTo(2);
+        await Assert.That(changed.DeletedLines).IsEqualTo(0);
+        await Assert.That(changed.PreviousLoc).IsEqualTo(101);
+        await Assert.That(changed.DeltaAgeUnits).IsEqualTo(365d * 2 / 101);
+
+        ActivityTransition edited = ProjectActivity.Observe(ProjectActivity.Create("src/App.csproj", new Dictionary<string, string> { ["A.cs"] = "a\nb\nc\n" }),
+            new Dictionary<string, string> { ["A.cs"] = "a\nx\nc\n" });
+        await Assert.That(edited.AddedLines).IsEqualTo(1);
+        await Assert.That(edited.DeletedLines).IsEqualTo(1);
+
+        ActivityTransition floor = ProjectActivity.Observe(ProjectActivity.Create("small", new Dictionary<string, string> { ["A.cs"] = "old\n" }),
+            new Dictionary<string, string> { ["A.cs"] = "new\n" });
+        await Assert.That(floor.DeltaAgeUnits).IsEqualTo(7.3d);
+
+        ActivityTransition editedRename = ProjectActivity.Observe(ProjectActivity.Create("rename", new Dictionary<string, string> { ["Old.cs"] = "a\nb\nc\n" }),
+            new Dictionary<string, string> { ["New.cs"] = "a\nx\nc\n" });
+        await Assert.That(editedRename.AddedLines).IsEqualTo(1);
+        await Assert.That(editedRename.DeletedLines).IsEqualTo(1);
+
+        ActivityTransition deleted = ProjectActivity.Observe(ProjectActivity.Create("deleted", new Dictionary<string, string> { ["Keep.cs"] = "same\n", ["Gone.cs"] = "old-one\nold-two\n" }),
+            new Dictionary<string, string> { ["Keep.cs"] = "same\n" });
+        await Assert.That(deleted.DeletedLines).IsEqualTo(2);
+
+        var movedContent = new Dictionary<string, string> { ["Moved.cs"] = "moved-one\nmoved-two\n" };
+        ActivityTransition movedOut = ProjectActivity.Observe(ProjectActivity.Create("project-a", new Dictionary<string, string> { ["Old.cs"] = "moved-one\nmoved-two\n" }),
+            new Dictionary<string, string>());
+        ActivityTransition movedIn = ProjectActivity.Observe(ProjectActivity.Create("project-b", new Dictionary<string, string>()), movedContent);
+        await Assert.That(movedOut.DeletedLines).IsEqualTo(2);
+        await Assert.That(movedIn.AddedLines).IsEqualTo(2);
+        await Assert.That(movedOut.TotalAgeUnits).IsEqualTo(365d * 2 / 100);
+        await Assert.That(movedIn.TotalAgeUnits).IsEqualTo(365d * 2 / 100);
+
+        string largeBefore = string.Join("\n", Enumerable.Range(0, 10_000).Select(i => "source-line-" + i));
+        string largeAfter = largeBefore.Replace("source-line-5000", "changed-line-5000", StringComparison.Ordinal);
+        ActivityTransition large = ProjectActivity.Observe(ProjectActivity.Create("large", new Dictionary<string, string> { ["Large.cs"] = largeBefore }),
+            new Dictionary<string, string> { ["Large.cs"] = largeAfter });
+        await Assert.That(large.AddedLines).IsEqualTo(1);
+        await Assert.That(large.DeletedLines).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ProjectActivityPersistsPerProjectAndRejectsConcurrentOrFailedPublication()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-activity-state-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            var initial = new SamplingSession(repository);
+            initial.PopulationSampler("activity.rule", 1);
+            initial.ObserveProjectActivity("A.csproj", new Dictionary<string, string> { ["A.cs"] = "one\n" }, true);
+            initial.ObserveProjectActivity("B.csproj", new Dictionary<string, string> { ["B.cs"] = "one\n" }, true);
+            initial.Commit();
+            var updated = new SamplingSession(repository);
+            updated.PopulationSampler("activity.rule", 1);
+            double partialAge = updated.ObserveProjectActivity("A.csproj", new Dictionary<string, string> { ["A.cs"] = "partial\n" }, false);
+            await Assert.That(partialAge).IsEqualTo(0d);
+            double a = updated.ObserveProjectActivity("A.csproj", new Dictionary<string, string> { ["A.cs"] = "one\ntwo\n" }, true);
+            double b = updated.ObserveProjectActivity("B.csproj", new Dictionary<string, string> { ["B.cs"] = "one\n" }, true);
+            await Assert.That(a).IsEqualTo(3.65d);
+            await Assert.That(b).IsEqualTo(0d);
+            string path = Path.Combine(repository, ".hygiene", ".state", "sampling.json");
+            string before = await File.ReadAllTextAsync(path);
+            var failed = new SamplingSession(repository, () => throw new IOException("injected"));
+            failed.PopulationSampler("activity.rule", 1);
+            failed.ObserveProjectActivity("A.csproj", new Dictionary<string, string> { ["A.cs"] = "changed\n" }, true);
+            try { failed.Commit(); } catch (IOException) { }
+            await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo(before);
+            var concurrent = new SamplingSession(repository);
+            concurrent.PopulationSampler("activity.rule", 1);
+            concurrent.ObserveProjectActivity("A.csproj", new Dictionary<string, string> { ["A.cs"] = "changed\n" }, true);
+            await File.AppendAllTextAsync(path, " ");
+            bool rejected = false;
+            try { concurrent.Commit(); } catch (ProductException) { rejected = true; }
+            await Assert.That(rejected).IsTrue();
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, true); } }
+    }
+
+    [Test]
+    public async Task M0012PolicyVersionsDiscardElapsedHazardWithoutChangingTheSampler()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-activity-version-reset-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            var oldSession = new SamplingSession(repository);
+            var oldPopulation = oldSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 1);
+            oldPopulation.AddHazard("App.cs", 100);
+            PopulationTicket oldPopulationTicket = oldPopulation.DueEvents("App.cs")[0].Ticket;
+            var oldSubject = oldSession.SubjectSampler(SummaryQualityReviewRuleModule.RuleId, 4);
+            oldSubject.AddHazard("subject", 100);
+            oldSubject.AccrueElapsed("subject", 31_536_000_000, 1);
+            oldSession.Commit();
+
+            var currentSession = new SamplingSession(repository);
+            var currentPopulation = currentSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 2);
+            await Assert.That(currentPopulation.State("App.cs").ResidualHazard).IsEqualTo(0d);
+            await Assert.That(currentPopulation.State("App.cs").LastActivityAgeUnits).IsNull();
+            await Assert.That(currentPopulation.Observe(oldPopulationTicket)).IsFalse();
+            var currentSubject = currentSession.SubjectSampler(SummaryQualityReviewRuleModule.RuleId, 5);
+            await Assert.That(currentSubject.State("subject").Hazard).IsEqualTo(0d);
+            await Assert.That(currentSubject.State("subject").LastEvaluationCursorUnixMilliseconds).IsNull();
+            currentSession.Commit();
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, true); } }
     }
 
     [Test]

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace DotNetAiCodeHygiene.Core.Sampling;
 
-internal sealed record SamplingStateFile(int SchemaVersion, string Seed, SamplingRuleState[] Rules);
+internal sealed record SamplingStateFile(int SchemaVersion, string Seed, SamplingRuleState[] Rules, int? ActivityStateVersion = null, ProjectActivityState[]? Projects = null);
 internal sealed record SamplingRuleState(string RuleId, int RuleVersion, int ModelVersion, string Model, string StateEpoch, SubjectHazardState[]? Subjects = null, PopulationHazardState[]? Populations = null);
 
 /// <summary>Explicit durable sampler state, created only when a rule asks for it.</summary>
@@ -17,6 +17,8 @@ internal sealed class SamplingSession
     private readonly SamplingStateFile state;
     private readonly Dictionary<string, SubjectHazardSampler> subjects = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PopulationHazardSampler> populations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ProjectActivityState> projectActivity = new(StringComparer.Ordinal);
+    private readonly List<ActivityTransition> activityTransitions = [];
     private bool dirty;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -30,8 +32,10 @@ internal sealed class SamplingSession
         {
             try { state = JsonSerializer.Deserialize<SamplingStateFile>(original) ?? throw new JsonException(); }
             catch (JsonException e) { throw new ProductException($"Invalid or unsupported .hygiene/.state/sampling.json: {e.Message}"); }
-            if (state.SchemaVersion != Schema || state.Seed is null || !IsSeed(state.Seed) || state.Rules is null || state.Rules.Any(x => !ValidRuleState(x)) || state.Rules.Select(x => (x.RuleId, x.Model)).Distinct().Count() != state.Rules.Length)
+            if (state.SchemaVersion != Schema || state.Seed is null || !IsSeed(state.Seed) || state.Rules is null || state.Rules.Any(x => !ValidRuleState(x)) || state.Rules.Select(x => (x.RuleId, x.Model)).Distinct().Count() != state.Rules.Length ||
+                (state.ActivityStateVersion is not null && state.ActivityStateVersion != ProjectActivity.StateVersion) || (state.Projects ?? []).Any(x => !ProjectActivity.IsValid(x)) || (state.Projects ?? []).Select(x => x.ProjectId).Distinct(StringComparer.Ordinal).Count() != (state.Projects ?? []).Length)
                 { throw new ProductException("Invalid or unsupported .hygiene/.state/sampling.json."); }
+            foreach (ProjectActivityState project in state.Projects ?? []) { projectActivity.Add(project.ProjectId, project); }
         }
     }
 
@@ -80,6 +84,26 @@ internal sealed class SamplingSession
     }
 
     internal bool IsLoaded => true;
+    internal IReadOnlyList<ActivityTransition> ActivityTransitions => activityTransitions;
+    internal double ObserveProjectActivity(string projectId, IReadOnlyDictionary<string, string> sources, bool complete)
+    {
+        if (projectActivity.TryGetValue(projectId, out ProjectActivityState? previous))
+        {
+            if (!complete) { return previous.AgeUnits; }
+            ActivityTransition transition = ProjectActivity.Observe(previous, sources);
+            ProjectActivityState next = ProjectActivity.Create(projectId, sources, transition.TotalAgeUnits);
+            projectActivity[projectId] = next;
+            activityTransitions.Add(transition);
+            dirty = true;
+            return next.AgeUnits;
+        }
+        if (!complete) { return 0; }
+        ActivityTransition initialized = ProjectActivity.Observe(null, sources);
+        projectActivity.Add(projectId, ProjectActivity.Create(projectId, sources));
+        activityTransitions.Add(initialized);
+        dirty = true;
+        return 0;
+    }
     internal void Commit()
     {
         using PreparedSamplingCommit? prepared = PrepareCommit();
@@ -95,7 +119,7 @@ internal sealed class SamplingSession
         var rules = state.Rules.Where(old => !active.Any(current => current.Rule == old.RuleId && current.Model == old.Model)).ToList();
         rules.AddRange(subjects.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "subject", x.Value.StateEpoch, x.Value.States.ToArray())));
         rules.AddRange(populations.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "population", x.Value.StateEpoch, Populations: x.Value.States.ToArray())));
-        string content = JsonSerializer.Serialize(state with { Rules = rules.ToArray() }, Json);
+        string content = JsonSerializer.Serialize(state with { Rules = rules.ToArray(), ActivityStateVersion = ProjectActivity.StateVersion, Projects = projectActivity.Values.OrderBy(x => x.ProjectId, StringComparer.Ordinal).ToArray() }, Json);
         VerifyUnchanged();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -133,7 +157,7 @@ internal sealed class SamplingSession
         {
             PopulationHazardState[] populations = value.Populations ?? [];
             return value.Subjects is null && populations.All(x => x is not null) && populations.Select(x => x.UnitId).Distinct(StringComparer.Ordinal).Count() == populations.Length
-                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)) && (x.LastCandidateCount is null || x.LastCandidateCount >= 0));
+                && populations.All(x => x is not null && !string.IsNullOrEmpty(x.UnitId) && x.Generation >= 0 && double.IsFinite(x.ResidualHazard) && x.ResidualHazard >= 0 && double.IsFinite(x.PassEvidence) && x.PassEvidence >= 0 && double.IsFinite(x.FailEvidence) && x.FailEvidence >= 0 && (x.LastEvaluationCursorUnixMilliseconds is null || x.LastEvaluationCursorUnixMilliseconds >= 0) && (x.LastEvaluationFingerprint is null || IsFingerprint(x.LastEvaluationFingerprint)) && (x.LastCandidateCount is null || x.LastCandidateCount >= 0) && (x.LastActivityAgeUnits is null || (double.IsFinite(x.LastActivityAgeUnits.Value) && x.LastActivityAgeUnits.Value >= 0)));
         }
         return false;
     }

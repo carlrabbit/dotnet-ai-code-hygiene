@@ -119,7 +119,7 @@ internal sealed class SubjectHazardSampler(byte[] seed, string ruleId, int ruleV
 }
 
 internal sealed record PopulationTicket(string RuleId, string UnitId, int RuleVersion, int ModelVersion, long Generation, string StateEpoch);
-internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0, long? LastEvaluationCursorUnixMilliseconds = null, string? LastEvaluationFingerprint = null, int? LastCandidateCount = null);
+internal sealed record PopulationHazardState(string UnitId, long Generation, double ResidualHazard, double PassEvidence = 0, double FailEvidence = 0, long? LastEvaluationCursorUnixMilliseconds = null, string? LastEvaluationFingerprint = null, int? LastCandidateCount = null, double? LastActivityAgeUnits = null);
 internal sealed record DuePopulationEvent(PopulationTicket Ticket, double Threshold, double ResidualAfterThreshold);
 
 internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ruleVersion, int modelVersion, string stateEpoch = "default")
@@ -149,6 +149,24 @@ internal sealed class PopulationHazardSampler(byte[] seed, string ruleId, int ru
         double residual = old.ResidualHazard + increment;
         SubjectHazardSampler.ValidateHazard(residual);
         states[unit] = old with { ResidualHazard = residual, LastEvaluationCursorUnixMilliseconds = evaluationCursorUnixMilliseconds };
+    }
+    internal double AccrueActivity(string unit, double projectAgeUnits)
+    {
+        SubjectHazardSampler.ValidateHazard(projectAgeUnits);
+        var old = State(unit);
+        if (old.LastActivityAgeUnits is null)
+        {
+            states[unit] = old with { LastActivityAgeUnits = projectAgeUnits };
+            return 0;
+        }
+        double nextPosition = Math.Max(old.LastActivityAgeUnits.Value, projectAgeUnits);
+        double ageDelta = nextPosition - old.LastActivityAgeUnits.Value;
+        double increment = (old.LastCandidateCount ?? 0) * ageDelta / 365d;
+        SubjectHazardSampler.ValidateHazard(increment);
+        double residual = old.ResidualHazard + increment;
+        SubjectHazardSampler.ValidateHazard(residual);
+        states[unit] = old with { ResidualHazard = residual, LastActivityAgeUnits = nextPosition };
+        return increment;
     }
     internal void SetEvaluationMetadata(string unit, string fingerprint, int candidateCount)
     {
