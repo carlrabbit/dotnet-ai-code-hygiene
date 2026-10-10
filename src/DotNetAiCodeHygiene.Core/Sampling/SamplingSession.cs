@@ -90,19 +90,29 @@ internal sealed class SamplingSession
         if (projectActivity.TryGetValue(projectId, out ProjectActivityState? previous))
         {
             if (!complete) { return previous.AgeUnits; }
-            ActivityTransition transition = ProjectActivity.Observe(previous, sources);
-            ProjectActivityState next = ProjectActivity.Create(projectId, sources, transition.TotalAgeUnits);
+            bool retainSnapshot = CanRetainSnapshot(projectId, sources);
+            ActivityTransition transition = ProjectActivity.Observe(previous, sources, retainSnapshot);
+            ProjectActivityState next = ProjectActivity.Create(projectId, sources, transition.TotalAgeUnits, retainSnapshot);
             projectActivity[projectId] = next;
             activityTransitions.Add(transition);
             dirty = true;
             return next.AgeUnits;
         }
         if (!complete) { return 0; }
-        ActivityTransition initialized = ProjectActivity.Observe(null, sources);
-        projectActivity.Add(projectId, ProjectActivity.Create(projectId, sources));
+        bool canRetain = CanRetainSnapshot(projectId, sources);
+        ActivityTransition initialized = ProjectActivity.Observe(null, sources, canRetain);
+        projectActivity.Add(projectId, ProjectActivity.Create(projectId, sources, retainSnapshot: canRetain));
         activityTransitions.Add(initialized);
         dirty = true;
         return 0;
+    }
+
+    private bool CanRetainSnapshot(string projectId, IReadOnlyDictionary<string, string> sources)
+    {
+        long retained = projectActivity.Where(entry => !StringComparer.Ordinal.Equals(entry.Key, projectId) && entry.Value.SnapshotAvailable)
+            .Sum(entry => entry.Value.Sources.Sum(source => (long)source.Path.Length + source.Content.Length));
+        long incoming = sources.Sum(source => (long)source.Key.Length + source.Value.Length);
+        return incoming <= ProjectActivity.MaximumSnapshotCharacters && retained + incoming <= ProjectActivity.MaximumRepositorySnapshotCharacters;
     }
     internal void Commit()
     {

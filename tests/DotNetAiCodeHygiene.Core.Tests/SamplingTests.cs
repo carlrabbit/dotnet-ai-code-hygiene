@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using DotNetAiCodeHygiene.Core.Sampling;
 
@@ -244,10 +245,16 @@ public sealed class SamplingTests
             new Dictionary<string, string> { ["A.cs"] = "new\n" });
         await Assert.That(floor.DeltaAgeUnits).IsEqualTo(7.3d);
 
-        ActivityTransition editedRename = ProjectActivity.Observe(ProjectActivity.Create("rename", new Dictionary<string, string> { ["Old.cs"] = "a\nb\nc\n" }),
-            new Dictionary<string, string> { ["New.cs"] = "a\nx\nc\n" });
-        await Assert.That(editedRename.AddedLines).IsEqualTo(1);
-        await Assert.That(editedRename.DeletedLines).IsEqualTo(1);
+        ActivityTransition unrelatedDeleteAdd = ProjectActivity.Observe(ProjectActivity.Create("rename", new Dictionary<string, string> { ["Old.cs"] = "a\nb\nc\n" }),
+            new Dictionary<string, string> { ["New.cs"] = "x\ny\n" });
+        await Assert.That(unrelatedDeleteAdd.AddedLines).IsEqualTo(2);
+        await Assert.That(unrelatedDeleteAdd.DeletedLines).IsEqualTo(3);
+
+        ActivityTransition identicalRename = ProjectActivity.Observe(ProjectActivity.Create("identical-rename", new Dictionary<string, string> { ["Old.cs"] = "a\nb\nc\n" }),
+            new Dictionary<string, string> { ["New.cs"] = "a\nb\nc\n" });
+        await Assert.That(identicalRename.AddedLines).IsEqualTo(0);
+        await Assert.That(identicalRename.DeletedLines).IsEqualTo(0);
+        await Assert.That(identicalRename.DeltaAgeUnits).IsEqualTo(0d);
 
         ActivityTransition deleted = ProjectActivity.Observe(ProjectActivity.Create("deleted", new Dictionary<string, string> { ["Keep.cs"] = "same\n", ["Gone.cs"] = "old-one\nold-two\n" }),
             new Dictionary<string, string> { ["Keep.cs"] = "same\n" });
@@ -262,12 +269,38 @@ public sealed class SamplingTests
         await Assert.That(movedOut.TotalAgeUnits).IsEqualTo(365d * 2 / 100);
         await Assert.That(movedIn.TotalAgeUnits).IsEqualTo(365d * 2 / 100);
 
-        string largeBefore = string.Join("\n", Enumerable.Range(0, 10_000).Select(i => "source-line-" + i));
-        string largeAfter = largeBefore.Replace("source-line-5000", "changed-line-5000", StringComparison.Ordinal);
-        ActivityTransition large = ProjectActivity.Observe(ProjectActivity.Create("large", new Dictionary<string, string> { ["Large.cs"] = largeBefore }),
+        string largeBefore = string.Join("\n", Enumerable.Range(0, 6_000).Select(i => "source-line-" + i));
+        string largeAfter = largeBefore.Replace("source-line-3000", "changed-line-3000", StringComparison.Ordinal);
+        ProjectActivityState largeBaseline = ProjectActivity.Create("large", new Dictionary<string, string> { ["Large.cs"] = largeBefore });
+        var largeTimer = Stopwatch.StartNew();
+        ActivityTransition large = ProjectActivity.Observe(largeBaseline,
             new Dictionary<string, string> { ["Large.cs"] = largeAfter });
+        largeTimer.Stop();
         await Assert.That(large.AddedLines).IsEqualTo(1);
         await Assert.That(large.DeletedLines).IsEqualTo(1);
+
+        string rewriteBefore = string.Join("\n", Enumerable.Range(0, 4_000).Select(i => "old-line-" + i));
+        string rewriteAfter = string.Join("\n", Enumerable.Range(0, 4_000).Select(i => "new-line-" + i));
+        ProjectActivityState rewriteBaseline = ProjectActivity.Create("rewrite", new Dictionary<string, string> { ["Large.cs"] = rewriteBefore });
+        var rewriteTimer = Stopwatch.StartNew();
+        ActivityTransition rewrite = ProjectActivity.Observe(rewriteBaseline,
+            new Dictionary<string, string> { ["Large.cs"] = rewriteAfter });
+        rewriteTimer.Stop();
+        await Assert.That(rewrite.DiffFallbacks).IsEqualTo(1);
+        await Assert.That(rewrite.AddedLines).IsEqualTo(4_000);
+        await Assert.That(rewrite.DeletedLines).IsEqualTo(4_000);
+        Console.WriteLine($"M0012 bounded diff benchmark: 6,000-line single edit {largeTimer.Elapsed.TotalMilliseconds:F2}ms / {JsonSerializer.SerializeToUtf8Bytes(largeBaseline).Length}B snapshot; 4,000-line rewrite fallback {rewriteTimer.Elapsed.TotalMilliseconds:F2}ms / {JsonSerializer.SerializeToUtf8Bytes(rewriteBaseline).Length}B snapshot");
+
+        string oversized = new('x', ProjectActivity.MaximumFileCharacters + 1);
+        ProjectActivityState oversizedSnapshot = ProjectActivity.Create("oversized", new Dictionary<string, string> { ["Huge.cs"] = oversized });
+        await Assert.That(oversizedSnapshot.SnapshotAvailable).IsFalse();
+        await Assert.That(oversizedSnapshot.Sources).IsEmpty();
+        ActivityTransition rebase = ProjectActivity.Observe(oversizedSnapshot, new Dictionary<string, string> { ["Huge.cs"] = "now-small\n" });
+        await Assert.That(rebase.Reset).IsTrue();
+        await Assert.That(rebase.DeltaAgeUnits).IsEqualTo(0d);
+
+        ProjectActivityState compatible = JsonSerializer.Deserialize<ProjectActivityState>("{\"ProjectId\":\"compat\",\"AgeUnits\":0,\"EligibleLoc\":1,\"Sources\":[{\"Path\":\"A.cs\",\"Content\":\"x\"}]}")!;
+        await Assert.That(compatible.SnapshotAvailable).IsTrue();
     }
 
     [Test]

@@ -233,7 +233,7 @@ No selected source file is committed before complete planning and required valid
 
 ## Sampling boundary
 
-Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists transparent per-subject or per-population-unit state and generic evaluation metadata. M0012 also persists eligible source snapshots and normalized activity totals per project for BORINGness; it introduces no candidate index, external telemetry, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
+Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists transparent per-subject or per-population-unit state and generic evaluation metadata. M0012 also persists bounded eligible source snapshots and normalized activity totals per project for BORINGness. Activity observation reads complete project context independently of target-scoped reporting, and bounded diff fallback trades precision for predictable work on extensive rewrites. It introduces no candidate index, external telemetry, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
 
 Existing deterministic semantic-review sampling remains supported.
 

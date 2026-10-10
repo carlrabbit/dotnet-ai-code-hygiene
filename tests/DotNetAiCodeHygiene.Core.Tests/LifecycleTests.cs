@@ -12,6 +12,35 @@ namespace DotNetAiCodeHygiene.Core.Tests;
 public sealed class LifecycleTests
 {
     [Test]
+    public async Task M0012LinkedSourcesAreDeduplicatedAndMultiTargetProjectsShareActivityIdentity()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-activity-linked-targets-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            string projectPath = Path.Combine(repo, "App.csproj");
+            string linkedPath = Path.Combine(repo, "Shared.cs");
+            using var workspace = new AdhocWorkspace();
+            ProjectId firstId = ProjectId.CreateNewId("net11.0");
+            DocumentInfo Linked(ProjectId id, string name) => DocumentInfo.Create(DocumentId.CreateNewId(id), name, filePath: linkedPath,
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From("public sealed class Shared { }"), VersionStamp.Create())));
+            Project first = workspace.AddProject(ProjectInfo.Create(firstId, VersionStamp.Create(), "App-net11", "App", LanguageNames.CSharp,
+                filePath: projectPath, documents: [Linked(firstId, "Shared.cs"), Linked(firstId, "Shared.Link.cs")]));
+            ProjectId secondId = ProjectId.CreateNewId("net11.0-windows");
+            Project second = workspace.AddProject(ProjectInfo.Create(secondId, VersionStamp.Create(), "App-net11-windows", "App", LanguageNames.CSharp,
+                filePath: projectPath, documents: [Linked(secondId, "Shared.cs")]));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [first.Documents.First()]);
+
+            await Assert.That(context.ProjectIdentity(first)).IsEqualTo(context.ProjectIdentity(second));
+            await Assert.That(context.TryReadEligibleProjectSources(first, out Dictionary<string, string> firstSources)).IsTrue();
+            await Assert.That(firstSources.Count).IsEqualTo(1);
+            await Assert.That(ProjectActivity.Create(context.ProjectIdentity(first), firstSources).EligibleLoc).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task M0012ProjectActivitySurvivesRestartsIgnoresPartialSnapshotsAndStaysProjectScoped()
     {
         var measurements = new List<string>();
@@ -58,20 +87,31 @@ public sealed class LifecycleTests
                 await Assert.That(steadyState.RootElement.GetProperty("Projects").EnumerateArray().All(x => x.GetProperty("AgeUnits").GetDouble() == firstProjectAge)).IsTrue();
 
                 await File.AppendAllTextAsync(changedSource, "// observable source activity\n");
-                _ = engine.Check([Path.GetRelativePath(repo, changedSource)], false);
-                using JsonDocument partialState = JsonDocument.Parse(await File.ReadAllTextAsync(statePath));
-                await Assert.That(partialState.RootElement.GetProperty("Projects").EnumerateArray().All(x => x.GetProperty("AgeUnits").GetDouble() == firstProjectAge)).IsTrue();
+                await File.AppendAllTextAsync(Path.Combine(repo, "Project0", "Type1.cs"), "// changed outside report targets\n");
                 timer.Restart();
-                _ = engine.Check([], false);
+                CheckResult changedTargetResult = engine.Check([Path.GetRelativePath(repo, changedSource)], false);
                 timer.Stop();
                 double changedMs = timer.Elapsed.TotalMilliseconds;
+                await Assert.That(changedTargetResult.ReviewBatches.Single(batch => batch.RuleId == BoringnessReviewRuleModule.RuleId).PopulationCount).IsEqualTo(1);
                 using JsonDocument changedState = JsonDocument.Parse(await File.ReadAllTextAsync(statePath));
                 JsonElement projectStates = changedState.RootElement.GetProperty("Projects");
                 double changedProjectAge = projectStates.EnumerateArray().Single(x => x.GetProperty("ProjectId").GetString() == "Project0/Fixture.csproj").GetProperty("AgeUnits").GetDouble();
                 await Assert.That(changedProjectAge).IsGreaterThan(firstProjectAge);
+                double ageAfterChangedTarget = changedProjectAge;
+                _ = engine.Check([Path.GetRelativePath(repo, changedSource)], false);
+                _ = engine.Check([Path.GetRelativePath(repo, changedSource)], false);
+                using JsonDocument repeatedPartialState = JsonDocument.Parse(await File.ReadAllTextAsync(statePath));
+                double repeatedPartialAge = repeatedPartialState.RootElement.GetProperty("Projects").EnumerateArray().Single(x => x.GetProperty("ProjectId").GetString() == "Project0/Fixture.csproj").GetProperty("AgeUnits").GetDouble();
+                await Assert.That(repeatedPartialAge).IsEqualTo(ageAfterChangedTarget);
+                timer.Restart();
+                _ = engine.Check([], false);
+                timer.Stop();
+                using JsonDocument completeAfterPartial = JsonDocument.Parse(await File.ReadAllTextAsync(statePath));
+                double completeAge = completeAfterPartial.RootElement.GetProperty("Projects").EnumerateArray().Single(x => x.GetProperty("ProjectId").GetString() == "Project0/Fixture.csproj").GetProperty("AgeUnits").GetDouble();
+                await Assert.That(completeAge).IsEqualTo(ageAfterChangedTarget);
                 JsonElement changedBoringness = changedState.RootElement.GetProperty("Rules").EnumerateArray().Single(x => x.GetProperty("RuleId").GetString() == BoringnessReviewRuleModule.RuleId);
                 JsonElement changedUnit = changedBoringness.GetProperty("Populations").EnumerateArray().Single(x => x.GetProperty("UnitId").GetString()!.EndsWith("Project0/Type0.cs", StringComparison.Ordinal));
-                await Assert.That(changedUnit.GetProperty("ResidualHazard").GetDouble()).IsEqualTo(1.01d);
+                await Assert.That(changedUnit.GetProperty("ResidualHazard").GetDouble()).IsEqualTo(1.02d);
                 JsonElement changedSummaryState = changedState.RootElement.GetProperty("Rules").EnumerateArray().Single(x => x.GetProperty("RuleId").GetString() == SummaryQualityReviewRuleModule.RuleId);
                 await Assert.That(changedSummaryState.GetProperty("Subjects").EnumerateArray().All(x => x.GetProperty("Hazard").GetDouble() == 1d)).IsTrue();
                 if (projectCount == 2)
