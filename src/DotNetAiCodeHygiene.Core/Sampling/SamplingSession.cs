@@ -33,9 +33,14 @@ internal sealed class SamplingSession
             try { state = JsonSerializer.Deserialize<SamplingStateFile>(original) ?? throw new JsonException(); }
             catch (JsonException e) { throw new ProductException($"Invalid or unsupported .hygiene/.state/sampling.json: {e.Message}"); }
             if (state.SchemaVersion != Schema || state.Seed is null || !IsSeed(state.Seed) || state.Rules is null || state.Rules.Any(x => !ValidRuleState(x)) || state.Rules.Select(x => (x.RuleId, x.Model)).Distinct().Count() != state.Rules.Length ||
-                (state.ActivityStateVersion is not null && state.ActivityStateVersion != ProjectActivity.StateVersion) || (state.Projects ?? []).Any(x => !ProjectActivity.IsValid(x)) || (state.Projects ?? []).Select(x => x.ProjectId).Distinct(StringComparer.Ordinal).Count() != (state.Projects ?? []).Length)
+                (state.ActivityStateVersion is not null && state.ActivityStateVersion is not (1 or 2 or ProjectActivity.StateVersion)) || (state.Projects ?? []).Any(x => !ProjectActivity.IsValid(x)) ||
+                (state.ActivityStateVersion == ProjectActivity.StateVersion && (state.Projects ?? []).Any(x => !ProjectActivity.HasCompleteMetadata(x))) ||
+                (state.Projects ?? []).Select(x => x.ProjectId).Distinct(StringComparer.Ordinal).Count() != (state.Projects ?? []).Length)
                 { throw new ProductException("Invalid or unsupported .hygiene/.state/sampling.json."); }
-            foreach (ProjectActivityState project in state.Projects ?? []) { projectActivity.Add(project.ProjectId, project); }
+            foreach (ProjectActivityState project in state.Projects ?? [])
+            {
+                projectActivity.Add(project.ProjectId, state.ActivityStateVersion == ProjectActivity.StateVersion ? project : ProjectActivity.Upgrade(project));
+            }
         }
     }
 
@@ -90,30 +95,21 @@ internal sealed class SamplingSession
         if (projectActivity.TryGetValue(projectId, out ProjectActivityState? previous))
         {
             if (!complete) { return previous.AgeUnits; }
-            bool retainSnapshot = CanRetainSnapshot(projectId, sources);
-            ActivityTransition transition = ProjectActivity.Observe(previous, sources, retainSnapshot);
-            ProjectActivityState next = ProjectActivity.Create(projectId, sources, transition.TotalAgeUnits, retainSnapshot);
+            ActivityTransition transition = ProjectActivity.Observe(previous, sources);
+            ProjectActivityState next = ProjectActivity.Create(projectId, sources, transition.TotalAgeUnits);
             projectActivity[projectId] = next;
             activityTransitions.Add(transition);
             dirty = true;
             return next.AgeUnits;
         }
         if (!complete) { return 0; }
-        bool canRetain = CanRetainSnapshot(projectId, sources);
-        ActivityTransition initialized = ProjectActivity.Observe(null, sources, canRetain);
-        projectActivity.Add(projectId, ProjectActivity.Create(projectId, sources, retainSnapshot: canRetain));
+        ActivityTransition initialized = ProjectActivity.Observe(null, sources);
+        projectActivity.Add(projectId, ProjectActivity.Create(projectId, sources));
         activityTransitions.Add(initialized);
         dirty = true;
         return 0;
     }
 
-    private bool CanRetainSnapshot(string projectId, IReadOnlyDictionary<string, string> sources)
-    {
-        long retained = projectActivity.Where(entry => !StringComparer.Ordinal.Equals(entry.Key, projectId) && entry.Value.SnapshotAvailable)
-            .Sum(entry => entry.Value.Sources.Sum(source => (long)source.Path.Length + source.Content.Length));
-        long incoming = sources.Sum(source => (long)source.Key.Length + source.Value.Length);
-        return incoming <= ProjectActivity.MaximumSnapshotCharacters && retained + incoming <= ProjectActivity.MaximumRepositorySnapshotCharacters;
-    }
     internal void Commit()
     {
         using PreparedSamplingCommit? prepared = PrepareCommit();
@@ -129,7 +125,8 @@ internal sealed class SamplingSession
         var rules = state.Rules.Where(old => !active.Any(current => current.Rule == old.RuleId && current.Model == old.Model)).ToList();
         rules.AddRange(subjects.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "subject", x.Value.StateEpoch, x.Value.States.ToArray())));
         rules.AddRange(populations.Select(x => new SamplingRuleState(ParseKey(x.Key).Rule, ParseKey(x.Key).RuleVersion, ParseKey(x.Key).ModelVersion, "population", x.Value.StateEpoch, Populations: x.Value.States.ToArray())));
-        string content = JsonSerializer.Serialize(state with { Rules = rules.ToArray(), ActivityStateVersion = ProjectActivity.StateVersion, Projects = projectActivity.Values.OrderBy(x => x.ProjectId, StringComparer.Ordinal).ToArray() }, Json);
+        ProjectActivityState[] projects = ProjectActivity.CompactRepositorySnapshots(projectActivity.Values.OrderBy(x => x.ProjectId, StringComparer.Ordinal).ToArray());
+        string content = JsonSerializer.Serialize(state with { Rules = rules.ToArray(), ActivityStateVersion = ProjectActivity.StateVersion, Projects = projects }, Json);
         VerifyUnchanged();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
