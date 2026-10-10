@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "measuredAtUtc": "2026-10-10T14:37:23.1963339+00:00",
+  "implementation": "current M0012 CLI built from the frozen PR branch",
+  "repositories": [
+    {
+      "id": "carlrabbit/dotnet-semantic-type-model",
+      "checkout": "local cached default-branch head",
+      "exitCode": 0,
+      "eligibleProjects": 35,
+      "eligibleSourceFiles": 158,
+      "eligibleSourceLines": 27040,
+      "rulePopulations": {
+        "architecture.boringness.review": 447,
+        "docs.summary.quality.review": 736,
+        "docs.summary.language.german.review": 736
+      },
+      "samplingStateBytes": 975416
+    },
+    {
+      "id": "carlrabbit/dotnet-ai-code-hygiene",
+      "checkout": "local cached default-branch head",
+      "exitCode": 0,
+      "eligibleProjects": 4,
+      "eligibleSourceFiles": 34,
+      "eligibleSourceLines": 6212,
+      "rulePopulations": {
+        "docs.summary.quality.review": 15,
+        "architecture.boringness.review": 85
+      },
+      "samplingStateBytes": 454646
+    },
+    {
+      "id": "carlrabbit/dotnet-ai-first-2d-game-engine",
+      "checkout": "local cached default-branch head",
+      "exitCode": 0,
+      "eligibleProjects": 26,
+      "eligibleSourceFiles": 179,
+      "eligibleSourceLines": 26755,
+      "rulePopulations": {
+        "architecture.boringness.review": 842,
+        "docs.summary.quality.review": 72,
+        "docs.summary.language.german.review": 72
+      },
+      "samplingStateBytes": 217708
+    },
+    {
+      "id": "carlrabbit/Private",
+      "privateEvidence": "local authorized record",
+      "exitCode": 0,
+      "eligibleProjects": 27,
+      "eligibleSourceFiles": 450,
+      "eligibleSourceLines": 25140,
+      "rulePopulations": {
+        "architecture.boringness.review": 421,
+        "docs.summary.language.german.review": 1431,
+        "docs.summary.quality.review": 1431
+      },
+      "samplingStateBytes": 2654420
+    }
+  ]
+}

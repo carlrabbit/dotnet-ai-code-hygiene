@@ -1,6 +1,6 @@
 # M0013 — Cross-Repository Sampling Age Experiment
 
-**State:** proposed (not executed)
+**State:** awaiting human review (experiment executed; effectiveness inconclusive)
 **Mode:** AI-executed, human-reviewed
 **Depends on:** completed M0012 activity-based sampling age
 
@@ -52,7 +52,7 @@ Pre-register simple criteria before examining outcomes:
 
 Conclude **retain**, **adjust one small fixed coefficient**, or **remove activity age where unhelpful**. A negative result is a valid milestone outcome. No hidden policy tuning during evaluation; subsequent behavior changes require versioned implementation work.
 
-**Not an implementation milestone; no experimental evidence has been collected yet.**
+**Completion evidence:** The experiment and criterion-by-criterion evidence are recorded in [the M0013 execution ledger](../../.execution/M0013-cross-repository-age-validation.md) and [the research report](../research/ACTIVITY-AGE-EXPERIMENT.md). Mechanical replay and operational measurements completed on the frozen cached corpus; semantic usefulness remains inconclusive because no independent blinded reviewer capacity or labels were provided. The milestone-scoped review request is [REV-M0013-COMPLETION](../../.review/REV-M0013-COMPLETION.md). This milestone remains **AWAITING HUMAN REVIEW**; it is not complete until that review gate accepts the evidence. No production policy change was made.
 
 
 ## Research-milestone execution contract
