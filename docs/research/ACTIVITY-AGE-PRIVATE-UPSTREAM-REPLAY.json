@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "experiment": "M0013",
+  "segmentScope": "Private upstream branch; aggregate-only public evidence",
+  "repositoryId": "carlrabbit/Private",
+  "visibility": "private",
+  "frozenUpstreamFirstParentCommitCount": 143,
+  "completedSourceCheckpoints": 120,
+  "policySeedObservationStatesPerRun": 3600,
+  "fixedSeedsPerPolicy": 5,
+  "policies": [
+    "A",
+    "B",
+    "C"
+  ],
+  "syntheticObservationArms": [
+    "all",
+    "none"
+  ],
+  "pairedReplayRuns": [
+    {
+      "durationMinutes": 139.05
+    },
+    {
+      "durationMinutes": 138.85
+    }
+  ],
+  "normalizedStateMismatches": 0,
+  "comparedBehavior": [
+    "eligible populations",
+    "project activity deltas",
+    "due and selected counts",
+    "accepted observations",
+    "post-observation due counts",
+    "serialized state bytes"
+  ],
+  "repeatedUnchangedPasses": "no additional project activity delta",
+  "perCheckpointRecords": "withheld; retained in restricted local evidence",
+  "revisionIdentifiers": "withheld",
+  "sourcePathsAndContent": "withheld",
+  "candidateIdentifiers": "withheld"
+}

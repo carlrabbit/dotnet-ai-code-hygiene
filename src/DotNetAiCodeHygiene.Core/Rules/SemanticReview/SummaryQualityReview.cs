@@ -9,7 +9,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class SummaryQualityReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "docs.summary.quality.review";
-    private static readonly Rule RuleDescriptor = new(RuleId, 4, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for correctness, value, and clarity.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 5, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for correctness, value, and clarity.", true);
 
     public Rule Descriptor => RuleDescriptor;
     internal static readonly ReviewQuestion[] RuleQuestions =
@@ -27,15 +27,12 @@ internal sealed class SummaryQualityReviewRuleModule : ISemanticReviewRuleModule
     public RuleModuleResult Evaluate(RuleContext context)
     {
         RuleModuleResult population = SummaryReviewPopulation.CreatePopulation(context);
-        var sampler = context.Sampling.SubjectSampler(RuleId, 4);
-        long cursor = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        const double yearlyRate = 1d / (365d * 24d * 60d * 60d);
+        var sampler = context.Sampling.SubjectSampler(RuleId, 5);
         foreach (ReviewSubject subject in population.ReviewSubjects)
         {
             string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject.Content)));
             var state = sampler.State(subject.Identity);
             if (state.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(state.LastEvaluationFingerprint, fingerprint)) { sampler.AddHazard(subject.Identity, 1); }
-            sampler.AccrueElapsed(subject.Identity, cursor, yearlyRate);
             sampler.SetEvaluationFingerprint(subject.Identity, fingerprint);
         }
         var selected = sampler.SelectDue(population.ReviewSubjects.Select(s => s.Identity), 5)

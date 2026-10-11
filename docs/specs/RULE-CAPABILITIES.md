@@ -300,14 +300,14 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 8.  docs.summary.required                     v2
 9.  docs.xml.consistent                       v1
 10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v4
-12. docs.summary.language.german.review       v2
+11. docs.summary.quality.review               v5
+12. docs.summary.language.german.review       v3
 13. readability.long-line.review              v1
 14. readability.control-flow.visual-block     v1
-15. architecture.boringness.review            v1
+15. architecture.boringness.review            v2
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0011 adds the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. It owns aggregate document sampling and the fixed BORINGness rubric defined in `docs/specs/SEMANTIC-REVIEWS.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0011 added the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. M0012 versions the three sampled policies and gives BORINGness project-scoped activity age; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
 
 ## Non-goals
 
