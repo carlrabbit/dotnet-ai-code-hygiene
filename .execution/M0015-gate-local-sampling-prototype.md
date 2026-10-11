@@ -2,7 +2,7 @@
 
 Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`
 
-**State:** implementation complete; awaiting human review. This operational ledger is not project authority. The milestone controls on conflict. Planner-seeded obligation rows have been preserved verbatim. The ledger may compress work, never obligations.
+**State:** amended milestone ready; prior prototype implementation complete, new RQ-01–RQ-05 investigation pending; human review remains open. This operational ledger is not project authority. The milestone controls on conflict. Planner-seeded obligation rows have been preserved verbatim. The ledger may compress work, never obligations.
 
 ## Milestone Obligation Registry
 
@@ -22,6 +22,22 @@ Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`
 | DOC-01 | documentation | Write `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with question, provenance, observed/inferred/assumed distinctions, experimental protocol, measurements, limitations, decision, and revalidation triggers. Research is **not** production authority. | WP-04 | `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` | VAL-04 | complete |
 | REV-01 | human review | Prepare `.review/REV-M0015-COMPLETION.md` requesting project-owner/delegate evaluation of technical validity, evidence claims and future architecture recommendation; no self-approval. | WP-05 | `.review/REV-M0015-COMPLETION.md`; pending reviewer decision | VAL-05 | awaiting human review |
 
+### Planner-seeded amendment obligation rows (11 October 2026)
+
+These rows extend, without deleting or paraphrasing, the 13 original obligation rows above. Leave all new work-package/evidence/status fields implementation-owned.
+
+| ID | Type | Obligation (exact milestone wording) | Work package(s) | Implementation evidence | Validation evidence | Status |
+|---|---|---|---|---|---|---|
+| AC-11 | acceptance | Freeze a policy-blinded, source-revision-pinned independent assessment frame for both source-changing gates, covering each policy's selected-union and independent random control(s), within the 20-candidate cap or with a recorded coverage exception; lock the protocol before any independent judgments. | | | | todo |
+| AC-12 | acceptance | Obtain actual independent Q1–Q5 BORINGness judgments with source evidence and reviewer/model provenance for the frozen assessment frame; preserve missing/uncertain responses without imputing acceptances, and report a genuine unavailable-assessor blocker instead of completing on an unassessed sample. | | | | todo |
+| AC-13 | acceptance | Compare same-gate, same-budget observed actionable findings across uniform, change-first, and history-aware selections; account for overlapping candidate identities, assessment gaps, uncertainty, small sample size, and preregistration limitations without claiming unestablished policy superiority. | | | | todo |
+| AC-14 | acceptance | Assess whether independently reviewed, fingerprint-current type history could affect a subsequent gate without leakage; demonstrate a temporally valid transfer if available or explicitly establish why current evidence cannot test this hypothesis. | | | | todo |
+| AC-15 | acceptance | Analyze outcome-driven local calibration's actual label sufficiency, selection-conditioned bias, fallback behavior, and bounded runtime; use real labels only where temporally and statistically valid, distinguishing test-only grid execution from demonstrated gate improvement. | | | | todo |
+| AC-16 | acceptance | Compare maximum-budget/no-review, explicit background-review, and normal changed-code selection at a no-source-change boundary and a source-changing gate, including zero-work, unknown-impact, and capped-budget behavior; document the selected effort rather than mandating budget exhaustion. | | | | todo |
+| AC-17 | acceptance | Attribute exploration's impact using actual changed-candidate omissions and background replacements, with selection-stage evidence, and evaluate the observed semantic value when independently judged; clearly separate scheduling displacement from discovered issues and hypothetical cost savings. | | | | todo |
+| ART-02 | artifact | Commit a reproducible frozen assessment manifest, blinded token requests, immutable reviewer outcome/provenance evidence when available, and safe token-to-policy analysis with integrity checks. No unapproved Private content or invented assessments. | | | | todo |
+| DOC-02 | documentation | Extend `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with a separate evidence-backed RQ-01–RQ-05 section stating question, protocol, observed/inferred/assumed evidence, result or blocker, uncertainty, and implications for production planning. Preserve original exploratory findings. | | | | todo |
+
 ## Evidence Case Registry
 
 | ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
@@ -40,6 +56,25 @@ Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`
 | EC-07b | AC-07 | Changed inputs and malformed/insufficient history fail conservatively | VAL-01 | New/fingerprint-change invalidation and missing/unsupported/corrupt-history fixtures; no production state access | complete |
 | EC-09a | AC-09 | Genuine blinded judgments with provenance when available | VAL-03 | 11-item blinded review sample; no authorized assessor was available; no judgments or provenance fabricated | unavailable; sample ready |
 | EC-09b | AC-09 | Missing/uncertain judgments explicitly not treated as acceptance | VAL-03 | Report and sample retain missing/uncertain as missing; no quality yield claimed | complete |
+
+### Planner-seeded amendment evidence cases (11 October 2026)
+
+| ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
+|---|---|---|---|---|---|
+| EC-11a | AC-11 | Both real source-changing gates contribute the union of competing-policy selections, pinned to source revisions/fingerprints | VAL-06 | | todo |
+| EC-11b | AC-11 | Independent deterministic eligible control(s), blinded tokenization, and frozen analysis contract | VAL-06 | | todo |
+| EC-12a | AC-12 | Independent Q1–Q5 judgments with evidence and provenance, locked before policy unblinding | VAL-07 | | todo |
+| EC-12b | AC-12 | Uncertain, unassessable and missing decisions stay non-accepted with explicit evidence | VAL-07 | | todo |
+| EC-13a | AC-13 | Identity-paired observed findings for all three equal-budget policies on both source-changing gates | VAL-08 | | todo |
+| EC-13b | AC-13 | Small-N, overlap, uncertainty and exploratory/preregistration limitations prevent unsupported quality claims | VAL-08 | | todo |
+| EC-14a | AC-14 | Real prior-gate, fingerprint-current reviewer evidence at a later gate, or explicit proof why unavailable | VAL-09 | | todo |
+| EC-14b | AC-14 | Same-gate and stale/fingerprint-mismatched observations do not leak into calibration or selection | VAL-09 | | todo |
+| EC-15a | AC-15 | Actual valid-label grid search with held-out evidence if sufficient, or recorded insufficient-label result | VAL-09 | | todo |
+| EC-15b | AC-15 | Bounded fallback and measured calibration-cost distinction without biased population-quality claims | VAL-09 | | todo |
+| EC-16a | AC-16 | No-rule-relevant-change gate permits zero semantic reviews when no background work is justified | VAL-10 | | todo |
+| EC-16b | AC-16 | Change-bearing gate preserves bounded prioritization and explicit justified optional background spending | VAL-10 | | todo |
+| EC-17a | AC-17 | Candidate identity, changed-count and selection-stage attribution of replacements | VAL-08 | | todo |
+| EC-17b | AC-17 | Assessed actual findings and qualified opportunity cost, or explicit absence of outcome evidence | VAL-08 | | todo |
 
 ## Work Packages
 
@@ -63,6 +98,16 @@ Executor-owned. Before code or analysis, read the milestone and confirm exact ID
 | VAL-04 | Regression / scope / privacy / integrity | Windows 11 / repository review | ART-01, AC-07, DOC-01 | passed | `.\eng\M0015.ps1 -Action integrity` verifies committed checksum references read-only and validates gate identities, counts, displacement arithmetic, eligibility, unique selection; `-Action test` negative tamper case fails as expected. No production files changed; no Private evidence accessed. Full `eng/validate.ps1` not applicable per milestone because no product source was touched. |
 | VAL-05 | Milestone-specific human review | project owner/delegate | AC-10, REV-01 | awaiting human review | `.review/REV-M0015-COMPLETION.md` requests decision; no approval recorded |
 
+### Planner-seeded amendment validation gates
+
+| ID | Required validation | Target/locus | Proves evidence units | Status | Evidence |
+|---|---|---|---|---|---|
+| VAL-06 | Frozen assessment manifest, sample union, controls and integrity | Windows 11/.NET 11 + public frozen gates | EC-11a, EC-11b, ART-02 | todo | |
+| VAL-07 | Independent policy-blinded actual Q1–Q5 judgments | Separate authorized reviewer + public pinned source | EC-12a, EC-12b, AC-12 | todo | |
+| VAL-08 | Identity-paired policy yield and opportunity-cost analysis | Local reproducible evidence analysis | EC-13a, EC-13b, EC-17a, EC-17b | todo | |
+| VAL-09 | Temporal history admissibility and grid/fallback cost | Windows 11/.NET 11 + valid prior-gate records if available | EC-14a, EC-14b, EC-15a, EC-15b | todo | |
+| VAL-10 | Maximum-budget/no-work comparisons and RQ report | Windows 11/.NET 11 + repository review | EC-16a, EC-16b, DOC-02 | todo | |
+
 ## Resume Point
 
 Last completed work package: WP-05 implementation/evidence reconciliation
@@ -74,6 +119,17 @@ Next concrete action: project owner/delegate reviews the report, blinded sample,
 Known agent-resolvable gaps: none. Real per-type labels and a reviewer decision are external evidence, not inferable from the implementation agent.
 
 External blockers or planning escalations: no authorized semantic reviewer or actual labels were available. Original M0015 smoke exposure and a descriptive-output amendment after the first corrected replay are disclosed; the three-gate results are reproducible exploratory scheduling evidence only.
+
+## Amended Milestone Resume / Reconciliation (pending implementation)
+
+The earlier checked completion audit remains **historical evidence for the original prototype**, not completion authority for the 11 October amendment.
+
+- [ ] Reconcile 22 amended obligations (13 existing plus AC-11–AC-17, ART-02, DOC-02) and 28 evidence cases (14 existing plus EC-11a–EC-17b) against the authoritative milestone.
+- [ ] Reconcile VAL-01–VAL-10, including the five additional validation gates.
+- [ ] Generate frozen blind evidence and obtain real independent reviews. If not available, leave assessor-dependent evidence incomplete and report BLOCKED; do not report semantic success.
+- [ ] Update research RQ-01–RQ-05 and revise the existing REV-M0015-COMPLETION request with outcome-specific evidence.
+- [ ] Revalidate the committed checksummed artifact inventory after amendment execution; preserve unmodified original exploratory results.
+- [ ] Repeat the **full** guide-required completion audit and update milestone completion evidence for the new obligations before a human decision.
 
 ## Final Reconciliation
 
