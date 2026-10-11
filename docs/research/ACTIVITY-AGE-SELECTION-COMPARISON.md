@@ -75,6 +75,10 @@ The retained M0013 trace matches the M0014 repeat for all 7,880 public rows. For
 
 Raw identity-bearing JSON from the population-unit replay occupied 53,717,863 bytes across public repositories (34,005,499 semantic-type-model; 1,424,467 hygiene; 18,287,897 game-engine) and 70,749,868 bytes for Private. These files remain in local evidence storage. The public derived metrics artifact contains aggregate Private distributions only. Both full B/C identity passes together required 484.56 minutes across public and Private, about 8.1 hours; this is a material cost for recurring full-history analysis.
 
+## Subsequent planning decision (post-experiment)
+
+After this report was produced, planning decided to pivot toward **gate-local review selection and bounded parameter calibration at a concrete change gate**, with historical population information serving as context. The experiment's own findings, limits and original proposal below remain unchanged as historical evidence; the original suggestion to proceed directly to a broad blinded replay assessment is not a standing roadmap decision. See [M0012–M0014 retrospective and pivot](SAMPLING-GATE-PIVOT.md).
+
 ## Interpretation and follow-up
 
 Selection displacement is reproducible within the two M0014 runs and large in the longer histories, particularly for the synthetic `all` arm. The first-selection results do not show a consistent activity-age discovery lead: C often selected shared identities earlier in `all`, while the median offset was generally zero. The fixed cap converts increased B due work mainly into queue pressure rather than more selected tickets.
