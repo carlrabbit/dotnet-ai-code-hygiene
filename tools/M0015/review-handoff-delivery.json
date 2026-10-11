@@ -1,62 +1,97 @@
 {
   "schemaVersion": 1,
-  "kind": "m0015-stage-a-delivery-receipt",
-  "destination": "G:\\My Drive\\Transfer\\M0015-review\\handoff",
-  "verifiedAtUtc": "2026-10-11T21:14:35Z",
-  "assessmentCount": 24,
-  "filesDelivered": 10,
-  "checksummedPayloadFileCount": 9,
-  "sha256SumsFileSha256": "4D7B1571559162A61AEC770DF79C0434F25AE96E96EE9F088DA8A93D5ACDEA71",
-  "sourceArchiveSha256": [
+  "kind": "m0015-stage-a-drive-delivery-receipt",
+  "protocolVersion": "m0015-stage-a-amended-20261011-v1",
+  "destination": "G:\\My Drive\\Transfer\\M0015-review\\handoff\\m0015-stage-a-amended-20261011-v2",
+  "cloudLocation": "My Drive/Transfer/M0015-review/handoff/m0015-stage-a-amended-20261011-v2/",
+  "verifiedAtUtc": "2026-10-11T21:23:24Z",
+  "assessmentCount": 16,
+  "fileCount": 11,
+  "totalBytes": 1343081.0,
+  "checksummedPayloadFileCount": 10,
+  "sha256SumsFileSha256": "2DC621007DDF0CE7D1BDD19A263B9FE845AAEAEB98B902A8FC6AB98AAF6017AE",
+  "manifestSha256": "286A0FF45640773E9B5572D66D7FC6E5FF1A5881BB7089D86A3603C38CD6577C",
+  "protocolSha256": "B9C0915683AD3A0EC5CCC8BF3DC023963DF7621436A9BC68B0008D7C017096FB",
+  "tokenMappingSha256": "247540A9683A9B8192BDB0EA19955C43F221A6343D3B219875EB0F35CCA675FA",
+  "files": [
     {
-      "path": "source-archives/repository-a-source.zip",
-      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699"
+      "path": "assessment-manifest.json",
+      "sha256": "286A0FF45640773E9B5572D66D7FC6E5FF1A5881BB7089D86A3603C38CD6577C",
+      "bytes": 15957
     },
     {
-      "path": "source-archives/repository-b-source.zip",
-      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777"
-    }
-  ],
-  "checksummedFiles": [
-    {
-      "path": "ASSESSOR-INSTRUCTIONS.md",
-      "sha256": "B05906BD38F4C3EDA906983893B089B202277B610542DC6C7954276F80E108F6"
+      "path": "blinded-candidates.json",
+      "sha256": "BAFFD52EC39DB8C43912F7A18CB76D745A27F9B69F2FACBC6B7F7CD983F9AF66",
+      "bytes": 8825
     },
     {
-      "path": "BLINDED-CANDIDATES.json",
-      "sha256": "9573405CB05FAE6D08623A27561727B683C7D7EAC0DCAD091A31220ED291028D"
+      "path": "JUDGMENT-PROMPT.md",
+      "sha256": "ED4D139AEBA7D7AF65145959961B91B001D4DBE2386950EEB7EBCC337026B43B",
+      "bytes": 4113
     },
     {
-      "path": "FROZEN-MANIFEST.json",
-      "sha256": "01159EAD73C9A2599D8CD60BEC72DEE4F8C1A1708646E0ABF5AE03150695A12F"
+      "path": "judgments-schema.json",
+      "sha256": "97C554404B00232E2A8BB1943BB9FD66B8BD28314D8213E0C25F2A7F59DB3D31",
+      "bytes": 1748
     },
     {
-      "path": "JUDGMENT-SCHEMA.json",
-      "sha256": "9B47CE8002270ECF5E4B64F6ACBE91A82ACE1B6353F27744084D3E741F7FAE49"
+      "path": "judgments-template.json",
+      "sha256": "145D7B12F5C4CC8B8DCA73BAF3C506B7092D2ACB0E146A151A2E6D80267720B9",
+      "bytes": 6796
     },
     {
-      "path": "JUDGMENT-TEMPLATE.json",
-      "sha256": "990B1A2418E17823151CC9E27D0E08007757AF72E89756ACADF6B38B221569A7"
+      "path": "protocol.json",
+      "sha256": "B9C0915683AD3A0EC5CCC8BF3DC023963DF7621436A9BC68B0008D7C017096FB",
+      "bytes": 3178
     },
     {
       "path": "README.md",
-      "sha256": "6C471F3A8670D3B4081665074D2C042DE3C431878E9A2FC26EE0CB70A39348D9"
+      "sha256": "D86ED171AE02176E6DE75E3C094BD58CD521C72AB8FE22B18E54A6CCAC8001D2",
+      "bytes": 328
     },
     {
-      "path": "source-archives/repository-a-source.zip",
-      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699"
+      "path": "repositories/dotnet-ai-code-hygiene-4d05393b4501.zip",
+      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699",
+      "bytes": 687900
     },
     {
-      "path": "source-archives/repository-b-source.zip",
-      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777"
+      "path": "repositories/dotnet-semantic-type-model-88b5ad5092e3.zip",
+      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777",
+      "bytes": 601438
     },
     {
-      "path": "validate-submission.ps1",
-      "sha256": "EDD00CC1BECD6AA4714F74E156C61A367913654DF81C43BCAABE03FE366D3915"
+      "path": "validate-judgments.ps1",
+      "sha256": "13202AF536123FA62BED543FA5BD5C16E49338A2C80573BC54E709CBF5E4FAFA",
+      "bytes": 11857
     }
   ],
-  "destinationVerification": "passed",
-  "semanticJudgmentsIncluded": false,
-  "privateTokenPolicyMapIncluded": false,
-  "validatorEvidence": "six synthetic-only fixtures passed; no semantic judgments evaluated"
+  "archiveHashes": [
+    {
+      "path": "repositories/dotnet-ai-code-hygiene-4d05393b4501.zip",
+      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699",
+      "bytes": 687900
+    },
+    {
+      "path": "repositories/dotnet-semantic-type-model-88b5ad5092e3.zip",
+      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777",
+      "bytes": 601438
+    }
+  ],
+  "mountedCopyVerification": "passed: all checksummed files matched and frozen archive entries/source paths verified",
+  "driveProviderVerification": {
+    "status": "passed",
+    "folderId": "1dEISC4tZ9jocBthfiYQy7IxmFvjHD2oS",
+    "folderUrl": "https://drive.google.com/drive/folders/1dEISC4tZ9jocBthfiYQy7IxmFvjHD2oS",
+    "listing": "all 10 payload files and both repository archives present; listed byte sizes match mounted copies",
+    "checksumManifestFetched": "remote SHA256SUMS.txt contents match mounted checksum manifest"
+  },
+  "providerSyncConfirmed": true,
+  "judgmentsIncluded": false,
+  "reviewerOrAgentInvoked": false,
+  "privateMapIncluded": false,
+  "sha256SumsFile": {
+    "path": "SHA256SUMS.txt",
+    "bytes": 941,
+    "sha256": "2DC621007DDF0CE7D1BDD19A263B9FE845AAEAEB98B902A8FC6AB98AAF6017AE"
+  }
 }

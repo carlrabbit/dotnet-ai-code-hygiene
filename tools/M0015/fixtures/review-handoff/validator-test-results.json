@@ -1,54 +1,77 @@
 {
   "schemaVersion": 1,
-  "kind": "m0015-synthetic-validator-test-results",
+  "kind": "m0015-synthetic-judgment-validator-results",
   "fixtures": [
     {
-      "id": "valid-synthetic-accepted-and-negative",
-      "expected": "pass",
-      "actual": "pass",
-      "expectedError": null,
+      "id": "valid-complete-synthetic-outcomes",
+      "expected": "valid-complete",
+      "actual": "valid-complete",
       "observedError": "",
       "syntheticOnly": true
     },
     {
-      "id": "reject-duplicate-token",
-      "expected": "fail",
-      "actual": "fail",
-      "expectedError": "Duplicate candidate token",
-      "observedError": "Duplicate candidate token: SYNTHETIC-TOKEN-01",
+      "id": "valid-partial-is-incomplete",
+      "expected": "incomplete",
+      "actual": "incomplete",
+      "observedError": "",
       "syntheticOnly": true
     },
     {
-      "id": "reject-missing-token",
-      "expected": "fail",
-      "actual": "fail",
-      "expectedError": "exactly the frozen assessment population",
-      "observedError": "Submission must contain exactly the frozen assessment population.",
-      "syntheticOnly": true
-    },
-    {
-      "id": "reject-escalation-mismatch",
-      "expected": "fail",
-      "actual": "fail",
-      "expectedError": "Q1-Q5 escalation threshold",
-      "observedError": "Q1-Q5 escalation threshold requires a negative outcome for SYNTHETIC-TOKEN-01.",
+      "id": "valid-uncertain-abstention",
+      "expected": "incomplete",
+      "actual": "incomplete",
+      "observedError": "",
       "syntheticOnly": true
     },
     {
       "id": "reject-unknown-token",
-      "expected": "fail",
-      "actual": "fail",
-      "expectedError": "Unknown candidate token",
+      "expected": "invalid",
+      "actual": "invalid",
       "observedError": "Unknown candidate token: SYNTHETIC-UNKNOWN",
       "syntheticOnly": true
     },
     {
-      "id": "reject-mismatched-manifest",
-      "expected": "fail",
-      "actual": "fail",
-      "expectedError": "different frozen manifest",
-      "observedError": "Submission references a different frozen manifest.",
+      "id": "reject-duplicate-conflicting-token",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Duplicate/conflicting answer token: SYNTHETIC-TOKEN-01",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-wrong-source-revision",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Source revision mismatch for SYNTHETIC-TOKEN-01.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-wrong-manifest",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Submission references a different manifest hash.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-missing-answer",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Missing or invalid q5 answer for SYNTHETIC-TOKEN-01.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-inconsistent-escalation",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Q1-Q5 escalation requires negative decision for SYNTHETIC-TOKEN-01.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-uncertain-as-accepted",
+      "expected": "invalid",
+      "actual": "invalid",
+      "observedError": "Uncertain Q1-Q5 answers require uncertain/abstained decision for SYNTHETIC-TOKEN-01.",
       "syntheticOnly": true
     }
-  ]
+  ],
+  "semanticJudgmentsEvaluated": false
 }

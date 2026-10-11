@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "protocolVersion", "manifestSha256", "reviewer", "items"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "kind": {"const": "m0015-semantic-review-judgments"},
+    "protocolVersion": {"type": "string", "minLength": 1},
+    "manifestSha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "reviewer": {"type": "object", "required": ["reviewerId", "role", "model", "sessionId", "completedAtUtc"], "properties": {"reviewerId": {"type": "string", "minLength": 1}, "role": {"type": "string", "minLength": 1}, "model": {"type": "string", "minLength": 1}, "sessionId": {"type": "string", "minLength": 1}, "completedAtUtc": {"type": "string", "format": "date-time"}}},
+    "items": {"type": "array", "items": {"type": "object", "required": ["token", "sourceRevision", "fingerprint", "q1", "q2", "q3", "q4", "q5", "decision", "evidence"], "properties": {"token": {"type": "string", "minLength": 1}, "sourceRevision": {"type": "string", "pattern": "^[A-Fa-f0-9]{40}$"}, "fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "q1": {"enum": ["yes", "no", "uncertain"]}, "q2": {"enum": ["yes", "no", "uncertain"]}, "q3": {"enum": ["yes", "no", "uncertain"]}, "q4": {"enum": ["yes", "no", "uncertain"]}, "q5": {"enum": ["yes", "no", "uncertain"]}, "decision": {"enum": ["accepted", "negative", "uncertain"]}, "evidence": {"type": "array", "items": {"type": "object", "required": ["path", "note"], "properties": {"path": {"type": "string", "minLength": 1}, "line": {"type": ["integer", "null"], "minimum": 1}, "note": {"type": "string", "minLength": 1}}}}, "uncertainty": {"type": ["string", "null"]}}}}
+  }
+}
