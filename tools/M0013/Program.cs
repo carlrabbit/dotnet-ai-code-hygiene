@@ -10,7 +10,7 @@ namespace M0013Replay;
 
 internal sealed record Variant(string Id, string Policy, string Observation, string Seed, string StatePath);
 internal sealed record RunConfig(string Root, string RepositoryId, string Commit, long TimestampUnixMilliseconds, string VariantsPath, string OutputPath);
-internal sealed record Candidate(string Identity, string Path, int Line, string Symbol, string Declaration);
+internal sealed record Candidate(string Identity, string Path, int Line, string Symbol, string Declaration, string? PopulationUnitId);
 internal sealed record ModuleStats(string RuleId, int PopulationCount, int DueBeforeObservation, int SelectedCount,
     int AcceptedCount, int DueAfterObservation, string[] SelectedIds, Candidate[] SelectedCandidates);
 internal sealed record VariantResult(string VariantId, string Policy, string Observation, string SeedId,
@@ -235,7 +235,8 @@ internal static class Program
     }
 
     private static Candidate ToCandidate(ReviewSubject subject) => new(subject.Identity, subject.Item.Path,
-        subject.Item.Line, subject.Item.Symbol ?? string.Empty, subject.Item.Declaration ?? string.Empty);
+        subject.Item.Line, subject.Item.Symbol ?? string.Empty, subject.Item.Declaration ?? string.Empty,
+        subject.PopulationTicket is PopulationTicket ticket ? ticket.UnitId : null);
 
     private static string[] ReadDisabledRules(string root)
     {

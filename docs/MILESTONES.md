@@ -122,9 +122,9 @@ Replay and compare sampling policies across diverse repositories, then publish r
 Primary milestone: `docs/milestones/M0013-cross-repository-age-validation.md`.
 
 ## M0014 — Sampling Selection Displacement Analysis
-**State:** planned; readiness verification required
+  **State:** awaiting human review; execution evidence prepared
 **Mode:** AI-executed, human-reviewed; investigation
 
 Compare candidate-level B-versus-C selection overlap, displacement, first-selection checkpoint timing and cap saturation using frozen M0013 evidence. Distinguish synthetic scheduling from semantic quality; preserve private evidence boundaries.
 
-Primary milestone: `docs/milestones/M0014-sampling-selection-displacement.md`.
+  Primary milestone: `docs/milestones/M0014-sampling-selection-displacement.md`; report: `docs/research/ACTIVITY-AGE-SELECTION-COMPARISON.md`; review request: `.review/REV-M0014-COMPLETION.md`.
