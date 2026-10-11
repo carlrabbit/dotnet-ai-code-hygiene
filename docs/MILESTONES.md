@@ -130,7 +130,7 @@ Compare candidate-level B-versus-C selection overlap, displacement, first-select
   Primary milestone: `docs/milestones/M0014-sampling-selection-displacement.md`; report: `docs/research/ACTIVITY-AGE-SELECTION-COMPARISON.md`; review request: `.review/REV-M0014-COMPLETION.md`.
 
 ## M0015 — Gate-Local Semantic Sampling: Design and Prototype
-**State:** ready for research amendment execution; original technical prototype complete; RQ-01–RQ-05 pending and milestone human review outstanding
+**State:** Stage A ready — frozen reviewer handoff to Google Drive Transfer; project-owner-run judgments and Stage C analysis pending; milestone human review outstanding
 **Mode:** AI-executed, human-reviewed
 
 Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`.
