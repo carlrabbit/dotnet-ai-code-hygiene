@@ -310,7 +310,7 @@ cheap structural extraction
 
 For subject-state sampling, the population/cohort state is replaced by subject-level state and hazard.
 
-Structural summaries should be cheap to recompute when the enclosing scope changes. If a scope fingerprint is unchanged, only time-dependent statistical state may need to advance.
+Structural summaries should be cheap to recompute when the enclosing scope changes. If a scope fingerprint is unchanged, rule-selected activity exposure may still have advanced; elapsed wall-clock time is not the default age signal.
 
 This direction complements the analysis-session/pipeline research in docs/research/RULE-APPLICATION-ARCHITECTURE.md.
 
@@ -396,7 +396,7 @@ These are examples, not commitments.
 
 - What rule metadata is needed to declare a sampling population without exposing a general-purpose configuration language?
 - Which hazard functions are simple enough to explain and calibrate?
-- Should elapsed wall-clock time, repository commits, subject changes, or some combination define aging?
+- Resolved direction for the next milestone: abstract project-scoped source-churn age units instead of universal wall-clock aging. See `ACTIVITY-AGE.md`; M0012 is not yet implemented. Which fixed coefficient and normalization floor best survive the M0013 experiment?
 - Which subject identities remain stable enough for subject-state sampling across ordinary refactors?
 - Which cohort definitions provide meaningful value without becoming detailed indexing?
 - How should sampled semantic-review work interact with changed-file reporting scope?

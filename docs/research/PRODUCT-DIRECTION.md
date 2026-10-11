@@ -6,6 +6,10 @@ Planning context, not implementation authority.
 
 This document preserves the current product thesis and the reasoning that should inform future milestone planning. Concrete behavior remains governed by milestones, specifications, architecture, and engineering authority.
 
+## Current sampling research direction
+
+M0012–M0014 established deterministic historical activity-age sampling and measured substantial due pressure and candidate displacement, without demonstrating semantic-review usefulness. **Planning has since pivoted to bounded, gate-local selection and local parameter calibration at a concrete change/review gate**, using historical population information as optional context rather than treating accumulating project age as the default mechanism. Existing hazards and samplers may be retained, simplified, or replaced; no new production policy is authorized by this research note. See [the research synthesis](SAMPLING-GATE-PIVOT.md). Earlier sampling and age documents below preserve historical reasoning, not a competing active decision.
+
 ## Product thesis
 
 dotnet-ai-code-hygiene exists to keep AI-produced .NET code mechanically predictable, structurally readable, and reviewable over repeated agent-driven change.

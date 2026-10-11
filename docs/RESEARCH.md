@@ -20,3 +20,7 @@ Do not treat research as a specification. When planning resolves a material choi
 - docs/research/SAMPLING-RULES.md — statistical sampling direction for expensive/dense rule populations, including subject-state and aggregate/cohort models.
 
 These documents intentionally contain unresolved questions. A planning agent should use them to decide what deserves a milestone or further research; an implementation agent should follow the milestone and authoritative docs selected for its work.
+
+## Activity-age direction
+
+See [ACTIVITY-AGE.md](research/ACTIVITY-AGE.md) for the accepted planning direction: abstract age units from project-scoped activity, not generic wall-clock time. M0012 owns implementation; M0013 is a separate planned validation experiment. Current runtime contracts remain in the specifications until implementation.

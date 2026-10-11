@@ -132,11 +132,11 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 8.  docs.summary.required                     v2
 9.  docs.xml.consistent                       v1
 10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v4
-12. docs.summary.language.german.review       v2
+11. docs.summary.quality.review               v5
+12. docs.summary.language.german.review       v3
 13. readability.long-line.review              v1
 14. readability.control-flow.visual-block     v1
-15. architecture.boringness.review            v1
+15. architecture.boringness.review            v2
 ```
 
 The new rule is appended so all pre-M0011 relative ordering remains unchanged.

@@ -105,24 +105,24 @@ A summary sampling subject uses a stable project-qualified documentation anchor 
 
 The rule-owned evaluation fingerprint must change when review-relevant local evidence changes. For M0011 it includes the summary carrier and the corresponding source declaration text needed to judge the fixed rubric. The shared sampling store persists the last evaluation fingerprint so the rule can distinguish first evaluation, unchanged evaluation, and a new fingerprint without using run count as a proxy for change.
 
-For each summary rule independently:
+For each summary rule independently (versions 5 and 3 respectively):
 
 ```text
 first evaluation of subject          -> add H = 1
 new evaluation fingerprint           -> add H = 1 exactly once
-elapsed baseline                     -> add H = elapsed / 365 days
+age accrual                           -> none
 accepted review                      -> consume/reset current subject event
 failed/uncertain review              -> do not consume
 normal batch budget                  -> at most 5 due subjects
 ```
 
-The elapsed cursor and fingerprint update are persisted together with sampling state. Repeating the same effective evaluation time/fingerprint must not add duplicate hazard.
+Fingerprint updates are persisted with sampling state. Repeating the same fingerprint does not add duplicate hazard. Wall-clock time and project activity do not age summary-review subjects.
 
 `H=1` is deliberately interpretable rather than tuned pseudo-precision: one independent unit of integrated hazard corresponds to `1-exp(-1)` (about 63%) probability of having crossed the current exponential inspection threshold. Three accumulated units correspond to about 95%.
 
 ## `docs.summary.quality.review`
 
-Version: `4`
+Version: `5`
 Output kind: `review-batch`
 Normal reviewer: `implementer`
 Escalated reviewer: `frontier`
@@ -143,7 +143,7 @@ Escalate when any sampled summary materially fails a required question or the im
 
 ## `docs.summary.language.german.review`
 
-Version: `2`
+Version: `3`
 Output kind: `review-batch`
 Normal reviewer: `implementer`
 Escalated reviewer: `frontier`
@@ -162,7 +162,7 @@ The rule uses the same population/fingerprint/hazard shape as the quality rule b
 
 ## `architecture.boringness.review`
 
-Version: `1`
+Version: `2`
 Output kind: `review-batch`
 Normal reviewer: `implementer`
 Escalated reviewer: `planner`
@@ -175,19 +175,21 @@ Purpose: detect architectural pressure that may justify planner attention withou
 
 Enums and delegates are not candidates. Nested types are candidates. Candidate identities are transient and are not persisted in aggregate sampling state.
 
-The aggregate unit persists only source-document state. Its evaluation fingerprint represents the current ordered eligible type-declaration source for that document. The shared aggregate state also persists the previously observed eligible-candidate count so elapsed hazard can use the prior observed population size rather than pretending the current count existed for the entire unseen interval.
+The aggregate unit is the source document qualified by its stable owning project identity. Candidate identities remain transient. Its evaluation fingerprint represents the current ordered eligible type-declaration source for that document. The shared aggregate state persists the previously observed eligible-candidate count and the last-accounted project activity-age position.
 
 Rule-owned aggregate hazard policy:
 
 ```text
-first evaluation of a document       -> add aggregate H = 1
+first evaluation of a document        -> add aggregate H = 1
 new document evaluation fingerprint  -> add aggregate H = 1 exactly once
-elapsed baseline                     -> add H = previousCandidateCount * elapsed / 365 days
-accepted review                      -> consume one current aggregate event
-failed/uncertain review              -> do not consume
+activity age                          -> add H = previousCandidateCount * ageDelta / 365
+accepted review                       -> consume one current aggregate event
+failed/uncertain review               -> do not consume
 ```
 
-On first evaluation there is no retroactive elapsed hazard. The current candidate count becomes the baseline for the next elapsed interval.
+Activity age is project scoped and has no time-based accrual. A first project observation records its eligible-source baseline at age zero. Later complete observations compare eligible non-generated C# source snapshots and add `365 * (added LOC + deleted LOC) / max(previous project LOC, 100)` age units. Repeated identical snapshots add zero. The previous observed candidate count weights only the age since the unit's last-accounted position. Each document unit initializes its position at current project age, accounts activity at its next eligible evaluation even when nothing is due, and advances the position when it observes an empty candidate population so new candidates do not inherit old exposure. Partial reporting scope can advance the project snapshot and total if the complete project source state is independently readable; report findings and review items remain target-scoped. Linked paths are deduplicated within a project; project activity never transfers across projects.
+
+The source snapshot uses current tracked, staged, and uncommitted source contents and does not inspect commit history. Activity observation is project-scoped and independent of report scope: a check of one changed/requested file still compares the complete eligible source state of its owning project when all sources are readable, while findings and review batches remain limited to requested targets. If any eligible source cannot be inspected, the prior baseline and total are retained. Exact-content file moves within a project contribute zero; without reliable rename evidence, other added/deleted paths are counted independently (including edited renames), and edits at stable paths contribute their deterministic line diff. Missing or irreconcilable baselines are rebased without fabricated activity. Generated C# is excluded by path (`bin`, `obj`, `.git`, `.hygiene`, and common generated-file suffixes) and an auto-generated header in the first five lines. Every eligible file retains a SHA-256 fingerprint and line count. Exact source text is bounded at 128 Ki characters per file and 512 Ki characters per project; if represented source text across projects exceeds 1 Mi characters, commit drops exact text for every project while retaining metadata, independent of evaluation order. Changes without comparable exact text count the full prior and current file line counts; unchanged fingerprints add zero. Activity metadata size scales with eligible file count. Diff work is capped at 12,000 combined lines, 2,000,000 retained frontier cells, and edit distance 1,024; exceeding a diff limit counts whole-file additions and deletions as a conservative upper bound. Activity state version 3 upgrades prior source states; unavailable legacy baselines are safely re-established without inferred churn. Failed checks and revalidation discard staged snapshot and sampling changes. Activity snapshots, project totals, sampler positions, and sampler state share one concurrent-change-checked atomic state publication with `latest-run.json`.
 
 Normal selection:
 
@@ -251,7 +253,7 @@ Deterministic structural failures remain exhaustive and are not replaced by sema
 
 ## Compatibility and boundaries
 
-M0011 changes the semantic contracts of the two summary review rules, therefore their rule versions advance. Old v3/v1 sampling/ranking behavior is not preserved under the new versions.
+M0012 changes all three sampled policies, therefore each rule version advances. Old elapsed-day hazard is discarded under the new versions; it is not converted to activity exposure. The deterministic sampling algorithms, threshold derivation, tickets, budgets, acceptance protocol, and public output remain unchanged.
 
 Batch IDs remain fixed by semantic-review order:
 
@@ -261,8 +263,8 @@ B-2 docs.summary.language.german.review
 B-3 architecture.boringness.review
 ```
 
-Disabled rules do not emit a batch or accrue sampling state. Omitted subjects/units in partial reporting scope are not pruned or treated as absent. When next encountered, persisted elapsed cursors account for elapsed time according to the rule policy.
+Disabled rules do not emit a batch or accrue sampling state. Omitted subjects/units in partial reporting scope are not pruned or treated as absent. A later eligible BORINGness evaluation accounts for project activity since that unit's last accounted position; summary rules have no age cursor.
 
-M0011 adds no repository-configurable sample size, hazard, time horizon, language, cohort, prior, reviewer threshold, or BORINGness threshold.
+M0012 adds no repository-configurable sample size, hazard coefficient, denominator floor, language, cohort, prior, reviewer threshold, or BORINGness threshold.
 
 The CLI still performs no model/provider invocation.

@@ -120,7 +120,7 @@ try {
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.text.sentence')) { throw 'Installed check did not report missing summary punctuation.' }
     $quality = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
     $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
-    if (-not $quality -or $quality.ruleVersion -ne 4 -or $quality.sampleCount -ne 5 -or -not $german -or $german.ruleVersion -ne 2) { throw 'Installed check did not emit the independent v4 quality and v2 German review batches.' }
+    if (-not $quality -or $quality.ruleVersion -ne 5 -or $quality.sampleCount -ne 5 -or -not $german -or $german.ruleVersion -ne 3) { throw 'Installed check did not emit the independent v5 quality and v3 German review batches.' }
     if (-not ($check.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Installed check omitted BORINGness review.' }
     $internalFields = 'samplingTicket|stateEpoch|repositorySeed|hazard|threshold|evaluationFingerprint|aggregateEvidence'
     if (($check | ConvertTo-Json -Depth 32) -match $internalFields) { throw 'Installed check exposed internal sampling metadata.' }

@@ -1,0 +1,797 @@
+{
+  "schemaVersion": 1,
+  "experiment": "M0013",
+  "frozenAtUtc": "2026-10-11T00:07:12.7245812+02:00",
+  "environment": {
+    "os": "Microsoft Windows 10.0.26200",
+    "dotnetSdk": "11.0.100-rc.1.26425.128",
+    "shell": "PowerShell",
+    "externalNetworkFreshness": "Private upstream was fetched and matched its local tracking ref at freeze time; public origin/main refs remain cached and unconfirmed."
+  },
+  "checkpointRule": "Initial available first-parent commit plus every first-parent commit changing a tracked non-generated .cs path; C# source eligibility and per-project populations are measured by the M0012 Roslyn loader during replay.",
+  "policies": {
+    "A": "M0011 elapsed-day hazard overlay: first/change hazards unchanged; subject H += deltaSeconds/(365*86400); BORINGness H += previousCandidateCount*deltaSeconds/(365*86400).",
+    "B": "M0012 project-scoped normalized source activity using the production implementation and fixed rule-owned policies.",
+    "C": "M0012 first/change hazards only; suppress project activity accrual while retaining the same fingerprints, rule versions, budgets, sampler algorithms and seeds.",
+    "sharedRandomness": "Each replicate seed is shared across A/B/C. Current M0012 rule/model versions are held constant to isolate only the age input."
+  },
+  "seeds": {
+    "count": 5,
+    "formula": "uppercase hex SHA256(UTF8(\"M0013-v1|<stable-corpus-id>|seed-01..05\"))"
+  },
+  "observationArms": [
+    "all selected tickets explicitly observed after each checkpoint (synthetic scheduling only)",
+    "no tickets observed (synthetic scheduling only)"
+  ],
+  "blindedPool": {
+    "selectedEncounterCapPerPolicyPerRepository": 25,
+    "randomSupplementCapPerRepository": 25,
+    "equalCompletedReviewBudgets": [
+      25,
+      50,
+      100
+    ],
+    "rubric": "the fixed M0012 questions for each semantic-review rule",
+    "provenance": "blinded subject/revision pair; policy/seed omitted from reviewer view"
+  },
+  "ceilings": {
+    "fullReplayWallClockMinutes": 180,
+    "recordPerCheckpointMilliseconds": true,
+    "recordSerializedStateBytes": true,
+    "stopOnMissingCheckpoint": true
+  },
+  "privateEvidence": {
+    "storage": "restricted user-only local evidence store; path withheld",
+    "rawInputsAndRevisionIdsCommitted": false
+  },
+  "repositories": [
+    {
+      "id": "carlrabbit/Private",
+      "visibility": "private",
+      "defaultRef": "upstream branch, fetched at freeze and confirmed equal to local tracking ref; revision identifiers withheld",
+      "firstParentCommitCount": 143,
+      "checkpointCount": 120,
+      "eligibleCSharpPathCountAtHead": 796,
+      "checkpointManifest": "withheld; exact sequence and checksum remain in the authorized local manifest",
+      "revisionIds": "withheld; local authorized evidence only",
+      "seedValues": "withheld; derived by the public protocol formula in the local authorized manifest"
+    },
+    {
+      "id": "carlrabbit/dotnet-semantic-type-model",
+      "visibility": "public",
+      "defaultRef": "local refs/remotes/origin/main; remote freshness unconfirmed",
+      "firstParentCommitCount": 172,
+      "checkpointCount": 77,
+      "eligibleCSharpPathCountAtHead": 157,
+      "history": {
+        "ref": "refs/remotes/origin/main",
+        "baseSha": "d95c46079e79155e7b2157e51473f98dab97a514",
+        "headSha": "7997bcdf2ba36388e74e3e6d069b12414715383a",
+        "firstParentCommitCount": 172,
+        "checkpointCount": 77,
+        "checkpoints": [
+          {
+            "sha": "d95c46079e79155e7b2157e51473f98dab97a514",
+            "committerTimestamp": "2026-05-24T13:39:40+02:00",
+            "firstParentIndex": 0
+          },
+          {
+            "sha": "0ed4b3389acebedac9a9a9cf414f6a50f24373c5",
+            "committerTimestamp": "2026-05-24T15:00:27+02:00",
+            "firstParentIndex": 5
+          },
+          {
+            "sha": "54ddb4342333aa4c3d1b44672e0bd91fc3e3dc46",
+            "committerTimestamp": "2026-05-24T15:57:17+02:00",
+            "firstParentIndex": 6
+          },
+          {
+            "sha": "56bd3c8328497442a76dfc36ae1bfcdd533c44d9",
+            "committerTimestamp": "2026-05-24T18:01:50+02:00",
+            "firstParentIndex": 7
+          },
+          {
+            "sha": "cf0afa17d7c07ee0bcec008b41c4d48d8f2b5f9e",
+            "committerTimestamp": "2026-05-24T18:44:13+02:00",
+            "firstParentIndex": 8
+          },
+          {
+            "sha": "5768de95c9586ed8a5ea92da8bfa7cb4881270dd",
+            "committerTimestamp": "2026-05-24T22:28:44+02:00",
+            "firstParentIndex": 9
+          },
+          {
+            "sha": "f4bd6545f3ada92bfc7f5e83a579d8f0d1a44d60",
+            "committerTimestamp": "2026-05-24T23:28:11+02:00",
+            "firstParentIndex": 10
+          },
+          {
+            "sha": "35efb55aebaaa40a765abea63bb3d49900b065f7",
+            "committerTimestamp": "2026-05-24T23:46:36+02:00",
+            "firstParentIndex": 11
+          },
+          {
+            "sha": "5d46db0a3faa71a8c4c0941935b0647bfe4d9478",
+            "committerTimestamp": "2026-05-25T07:49:45+02:00",
+            "firstParentIndex": 12
+          },
+          {
+            "sha": "21d6413b63bbacdbca71c4205806b41c4226ee39",
+            "committerTimestamp": "2026-05-25T08:56:08+02:00",
+            "firstParentIndex": 13
+          },
+          {
+            "sha": "f53813551656cca4219778665a659b5693a639d6",
+            "committerTimestamp": "2026-05-25T12:14:27+02:00",
+            "firstParentIndex": 14
+          },
+          {
+            "sha": "d3d721258d4470fb41e2ccc5d3439601167092b7",
+            "committerTimestamp": "2026-05-25T18:06:24+02:00",
+            "firstParentIndex": 15
+          },
+          {
+            "sha": "a9cdb51dc4f25ce3876a67ecbc7b9d1cf8f0bfdf",
+            "committerTimestamp": "2026-05-25T20:37:19+02:00",
+            "firstParentIndex": 16
+          },
+          {
+            "sha": "3cebfdfdacf7fa77d5ca521e8a63c84dad7421bd",
+            "committerTimestamp": "2026-05-25T23:23:33+02:00",
+            "firstParentIndex": 21
+          },
+          {
+            "sha": "962c2102a727aaaea4034686aba8ecfe1da4ad94",
+            "committerTimestamp": "2026-05-26T18:08:31+02:00",
+            "firstParentIndex": 22
+          },
+          {
+            "sha": "a7d0f5bd1ef21047add7d689750d38dd33a7dba1",
+            "committerTimestamp": "2026-05-26T22:33:10+02:00",
+            "firstParentIndex": 24
+          },
+          {
+            "sha": "233355e18f221da321eae658d93067e4a47f5a87",
+            "committerTimestamp": "2026-05-28T14:58:34+02:00",
+            "firstParentIndex": 26
+          },
+          {
+            "sha": "e8c6567ad8049316bb0dfc31b318e9ad6af6dc7b",
+            "committerTimestamp": "2026-05-28T15:49:16+02:00",
+            "firstParentIndex": 28
+          },
+          {
+            "sha": "745ee0f10eb6b3bd86b2fd99c7dfb240465ee2cd",
+            "committerTimestamp": "2026-05-28T16:10:18+02:00",
+            "firstParentIndex": 31
+          },
+          {
+            "sha": "b6259e9add22b2beab426e5ac45ab6d8a5fd2b59",
+            "committerTimestamp": "2026-05-28T17:03:30+02:00",
+            "firstParentIndex": 32
+          },
+          {
+            "sha": "2dbc9fa0b4060ccb953e53a1f49bb3eeba643802",
+            "committerTimestamp": "2026-05-28T18:51:53+02:00",
+            "firstParentIndex": 35
+          },
+          {
+            "sha": "f3392b248ec1c26b608ba2e8baf73bc530b11a97",
+            "committerTimestamp": "2026-05-28T19:40:18+02:00",
+            "firstParentIndex": 36
+          },
+          {
+            "sha": "409b4dfae1b0ee2635e8c77104ee8df4bc245b41",
+            "committerTimestamp": "2026-05-29T20:29:00+02:00",
+            "firstParentIndex": 38
+          },
+          {
+            "sha": "ac54c88e6ec8fd91ef1e924a66b3a9039eab4ba5",
+            "committerTimestamp": "2026-05-29T23:19:28+02:00",
+            "firstParentIndex": 40
+          },
+          {
+            "sha": "39fc25f21a32c719e606cf56ddf8ae1494148caa",
+            "committerTimestamp": "2026-05-30T10:32:55+02:00",
+            "firstParentIndex": 42
+          },
+          {
+            "sha": "73ab7c595f7b01d1eb4d6941720edcfe400e23a1",
+            "committerTimestamp": "2026-06-03T19:12:38+02:00",
+            "firstParentIndex": 50
+          },
+          {
+            "sha": "87693c10d5ef71369cbdb5419d7453e440034671",
+            "committerTimestamp": "2026-06-03T21:03:42+02:00",
+            "firstParentIndex": 52
+          },
+          {
+            "sha": "705f9951bcbc617c4f69b8a3ec7b805f4c15949f",
+            "committerTimestamp": "2026-06-04T23:06:31+02:00",
+            "firstParentIndex": 59
+          },
+          {
+            "sha": "d2390144d53d2da605fb16b189718997fc5a17c5",
+            "committerTimestamp": "2026-06-05T21:07:15+02:00",
+            "firstParentIndex": 62
+          },
+          {
+            "sha": "c1dcec465b735bcfbe3c5f0f69a5d5656d4fcdcf",
+            "committerTimestamp": "2026-06-06T11:45:45+02:00",
+            "firstParentIndex": 63
+          },
+          {
+            "sha": "78f83f8cdb3091ca543559f23cae03dbd5bdd11d",
+            "committerTimestamp": "2026-06-06T19:00:52+02:00",
+            "firstParentIndex": 66
+          },
+          {
+            "sha": "df59efc4198a1b60a6c81059c41d74c847f7dbc5",
+            "committerTimestamp": "2026-06-06T21:39:56+02:00",
+            "firstParentIndex": 68
+          },
+          {
+            "sha": "17aafc08f3a5a30ebebc47bc490ec5116e72df44",
+            "committerTimestamp": "2026-06-07T23:38:17+02:00",
+            "firstParentIndex": 70
+          },
+          {
+            "sha": "ee47a531e1adc735eb36dc7466a1804e1fccbf5d",
+            "committerTimestamp": "2026-06-08T21:50:31+02:00",
+            "firstParentIndex": 73
+          },
+          {
+            "sha": "a003bf36c5093ebd31be21f36aea823a9193a91f",
+            "committerTimestamp": "2026-06-12T14:53:43+02:00",
+            "firstParentIndex": 75
+          },
+          {
+            "sha": "4f2e625e1e83dbe256ec896654315dcbd009d6eb",
+            "committerTimestamp": "2026-06-13T14:33:11+02:00",
+            "firstParentIndex": 77
+          },
+          {
+            "sha": "a2ec818eace7045258ce72f422f4a5c8f576e96b",
+            "committerTimestamp": "2026-06-16T17:31:55+02:00",
+            "firstParentIndex": 84
+          },
+          {
+            "sha": "0ca1bea0cd5937c0fdc2ea73d468f5506e650118",
+            "committerTimestamp": "2026-06-16T23:15:57+02:00",
+            "firstParentIndex": 88
+          },
+          {
+            "sha": "be31da4aaa07a9922ee5328ea1e2ee8baacc8d3d",
+            "committerTimestamp": "2026-06-20T10:11:13+02:00",
+            "firstParentIndex": 96
+          },
+          {
+            "sha": "5851ecfd2156e004390d19f2d28230840e4efc82",
+            "committerTimestamp": "2026-07-02T19:51:50+02:00",
+            "firstParentIndex": 100
+          },
+          {
+            "sha": "07a850464110e3ecae0dd2724a1e704adfc01fa2",
+            "committerTimestamp": "2026-07-02T22:53:48+02:00",
+            "firstParentIndex": 102
+          },
+          {
+            "sha": "1903881c56506e6cc9302310097bb0e70c1ae0f8",
+            "committerTimestamp": "2026-07-03T07:31:02+02:00",
+            "firstParentIndex": 106
+          },
+          {
+            "sha": "656e906430a47945d4fea9481a48e12fc994bf78",
+            "committerTimestamp": "2026-07-31T07:20:11+02:00",
+            "firstParentIndex": 108
+          },
+          {
+            "sha": "343893be734d03ef35ddc3c5bb095409892fa4a8",
+            "committerTimestamp": "2026-07-31T11:21:01+02:00",
+            "firstParentIndex": 110
+          },
+          {
+            "sha": "8fe9902fe2d83c2588df9c76f4e656137afbacf7",
+            "committerTimestamp": "2026-07-31T18:50:53+02:00",
+            "firstParentIndex": 112
+          },
+          {
+            "sha": "10f28437cb19e71f64a219da5cf891f5b85f709f",
+            "committerTimestamp": "2026-08-02T00:40:43+02:00",
+            "firstParentIndex": 113
+          },
+          {
+            "sha": "9ed2e7bf563c67b89fa6cbd6e2ff4738c5f744b8",
+            "committerTimestamp": "2026-08-02T00:53:52+02:00",
+            "firstParentIndex": 114
+          },
+          {
+            "sha": "e794eff72958c5f60c477641a550ca8fe5f9f100",
+            "committerTimestamp": "2026-08-02T09:29:54+02:00",
+            "firstParentIndex": 115
+          },
+          {
+            "sha": "07a44d0f5424dddc38c8d08bf673e94176a9a070",
+            "committerTimestamp": "2026-08-03T10:02:13+02:00",
+            "firstParentIndex": 117
+          },
+          {
+            "sha": "7f9de0f88e809ab30765d8cb919307e6c94cad6a",
+            "committerTimestamp": "2026-08-03T14:55:07+02:00",
+            "firstParentIndex": 119
+          },
+          {
+            "sha": "11392525b2768a1e5284cf6f50e360a3f952e584",
+            "committerTimestamp": "2026-08-03T22:29:18+02:00",
+            "firstParentIndex": 121
+          },
+          {
+            "sha": "36aceed1ce020ad9553d935c1db91509376f7f08",
+            "committerTimestamp": "2026-08-04T13:19:52+02:00",
+            "firstParentIndex": 123
+          },
+          {
+            "sha": "e49f3319473b5e39dcc08bf52f8d96178efa7644",
+            "committerTimestamp": "2026-08-04T14:49:23+02:00",
+            "firstParentIndex": 125
+          },
+          {
+            "sha": "64e203b0543f8192ac2e7d61ee5fd36eed2be8ec",
+            "committerTimestamp": "2026-08-04T19:06:37+02:00",
+            "firstParentIndex": 127
+          },
+          {
+            "sha": "009f2b47366bdfaf3fcb9b4ae3094bbd68b5d82b",
+            "committerTimestamp": "2026-08-05T17:29:11+02:00",
+            "firstParentIndex": 129
+          },
+          {
+            "sha": "53c6756cafc78793092d3e535e88a3a8f3c51012",
+            "committerTimestamp": "2026-08-15T07:42:16+02:00",
+            "firstParentIndex": 131
+          },
+          {
+            "sha": "44892163a34075a84118bf00a3f34a11ea2116c6",
+            "committerTimestamp": "2026-08-15T17:43:46+02:00",
+            "firstParentIndex": 135
+          },
+          {
+            "sha": "287cef1e5a00aedc5fb4255b5e2edb565701707b",
+            "committerTimestamp": "2026-08-15T21:40:41+02:00",
+            "firstParentIndex": 137
+          },
+          {
+            "sha": "8dd067b43f8c6464537389a454157399d3eb95a3",
+            "committerTimestamp": "2026-08-16T08:32:33+02:00",
+            "firstParentIndex": 139
+          },
+          {
+            "sha": "363dec41b6aa4044e6b0de2a83d3a67a37942405",
+            "committerTimestamp": "2026-08-17T21:09:58+02:00",
+            "firstParentIndex": 141
+          },
+          {
+            "sha": "1b57e7726ef823b583f71f1843a908034b605e0a",
+            "committerTimestamp": "2026-08-18T17:36:51+02:00",
+            "firstParentIndex": 145
+          },
+          {
+            "sha": "e39479a4f7ea5cc462d6933df18bb7d6473be882",
+            "committerTimestamp": "2026-08-18T21:16:26+02:00",
+            "firstParentIndex": 146
+          },
+          {
+            "sha": "bf8f15daffb2673ebbc68cb9bd9c2c9887e73e41",
+            "committerTimestamp": "2026-08-18T22:54:52+02:00",
+            "firstParentIndex": 148
+          },
+          {
+            "sha": "819a667a27c7a21c3fd8b3a2d744f71105771e6e",
+            "committerTimestamp": "2026-08-23T18:46:30+02:00",
+            "firstParentIndex": 149
+          },
+          {
+            "sha": "d2f58ad4f6e71297b8b9f47c5ff64398a8b9a706",
+            "committerTimestamp": "2026-08-31T18:20:18+02:00",
+            "firstParentIndex": 151
+          },
+          {
+            "sha": "b687cb228a27c5e451dd7b8307be069ef2f4750b",
+            "committerTimestamp": "2026-08-31T20:51:16+02:00",
+            "firstParentIndex": 152
+          },
+          {
+            "sha": "9d7edb3a716884fa4c346ed34b31fe50c129e59f",
+            "committerTimestamp": "2026-09-01T12:39:17+02:00",
+            "firstParentIndex": 153
+          },
+          {
+            "sha": "58924578c444e468ab6e7ab1b9d1ef0a4a204a7d",
+            "committerTimestamp": "2026-09-01T19:31:34+02:00",
+            "firstParentIndex": 154
+          },
+          {
+            "sha": "b7fa149ec886dbfe89b8bf4ab69828674b261446",
+            "committerTimestamp": "2026-09-01T20:47:14+02:00",
+            "firstParentIndex": 155
+          },
+          {
+            "sha": "bae0c043c87533b5b91a3bcf4736019b2863747f",
+            "committerTimestamp": "2026-09-01T22:05:38+02:00",
+            "firstParentIndex": 156
+          },
+          {
+            "sha": "62abf892cc4dcb85bf816604a6fd21d78f7c8edb",
+            "committerTimestamp": "2026-09-01T23:12:24+02:00",
+            "firstParentIndex": 157
+          },
+          {
+            "sha": "04758543477edb45e362f2506edbc7515ecd7cbf",
+            "committerTimestamp": "2026-09-02T17:21:08+02:00",
+            "firstParentIndex": 158
+          },
+          {
+            "sha": "4d6d73abb85860f03eba3bb6ed9d04c442dda80c",
+            "committerTimestamp": "2026-09-02T22:02:11+02:00",
+            "firstParentIndex": 159
+          },
+          {
+            "sha": "0617667f4ab48876da38ef404b030593352c98f9",
+            "committerTimestamp": "2026-09-19T20:15:14+02:00",
+            "firstParentIndex": 168
+          },
+          {
+            "sha": "e2b86c0d79a742b38351336a1225f83ef8ebb295",
+            "committerTimestamp": "2026-09-20T16:10:25+02:00",
+            "firstParentIndex": 169
+          },
+          {
+            "sha": "7ce68fb9f011c2d215db21cc5b176dff3f39d247",
+            "committerTimestamp": "2026-09-22T20:05:50+02:00",
+            "firstParentIndex": 170
+          },
+          {
+            "sha": "7997bcdf2ba36388e74e3e6d069b12414715383a",
+            "committerTimestamp": "2026-09-22T21:34:03+02:00",
+            "firstParentIndex": 171
+          }
+        ]
+      },
+      "seeds": [
+        "DCD13D71CA9F87C977A65609F6770F0F032A5074AB9FEB80E2E04B61F80AAF4D",
+        "2D8AE82D5360E69ABB21B2B27707BFA7DAFB330A04A53069DFDD9F6140679229",
+        "B0F96D2043FC64C8D40425240F68357EFA886CD73D5AE5AA4A9AEEEB615A41DA",
+        "4C536654499A84D35C1E78065AF901433F385B56BABBDA27F8A8D88793547CB9",
+        "2EAFD88DD33C2011CE3AAD248B17A206291E4CDE54230820F150C686D8751ADB"
+      ]
+    },
+    {
+      "id": "carlrabbit/dotnet-ai-code-hygiene",
+      "visibility": "public",
+      "defaultRef": "local refs/remotes/origin/main; remote freshness unconfirmed",
+      "firstParentCommitCount": 15,
+      "checkpointCount": 11,
+      "eligibleCSharpPathCountAtHead": 34,
+      "history": {
+        "ref": "refs/remotes/origin/main",
+        "baseSha": "5caa1c802098dd8ffa5876a344242be7b2e30fc8",
+        "headSha": "92825010a5afce11646857b2b20e1e0f5ec20174",
+        "firstParentCommitCount": 15,
+        "checkpointCount": 11,
+        "checkpoints": [
+          {
+            "sha": "5caa1c802098dd8ffa5876a344242be7b2e30fc8",
+            "committerTimestamp": "2026-10-03T14:18:03+02:00",
+            "firstParentIndex": 0
+          },
+          {
+            "sha": "f9f1e3d4abec2d0649a09bddf537fc47038c70dd",
+            "committerTimestamp": "2026-10-03T22:52:23+02:00",
+            "firstParentIndex": 1
+          },
+          {
+            "sha": "163367418f644bc080a6ddf479908299844235ea",
+            "committerTimestamp": "2026-10-04T10:12:40+02:00",
+            "firstParentIndex": 2
+          },
+          {
+            "sha": "737c1cc5d9092151ea72685f29f3e35034e37762",
+            "committerTimestamp": "2026-10-04T13:06:59+02:00",
+            "firstParentIndex": 3
+          },
+          {
+            "sha": "61dcf6eaa4f0f576da0d4034c8e3e19a090c39d6",
+            "committerTimestamp": "2026-10-04T19:30:49+02:00",
+            "firstParentIndex": 4
+          },
+          {
+            "sha": "ec30fcfb52191c43319330b3da9c24d5f725fe16",
+            "committerTimestamp": "2026-10-04T22:40:12+02:00",
+            "firstParentIndex": 6
+          },
+          {
+            "sha": "2ca96d4b28f86f30629fe3361d78ece09c9bccf5",
+            "committerTimestamp": "2026-10-06T18:49:14+02:00",
+            "firstParentIndex": 8
+          },
+          {
+            "sha": "aa690728d555e5781f455d831a94a1c1ab03857a",
+            "committerTimestamp": "2026-10-07T08:12:35+02:00",
+            "firstParentIndex": 9
+          },
+          {
+            "sha": "56ce4a5ecda4ed5b6969d422fa29009ac6a347a7",
+            "committerTimestamp": "2026-10-07T19:04:59+02:00",
+            "firstParentIndex": 11
+          },
+          {
+            "sha": "e0d1abccd0992f2f5f15b49ed7f8723642bdb5c7",
+            "committerTimestamp": "2026-10-07T22:25:26+02:00",
+            "firstParentIndex": 13
+          },
+          {
+            "sha": "92825010a5afce11646857b2b20e1e0f5ec20174",
+            "committerTimestamp": "2026-10-08T12:50:15+02:00",
+            "firstParentIndex": 14
+          }
+        ]
+      },
+      "seeds": [
+        "86840F310EFF05A35B48079D81FF805AD34DFACADEDC14AB474C8237100191A4",
+        "C35C02C438B36239BEC7F57BA0D28A40F6438A871EBA2A38F3F625C24CDF0B20",
+        "64AEE09CF8B3181A2C215EF318514479FCCBFB23FA6757E2F709CE49CEE55506",
+        "99F3C2C0884BF703AC44364BE2873169BBE550547BC99959C55E2B39917E2A95",
+        "63F9680F29F46D7C72143AF10AE287866E382D8A09478F454F8332CF09169700"
+      ]
+    },
+    {
+      "id": "carlrabbit/dotnet-ai-first-2d-game-engine",
+      "visibility": "public",
+      "defaultRef": "local refs/remotes/origin/main; remote freshness unconfirmed",
+      "firstParentCommitCount": 52,
+      "checkpointCount": 45,
+      "eligibleCSharpPathCountAtHead": 173,
+      "history": {
+        "ref": "refs/remotes/origin/main",
+        "baseSha": "b5130fccc40a6666d898ab269c60c004b6cfd8b9",
+        "headSha": "972b7c47b0215311bbd6b1cf57841bd8d21b2800",
+        "firstParentCommitCount": 52,
+        "checkpointCount": 45,
+        "checkpoints": [
+          {
+            "sha": "b5130fccc40a6666d898ab269c60c004b6cfd8b9",
+            "committerTimestamp": "2026-06-10T22:22:36+02:00",
+            "firstParentIndex": 0
+          },
+          {
+            "sha": "d776f8e657925796c113e80986dbc8c185b13038",
+            "committerTimestamp": "2026-06-10T22:58:40+02:00",
+            "firstParentIndex": 3
+          },
+          {
+            "sha": "9aa044d878b21571ce8fc0f9c7746509e1f14d56",
+            "committerTimestamp": "2026-06-10T23:22:01+02:00",
+            "firstParentIndex": 4
+          },
+          {
+            "sha": "7fc86fccf33d05663b3bad8e085091c74911b431",
+            "committerTimestamp": "2026-06-13T17:15:00+02:00",
+            "firstParentIndex": 5
+          },
+          {
+            "sha": "11a5468d0824a7d26a0ea3b81fc400ba4d4d9f81",
+            "committerTimestamp": "2026-06-14T10:24:46+02:00",
+            "firstParentIndex": 8
+          },
+          {
+            "sha": "e60e5946f980e642713dce91a926da3670ceaadf",
+            "committerTimestamp": "2026-06-14T10:48:41+02:00",
+            "firstParentIndex": 9
+          },
+          {
+            "sha": "33d11a9aa38278f6fa6f43d592dee04c27cd0f8f",
+            "committerTimestamp": "2026-06-14T11:32:45+02:00",
+            "firstParentIndex": 10
+          },
+          {
+            "sha": "f4414335616170c3e7d5780471b6f59d8b1325b5",
+            "committerTimestamp": "2026-06-14T14:37:33+02:00",
+            "firstParentIndex": 13
+          },
+          {
+            "sha": "0ebab3ea8642fc0eb8ff4dabf79dd80ad67453b7",
+            "committerTimestamp": "2026-07-04T08:50:04+02:00",
+            "firstParentIndex": 14
+          },
+          {
+            "sha": "b54752069857720b4b901ada1d4fe19f9213970e",
+            "committerTimestamp": "2026-07-13T13:37:32+02:00",
+            "firstParentIndex": 15
+          },
+          {
+            "sha": "aa4840a1dd07c00b647ee9f69b48ae7ed018a1b8",
+            "committerTimestamp": "2026-07-13T16:07:58+02:00",
+            "firstParentIndex": 16
+          },
+          {
+            "sha": "68bc0b8459d5a383ca1592ae8cec8c344e07930d",
+            "committerTimestamp": "2026-07-13T17:16:22+02:00",
+            "firstParentIndex": 17
+          },
+          {
+            "sha": "aec78a0dab9341044021b3ffe9f83e4759dd73d1",
+            "committerTimestamp": "2026-07-14T11:41:47+02:00",
+            "firstParentIndex": 18
+          },
+          {
+            "sha": "c209d8a3066e0b38697487bf0cf4d6630791e01c",
+            "committerTimestamp": "2026-07-14T16:00:11+02:00",
+            "firstParentIndex": 20
+          },
+          {
+            "sha": "0636b0aea093cf60cb6e262b37a68dbc76a4db02",
+            "committerTimestamp": "2026-07-15T13:08:02+02:00",
+            "firstParentIndex": 21
+          },
+          {
+            "sha": "de6ea89cbd338cb05731291bc67129a1a38f2761",
+            "committerTimestamp": "2026-07-16T21:52:24+02:00",
+            "firstParentIndex": 22
+          },
+          {
+            "sha": "9325ab628a7eb52cb5734c6fce7a2e78347c6bd8",
+            "committerTimestamp": "2026-07-16T22:43:50+02:00",
+            "firstParentIndex": 23
+          },
+          {
+            "sha": "0b38b5bd4defd7bbab181d2853fe8354ff2ed0c8",
+            "committerTimestamp": "2026-07-17T15:01:06+02:00",
+            "firstParentIndex": 24
+          },
+          {
+            "sha": "fe898e8de693c34c41e0f534a1acd5f58f899f7d",
+            "committerTimestamp": "2026-07-19T12:36:13+02:00",
+            "firstParentIndex": 25
+          },
+          {
+            "sha": "b023a8085a419484c00cb55b6091baa754398f1a",
+            "committerTimestamp": "2026-07-21T20:03:25+02:00",
+            "firstParentIndex": 26
+          },
+          {
+            "sha": "4d06d414ebed8871c58420cc30c1185588191ace",
+            "committerTimestamp": "2026-07-21T21:29:18+02:00",
+            "firstParentIndex": 27
+          },
+          {
+            "sha": "fe58bb1d3eac0e46bdc82d5fa6a7325484e89695",
+            "committerTimestamp": "2026-07-22T07:13:06+02:00",
+            "firstParentIndex": 28
+          },
+          {
+            "sha": "53911e597886306117f953343719e2911dc99c47",
+            "committerTimestamp": "2026-07-22T17:26:56+02:00",
+            "firstParentIndex": 29
+          },
+          {
+            "sha": "68a085a21fb93a70cbe027db414c0622c0ecb77b",
+            "committerTimestamp": "2026-07-22T20:17:35+02:00",
+            "firstParentIndex": 30
+          },
+          {
+            "sha": "e102d5541b3f523baa38932ad16846db580d4918",
+            "committerTimestamp": "2026-07-23T07:28:10+02:00",
+            "firstParentIndex": 31
+          },
+          {
+            "sha": "f5e1071c7edb3b1e891faf76b1ec64713f5f7472",
+            "committerTimestamp": "2026-08-20T17:28:00+02:00",
+            "firstParentIndex": 32
+          },
+          {
+            "sha": "2682ff9874ffcb9fde7db6745e2a8c94489ea8a0",
+            "committerTimestamp": "2026-08-20T20:15:47+02:00",
+            "firstParentIndex": 33
+          },
+          {
+            "sha": "bfd5200a49f64f9dc01dd62d93d47a2b820f39f6",
+            "committerTimestamp": "2026-08-20T23:36:57+02:00",
+            "firstParentIndex": 34
+          },
+          {
+            "sha": "afe7c9b7ffd5a98ea922f3e4b21b5d7a42294dab",
+            "committerTimestamp": "2026-08-20T23:56:54+02:00",
+            "firstParentIndex": 35
+          },
+          {
+            "sha": "9abfb451a4d0df57dd9141810ca9ebd7e5215ff5",
+            "committerTimestamp": "2026-08-24T22:30:43+02:00",
+            "firstParentIndex": 36
+          },
+          {
+            "sha": "1931b646708d8d591b9b8719cf39ae916007d2ce",
+            "committerTimestamp": "2026-08-25T20:20:07+02:00",
+            "firstParentIndex": 37
+          },
+          {
+            "sha": "8a934f2038ab38d6b24ed1d2e7b42076fef4bebd",
+            "committerTimestamp": "2026-08-25T23:06:48+02:00",
+            "firstParentIndex": 38
+          },
+          {
+            "sha": "ec5917b094034d4bd5754dabd0d171ffaad8f364",
+            "committerTimestamp": "2026-08-25T23:20:41+02:00",
+            "firstParentIndex": 39
+          },
+          {
+            "sha": "807a0fa769d188e1247cb6190700f86e38f95431",
+            "committerTimestamp": "2026-08-25T23:25:52+02:00",
+            "firstParentIndex": 40
+          },
+          {
+            "sha": "520dc18c98d55838b29995e6953a436d5095fe7e",
+            "committerTimestamp": "2026-08-26T00:08:25+02:00",
+            "firstParentIndex": 41
+          },
+          {
+            "sha": "c6d029d77d1c3c6ffa54bdd8c907a08937b5b435",
+            "committerTimestamp": "2026-08-26T07:50:03+02:00",
+            "firstParentIndex": 42
+          },
+          {
+            "sha": "6b923719040d33a40aa0394f888f81130361c17b",
+            "committerTimestamp": "2026-08-26T08:52:16+02:00",
+            "firstParentIndex": 43
+          },
+          {
+            "sha": "97e9bb3745aec27a65fcccc4d4d97ee4f5dccc31",
+            "committerTimestamp": "2026-08-26T09:09:46+02:00",
+            "firstParentIndex": 44
+          },
+          {
+            "sha": "738d9c3e85a31f55bf06151f81d234ebec23f42c",
+            "committerTimestamp": "2026-08-26T12:58:31+02:00",
+            "firstParentIndex": 45
+          },
+          {
+            "sha": "5f79f5fd1fb042a558ad09e19b5bfb09a582c99b",
+            "committerTimestamp": "2026-08-26T14:40:57+02:00",
+            "firstParentIndex": 46
+          },
+          {
+            "sha": "1aa8a997d23364fb6179b4780ad368c91a422e35",
+            "committerTimestamp": "2026-08-26T16:34:49+02:00",
+            "firstParentIndex": 47
+          },
+          {
+            "sha": "f7450e04fb288a55de1dcf5e2097d1778286f85d",
+            "committerTimestamp": "2026-08-26T17:36:14+02:00",
+            "firstParentIndex": 48
+          },
+          {
+            "sha": "66e138a35b7dfc54003bdbc0f1d2c065f57c2091",
+            "committerTimestamp": "2026-08-26T21:39:13+02:00",
+            "firstParentIndex": 49
+          },
+          {
+            "sha": "fb2e6d1b6c8e774a2e8a415857288198012efb65",
+            "committerTimestamp": "2026-08-27T09:05:57+02:00",
+            "firstParentIndex": 50
+          },
+          {
+            "sha": "972b7c47b0215311bbd6b1cf57841bd8d21b2800",
+            "committerTimestamp": "2026-08-28T08:36:32+02:00",
+            "firstParentIndex": 51
+          }
+        ]
+      },
+      "seeds": [
+        "F747B4E175E443E82D7C92F4DF78038F1184E4CAC6103216E86FAA804B300CEF",
+        "FD92C71C3AB1A039CA4E1211FA431587AC30B71F7820507D7897A4640ACE068A",
+        "5562D2A566D5DD0B432BC42E688D87C4C32658D29F594C3F1C5A2DE6DB9017B8",
+        "FE95A524FC8E2BDADB32842E23D30EB08887537E146424517DB3B2E2CA203729",
+        "482D57B034CB891BF19821934103B40AF1F8CDA76B9318D9BC02FA15EF5782AC"
+      ]
+    }
+  ]
+}

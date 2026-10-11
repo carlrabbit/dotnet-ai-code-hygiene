@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <AssemblyName>DotNetAiCodeHygiene.Core.Tests</AssemblyName>
+    <RootNamespace>M0013Replay</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj" />
+  </ItemGroup>
+</Project>

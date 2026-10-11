@@ -8,7 +8,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "architecture.boringness.review";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "review-batch", "review-batch", "Sample source-backed types for observable architectural pressure that may warrant planner attention.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Sample source-backed types for observable architectural pressure that may warrant planner attention.", true);
     internal static readonly ReviewQuestion[] RuleQuestions =
     [
         new("Q1", "Speculative abstraction: Is there an interface, provider, factory, strategy, generic mechanism, extension point, or similar abstraction with only one meaningful production use/implementation and no current requirement for variability?"),
@@ -18,7 +18,10 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         new("Q5", "Unclear ownership: After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?")
     ];
     internal const string EscalationText = "Escalate to the planner when Q4 is yes or at least two of Q1, Q2, Q3, and Q5 are yes. Legitimate external-service, persistence, platform, and interoperability boundaries may justify abstraction.";
-    private const double YearlyHazardRate = 1d / (365d * 24d * 60d * 60d);
+    internal sealed record HazardContribution(double FingerprintHazard, double ActivityHazard)
+    {
+        internal double Total => FingerprintHazard + ActivityHazard;
+    }
 
     public Rule Descriptor => RuleDescriptor;
     public int BatchNumber => 3;
@@ -35,27 +38,30 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
     internal static string PopulationFingerprint(IEnumerable<string> orderedCandidates) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\0", orderedCandidates))));
 
-    internal static void RecordPopulationEvaluation(DotNetAiCodeHygiene.Core.Sampling.PopulationHazardSampler sampler,
-        string unit, string fingerprint, int candidateCount, long cursor)
+    internal static HazardContribution RecordPopulationEvaluation(DotNetAiCodeHygiene.Core.Sampling.PopulationHazardSampler sampler,
+        string unit, string fingerprint, int candidateCount, double projectAgeUnits)
     {
         var old = sampler.State(unit);
-        if (old.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(old.LastEvaluationFingerprint, fingerprint)) { sampler.AddHazard(unit, 1); }
-        double previousCount = old.LastCandidateCount ?? 0;
-        sampler.AccrueElapsed(unit, cursor, previousCount * YearlyHazardRate);
+        double fingerprintHazard = old.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(old.LastEvaluationFingerprint, fingerprint) ? 1 : 0;
+        if (fingerprintHazard > 0) { sampler.AddHazard(unit, fingerprintHazard); }
+        double activityHazard = sampler.AccrueActivity(unit, projectAgeUnits);
         sampler.SetEvaluationMetadata(unit, fingerprint, candidateCount);
+        return new(fingerprintHazard, activityHazard);
     }
 
     public RuleModuleResult Evaluate(RuleContext context)
     {
-        var populationSampler = context.Sampling.PopulationSampler(RuleId, 1);
-        long cursor = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var populationSampler = context.Sampling.PopulationSampler(RuleId, 2);
         var subjects = new List<ReviewSubject>();
         var sourceContents = new Dictionary<string, string>(StringComparer.Ordinal);
-        var units = new List<(string Path, string Fingerprint, List<ReviewSubject> Subjects)>();
+        var units = new List<(string Path, string UnitId, string Fingerprint, List<ReviewSubject> Subjects)>();
 
         foreach (Document document in context.ReportingDocuments)
         {
+            if (!RuleContext.IsEligibleSourceDocument(document)) { continue; }
             string path = context.RelativePath(document);
+            string unitId = context.ProjectIdentity(document) + "\0" + path;
+            double projectAge = context.ProjectActivityAge(document);
             string source = context.Text(document).ToString();
             SyntaxNode root = context.Root(document);
             var declarations = root.DescendantNodes().OfType<MemberDeclarationSyntax>()
@@ -74,16 +80,16 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
                     declaration.Identity, "", declaration.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
                 current.Add(new ReviewSubject(itemIdentity, declarationText, item));
             }
-            if (current.Count == 0 && !populationSampler.States.Any(state => StringComparer.Ordinal.Equals(state.UnitId, path))) { continue; }
+            if (current.Count == 0 && !populationSampler.States.Any(state => StringComparer.Ordinal.Equals(state.UnitId, unitId))) { continue; }
             string fingerprint = PopulationFingerprint(current.Select(x => x.Content));
-            RecordPopulationEvaluation(populationSampler, path, fingerprint, current.Count, cursor);
+            RecordPopulationEvaluation(populationSampler, unitId, fingerprint, current.Count, projectAge);
             if (current.Count == 0) { continue; }
             subjects.AddRange(current);
             sourceContents[path] = source;
-            units.Add((path, fingerprint, current));
+            units.Add((path, unitId, fingerprint, current));
         }
 
-        var dueUnits = units.Select(unit => (Unit: unit, Event: populationSampler.DueEvents(unit.Path, 1).FirstOrDefault()))
+        var dueUnits = units.Select(unit => (Unit: unit, Event: populationSampler.DueEvents(unit.UnitId, 1).FirstOrDefault()))
             .Where(x => x.Event is not null)
             .OrderByDescending(x => x.Event!.ResidualAfterThreshold)
             .ThenBy(x => x.Unit.Path, StringComparer.Ordinal)
@@ -91,7 +97,7 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         var selected = new List<ReviewSubject>();
         foreach (var due in dueUnits)
         {
-            var candidate = populationSampler.SelectSubjects(due.Unit.Path, due.Unit.Subjects.Select(x => x.Identity).ToArray(), 1).SingleOrDefault();
+            var candidate = populationSampler.SelectSubjects(due.Unit.UnitId, due.Unit.Subjects.Select(x => x.Identity).ToArray(), 1).SingleOrDefault();
             if (candidate.Candidate is null) { continue; }
             ReviewSubject subject = due.Unit.Subjects.Single(x => x.Identity == candidate.Candidate);
             selected.Add(subject with { PopulationTicket = candidate.Ticket });
