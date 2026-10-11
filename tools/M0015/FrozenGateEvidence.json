@@ -14,14 +14,36 @@
     "rule": "architecture.boringness.review@2",
     "budget": 5,
     "unchangedCohortMaximum": 25,
-    "policies": [
+    "policies": {
+      "uniform": {
+        "changedWeight": 1,
+        "backgroundWeight": 1,
+        "negativeWeight": 1,
+        "explorationFraction": 0
+      },
+      "changeFirst": {
+        "changedWeight": 4,
+        "backgroundWeight": 0.25,
+        "negativeWeight": 1,
+        "explorationFraction": 0
+      },
+      "historyAwareFallback": {
+        "changedWeight": 4,
+        "backgroundWeight": 0.5,
+        "negativeWeight": 2,
+        "acceptedWeightMultiplier": 0.5,
+        "explorationFraction": 0.2
+      }
+    },
+    "policyNames": [
       "uniform",
       "change-first",
       "history-aware"
     ],
     "pairedRandomness": "same seed-derived per-candidate variate across policies",
     "calibrationGridVersion": "m0015-grid-v1",
-    "seedVersion": "m0015-v1"
+    "seedVersion": "m0015-v1",
+    "analysis": "For each frozen gate compare three policies at the same five-item budget and same seed-derived candidate variates. Report selected identities, pairwise overlap, changed/background allocation, change-first changed IDs omitted by history-aware, history-aware replacements with selection trace stage, changed-selection count difference, and theoretical changed-capacity shortfall. Scheduling evidence is not semantic-review quality evidence."
   },
   "gates": [
     {
@@ -92,8 +114,8 @@
       "headCandidateCount": 96,
       "baseWorkspaceDiagnosticCount": 0,
       "headWorkspaceDiagnosticCount": 0,
-      "baseEnumerationMs": 5616.461,
-      "headEnumerationMs": 6545.221
+      "baseEnumerationMs": 5900.184,
+      "headEnumerationMs": 5607.358
     },
     {
       "id": "semantic-model-head",
@@ -115,8 +137,28 @@
       "headCandidateCount": 420,
       "baseWorkspaceDiagnosticCount": 0,
       "headWorkspaceDiagnosticCount": 0,
-      "baseEnumerationMs": 17391.047,
-      "headEnumerationMs": 17729.27
+      "baseEnumerationMs": 14952.982,
+      "headEnumerationMs": 15815.439
+    },
+    {
+      "id": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "base": "9ba2bf4dc8268b490236d9f287f358d7a840353a",
+      "head": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "seed": "M0015-v1-semantic-model-source-seed-01",
+      "changedPathCount": 3,
+      "changedPathSha256": "614BDD306949106C819B0DC7EF1D2CB33AB105543E79099BFEC6F262C0BCF633",
+      "changedPaths": [
+        "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+        "src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs",
+        "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs"
+      ],
+      "baseCandidateCount": 396,
+      "headCandidateCount": 396,
+      "baseWorkspaceDiagnosticCount": 0,
+      "headWorkspaceDiagnosticCount": 0,
+      "baseEnumerationMs": 16119.949,
+      "headEnumerationMs": 15132.061
     }
   ]
 }

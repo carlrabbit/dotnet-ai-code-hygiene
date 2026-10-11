@@ -5,10 +5,17 @@
   "ruleSemantics": "Source-backed class, struct, record, interface declarations from eligible non-generated C# documents; project-qualified fully-qualified symbol identity and same-symbol declaration ordinal.",
   "budget": 5,
   "unchangedCohortMaximum": 25,
+  "policies": {
+    "uniform": { "changedWeight": 1, "backgroundWeight": 1, "negativeWeight": 1, "explorationFraction": 0 },
+    "changeFirst": { "changedWeight": 4, "backgroundWeight": 0.25, "negativeWeight": 1, "explorationFraction": 0 },
+    "historyAwareFallback": { "changedWeight": 4, "backgroundWeight": 0.5, "negativeWeight": 2, "acceptedWeightMultiplier": 0.5, "explorationFraction": 0.2 }
+  },
+  "analysisProtocol": "For each frozen gate compare three policies at the same five-item budget and same seed-derived candidate variates. Report selected identities, pairwise overlap, changed/background allocation, change-first changed IDs omitted by history-aware, history-aware replacements with selection trace stage, changed-selection count difference, and theoretical changed-capacity shortfall. Scheduling evidence is not semantic-review quality evidence.",
   "pairedRandomness": "Each candidate uses the same seed-derived random variate across all three policies; score changes reflect policy weights and exploration allocation.",
   "seeds": {
     "hygiene-pr15": "M0015-v1-hygiene-pr15-seed-01",
-    "semantic-model-head": "M0015-v1-semantic-model-head-seed-01"
+    "semantic-model-head": "M0015-v1-semantic-model-head-seed-01",
+    "semantic-model-source": "M0015-v1-semantic-model-source-seed-01"
   },
   "history": "No real individually attributable BORINGness labels are preloaded; only independent evidence with candidate ID and reviewer provenance is admitted.",
   "calibration": {
@@ -34,6 +41,13 @@
       "repository": "carlrabbit/dotnet-semantic-type-model",
       "base": "f45a5a2876115defdec06fc3a18fdf131b2ee914",
       "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "solution": "SemanticTypeModel.slnx"
+    },
+    {
+      "id": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "base": "9ba2bf4dc8268b490236d9f287f358d7a840353a",
+      "head": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
       "solution": "SemanticTypeModel.slnx"
     }
   ]

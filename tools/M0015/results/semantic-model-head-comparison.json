@@ -13,6 +13,9 @@
     "status": "uncalibrated: insufficient independent labels (train=0, evaluation=0)",
     "gridVersion": "m0015-grid-v1",
     "gridSearchRan": false,
+    "trainingScope": "previously-selected-and-independently-labeled candidates only; selection-conditioned subset",
+    "evaluationScope": "held-out candidates from the same selected-and-labeled subset",
+    "interpretation": "conditional labeled-subset yield does not establish general policy optimization or population semantic quality",
     "fallback": {
       "changedWeight": 4,
       "backgroundWeight": 0.5,
@@ -43,7 +46,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
@@ -54,7 +59,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
@@ -65,7 +72,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
@@ -76,7 +85,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
@@ -87,14 +98,17 @@
           "change": "UnchangedBackground",
           "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         }
       ],
       "changeRelevantCount": 0,
       "backgroundCount": 5,
       "labeledAcceptedCount": 0,
       "labeledNegativeCount": 0,
-      "unknownHistorySelectedCount": 5
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
     },
     "change-first": {
       "selected": [
@@ -107,7 +121,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
@@ -118,7 +134,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
@@ -129,7 +147,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
@@ -140,7 +160,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
@@ -151,14 +173,17 @@
           "change": "UnchangedBackground",
           "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         }
       ],
       "changeRelevantCount": 0,
       "backgroundCount": 5,
       "labeledAcceptedCount": 0,
       "labeledNegativeCount": 0,
-      "unknownHistorySelectedCount": 5
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
     },
     "history-aware": {
       "selected": [
@@ -171,7 +196,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "reserved-exploration",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
@@ -182,7 +209,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
@@ -193,7 +222,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
@@ -204,7 +235,9 @@
           "change": "UnchangedBackground",
           "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         },
         {
           "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
@@ -215,14 +248,17 @@
           "change": "UnchangedBackground",
           "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
           "reason": "exploration/background",
-          "history": "Unknown"
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
         }
       ],
       "changeRelevantCount": 0,
       "backgroundCount": 5,
       "labeledAcceptedCount": 0,
       "labeledNegativeCount": 0,
-      "unknownHistorySelectedCount": 5
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
     }
   },
   "overlap": {
@@ -240,22 +276,31 @@
     }
   },
   "displacement": {
-    "changeRelevantEligible": 0,
-    "historyAwareChangeRelevantSelected": 0,
-    "changeRelevantDisplacedByExploration": 0
+    "changeFirstChangedSelectedCount": 0,
+    "historyAwareChangedSelectedCount": 0,
+    "changedSelectionCountDifference": 0,
+    "changeFirstChangedCandidatesOmittedByHistoryAware": [],
+    "historyAwareReplacementCandidates": [],
+    "changedCandidateIdentityDisplacementCount": 0,
+    "selectedIdentitySymmetricDifferenceCount": 0,
+    "theoreticalChangedCapacityShortfall": 0
   },
   "timing": {
-    "baseEnumerationColdMs": 17391.047,
-    "headEnumerationColdMs": 17729.27,
-    "selectionColdMs": 7.548,
-    "selectionWarmMs": 0.31,
-    "calibrationColdMs": 3.684,
-    "calibrationWarmMs": 0.021,
-    "managedHeapSnapshotBytes": 4202488,
-    "processWorkingSetBytes": 34562048
+    "baseEnumerationColdMs": 14952.982,
+    "headEnumerationColdMs": 15815.439,
+    "selectionColdMs": 5.696,
+    "selectionWarmMs": 0.197,
+    "calibrationMode": "deterministic-fallback",
+    "calibrationColdMs": 2.467,
+    "calibrationWarmMs": 0.015,
+    "managedHeapSnapshotBytes": 4328432,
+    "processWorkingSetBytes": 35143680
   },
   "history": {
     "acceptedOrNegativeLabelsAdmitted": 0,
+    "currentEvidenceCandidates": 0,
+    "staleEvidenceCandidates": 0,
+    "missingEvidenceCandidates": 420,
     "unknownHeadCandidates": 420
   },
   "workspaceDiagnostics": {

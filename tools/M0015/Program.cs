@@ -11,10 +11,11 @@ namespace M0015;
 
 internal enum ChangeClass { NewOrChanged, UnchangedContextAffected, UnchangedBackground, Unknown }
 internal enum EvidenceKind { Accepted, Negative, Uncertain, Unknown, Synthetic }
-internal sealed record Candidate(string Id, string Project, string Path, string Symbol, int Disambiguator, string Fingerprint, ChangeClass Change, EvidenceKind History = EvidenceKind.Unknown);
-internal sealed record ReviewEvidence(string CandidateId, EvidenceKind Kind, string Provenance);
+internal enum EvidenceStatus { Current, Stale, Missing }
+internal sealed record Candidate(string Id, string Project, string Path, string Symbol, int Disambiguator, string Fingerprint, ChangeClass Change, EvidenceKind History = EvidenceKind.Unknown, EvidenceStatus EvidenceStatus = EvidenceStatus.Missing);
+internal sealed record ReviewEvidence(string CandidateId, EvidenceKind Kind, string Provenance, string SourceFingerprint);
 internal sealed record Policy(string Name, double ChangedWeight, double BackgroundWeight, double NegativeWeight, double ExplorationFraction);
-internal sealed record Pick(string CandidateId, string Reason, double Priority);
+internal sealed record Pick(string CandidateId, string Reason, double Priority, string SelectionStage = "weighted-fill");
 internal sealed record GateConfiguration(string Id, string Repository, string Base, string Head, string Seed, int Budget, int UnchangedCohortMaximum, int ChangedPathCount, string ChangedPathSha256, double BaseEnumerationMs = 0, double HeadEnumerationMs = 0, string? HistoryFile = null);
 
 internal static class Program
@@ -108,12 +109,12 @@ internal static class Program
         var gate = JsonSerializer.Deserialize<GateConfiguration>(File.ReadAllText(gateFile), JsonOptions) ?? throw new InvalidDataException("Gate config is invalid.");
         var old = baseData.Candidates.ToDictionary(x => x.Id, StringComparer.Ordinal);
         string? historyJson = gate.HistoryFile is not null && File.Exists(gate.HistoryFile) ? File.ReadAllText(gate.HistoryFile) : null;
-        var historyByCandidate = ReadHistory(historyJson).ToDictionary(x => x.CandidateId, x => x.Kind, StringComparer.Ordinal);
-        var candidates = headData.Candidates.Select(candidate => Classify(old.GetValueOrDefault(candidate.Id), candidate with { History = historyByCandidate.GetValueOrDefault(candidate.Id, EvidenceKind.Unknown) })).ToArray();
+        var historyByCandidate = ReadHistory(historyJson).ToDictionary(x => x.CandidateId, StringComparer.Ordinal);
+        var candidates = headData.Candidates.Select(candidate => Classify(old.GetValueOrDefault(candidate.Id), ApplyEvidence(candidate, historyByCandidate.GetValueOrDefault(candidate.Id)))).ToArray();
         var changed = candidates.Where(x => x.Change == ChangeClass.NewOrChanged).ToArray();
         var unchanged = candidates.Where(x => x.Change != ChangeClass.NewOrChanged).OrderBy(x => HashOrder(gate.Seed + "\0cohort\0" + x.Id), StringComparer.Ordinal).Take(gate.UnchangedCohortMaximum).ToArray();
         var pool = changed.Concat(unchanged).ToArray();
-        var labels = pool.Where(x => x.History is EvidenceKind.Accepted or EvidenceKind.Negative).Select(x => (x.Id, x.History == EvidenceKind.Negative, x.Change)).ToArray();
+        var labels = pool.Where(x => x.EvidenceStatus == EvidenceStatus.Current && x.History is EvidenceKind.Accepted or EvidenceKind.Negative).Select(x => (x.Id, x.History == EvidenceKind.Negative, x.Change)).ToArray();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Policy historyAware = Calibrate(labels, out string calibrationStatus);
         double calibrationColdMs = sw.Elapsed.TotalMilliseconds;
@@ -139,24 +140,49 @@ internal static class Program
             selected = x.Value.Select(p =>
             {
                 Candidate c = candidates.Single(y => StringComparer.Ordinal.Equals(y.Id, p.CandidateId));
-                return new { id = c.Id, c.Project, c.Path, c.Symbol, c.Disambiguator, change = c.Change.ToString(), c.Fingerprint, reason = p.Reason, history = c.History.ToString() };
+                return new { id = c.Id, c.Project, c.Path, c.Symbol, c.Disambiguator, change = c.Change.ToString(), c.Fingerprint, reason = p.Reason, selectionStage = p.SelectionStage, history = c.History.ToString(), evidenceStatus = c.EvidenceStatus.ToString() };
             }).ToArray(),
             changeRelevantCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).Change == ChangeClass.NewOrChanged),
             backgroundCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).Change != ChangeClass.NewOrChanged),
-            labeledAcceptedCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Accepted),
-            labeledNegativeCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Negative),
-            unknownHistorySelectedCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Unknown)
+            labeledAcceptedCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).EvidenceStatus == EvidenceStatus.Current && candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Accepted),
+            labeledNegativeCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).EvidenceStatus == EvidenceStatus.Current && candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Negative),
+            unknownHistorySelectedCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).History == EvidenceKind.Unknown),
+            staleEvidenceSelectedCount = x.Value.Count(p => candidates.Single(c => c.Id == p.CandidateId).EvidenceStatus == EvidenceStatus.Stale)
         }, StringComparer.Ordinal);
+        var changeFirstChanged = selected["change-first"].Where(p => candidates.Single(c => c.Id == p.CandidateId).Change == ChangeClass.NewOrChanged).Select(p => p.CandidateId).ToHashSet(StringComparer.Ordinal);
+        var historyChanged = selected["history-aware"].Where(p => candidates.Single(c => c.Id == p.CandidateId).Change == ChangeClass.NewOrChanged).Select(p => p.CandidateId).ToHashSet(StringComparer.Ordinal);
+        var omittedByHistory = changeFirstChanged.Except(historyChanged, StringComparer.Ordinal).Select(id =>
+        {
+            Candidate c = candidates.Single(candidate => candidate.Id == id);
+            return new { id, c.Project, c.Path, c.Symbol, change = c.Change.ToString() };
+        }).ToArray();
+        var selectedIdentitySymmetricDifference = sets["change-first"].Except(sets["history-aware"], StringComparer.Ordinal).Count() + sets["history-aware"].Except(sets["change-first"], StringComparer.Ordinal).Count();
+        var replacements = sets["history-aware"].Except(sets["change-first"], StringComparer.Ordinal).Select(id =>
+        {
+            Candidate c = candidates.Single(candidate => candidate.Id == id);
+            Pick pick = selected["history-aware"].Single(item => item.CandidateId == id);
+            return new { id, c.Project, c.Path, c.Symbol, change = c.Change.ToString(), selectionStage = pick.SelectionStage, reason = pick.Reason };
+        }).ToArray();
         long memoryBytes = GC.GetTotalMemory(false);
         var result = new
         {
             schemaVersion = 1, gateId = gate.Id, gate.Repository, gate.Base, gate.Head, rule = "architecture.boringness.review@2", gate.Seed, gate.Budget, gate.ChangedPathCount, gate.ChangedPathSha256,
-            calibration = new { status = calibrationStatus, gridVersion = GridVersion, gridSearchRan = calibrationStatus.StartsWith("calibrated:", StringComparison.Ordinal), fallback = new { changedWeight = 4, backgroundWeight = .5, explorationFraction = .2 } },
+            calibration = new { status = calibrationStatus, gridVersion = GridVersion, gridSearchRan = calibrationStatus.StartsWith("calibrated:", StringComparison.Ordinal), trainingScope = "previously-selected-and-independently-labeled candidates only; selection-conditioned subset", evaluationScope = "held-out candidates from the same selected-and-labeled subset", interpretation = "conditional labeled-subset yield does not establish general policy optimization or population semantic quality", fallback = new { changedWeight = 4, backgroundWeight = .5, explorationFraction = .2 } },
             population = new { @base = baseData.CandidateCount, head = headData.CandidateCount, newOrChanged = changed.Length, unchangedContextAffected = candidates.Count(x => x.Change == ChangeClass.UnchangedContextAffected), unchangedBackground = candidates.Count(x => x.Change == ChangeClass.UnchangedBackground), unknownImpact = candidates.Count(x => x.Change == ChangeClass.Unknown), unchangedContextOrBackground = candidates.Length - changed.Length, unchangedExplorationCohort = unchanged.Length, comparisonPool = pool.Length, eligibleBeyondPool = candidates.Length - pool.Length },
             policies = policyRows, overlap = pairRows,
-            displacement = new { changeRelevantEligible = changed.Length, historyAwareChangeRelevantSelected = selected["history-aware"].Count(p => changed.Any(c => c.Id == p.CandidateId)), changeRelevantDisplacedByExploration = Math.Max(0, Math.Min(gate.Budget, changed.Length) - selected["history-aware"].Count(p => changed.Any(c => c.Id == p.CandidateId))) },
-            timing = new { baseEnumerationColdMs = Math.Round(gate.BaseEnumerationMs, 3), headEnumerationColdMs = Math.Round(gate.HeadEnumerationMs, 3), selectionColdMs = Math.Round(coldMs, 3), selectionWarmMs = Math.Round(warmMs, 3), calibrationColdMs = Math.Round(calibrationColdMs, 3), calibrationWarmMs = Math.Round(calibrationWarmMs, 3), managedHeapSnapshotBytes = memoryBytes, processWorkingSetBytes = Environment.WorkingSet },
-            history = new { acceptedOrNegativeLabelsAdmitted = labels.Length, unknownHeadCandidates = candidates.Count(x => x.History == EvidenceKind.Unknown) },
+            displacement = new
+            {
+                changeFirstChangedSelectedCount = changeFirstChanged.Count,
+                historyAwareChangedSelectedCount = historyChanged.Count,
+                changedSelectionCountDifference = changeFirstChanged.Count - historyChanged.Count,
+                changeFirstChangedCandidatesOmittedByHistoryAware = omittedByHistory,
+                historyAwareReplacementCandidates = replacements,
+                changedCandidateIdentityDisplacementCount = omittedByHistory.Length,
+                selectedIdentitySymmetricDifferenceCount = selectedIdentitySymmetricDifference,
+                theoreticalChangedCapacityShortfall = Math.Max(0, Math.Min(gate.Budget, changed.Length) - historyChanged.Count)
+            },
+            timing = new { baseEnumerationColdMs = Math.Round(gate.BaseEnumerationMs, 3), headEnumerationColdMs = Math.Round(gate.HeadEnumerationMs, 3), selectionColdMs = Math.Round(coldMs, 3), selectionWarmMs = Math.Round(warmMs, 3), calibrationMode = calibrationStatus.StartsWith("calibrated:", StringComparison.Ordinal) ? "finite-grid-calibration" : "deterministic-fallback", calibrationColdMs = Math.Round(calibrationColdMs, 3), calibrationWarmMs = Math.Round(calibrationWarmMs, 3), managedHeapSnapshotBytes = memoryBytes, processWorkingSetBytes = Environment.WorkingSet },
+            history = new { acceptedOrNegativeLabelsAdmitted = labels.Length, currentEvidenceCandidates = candidates.Count(x => x.EvidenceStatus == EvidenceStatus.Current), staleEvidenceCandidates = candidates.Count(x => x.EvidenceStatus == EvidenceStatus.Stale), missingEvidenceCandidates = candidates.Count(x => x.EvidenceStatus == EvidenceStatus.Missing), unknownHeadCandidates = candidates.Count(x => x.History == EvidenceKind.Unknown) },
             workspaceDiagnostics = new { @base = baseData.WorkspaceDiagnostics.Count, head = headData.WorkspaceDiagnostics.Count }
         };
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputFile))!);
@@ -167,6 +193,12 @@ internal static class Program
 
     private sealed record CandidateFile(int CandidateCount, List<string> WorkspaceDiagnostics, List<Candidate> Candidates);
     private static string HashOrder(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    internal static Candidate ApplyEvidence(Candidate candidate, ReviewEvidence? evidence)
+    {
+        EvidenceStatus status = evidence is null ? EvidenceStatus.Missing : StringComparer.Ordinal.Equals(evidence.SourceFingerprint, candidate.Fingerprint) ? EvidenceStatus.Current : EvidenceStatus.Stale;
+        EvidenceKind kind = status == EvidenceStatus.Current && evidence is not null ? evidence.Kind : EvidenceKind.Unknown;
+        return candidate with { History = kind, EvidenceStatus = status };
+    }
     internal static Candidate Classify(Candidate? prior, Candidate current)
     {
         if (prior is null || !StringComparer.Ordinal.Equals(prior.Fingerprint, current.Fingerprint)) { return current with { Change = ChangeClass.NewOrChanged }; }
@@ -185,7 +217,7 @@ internal static class Program
         var selectedIds = exploration.Select(x => x.CandidateId).ToHashSet(StringComparer.Ordinal);
         var ranked = input.Where(c => !selectedIds.Contains(c.Id)).Select(c => Rank(c, seed, policy))
             .OrderBy(x => x.Priority).ThenBy(x => x.CandidateId, StringComparer.Ordinal).Take(count - exploration.Length).ToArray();
-        return exploration.Concat(ranked).ToArray();
+        return exploration.Select(x => x with { SelectionStage = "reserved-exploration" }).Concat(ranked).ToArray();
     }
 
     private static Pick Rank(Candidate c, string seed, Policy policy)
@@ -206,7 +238,7 @@ internal static class Program
     }
 
     internal static IReadOnlyList<ReviewEvidence> ParseHistory(IEnumerable<ReviewEvidence> evidence) => evidence
-        .Where(e => (e.Kind is EvidenceKind.Accepted or EvidenceKind.Negative) && e.Provenance.StartsWith("independent:", StringComparison.Ordinal))
+        .Where(e => (e.Kind is EvidenceKind.Accepted or EvidenceKind.Negative) && e.Provenance.StartsWith("independent:", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(e.SourceFingerprint))
         .GroupBy(e => e.CandidateId, StringComparer.Ordinal).Select(g => g.Last()).ToArray();
 
     internal static IReadOnlyList<ReviewEvidence> ReadHistory(string? json)
@@ -219,9 +251,9 @@ internal static class Program
             var parsed = new List<ReviewEvidence>();
             foreach (JsonElement entry in entries.EnumerateArray())
             {
-                if (!entry.TryGetProperty("candidateId", out JsonElement id) || !entry.TryGetProperty("kind", out JsonElement kind) || !entry.TryGetProperty("provenance", out JsonElement provenance)) { continue; }
+                if (!entry.TryGetProperty("candidateId", out JsonElement id) || !entry.TryGetProperty("kind", out JsonElement kind) || !entry.TryGetProperty("provenance", out JsonElement provenance) || !entry.TryGetProperty("sourceFingerprint", out JsonElement fingerprint)) { continue; }
                 if (!Enum.TryParse(kind.GetString(), true, out EvidenceKind evidenceKind)) { continue; }
-                parsed.Add(new(id.GetString() ?? "", evidenceKind, provenance.GetString() ?? ""));
+                parsed.Add(new(id.GetString() ?? "", evidenceKind, provenance.GetString() ?? "", fingerprint.GetString() ?? ""));
             }
             return ParseHistory(parsed);
         }
@@ -250,7 +282,7 @@ internal static class Program
         var evaluationCandidates = evaluation.Select(item => new Candidate(item.Id, "fixture", item.Id, item.Id, 0, "fixture", item.Change)).ToArray();
         var heldOut = Select(evaluationCandidates, Math.Min(5, evaluationCandidates.Length), "calibration-evaluation-v1", evaluationPolicy).Select(p => p.CandidateId).ToHashSet(StringComparer.Ordinal);
         int heldOutNegatives = evaluation.Count(item => heldOut.Contains(item.Id) && item.Negative);
-        status = $"calibrated:{GridVersion};train={train.Length};heldout={evaluation.Length};heldoutSelected={heldOut.Count};heldoutNegative={heldOutNegatives}";
+        status = $"calibrated:{GridVersion};train={train.Length};heldout={evaluation.Length};heldoutSelected={heldOut.Count};heldoutNegative={heldOutNegatives};scope=previously-selected-and-labeled-subset;selection-conditioned-not-general-policy-quality";
         return new("history-aware-calibrated", chosen.Parameters.Changed, chosen.Parameters.Background, 2, chosen.Parameters.Exploration);
     }
 
@@ -271,19 +303,39 @@ internal static class Program
         int changedWins = Enumerable.Range(0, 100).Count(i => Select([cs, bg], 1, $"seed-{i}", ChangeFirst).Single().CandidateId == "c");
         Assert(changedWins >= 70, "changed candidates dominate in seeded trials");
         Assert(Select([bg], 1, "s", ChangeFirst).Single().CandidateId == "b", "unchanged eligibility/exploration");
-        var history = ParseHistory([new("a", EvidenceKind.Accepted, "independent:reviewer"), new("b", EvidenceKind.Negative, "independent:reviewer"), new("c", EvidenceKind.Synthetic, "synthetic"), new("d", EvidenceKind.Accepted, "aggregate-event"), new("e", EvidenceKind.Uncertain, "independent:reviewer")]);
+        var history = ParseHistory([new("a", EvidenceKind.Accepted, "independent:reviewer", "fp-a"), new("b", EvidenceKind.Negative, "independent:reviewer", "fp-b"), new("c", EvidenceKind.Synthetic, "synthetic", "fp-c"), new("d", EvidenceKind.Accepted, "aggregate-event", "fp-d"), new("e", EvidenceKind.Uncertain, "independent:reviewer", "fp-e")]);
         Assert(history.Count == 2 && history.All(x => x.CandidateId is "a" or "b"), "history provenance filter");
         Assert(ReadHistory(null).Count == 0 && ReadHistory("{").Count == 0 && ReadHistory("{\"schemaVersion\":2,\"entries\":[]}").Count == 0, "missing/corrupt/unsupported history is unknown");
-        Assert(ReadHistory("{\"schemaVersion\":1,\"entries\":[{\"candidateId\":\"x\",\"kind\":\"Accepted\",\"provenance\":\"aggregate-event\"}]}").Count == 0, "aggregate event is not a type quality label");
-        Assert(ReadHistory("{\"schemaVersion\":1,\"entries\":[{\"candidateId\":\"x\",\"kind\":\"Negative\",\"provenance\":\"independent:reviewer\"}]}").Single().Kind == EvidenceKind.Negative, "independently attributable history JSON is admitted");
+        Assert(ReadHistory("{\"schemaVersion\":1,\"entries\":[{\"candidateId\":\"x\",\"kind\":\"Accepted\",\"provenance\":\"aggregate-event\",\"sourceFingerprint\":\"fp\"}]}").Count == 0, "aggregate event is not a type quality label");
+        Assert(ReadHistory("{\"schemaVersion\":1,\"entries\":[{\"candidateId\":\"x\",\"kind\":\"Synthetic\",\"provenance\":\"synthetic\",\"sourceFingerprint\":\"fp\"},{\"candidateId\":\"y\",\"kind\":\"Uncertain\",\"provenance\":\"independent:reviewer\",\"sourceFingerprint\":\"fp\"}]}").Count == 0, "synthetic and uncertain history is not admitted");
+        Assert(ReadHistory("{\"schemaVersion\":1,\"entries\":[{\"candidateId\":\"x\",\"kind\":\"Negative\",\"provenance\":\"independent:reviewer\",\"sourceFingerprint\":\"fp\"}]}").Single().Kind == EvidenceKind.Negative, "independently attributable history with fingerprint is admitted");
+        var evidenceCandidate = bg with { Fingerprint = "fp-current" };
+        var currentAccepted = ApplyEvidence(evidenceCandidate, new("b", EvidenceKind.Accepted, "independent:reviewer", "fp-current"));
+        var currentNegative = ApplyEvidence(evidenceCandidate, new("b", EvidenceKind.Negative, "independent:reviewer", "fp-current"));
+        var staleAccepted = ApplyEvidence(evidenceCandidate, new("b", EvidenceKind.Accepted, "independent:reviewer", "fp-old"));
+        var absent = ApplyEvidence(evidenceCandidate, null);
+        Assert(currentAccepted.EvidenceStatus == EvidenceStatus.Current && currentAccepted.History == EvidenceKind.Accepted, "matching accepted evidence is current");
+        Assert(currentNegative.EvidenceStatus == EvidenceStatus.Current && currentNegative.History == EvidenceKind.Negative, "matching negative evidence is current");
+        Assert(staleAccepted.EvidenceStatus == EvidenceStatus.Stale && staleAccepted.History == EvidenceKind.Unknown, "stale accepted evidence cannot retain confidence");
+        Assert(absent.EvidenceStatus == EvidenceStatus.Missing && absent.History == EvidenceKind.Unknown, "absent evidence remains missing and neutral");
+        Assert(Select([staleAccepted, bg with { Id = "competitor" }], 1, "stale-is-neutral", HistoryAwareFallback).Single().CandidateId == Select([absent, bg with { Id = "competitor" }], 1, "stale-is-neutral", HistoryAwareFallback).Single().CandidateId, "stale accepted evidence selects exactly as missing evidence");
+        Assert(ApplyEvidence(evidenceCandidate, history.Single(x => x.CandidateId == "a")).EvidenceStatus == EvidenceStatus.Stale, "same identity with a different source fingerprint is stale");
         var withLabels = Enumerable.Range(0, 40).Select(i => ($"label-{i}", i % 3 == 0, i % 2 == 0 ? ChangeClass.NewOrChanged : ChangeClass.UnchangedBackground)).ToArray();
         var calibrated = Calibrate(withLabels, out string calibration);
-        Assert(calibration.StartsWith("calibrated:") && calibrated.Name == "history-aware-calibrated", "independent split calibration fixture");
+        Assert(calibration.StartsWith("calibrated:") && calibration.Contains("selection-conditioned-not-general-policy-quality", StringComparison.Ordinal) && calibrated.Name == "history-aware-calibrated", "independent split calibration fixture reports conditional scope");
         Assert(Calibrate(Array.Empty<(string Id, bool Negative, ChangeClass Change)>(), out string fallback).Name == "history-aware" && fallback.StartsWith("uncalibrated:"), "stable fallback");
         Assert(Calibrate([("a", true, ChangeClass.NewOrChanged)], out _).ChangedWeight == HistoryAwareFallback.ChangedWeight, "sparse fallback");
-        // History changes only candidates with a separately attributable, independently recorded negative label.
-        var reviewedNegative = bg with { History = EvidenceKind.Negative };
-        Assert(Select([bg with { History = EvidenceKind.Accepted }, reviewedNegative], 1, "history-seed", HistoryAwareFallback).Single().CandidateId == "b", "negative evidence influences order");
+        Candidate HistoryCandidate(string id, EvidenceKind kind) => ApplyEvidence(bg with { Id = id, Fingerprint = "fp-" + id }, kind == EvidenceKind.Unknown ? null : new(id, kind, "independent:reviewer", "fp-" + id));
+        int PropensityCount(EvidenceKind kind) => Enumerable.Range(0, 512).Count(i =>
+        {
+            var population = Enumerable.Range(0, 12).Select(j => HistoryCandidate("candidate-" + j, j == 0 ? kind : EvidenceKind.Unknown)).ToArray();
+            return Select(population, 1, $"history-propensity-{i}", HistoryAwareFallback).Single().CandidateId == "candidate-0";
+        });
+        int acceptedCount = PropensityCount(EvidenceKind.Accepted);
+        int negativeCount = PropensityCount(EvidenceKind.Negative);
+        int unknownCount = PropensityCount(EvidenceKind.Unknown);
+        Assert(negativeCount > unknownCount && unknownCount > acceptedCount, $"history weights change deterministic selection propensity (negative={negativeCount}, unknown={unknownCount}, accepted={acceptedCount})");
+        Console.WriteLine($"History deterministic seed-trial counts (512 seeds; fixture tally, not quality estimate): negative={negativeCount}, unknown={unknownCount}, accepted={acceptedCount}");
         Assert(Select([bg with { History = EvidenceKind.Unknown }], 1, "history-seed", HistoryAwareFallback).Count == 1, "unknown history remains selectable");
         Assert(CalibrationGrid.Length == 3 && GridVersion == "m0015-grid-v1", "frozen finite calibration grid");
     }

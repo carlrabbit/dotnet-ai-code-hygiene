@@ -6,7 +6,9 @@
 
 At one concrete source-change gate, can a deterministic fixed-budget selector allocate BORINGness reviews more usefully than uniform or change-first selection, using individual historical review evidence and bounded local calibration where available?
 
-**Recommendation: INCONCLUSIVE on adoption; refine the evidence before planning a production migration.** The prototype enumerated real eligible types and reproduced same-gate allocations at a fixed budget. The history-aware fallback made one or two unchanged slots available and displaced two changed checks at the source-bearing gate. No independent semantic judgments were collected, so neither the selection policies' review quality nor time savings is measured. M0016 should decide whether to obtain a blinded assessment of the ready sample and add a separately pre-registered source-bearing gate before deciding any production redesign.
+**Recommendation: INCONCLUSIVE on adoption; refine the evidence before planning a production migration.** The prototype enumerated real eligible types and reproduced same-gate allocations at a fixed budget. The correction run adds a source-changing gate, but no independent semantic judgments were collected, so neither the selection policies' review quality nor time savings is measured. M0016 should decide whether to obtain a blinded assessment of the ready sample and whether the added source-changing gate is sufficient for further planning.
+
+> **Correction status:** The original M0015 observations below are preserved as exploratory evidence. The original comparison JSONs are archived as `tools/M0015/results/exploratory-original-*-comparison.json`. The original displacement field measured theoretical capacity shortfall and was mislabeled as checks displaced; corrected results are in the current `*-comparison.json` files and the frozen three-gate manifest. Use the correction section below for displacement interpretation. The recommendation remains INCONCLUSIVE because no real semantic judgments exist.
 
 ## Provenance and evidence boundary
 
@@ -56,13 +58,15 @@ Environment: Windows 11 Home, build `10.0.26200`; PowerShell `7.6.5`; Git `2.55.
 
 The second gate changed only documentation/README files, so it is a useful no-source-change case but does not test changed-code priority. Its 420 eligible candidates remained available; the 25-item unchanged cohort was the only comparison pool.
 
-Each policy selected five unique candidate identities per gate. On the source-bearing hygiene gate, uniform selected 3 changed and 2 unchanged/unknown; change-first selected 4 changed and 1 unchanged/unknown; history-aware selected 3 changed and 2 unchanged/unknown. The history-aware exploration displaced two of the five changed checks that could otherwise fit the budget. This is opportunity cost, not evidence that the displaced checks were valuable or defective.
+Each policy selected five unique candidate identities per gate. On the source-bearing hygiene gate, uniform selected 3 changed and 2 unchanged/unknown; change-first selected 4 changed and 1 unchanged/unknown; history-aware selected 3 changed and 2 unchanged/unknown. The original comparison labeled the theoretical two-slot capacity shortfall as displaced checks. That label was incorrect; corrected actual displacement is detailed below. Neither count is evidence that any candidate was valuable or defective.
 
-On that gate, selected-set overlap was 4/5 between uniform/change-first (Jaccard 0.667), 5/5 between uniform/history-aware (1.0), and 4/5 between change-first/history-aware (0.667). On the documentation-only gate all three policies selected the same five identities (Jaccard 1.0 for each pair). Full selected identities and reasons are in the comparison JSON. A second run of the final shared-random protocol reproduced all selected identities exactly.
+On that gate, selected-set overlap was 4/5 between uniform/change-first (Jaccard 0.667), 5/5 between uniform/history-aware (1.0), and 4/5 between change-first/history-aware (0.667). On the documentation-only gate all three policies selected the same five identities (Jaccard 1.0 for each pair). Full selected identities and reasons are in the comparison JSON; see the corrected count and identity analysis below.
 
 All real candidates had unknown individual review history. Consequently the history-aware policy ran only as a change-plus-exploration fallback, not as an evidence-learned policy. The comparison provides no quality yield, correctness improvement, or independently verified savings metric.
 
-## Runtime and artifact footprint
+## Original two-gate exploratory runtime and footprint
+
+These are the initial exploratory measurements preserved from the first M0015 report. The correction-run timings for all three gates are in the correction section above; use those for the corrected comparison.
 
 Measurements are local single-process timings, not a cross-machine benchmark. “Cold” is a new process/workspace invocation; the operating system file cache may have been warm. Selection and no-label fallback calibration were each run a second time for warm timing.
 
@@ -73,7 +77,39 @@ Measurements are local single-process timings, not a cross-machine benchmark. �
 
 The finite calibration search did not run against either gate because no real labels were available; the measured calibration values are the fallback-path cost only. This is well under the five-minute bound but does not establish the cost of a future labeled search on a large corpus. No overrun occurred.
 
-The six public base/head candidate inventories and two comparisons occupy 587,203 bytes total. `FrozenGateEvidence.json` is 5,084 bytes and the 11-item reviewer sample is 5,508 bytes. Inventories include IDs, relative project/path/symbol, classification, declaration fingerprint, and workspace diagnostics; they contain no source text. The integrity command writes SHA-256 checksums for the frozen gate manifest, gate protocol, research report, blinded sample, and all JSON result files.
+The original six public base/head candidate inventories and two comparisons occupied 587,203 bytes total. `FrozenGateEvidence.json` was 5,084 bytes and the 11-item reviewer sample was 5,508 bytes in that exploratory run. Inventories include IDs, relative project/path/symbol, classification, declaration fingerprint, and workspace diagnostics; they contain no source text. The initial integrity action rewrote checksums; the correction section documents the replacement read-only verifier and explicit regeneration action.
+
+## Correction run: actual displacement, source-changing gate, and evidence integrity
+
+The corrected comparison calculates candidate identity differences between the actual change-first and history-aware five-item sets. It reports (a) change-relevant selected-count difference, (b) changed candidate identities selected by change-first but omitted by history-aware, (c) replacement identities present only in history-aware, (d) full selected-set symmetric difference, and (e) theoretical changed-capacity shortfall as a separate metric. Replacement stage comes from the selection trace; the report does not infer a causal exploration reservation when the candidate entered during weighted fill.
+
+| Frozen gate | Revisions | Changed paths | Base/head candidates | Head changed / context / background / unknown | Pool |
+|---|---|---:|---:|---|---:|
+| `hygiene-pr15` | `48a87618d02278a178cad02f44a924e207ec88d3` → `4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2` | 54 | 91 / 96 | 15 / 22 / 3 / 56 | 40 |
+| `semantic-model-head` (documentation-only boundary) | `f45a5a2876115defdec06fc3a18fdf131b2ee914` → `4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a` | 6 | 420 / 420 | 0 / 0 / 420 / 0 | 25 |
+| `semantic-model-source` (source-changing) | `9ba2bf4dc8268b490236d9f287f358d7a840353a` → `88b5ad5092e38e00257d4e327d6606afa2bf4952` | 3 | 396 / 396 | 4 / 18 / 363 / 11 | 29 |
+
+The source gate changes `src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs`, `src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs`, and `tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs`. Frozen revisions, source path diff, candidate populations, seed `M0015-v1-semantic-model-source-seed-01`, budget 5, policy weights, finite grid version, and analysis protocol are captured in `FrozenGateEvidence.json` before comparisons are written. The added gate was chosen by source diff inspection only. An initial corrected replay exposed the expected selections; the output schema was then expanded with explicit symmetric-difference and trace-stage fields and replayed. No gate, population, seed, budget, policy, or outcome changed, but this descriptive-schema amendment after first outcome inspection is a preregistration limitation. Treat all results as exploratory, not confirmatory.
+
+At the hygiene gate, change-first selects 4 changed candidates and history-aware selects 3: **the changed-selection count difference is 1**. Change-first's `SummaryQualityReviewRuleModule` (`src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs`) is omitted by history-aware. The corresponding history-aware-only candidate is `RuleCatalog` (`src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs`), classified `UnchangedContextAffected`; its trace says `weighted-fill`. The selected-set symmetric difference is 2 identities (one omitted, one replacement). The separately named theoretical changed-capacity shortfall is 2 because 15 changed candidates existed and only 5 slots were available; it is not a count of actual displaced selections.
+
+At the source-changing Semantic Type Model gate, uniform selects 0 changed / 5 background, change-first selects 3 changed / 2 background, and history-aware selects 2 changed / 3 background. The changed-selection count difference is 1. Change-first's `TestDataCorrectiveTests` (`tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs`) is omitted by history-aware; its replacement is `JsonSchemaUnsupportedCompositionTransformation` (`src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs`), an `UnchangedBackground` candidate selected during `weighted-fill`. The symmetric difference is 2; theoretical changed-capacity shortfall is 2 (four changed candidates existed with five available slots, while history-aware chose two). This is scheduling allocation evidence only. It does not establish that any selected or omitted declaration deserves a semantic finding.
+
+The documentation-only boundary remains unchanged: all three policies select the same five identities, with zero changed candidates and five background candidates. This confirms the comparison's no-source-change behavior without treating documentation changes as source changes.
+
+History fixtures now use distinct stable candidate IDs. Across 512 deterministic seed trials in the controlled fixture, the target candidate was selected 76 times with negative evidence, 38 with unknown history, and 20 with accepted evidence. The test requires negative > unknown > accepted. These are reproducibility/sensitivity tallies, not empirical probabilities or quality estimates. Individual history records must include a source fingerprint. Matching fingerprints yield `Current`; mismatched fingerprints yield `Stale` and neutral `Unknown` history; absent or rejected aggregate-only, synthetic, uncertain, or malformed evidence yields `Missing` / neutral history. The isolated prototype evidence schema remains separate from production sampling state and `hygiene review accept`. A future production history contract would need explicit subject identity, source/rule version fingerprint, judgment kind, reviewer provenance, observation time, and rules for invalidation, retention, and uncertainty; this prototype does not authorize that contract.
+
+Calibration keeps stable identity-fold training/evaluation separation and the fixed finite grid. Its eligible labels are drawn only from candidates already selected and independently labeled in prior gate-local evidence. Therefore both training and held-out evaluation are conditioned on prior selection and review availability; conditional labeled-subset yield is selection-biased and cannot establish general policy optimization or population semantic quality. No valid real labels exist, so all three current gates report deterministic fallback; no grid search was run on real outcomes. Timing output names the mode (`deterministic-fallback` versus `finite-grid-calibration`) and reports cold/warm calibration separately. The bounded fallback remains when labels are sparse or absent.
+
+| Gate | Base/head enumeration cold (ms) | Selection cold/warm (ms) | Calibration mode and cold/warm (ms) | Managed heap snapshot | Process working set |
+|---|---:|---:|---:|---:|---:|
+| Hygiene | 5,900.2 / 5,607.4 | 4.975 / 0.297 | fallback 2.199 / 0.013 | 2.07 MB | 32.19 MB |
+| Semantic model docs-only | 14,953.0 / 15,815.4 | 5.696 / 0.197 | fallback 2.467 / 0.015 | 4.33 MB | 35.14 MB |
+| Semantic model source-changing | 16,119.9 / 15,132.1 | 6.765 / 0.197 | fallback 2.471 / 0.016 | 4.19 MB | 35.02 MB |
+
+The corrected `tools/M0015/results/` directory contains 11 JSON files totaling 1,138,423 bytes, including the preserved original comparison outputs and three current gate result sets. All 23 non-build files under `tools/M0015/`, including the checksum reference, total 1,190,548 bytes.
+
+The replay tool now writes checksums only through the explicit `-Action regenerate-integrity`. `-Action integrity` compares current files to the existing committed reference and rejects missing, unexpected, changed, or mismatched artifacts without writing. The focused validation includes a tamper test that changes a required artifact after checksum generation and requires verification to fail.
 
 ## Semantic assessment and limitations
 
@@ -82,6 +118,7 @@ No authorized independent semantic reviewer was available in the execution envir
 Other limitations:
 
 - Two convenience gates do not establish representative semantic-review quality. One gate is documentation-only.
+- The 11-item blinded sample was prepared from the original hygiene and documentation-only heads; it does not include the added source-changing gate's candidates.
 - The hygiene gate is an earlier merged change set; the pre-final smoke run and shared-random correction are disclosed above.
 - Project-level impact is not computed. Same-document unchanged declarations use a coarse context-affected class; cross-document impact stays unknown.
 - A 25-item deterministic unchanged cohort is a bounded experiment choice. It can exclude eligible candidates before policy selection.
@@ -92,7 +129,7 @@ Other limitations:
 
 ## Direction for M0016 and decisions still open
 
-M0016 should decide whether the project owner/delegate will assess the blinded sample and whether a fresh, independently pre-registered source-bearing gate is required. If further study proceeds, record real reviewer provenance and lock gates, counts, seed, budget, policy code, grid, and analysis before revealing selections. Continue to report scheduling yield separately from semantic quality.
+M0016 should decide whether the project owner/delegate will assess the blinded sample and whether another independently frozen source-bearing gate plus real blinded semantic judgments are required. This correction adds one source-changing gate but does not address selection-conditioned evidence or establish review effectiveness. Any further study should lock gates, populations, seed, budget, policy code, grid, and analysis protocol before revealing selections, and report scheduling allocation separately from semantic quality.
 
 Planning must still decide whether production should expose a gate snapshot/selection API, which history sources are valid and whether per-type evidence may be persisted, how existing hazard state is retained or migrated, and whether/how prototype tickets could map to accepted review tickets. This milestone makes none of those production decisions.
 

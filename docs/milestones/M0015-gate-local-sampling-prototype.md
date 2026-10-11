@@ -148,24 +148,24 @@ Use the project's guide 0.9.1 execution workflow. Reconcile every stable obligat
 
 ## Completion Evidence
 
-**Implementation evidence:** `tools/M0015/` contains the isolated Roslyn enumerator, deterministic common-random selector, finite calibration grid and fallback, controlled fixtures, frozen public gate manifest, two same-gate result sets, checksum list, and a policy-blinded review sample. `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` records the protocol, measurements, limitations, and INCONCLUSIVE recommendation. `.execution/M0015-gate-local-sampling-prototype.md` contains the full obligation/evidence reconciliation.
+**Implementation evidence:** `tools/M0015/` contains the isolated Roslyn enumerator, deterministic common-random selector, finite calibration grid and fallback, controlled fixtures, three frozen public gates (including a source-changing gate and a documentation-only boundary), corrected comparison result sets, explicit read-only checksum verification, and a policy-blinded review sample. `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` records original exploratory findings, corrected displacement, the new source gate, measurements, limitations, and INCONCLUSIVE recommendation. `.execution/M0015-gate-local-sampling-prototype.md` contains the full obligation/evidence reconciliation.
 
 | Obligation | Completion evidence |
 |---|---|
-| AC-01 | Two public base/head gates, candidate counts, path diffs, seeds, budget, environment, and final-run freeze are in `tools/M0015/FrozenGateEvidence.json`. An earlier plumbing smoke result was seen before common-random pairing was corrected; this preregistration limitation is explicitly disclosed. |
-| AC-02 | Roslyn matches rule eligibility; real head populations are 96 and 420, with changed/context/background/unknown distinctions recorded. |
+| AC-01 | Three public base/head gates, candidate counts, path diffs, seeds, equal budget, policy weights, analysis protocol, and environment are in `tools/M0015/FrozenGateEvidence.json`; includes source-changing Semantic Type Model gate and docs-only boundary. Original exploratory exposure and descriptive-output amendment are disclosed. |
+| AC-02 | Roslyn matches rule eligibility; head populations are 96, 420, and 396, with changed/context/background/unknown distinctions recorded. |
 | AC-03 | Three fixed-budget policies emit five unique selected identities and reasons per gate; fixtures cover bounds, priority, and unchanged exploration. |
-| AC-04 | Controlled evidence fixtures prove supported individual accepted/negative labels affect ranking; synthetic, aggregate, uncertain, absent, and corrupt evidence do not become labels. No real gate labels existed. |
-| AC-05 | The finite `m0015-grid-v1` and independent split are fixture-tested. Both gates used the fixed uncalibrated 4/.5/.20 fallback; no learned parameter is claimed. |
-| AC-06 | Both result JSONs contain equal-budget identities, overlaps, allocation, change displacement, and timing; no semantic yield is claimed. |
+| AC-04 | Distinct stable-ID deterministic seed fixtures prove accepted/negative/unknown weighting order. Fingerprint-matched evidence is current; stale evidence is neutral; missing, aggregate, synthetic, uncertain, and corrupt evidence is excluded. No real gate labels existed. |
+| AC-05 | The finite `m0015-grid-v1`, independent identity folds, conditional selected/labeled-subset scope, and fallback are fixture-tested. All three gates used fixed uncalibrated 4/.5/.20 fallback; no learned parameter is claimed. |
+| AC-06 | Three result JSONs contain equal-budget identities, overlaps, allocation, actual omitted/replacement candidates, count difference, symmetric difference, traced selection stage, separate theoretical capacity shortfall, and timing; no semantic yield is claimed. |
 | AC-07 | Fixtures cover repeatability, changed identity/fingerprint, zero/short/large budgets, and missing/corrupt history. Repeat gate runs reproduced the same selected identities. |
-| AC-08 | Result and research artifacts contain per-gate cold/warm selection/fallback timing, enumeration timing, memory snapshots, and artifact sizes; all measured fallback work is below five minutes. |
+| AC-08 | Result and research artifacts contain per-gate cold/warm selection and mode-labeled fallback timing, enumeration timing, memory snapshots, and artifact sizes; all measured fallback work is below five minutes. |
 | AC-09 | No authorized independent reviewer or real judgments were available. `tools/M0015/reviewer-sample.json` contains 11 policy-blinded candidates with labels absent. |
 | AC-10 | Research recommends INCONCLUSIVE and names API, state, history, and review-ticket decisions for M0016. |
-| ART-01 / DOC-01 | Public-only result inventories and SHA-256 integrity list are committed with reproducible commands; report is research, not production authority. No Private traces or source were accessed. |
+| ART-01 / DOC-01 | Public-only result inventories and SHA-256 reference are committed; `integrity` verifies read-only and `regenerate-integrity` is explicit. Tamper-negative test and reproducible commands are recorded; report is research, not production authority. No Private traces or source were accessed. |
 | REV-01 | `.review/REV-M0015-COMPLETION.md` requests project-owner/delegate review and records no decision. |
 
-The focused prototype and integrity validations passed. No product source, production sampler, policy, persistent-state contract, or review command changed. **State: AWAITING HUMAN REVIEW**; semantic usefulness remains inconclusive and the disclosed smoke-run freeze limitation is for reviewer evaluation.
+The focused prototype, read-only integrity verification, negative tampering case, and three-gate reproducibility validations passed. No product source, production sampler, policy, persistent-state contract, or review command changed. **State: AWAITING HUMAN REVIEW**; semantic usefulness remains inconclusive, and the exploratory protocol/schema limitations are disclosed for reviewer evaluation.
 
 ## Escalation Boundary
 

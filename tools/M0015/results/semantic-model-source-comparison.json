@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "gateId": "semantic-model-source",
+  "repository": "carlrabbit/dotnet-semantic-type-model",
+  "base": "9ba2bf4dc8268b490236d9f287f358d7a840353a",
+  "head": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+  "rule": "architecture.boringness.review@2",
+  "seed": "M0015-v1-semantic-model-source-seed-01",
+  "budget": 5,
+  "changedPathCount": 3,
+  "changedPathSha256": "614BDD306949106C819B0DC7EF1D2CB33AB105543E79099BFEC6F262C0BCF633",
+  "calibration": {
+    "status": "uncalibrated: insufficient independent labels (train=0, evaluation=0)",
+    "gridVersion": "m0015-grid-v1",
+    "gridSearchRan": false,
+    "trainingScope": "previously-selected-and-independently-labeled candidates only; selection-conditioned subset",
+    "evaluationScope": "held-out candidates from the same selected-and-labeled subset",
+    "interpretation": "conditional labeled-subset yield does not establish general policy optimization or population semantic quality",
+    "fallback": {
+      "changedWeight": 4,
+      "backgroundWeight": 0.5,
+      "explorationFraction": 0.2
+    }
+  },
+  "population": {
+    "base": 396,
+    "head": 396,
+    "newOrChanged": 4,
+    "unchangedContextAffected": 18,
+    "unchangedBackground": 363,
+    "unknownImpact": 11,
+    "unchangedContextOrBackground": 392,
+    "unchangedExplorationCohort": 25,
+    "comparisonPool": 29,
+    "eligibleBeyondPool": 367
+  },
+  "policies": {
+    "uniform": {
+      "selected": [
+        {
+          "id": "B27E4AC69DB3147AB0987B2668DEAF56390AFE16A9FD531F8C9D50653872F932",
+          "project": "src/SemanticTypeModel.Abstractions/SemanticTypeModel.Abstractions.csproj",
+          "path": "src/SemanticTypeModel.Abstractions/Model/TypeModelContracts.cs",
+          "symbol": "global::SemanticTypeModel.Abstractions.Model.SchemaPipelineOptions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "CFADD798BCBFBC4D6FC5EFCD7E28D5AE94A0A400DFBAD27AC3884797D246C41B",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3EC65A04FCCC2C10E01F1207E67DF1ED2EC72CAF35A6589B2399A432A867E414",
+          "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+          "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.BaseEntity",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7197432D771830A371A2E22FC6573B6D382945CF4896BF8547DFB90319FBF555",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "A548CFCF12FF4F55F37125CA4008C2C435DB9D5672EA64CA9111DFE9584DB714",
+          "project": "src/SemanticTypeModel.JsonSchema/SemanticTypeModel.JsonSchema.csproj",
+          "path": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+          "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "66A4F4097C431C7E05532EED19C02EEE7F09A93A7D3DC0DB6C64BC63E75A1CB8",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3A1E329904AEF92F5EF4166FFDB900586F4C17F52A772A0E38A0C43DE6A83D81",
+          "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+          "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.ProjectionCoverage.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.StorageMatrixEntity",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "CA28D89C6B037C4A5097889523FEE026C493AA112A8B9FB3CCB001F8774AB313",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "06A3A4E5B29A6E6DEE9ABB00A4ADD9996D0500FD963075BB99AEE10F099D3655",
+          "project": "src/SemanticTypeModel.DotNet/SemanticTypeModel.DotNet.csproj",
+          "path": "src/SemanticTypeModel.DotNet/RoslynDotNetTypeExtractor.cs",
+          "symbol": "global::SemanticTypeModel.DotNet.RoslynDotNetTypeExtractor",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "2562010E9E47E6B9E938A5A318773357D7E1AA0CF0B338F5AB9DCED83D8D4EB7",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 0,
+      "backgroundCount": 5,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    },
+    "change-first": {
+      "selected": [
+        {
+          "id": "B27E4AC69DB3147AB0987B2668DEAF56390AFE16A9FD531F8C9D50653872F932",
+          "project": "src/SemanticTypeModel.Abstractions/SemanticTypeModel.Abstractions.csproj",
+          "path": "src/SemanticTypeModel.Abstractions/Model/TypeModelContracts.cs",
+          "symbol": "global::SemanticTypeModel.Abstractions.Model.SchemaPipelineOptions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "CFADD798BCBFBC4D6FC5EFCD7E28D5AE94A0A400DFBAD27AC3884797D246C41B",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "AE269896C160B93C6FA5726A9EB03D71AD18B463B45C311BC119206D2EA7E362",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs",
+          "symbol": "global::SemanticTypeModel.TestData.SemanticTestDataGenerator.Context",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "991FBD4561B51151A8DD1DBB9A555B06C3BB2D6403517CD125D851D6FB736A32",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3EC65A04FCCC2C10E01F1207E67DF1ED2EC72CAF35A6589B2399A432A867E414",
+          "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+          "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.BaseEntity",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7197432D771830A371A2E22FC6573B6D382945CF4896BF8547DFB90319FBF555",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "4BC8BBCD5F147C46E313B5CC78CAE51671EDC255DD786E541BBBB5A268592616",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+          "symbol": "global::SemanticTypeModel.TestData.SemanticTerminologyProfile",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "D1048D8992EF1A2508B432013010321D73CA78DD13B6324EEC9BDB994E9A207E",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "2ABF38B2D94DFE00358A57AF8A8AB7821A398E761A566295DD672C5D9D0900B8",
+          "project": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/SemanticTypeModel.TestData.Tests.Unit.csproj",
+          "path": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs",
+          "symbol": "global::SemanticTypeModel.TestData.Tests.Unit.TestDataCorrectiveTests",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "9E7BE2AC55D3AA73C4E4FF9B64C68DA6E7697F67B8A44CBE55985269DCD68084",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 3,
+      "backgroundCount": 2,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    },
+    "history-aware": {
+      "selected": [
+        {
+          "id": "B27E4AC69DB3147AB0987B2668DEAF56390AFE16A9FD531F8C9D50653872F932",
+          "project": "src/SemanticTypeModel.Abstractions/SemanticTypeModel.Abstractions.csproj",
+          "path": "src/SemanticTypeModel.Abstractions/Model/TypeModelContracts.cs",
+          "symbol": "global::SemanticTypeModel.Abstractions.Model.SchemaPipelineOptions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "CFADD798BCBFBC4D6FC5EFCD7E28D5AE94A0A400DFBAD27AC3884797D246C41B",
+          "reason": "exploration/background",
+          "selectionStage": "reserved-exploration",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "AE269896C160B93C6FA5726A9EB03D71AD18B463B45C311BC119206D2EA7E362",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs",
+          "symbol": "global::SemanticTypeModel.TestData.SemanticTestDataGenerator.Context",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "991FBD4561B51151A8DD1DBB9A555B06C3BB2D6403517CD125D851D6FB736A32",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3EC65A04FCCC2C10E01F1207E67DF1ED2EC72CAF35A6589B2399A432A867E414",
+          "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+          "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.BaseEntity",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7197432D771830A371A2E22FC6573B6D382945CF4896BF8547DFB90319FBF555",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "4BC8BBCD5F147C46E313B5CC78CAE51671EDC255DD786E541BBBB5A268592616",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+          "symbol": "global::SemanticTypeModel.TestData.SemanticTerminologyProfile",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "D1048D8992EF1A2508B432013010321D73CA78DD13B6324EEC9BDB994E9A207E",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "A548CFCF12FF4F55F37125CA4008C2C435DB9D5672EA64CA9111DFE9584DB714",
+          "project": "src/SemanticTypeModel.JsonSchema/SemanticTypeModel.JsonSchema.csproj",
+          "path": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+          "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "66A4F4097C431C7E05532EED19C02EEE7F09A93A7D3DC0DB6C64BC63E75A1CB8",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 2,
+      "backgroundCount": 3,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    }
+  },
+  "overlap": {
+    "uniform/change-first": {
+      "overlapCount": 2,
+      "jaccard": 0.25
+    },
+    "uniform/history-aware": {
+      "overlapCount": 3,
+      "jaccard": 0.42857142857142855
+    },
+    "change-first/history-aware": {
+      "overlapCount": 4,
+      "jaccard": 0.6666666666666666
+    }
+  },
+  "displacement": {
+    "changeFirstChangedSelectedCount": 3,
+    "historyAwareChangedSelectedCount": 2,
+    "changedSelectionCountDifference": 1,
+    "changeFirstChangedCandidatesOmittedByHistoryAware": [
+      {
+        "id": "2ABF38B2D94DFE00358A57AF8A8AB7821A398E761A566295DD672C5D9D0900B8",
+        "project": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/SemanticTypeModel.TestData.Tests.Unit.csproj",
+        "path": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs",
+        "symbol": "global::SemanticTypeModel.TestData.Tests.Unit.TestDataCorrectiveTests",
+        "change": "NewOrChanged"
+      }
+    ],
+    "historyAwareReplacementCandidates": [
+      {
+        "id": "A548CFCF12FF4F55F37125CA4008C2C435DB9D5672EA64CA9111DFE9584DB714",
+        "project": "src/SemanticTypeModel.JsonSchema/SemanticTypeModel.JsonSchema.csproj",
+        "path": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+        "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+        "change": "UnchangedBackground",
+        "selectionStage": "weighted-fill",
+        "reason": "exploration/background"
+      }
+    ],
+    "changedCandidateIdentityDisplacementCount": 1,
+    "selectedIdentitySymmetricDifferenceCount": 2,
+    "theoreticalChangedCapacityShortfall": 2
+  },
+  "timing": {
+    "baseEnumerationColdMs": 16119.949,
+    "headEnumerationColdMs": 15132.061,
+    "selectionColdMs": 6.765,
+    "selectionWarmMs": 0.197,
+    "calibrationMode": "deterministic-fallback",
+    "calibrationColdMs": 2.471,
+    "calibrationWarmMs": 0.016,
+    "managedHeapSnapshotBytes": 4185184,
+    "processWorkingSetBytes": 35020800
+  },
+  "history": {
+    "acceptedOrNegativeLabelsAdmitted": 0,
+    "currentEvidenceCandidates": 0,
+    "staleEvidenceCandidates": 0,
+    "missingEvidenceCandidates": 396,
+    "unknownHeadCandidates": 396
+  },
+  "workspaceDiagnostics": {
+    "base": 0,
+    "head": 0
+  }
+}
