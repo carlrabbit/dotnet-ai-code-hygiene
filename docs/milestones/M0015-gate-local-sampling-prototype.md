@@ -72,6 +72,33 @@ A prototype consumes an immutable gate snapshot (base/head revisions and explici
 11. At sparse/no-label gates, use an explicit documented fallback parameter set. Demonstrate parameter sensitivity on controlled fixtures, not fabricated real labels. Persist seed, frozen input IDs, chosen parameters, candidate selection identities, and selection/calibration timings for reproducibility.
 12. Compare uniform random, change-first, and history-aware selector at the **same frozen gate and same completed-review budget**. Report overlap, change/background allocation, displacement of change-relevant candidates, coverage of never-reviewed candidates, and overhead. Quality yield and actual savings require real semantic observations; scheduling metrics do not establish them.
 
+## Amendment — Gate-Local Sampling Research Closure (11 October 2026)
+
+This extension is **ready for execution on the existing PR #16** and reopens M0015's evidence work before milestone-level human approval. Original AC-01–AC-10, ART-01, DOC-01, REV-01, EC-02a–EC-09b, and VAL-01–VAL-05 retain their exact wording and historical evidence; completed prototype findings are not retroactively revised. The new obligations below are additional, not substitutes. The old **Completion Evidence** records only the initial prototype/correction phase and is **not** final evidence for the amended milestone. Do not mark the amended milestone done until the new obligations are reconciled.
+
+### Five research questions to close
+
+- **RQ-01 — Semantic review yield:** On the same actual source-changing gates and review budget, do the competing policies identify different actionable BORINGness issues? Record outcomes, not only selection distributions.
+- **RQ-02 — Reusable history:** Can real type-specific reviewer observations change a *subsequent* gate's selection without current-gate label leakage or reuse after a fingerprint change?
+- **RQ-03 — Local calibration:** Is there enough independently assessed evidence to calibrate parameters defensibly at a gate, accounting for selection-conditioned labels and the five-minute computation ceiling? A valid conclusion can be “not yet identifiable.”
+- **RQ-04 — Maximum versus mandatory budget:** Is a zero-review outcome appropriate at a gate with no BORINGness-relevant changes? Evaluate rules for intentionally spending background-review budget; do not assume that all five slots must always be filled.
+- **RQ-05 — Exploration's opportunity cost:** Which changed candidates are displaced by unchanged/background exploration, and does independently observed review value justify the substitution?
+
+### Study design fixed by planning
+
+1. Retain the original two gates plus the corrected source-changing third gate. For **each of the two source-changing gates**, form a policy-blinded assessment frame from the **union of all three existing five-item policy selections**, plus **one independent uniformly drawn eligible control candidate** not in that union, using a recorded deterministic seed. Aim for 16 candidates total with current frozen selections; cap the assessment at **20 distinct candidates** across both gates. If a union unexpectedly exceeds the cap, retain all actual pairwise difference candidates and report the unavoidable coverage limitation rather than secretly dropping inconvenient cases. The documentation-only gate is a *budget-policy boundary* and need not consume costly semantic assessments.
+2. Freeze the exact revision, candidate identity, fingerprint, source context locations, assessment frame, control-selection method, fixed Q1–Q5 BORINGness rubric, scoring/analysis procedure, reviewer independence, and decision thresholds **before** assessment begins. Existing selection results are exploratory and already visible to the implementer: **the assessor must work in a separate independent review context**, with only blinded tokens and pinned source context, and must not receive policy labels, selections, rankings, or implementation conclusions until its answers are locked. Blinding may establish independence of judgments but does **not** turn the prior observed policy outcomes into a prospectively preregistered experiment.
+3. The assessor may use the public frozen source repositories. A separate agent/reviewer may perform judgments **outside the CLI**; this milestone does not add a model provider or reviewer invocation to production. Require Q1–Q5, exact source revision, contextual evidence, reviewer/model provenance, decision (acceptable/escalate/uncertain), and abstention if context is insufficient. A raw “negative” label requires the rule's actual escalation condition (Q4=yes or two of Q1/Q2/Q3/Q5=yes); do not substitute convenience proxy labels.
+4. Lock observations before joining the token-to-policy mapping. Report matched candidate-level outcomes for each policy at fixed budget, not a general defect rate. A small, purposively selected sample cannot prove population-wide superiority; account for shared candidates, missing/uncertain judgments, and uncertainty without invented confidence estimates.
+5. Test history reuse against a real, later gate **only if a valid same-repository chronological successor exists within bounded local analysis**. Source fingerprint/rule identity and provenance must match; never promote same-gate labels into predictors for that same gate. If valid later-gate history is unavailable, explicitly report the gap rather than fabricate a positive result.
+6. Test **budget as an upper bound** by comparing (i) no semantic review when no rule-relevant changes/evidence justify background work and (ii) explicit, bounded background surveillance. Show selection IDs/counts, policy reasons and effort saved, but distinguish hypothetical avoided review slots from actual reviewer time saved. Distinguish zero-change, changed, and unknown-impact cases.
+7. Compare exploration allocation and displaced changed checks using the corrected identity/stage metrics. Do not attribute a weighted-fill replacement to reserved exploration. Evaluate semantic outcomes if actually assessed; report why any observed preference is inconclusive if coverage/labels are insufficient.
+8. Keep this work **non-production**. No edits to hazard implementation, CLI commands, rule rubrics, sampling state, or accepted-review protocol. No Private data, long M0013/M0014 replay, automatic model invocation by the CLI, or new persistent product API.
+
+### Evidence availability and terminal states
+
+Independent semantic assessments are necessary to resolve RQ-01 and to evaluate quality-based tradeoffs. **Do not declare AC-12/AC-13 or the amended milestone complete using a prepared sample alone.** If a separate authorized assessor cannot be accessed, complete agent-resolvable preparation, leave those obligations pending, document the missing capability and return **BLOCKED** (or **AWAITING HUMAN REVIEW** only if all agent-resolvable work, including required assessment evidence, is complete and merely the milestone review decision is pending). Other questions may legitimately conclude “insufficient evidence” with the precise missing facts. No fabricated assessments, labels, success rates, or statistical significance.
+
 ## Baseline Executor Readiness
 
 This is a self-contained **diagnostic/prototype** contract. The baseline executor chooses file layout, local test mechanics, and algorithm implementation, but may not redefine the gate, use simulated reviews as real labels, integrate with the product, or choose a different optimization target after observing results. No prior private/research conversation is needed: this milestone and project authority define the contract. If obtaining independently assessed judgments requires unavailable external reviewers, complete software/scheduling validation and return `AWAITING HUMAN REVIEW` with the empirical conclusion explicitly inconclusive; do not fake quality evidence.
@@ -93,11 +120,27 @@ Authority: `AGENTS.md`; `docs/ENGINEERING.md`; `docs/specs/SAMPLING.md`; `docs/s
 - **AC-09** — Bounded, policy-blinded real semantic judgments are recorded with reviewer provenance when available, and absent/uncertain judgments are left missing; do not claim comparative defect yield without sufficient independent assessments.
 - **AC-10** — Final report gives an evidence-bounded **adopt/refine/reject/inconclusive** recommendation for gate-local selection and explicitly states the production API/state/review-ticket decisions that remain for subsequent planning, without editing production sampling policy.
 
+### Additional acceptance criteria — research extension
+
+- **AC-11** — Freeze a policy-blinded, source-revision-pinned independent assessment frame for both source-changing gates, covering each policy's selected-union and independent random control(s), within the 20-candidate cap or with a recorded coverage exception; lock the protocol before any independent judgments.
+- **AC-12** — Obtain actual independent Q1–Q5 BORINGness judgments with source evidence and reviewer/model provenance for the frozen assessment frame; preserve missing/uncertain responses without imputing acceptances, and report a genuine unavailable-assessor blocker instead of completing on an unassessed sample.
+- **AC-13** — Compare same-gate, same-budget observed actionable findings across uniform, change-first, and history-aware selections; account for overlapping candidate identities, assessment gaps, uncertainty, small sample size, and preregistration limitations without claiming unestablished policy superiority.
+- **AC-14** — Assess whether independently reviewed, fingerprint-current type history could affect a subsequent gate without leakage; demonstrate a temporally valid transfer if available or explicitly establish why current evidence cannot test this hypothesis.
+- **AC-15** — Analyze outcome-driven local calibration's actual label sufficiency, selection-conditioned bias, fallback behavior, and bounded runtime; use real labels only where temporally and statistically valid, distinguishing test-only grid execution from demonstrated gate improvement.
+- **AC-16** — Compare maximum-budget/no-review, explicit background-review, and normal changed-code selection at a no-source-change boundary and a source-changing gate, including zero-work, unknown-impact, and capped-budget behavior; document the selected effort rather than mandating budget exhaustion.
+- **AC-17** — Attribute exploration's impact using actual changed-candidate omissions and background replacements, with selection-stage evidence, and evaluate the observed semantic value when independently judged; clearly separate scheduling displacement from discovered issues and hypothetical cost savings.
+
 ## Additional Deliverable Obligations
 
 - **ART-01** — Commit reproducible prototype/fixtures plus allowed public result metrics and frozen gate manifest; include commands and integrity checks. Never publish Private candidate/revision/source traces.
 - **DOC-01** — Write `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with question, provenance, observed/inferred/assumed distinctions, experimental protocol, measurements, limitations, decision, and revalidation triggers. Research is **not** production authority.
 - **REV-01** — Prepare `.review/REV-M0015-COMPLETION.md` requesting project-owner/delegate evaluation of technical validity, evidence claims and future architecture recommendation; no self-approval.
+
+### Additional deliverables — research extension
+
+- **ART-02** — Commit a reproducible frozen assessment manifest, blinded token requests, immutable reviewer outcome/provenance evidence when available, and safe token-to-policy analysis with integrity checks. No unapproved Private content or invented assessments.
+- **DOC-02** — Extend `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with a separate evidence-backed RQ-01–RQ-05 section stating question, protocol, observed/inferred/assumed evidence, result or blocker, uncertainty, and implications for production planning. Preserve original exploratory findings.
+- **REV-01 (existing)** — The pending M0015 human review must examine the *amended* obligations and evidence before approval; do not open a duplicate review or fabricate a decision.
 
 ## Acceptance Evidence Topology
 
@@ -120,6 +163,25 @@ Authority: `AGENTS.md`; `docs/ENGINEERING.md`; `docs/specs/SAMPLING.md`; `docs/s
 
 AC-09 / EC-09a is conditional on reviewer availability. If unavailable, record proof of unavailability and an assessment-ready blinded sample; the research outcome must remain explicitly inconclusive on semantic usefulness. Do not assert `not-applicable` merely because collecting labels is inconvenient.
 
+### Additional evidence cases — research extension
+
+| ID | Parent | Required distinct evidence case | Why independent |
+|---|---|---|---|
+| EC-11a | AC-11 | Both real source-changing gates contribute the union of competing-policy selections, pinned to source revisions/fingerprints | Real gate coverage |
+| EC-11b | AC-11 | Independent deterministic eligible control(s), blinded tokenization, and frozen analysis contract | Prevent selection-only sample |
+| EC-12a | AC-12 | Independent Q1–Q5 judgments with evidence and provenance, locked before policy unblinding | Real semantic outcome path |
+| EC-12b | AC-12 | Uncertain, unassessable and missing decisions stay non-accepted with explicit evidence | Missing/uncertain path |
+| EC-13a | AC-13 | Identity-paired observed findings for all three equal-budget policies on both source-changing gates | Outcome comparison |
+| EC-13b | AC-13 | Small-N, overlap, uncertainty and exploratory/preregistration limitations prevent unsupported quality claims | Inference guardrail |
+| EC-14a | AC-14 | Real prior-gate, fingerprint-current reviewer evidence at a later gate, or explicit proof why unavailable | Temporal history path |
+| EC-14b | AC-14 | Same-gate and stale/fingerprint-mismatched observations do not leak into calibration or selection | Leakage prevention |
+| EC-15a | AC-15 | Actual valid-label grid search with held-out evidence if sufficient, or recorded insufficient-label result | Calibration path |
+| EC-15b | AC-15 | Bounded fallback and measured calibration-cost distinction without biased population-quality claims | Fallback/cost path |
+| EC-16a | AC-16 | No-rule-relevant-change gate permits zero semantic reviews when no background work is justified | No-work path |
+| EC-16b | AC-16 | Change-bearing gate preserves bounded prioritization and explicit justified optional background spending | Positive-work path |
+| EC-17a | AC-17 | Candidate identity, changed-count and selection-stage attribution of replacements | Mechanical displacement path |
+| EC-17b | AC-17 | Assessed actual findings and qualified opportunity cost, or explicit absence of outcome evidence | Semantic-value path |
+
 ## Validation Gates
 
 | ID | Depth | Target | Locus/platform | Command/check | Proves | Evidence |
@@ -131,6 +193,16 @@ AC-09 / EC-09a is conditional on reviewer availability. If unavailable, record p
 | VAL-05 | human | Milestone-specific architectural/evidence review | project owner/delegate | Review request `REV-M0015-COMPLETION`; record decision; use installed guide review-check only if available in repository | AC-10, REV-01 | Review request, reviewer decision, final reconciliation |
 
 A prototype-generated command must be stable, checked into `tools/M0015/` with its fixtures, and recorded in the evidence; it need not exist before implementing the prototype. Do not invent a command as having already run. No Tier 4 installed-tool validation is required unless product/distribution code is changed (which is outside this milestone).
+
+### Additional validation gates — research extension
+
+| ID | Depth | Target | Locus/platform | Command/check | Proves | Required evidence |
+|---|---|---|---|---|---|---|
+| VAL-06 | focused / evidence | Two source-changing frozen gates and assessment frame | Windows 11/.NET 11/Git + repository artifact review | Deterministic sample construction; freeze and integrity checks before separate assessor receives tokens | EC-11a, EC-11b, ART-02 | Manifest, deterministic control identity, union coverage, pinned fingerprint/protocol, pre-review hash |
+| VAL-07 | independent semantic | Fixed BORINGness Q1–Q5 on blinded pinned public source | Independent authorized reviewer/agent separated from selection implementer | Source-grounded item review with recorded model/reviewer identity and no exposed policy mapping | EC-12a, EC-12b, AC-12 | Locked judgments and abstentions with provenance; report unavailable independent assessment as BLOCKED |
+| VAL-08 | analytical | Source-changing gate results joined after assessment lock | Reproducible local analysis | Match identity-paired findings by policy and calculate overlap, uncertainty, displacement/value distinctions | EC-13a, EC-13b, EC-17a, EC-17b | Outcome matrix and limitations, no simulated reviewer outcomes |
+| VAL-09 | diagnostic | Evidence history and bounded gate-local calibration | Windows 11/.NET 11 focused fixtures and available real later-gate records | Test temporal/fingerprint guards; test finite grid versus fallback and measure cold/warm paths | EC-14a, EC-14b, EC-15a, EC-15b | History transfer assessment or evidence of non-identifiability; calibration admissibility and timing |
+| VAL-10 | focused / reporting | Zero-change documentation-only gate, mixed and source-changing gates | Windows 11/.NET 11 prototype fixtures + frozen gates | Compare cap-versus-fill, no-work, explicitly justified background reviews; reconcile new DOC-02 and review request | EC-16a, EC-16b, DOC-02 | Observable selected counts, budgets, reasons, report RQ-01–RQ-05 and amended review request |
 
 ## Human Review
 
@@ -147,6 +219,9 @@ A prototype-generated command must be stable, checked into `tools/M0015/` with i
 Use the project's guide 0.9.1 execution workflow. Reconcile every stable obligation and evidence case with `.execution/M0015-gate-local-sampling-prototype.md`, actual experiment outputs and validation gates. Preserve a compact obligation-to-proof summary in this milestone's completion evidence before any ledger cleanup. If only external human judgment is outstanding, return `AWAITING HUMAN REVIEW`. If independent semantic labels are unavailable, the technical prototype may be valid, but empirical superiority is **not** established; the human gate judges whether to request more research.
 
 ## Completion Evidence
+
+**Historical notice (M0015 amendment):** The evidence table below records the already executed prototype and correction phases only. It does not establish the appended AC-11–AC-17, ART-02, DOC-02, or EC-11a–EC-17b. The implementer must append their individual evidence rows after executing the amendment; milestone completion and REV-M0015-COMPLETION remain pending.
+
 
 **Implementation evidence:** `tools/M0015/` contains the isolated Roslyn enumerator, deterministic common-random selector, finite calibration grid and fallback, controlled fixtures, three frozen public gates (including a source-changing gate and a documentation-only boundary), corrected comparison result sets, explicit read-only checksum verification, and a policy-blinded review sample. `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` records original exploratory findings, corrected displacement, the new source gate, measurements, limitations, and INCONCLUSIVE recommendation. `.execution/M0015-gate-local-sampling-prototype.md` contains the full obligation/evidence reconciliation.
 
