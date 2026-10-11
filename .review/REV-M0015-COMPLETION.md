@@ -11,6 +11,10 @@
 
 **Correction evidence:** The report preserves the original two-gate exploratory results and explains the corrected displacement arithmetic. A source-changing Semantic Type Model gate is now included alongside the original documentation-only boundary. The updated comparisons distinguish changed-selection count differences, actual omitted/replacement identities, selection trace stage, selected-set symmetric difference, and theoretical changed-capacity shortfall. Integrity verification is read-only; an explicit regeneration action and negative tampering fixture are provided.
 
+## Amendment to the review request — additional RQ evidence pending
+
+M0015 is reopened for additional investigation, with the original prototype evidence preserved. **Do not approve this request solely from the previous technical corrections.** The amended milestone adds AC-11–AC-17, ART-02, DOC-02, EC-11a–EC-17b, and VAL-06–VAL-10. The independent assessor's judgments and outcome analysis must be locked and added before milestone-level acceptance. If the independent reviewer is unavailable, report the precise blocker rather than claiming completion. Review the five new research questions (semantic yield, reusable history, local calibration, discretionary review-budget spending, exploration tradeoffs), the blinded-assessment protocol/provenance, and the observed-versus-inferred limits. The existing review ID **REV-M0015-COMPLETION** remains canonical.
+
 ## Requested review
 
 Please evaluate:
