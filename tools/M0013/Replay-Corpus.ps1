@@ -4,6 +4,7 @@ param(
     [string]$PrivateRepository,
     [string]$PrivateEvidenceRoot = (Join-Path $env:LOCALAPPDATA 'M0013-private'),
     [string]$PrivateWorktreeRoot = (Join-Path $env:LOCALAPPDATA 'Temp\M0013-private-worktrees'),
+    [string[]]$RepositoryId = @(),
     [int]$WallClockLimitMinutes = 180
 )
 
@@ -32,6 +33,11 @@ $rows = [System.Collections.Generic.List[object]]::new()
 $completedCheckpoints = 0
 $stopReason = $null
 $repositoryOrder = @($manifest.repositories | ForEach-Object id)
+if ($RepositoryId.Count -gt 0) {
+    $unknown = @($RepositoryId | Where-Object { $_ -notin $repositoryOrder })
+    if ($unknown.Count -gt 0) { throw "Unknown repository id(s): $($unknown -join ', ')." }
+    $repositoryOrder = @($repositoryOrder | Where-Object { $_ -in $RepositoryId })
+}
 
 try {
     foreach ($repoId in $repositoryOrder) {

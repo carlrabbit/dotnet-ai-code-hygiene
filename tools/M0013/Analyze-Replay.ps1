@@ -8,9 +8,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $first = Get-Content -LiteralPath $BaselinePath -Raw | ConvertFrom-Json
 $second = Get-Content -LiteralPath $CurrentPath -Raw | ConvertFrom-Json
-if ($first.completedCheckpointCount -ne 138 -or $second.completedCheckpointCount -ne 138 -or $first.replayCases.Count -ne 138 -or $second.replayCases.Count -ne 138) {
-    throw 'Both replay runs must contain the full 138 frozen checkpoints before comparison.'
+if ($first.completedCheckpointCount -le 0 -or
+    $first.completedCheckpointCount -ne $second.completedCheckpointCount -or
+    $first.replayCases.Count -ne $first.completedCheckpointCount -or
+    $second.replayCases.Count -ne $second.completedCheckpointCount) {
+    throw 'Both replay runs must contain the same complete frozen checkpoint segment before comparison.'
 }
+$expectedCheckpoints = [int]$first.completedCheckpointCount
 
 $mismatches = [System.Collections.Generic.List[object]]::new()
 $mismatchCount = 0
@@ -18,7 +22,7 @@ $comparedStates = 0
 $comparedCheckpoints = 0
 $behaviorFields = @('eligibleProjects','eligibleSourceFiles','eligibleSourceLines','projectAgeChangeCount','projectAgeDeltaUnits','repeatProjectAgeDeltaUnits','samplingStateBytes')
 $ruleFields = @('ruleId','populationCount','dueBeforeObservation','selectedCount','acceptedCount','dueAfterObservation')
-for ($checkpointIndex = 0; $checkpointIndex -lt 138; $checkpointIndex++) {
+for ($checkpointIndex = 0; $checkpointIndex -lt $expectedCheckpoints; $checkpointIndex++) {
     $a = $first.replayCases[$checkpointIndex]
     $b = $second.replayCases[$checkpointIndex]
     if ($a.repositoryId -cne $b.repositoryId -or $a.firstParentIndex -ne $b.firstParentIndex -or $a.variants.Count -ne 30 -or $b.variants.Count -ne 30) {
@@ -102,8 +106,8 @@ $record = [ordered]@{
     schemaVersion = 1; experiment = 'M0013'; generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     reproducibility = [ordered]@{
         baselineRunStartedAtUtc = $first.runStartedAtUtc; repeatRunStartedAtUtc = $second.runStartedAtUtc
-        comparedCheckpoints = $comparedCheckpoints; expectedCheckpoints = 138
-        comparedPolicySeedObservationStates = $comparedStates; expectedPolicySeedObservationStates = 4140
+        comparedCheckpoints = $comparedCheckpoints; expectedCheckpoints = $expectedCheckpoints
+        comparedPolicySeedObservationStates = $comparedStates; expectedPolicySeedObservationStates = $expectedCheckpoints * 30
         mismatchingStates = $mismatchCount; mismatchExamples = @($mismatches | Select-Object -First 10)
         comparedFields = @($behaviorFields + $ruleFields)
         timingFieldsExcluded = @('measuredCheckpointMilliseconds','workspaceSetupMilliseconds','firstRunMilliseconds','repeatRunMilliseconds')

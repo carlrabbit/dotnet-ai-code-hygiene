@@ -81,7 +81,7 @@ foreach ($source in ($sources | Where-Object { $RepositoryId.Count -eq 0 -or $_.
         $stateBytes = (Get-Item $statePath).Length
         $summary = [ordered]@{
             id = $source.id
-            checkout = 'local cached default-branch head'
+            checkout = if ($source.sensitive) { 'frozen local upstream-branch head' } else { 'local cached default-branch head' }
             exitCode = $processExit
             eligibleProjects = $projectCount
             eligibleSourceFiles = $fileCount

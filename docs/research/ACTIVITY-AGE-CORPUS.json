@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "experiment": "M0013",
-  "frozenAtUtc": "2026-10-10T16:21:24.3499427+02:00",
+  "frozenAtUtc": "2026-10-11T00:07:12.7245812+02:00",
   "environment": {
     "os": "Microsoft Windows 10.0.26200",
     "dotnetSdk": "11.0.100-rc.1.26425.128",
     "shell": "PowerShell",
-    "externalNetworkFreshness": "GitHub fetch timed out; local origin/main refs were used and must be refreshed/revalidated before any later replication."
+    "externalNetworkFreshness": "Private upstream was fetched and matched its local tracking ref at freeze time; public origin/main refs remain cached and unconfirmed."
   },
   "checkpointRule": "Initial available first-parent commit plus every first-parent commit changing a tracked non-generated .cs path; C# source eligibility and per-project populations are measured by the M0012 Roslyn loader during replay.",
   "policies": {
@@ -48,13 +48,13 @@
     {
       "id": "carlrabbit/Private",
       "visibility": "private",
-      "defaultRef": "local refs/remotes/origin/main; remote freshness unconfirmed",
-      "firstParentCommitCount": 5,
-      "checkpointCount": 5,
-      "eligibleCSharpPathCountAtHead": 450,
+      "defaultRef": "upstream branch, fetched at freeze and confirmed equal to local tracking ref; revision identifiers withheld",
+      "firstParentCommitCount": 143,
+      "checkpointCount": 120,
+      "eligibleCSharpPathCountAtHead": 796,
+      "checkpointManifest": "withheld; exact sequence and checksum remain in the authorized local manifest",
       "revisionIds": "withheld; local authorized evidence only",
-      "seedValues": "withheld; derived by the public protocol formula in the local authorized manifest",
-      "checkpointManifest": "withheld; exact sequence and checksum remain in the authorized local manifest"
+      "seedValues": "withheld; derived by the public protocol formula in the local authorized manifest"
     },
     {
       "id": "carlrabbit/dotnet-semantic-type-model",

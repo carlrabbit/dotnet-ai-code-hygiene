@@ -8,7 +8,7 @@
 
 Please review the M0013 evidence package in the ledger and linked research report. Confirm or request corrections on:
 
-- whether the frozen corpus, mainline checkpoints, fixed seeds, replay overlays, and history limitations match the preregistered protocol;
+- whether the frozen corpus, first-parent checkpoints (including the fetched Private `upstream` branch), fixed seeds, replay overlays, and history limitations match the preregistered protocol;
 - whether synthetic accept/none scenarios are kept separate from semantic-quality evidence;
 - whether blinded labels are actual assessments with provenance and whether unknown or uncertain labels remain missing;
 - whether equal completed-review budgets and natural due workload are reported separately;
@@ -24,5 +24,7 @@ Decision: pending.
 Corrections: pending.
 
 The replay has completed, but the semantic-review pool has not been labeled. No independent reviewer identity or capacity was supplied, so AC-05/06 and VAL-02 remain incomplete and the effectiveness recommendation is inconclusive. Human review can validate the mechanics, privacy treatment, limitations, and recommendation; it must not be recorded as comparative semantic evidence unless actual blinded assessments are completed with provenance.
+
+The initial Private corpus incorrectly used `origin/main`. That evidence is superseded. After correction, the fetched `origin/upstream` ref was confirmed at freeze, and two isolated 120-checkpoint runs matched across 3,600 persisted states. The corrected Private aggregates and replay methodology are linked from the research report and execution ledger. The prior public repository segment remains independently matched across 3,990 states.
 
 The milestone remains `AWAITING HUMAN REVIEW` until an explicit decision is recorded here and in the execution ledger. No approval is inferred from silence, completion of replay, or this request's presence.

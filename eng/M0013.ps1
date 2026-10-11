@@ -7,8 +7,10 @@ param(
     [string]$CurrentPath,
     [string]$OutputPath,
     [string]$PrivateRepository,
+    [string]$PrivateRef,
     [string]$PrivateEvidenceRoot,
-    [string]$PrivateWorktreeRoot
+    [string]$PrivateWorktreeRoot,
+    [string[]]$RepositoryId = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +21,7 @@ switch ($Action) {
     'freeze' {
         $privateArguments = @{}
         if ($PrivateRepository) { $privateArguments.PrivateRepository = $PrivateRepository }
+        if ($PrivateRef) { $privateArguments.PrivateRef = $PrivateRef }
         if ($PrivateEvidenceRoot) { $privateArguments.PrivateEvidenceRoot = $PrivateEvidenceRoot }
         & (Join-Path $repoRoot 'tools/M0013/Freeze-Corpus.ps1') @privateArguments
         if ($LASTEXITCODE -notin 0, $null) { throw "Corpus freeze failed with exit code $LASTEXITCODE." }
@@ -49,6 +52,7 @@ switch ($Action) {
         if ($PrivateRepository) { $privateArguments.PrivateRepository = $PrivateRepository }
         if ($PrivateEvidenceRoot) { $privateArguments.PrivateEvidenceRoot = $PrivateEvidenceRoot }
         if ($PrivateWorktreeRoot) { $privateArguments.PrivateWorktreeRoot = $PrivateWorktreeRoot }
+        if ($RepositoryId.Count -gt 0) { $privateArguments.RepositoryId = $RepositoryId }
         & (Join-Path $repoRoot 'tools/M0013/Replay-Corpus.ps1') @privateArguments
         if ($LASTEXITCODE -notin 0, $null) { throw "Corpus replay failed with exit code $LASTEXITCODE." }
     }

@@ -2,6 +2,7 @@ param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
     [Parameter(Mandatory = $true)]
     [string]$PrivateRepository,
+    [string]$PrivateRef = 'refs/remotes/origin/upstream',
     [string]$PrivateEvidenceRoot = (Join-Path $env:LOCALAPPDATA 'M0013-private')
 )
 
@@ -55,7 +56,7 @@ New-Item -ItemType Directory -Force -Path $PrivateEvidenceRoot | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not restrict the private M0013 evidence directory to the current user.' }
 
 $definitions = @(
-    [ordered]@{ id = 'carlrabbit/Private'; path = $PrivateRepository; visibility = 'private' },
+    [ordered]@{ id = 'carlrabbit/Private'; path = $PrivateRepository; ref = $PrivateRef; visibility = 'private' },
     [ordered]@{ id = 'carlrabbit/dotnet-semantic-type-model'; path = 'C:\src\dotnet-semantic-type-model'; visibility = 'public' },
     [ordered]@{ id = 'carlrabbit/dotnet-ai-code-hygiene'; path = 'C:\src\dotnet-ai-code-hygiene'; visibility = 'public' },
     [ordered]@{ id = 'carlrabbit/dotnet-ai-first-2d-game-engine'; path = 'C:\src\dotnet-ai-first-2d-game-engine'; visibility = 'public' }
@@ -65,7 +66,8 @@ $privateData = [ordered]@{ schemaVersion = 1; frozenAtUtc = [DateTimeOffset]::Ut
 $publicRepositories = [System.Collections.Generic.List[object]]::new()
 foreach ($definition in $definitions) {
     if (-not (Test-Path (Join-Path $definition.path '.git'))) { throw "Expected local Git repository is unavailable: $($definition.id)." }
-    $history = Get-Checkpoints $definition.path 'refs/remotes/origin/main'
+    $ref = if ($definition.ref) { $definition.ref } else { 'refs/remotes/origin/main' }
+    $history = Get-Checkpoints $definition.path $ref
     $seeds = Get-FixedSeeds $definition.id
     $tree = @(git -C $definition.path ls-tree -r --name-only $history.headSha)
     $eligiblePathCount = @($tree | Where-Object {
@@ -85,7 +87,7 @@ foreach ($definition in $definitions) {
         $publicRepositories.Add([ordered]@{
             id = $definition.id
             visibility = 'private'
-            defaultRef = 'local refs/remotes/origin/main; remote freshness unconfirmed'
+            defaultRef = if ($definition.visibility -eq 'private') { 'upstream branch fetched at freeze; exact revision withheld' } else { "local $ref; remote freshness unconfirmed" }
             firstParentCommitCount = $history.firstParentCommitCount
             checkpointCount = $history.checkpointCount
             eligibleCSharpPathCountAtHead = $eligiblePathCount
@@ -97,7 +99,7 @@ foreach ($definition in $definitions) {
         $publicRepositories.Add([ordered]@{
             id = $definition.id
             visibility = 'public'
-            defaultRef = 'local refs/remotes/origin/main; remote freshness unconfirmed'
+            defaultRef = if ($definition.visibility -eq 'private') { 'upstream branch fetched at freeze; exact revision withheld' } else { "local $ref; remote freshness unconfirmed" }
             firstParentCommitCount = $history.firstParentCommitCount
             checkpointCount = $history.checkpointCount
             eligibleCSharpPathCountAtHead = $eligiblePathCount
@@ -115,7 +117,7 @@ $manifest = [ordered]@{
         os = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
         dotnetSdk = (& dotnet --version)
         shell = 'PowerShell'
-        externalNetworkFreshness = 'GitHub fetch timed out; local origin/main refs were used and must be refreshed/revalidated before any later replication.'
+        externalNetworkFreshness = 'Private upstream was fetched and matched its local tracking ref at freeze time; public origin/main refs remain cached and unconfirmed.'
     }
     checkpointRule = 'Initial available first-parent commit plus every first-parent commit changing a tracked non-generated .cs path; C# source eligibility and per-project populations are measured by the M0012 Roslyn loader during replay.'
     policies = [ordered]@{
