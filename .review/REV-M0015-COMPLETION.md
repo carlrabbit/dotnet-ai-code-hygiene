@@ -13,7 +13,7 @@
 
 ## Amendment to the review request — additional RQ evidence pending
 
-M0015 is reopened for additional investigation, with the original prototype evidence preserved. **Do not approve this request solely from the previous technical corrections.** The amended milestone adds AC-11–AC-17, ART-02, DOC-02, EC-11a–EC-17b, and VAL-06–VAL-10. The independent assessor's judgments and outcome analysis must be locked and added before milestone-level acceptance. If the independent reviewer is unavailable, report the precise blocker rather than claiming completion. Review the five new research questions (semantic yield, reusable history, local calibration, discretionary review-budget spending, exploration tradeoffs), the blinded-assessment protocol/provenance, and the observed-versus-inferred limits. The existing review ID **REV-M0015-COMPLETION** remains canonical.
+M0015 is reopened as a user-run-judgment, two-execution-stage investigation, with original prototype evidence preserved. **Do not approve this request solely from the previous technical corrections or from a prepared handoff.** The amended milestone adds AC-11–AC-17, ART-02, DOC-02, EC-11a–EC-17b, and VAL-06–VAL-10. Luna must produce frozen public repository archives and an assessor-only blind packet under `G:\My Drive\Transfer\M0015-review\handoff\`, then stop `BLOCKED` pending project-owner-authored judgment files in `M0015-review/submissions/`. Luna must not spawn reviewing agents or generate judgments. A later explicit execution resumes evidence intake and analysis before milestone-level acceptance. Review the five new research questions (semantic yield, reusable history, local calibration, discretionary review-budget spending, exploration tradeoffs), the blinded-assessment protocol/provenance, and the observed-versus-inferred limits. The existing review ID **REV-M0015-COMPLETION** remains canonical.
 
 ## Requested review
 
@@ -28,7 +28,7 @@ Please evaluate:
 - whether checksum verification compares against the committed reference without rewriting it and rejects tampered required artifacts;
 - whether the evidence justifies any later production change to API, persisted state, or review-ticket semantics.
 
-The report contains no independently assessed semantic labels. Selection metrics are scheduling evidence only. The blinded sample contains 11 candidates across two public frozen heads; assess candidates by token against the fixed BORINGness rubric before consulting selection outputs. Record provenance, each answered question, negative or uncertain judgments, and missing items. Do not convert absence of evidence into acceptance.
+The report contains no independently assessed semantic labels. Selection metrics are scheduling evidence only. The earlier 11-item blinded sample is historical; Stage A prepares a new assessment frame from **both source-changing gates** plus independent controls. The project owner runs the assessment from the user-facing Drive handoff, separately from Luna, before consulting selection outputs. Record provenance, each answered question, negative or uncertain judgments, and missing items. Do not convert absence of evidence into acceptance.
 
 ## Reviewer and decision
 
