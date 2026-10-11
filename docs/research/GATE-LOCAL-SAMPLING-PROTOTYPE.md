@@ -113,7 +113,7 @@ The replay tool now writes checksums only through the explicit `-Action regenera
 
 ## Amended research questions — pending independent evidence (11 October 2026)
 
-PR #16 has an **execution-ready M0015 amendment**, but the RQ-01–RQ-05 findings have **not yet been produced**. The original three-gate scheduling experiment above is preserved and exploratory, not evidence of comparative semantic-review value. The authoritative amendment, frozen-assessment requirements, and per-question acceptance criteria are in `docs/milestones/M0015-gate-local-sampling-prototype.md`; the implementation-owned status is in `.execution/M0015-gate-local-sampling-prototype.md`.
+PR #16 has a **Stage A ready M0015 user-run-judgment amendment**, but the RQ-01–RQ-05 findings have **not yet been produced**. Luna prepares the pinned public repository ZIPs and blind packet in the user-accessible Google Drive Transfer folder, then stops; it may only ingest the project owner's submitted assessments on a separate explicit resumed run. No automated delegation or Luna-performed review judgments are allowed. The original three-gate scheduling experiment above is preserved and exploratory, not evidence of comparative semantic-review value. The authoritative amendment, frozen-assessment requirements, and per-question acceptance criteria are in `docs/milestones/M0015-gate-local-sampling-prototype.md`; the implementation-owned status is in `.execution/M0015-gate-local-sampling-prototype.md`.
 
 - **RQ-01 — Actual semantic yield:** Requires separate, blinded independent Q1–Q5 decisions for selected-union candidates plus independently sampled controls on the two source-changing gates, locked before policy unblinding.
 - **RQ-02 — Reusable history:** Requires real prior-gate type labels that match identity and source/rule fingerprint on a later gate; missing chronological evidence must remain an explicit gap.
@@ -121,7 +121,7 @@ PR #16 has an **execution-ready M0015 amendment**, but the RQ-01–RQ-05 finding
 - **RQ-04 — Review budget as a ceiling:** Compare a no-rule-change gate yielding zero expensive reviews against explicitly justified background selection; do not interpret a budget of five as a mandate to spend five.
 - **RQ-05 — Exploration tradeoffs:** Attribute actual changed IDs displaced and compare review outcomes only when independently judged; preserve the difference between reserved exploration and weighted-fill selection.
 
-Future execution appends an evidence/provenance/uncertainty/result subsection for **each** RQ. No new actual judgments, cost savings, parameter improvements, or product policy changes are claimed by this planning amendment.
+Stage A is complete only when the two exact-head clean public repository archives, blind prompt/manifest/template and checksum receipt are copied and verified at `G:\My Drive\Transfer\M0015-review\handoff\`. Stage B is project-owner judgment collection in `M0015-review/submissions/`, not Luna orchestration. Stage C validates submitted results before policy unblinding and appends an evidence/provenance/uncertainty/result subsection for **each** RQ. No new actual judgments, cost savings, parameter improvements, or product policy changes are claimed by this planning amendment.
 
 ## Semantic assessment and limitations
 
