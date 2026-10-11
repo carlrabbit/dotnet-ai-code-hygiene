@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "kind": "policy-blinded-boringness-review-sample",
+  "rule": "architecture.boringness.review@2",
+  "items": [
+    {
+      "token": "M15-A12D260BB6",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-A127F9BC0E",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-42E3FA38F0",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-74794C79E1",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-027E298651",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-C299CF1325",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-1202215D70",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "path": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/M0077LogicalTypeTests.cs",
+      "symbol": "global::SemanticTypeModel.JsonSchema.Tests.Unit.M0077LogicalTypeTests",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-4C06D53911",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "path": "src/SemanticTypeModel.TestData/Inspection/SemanticTestDataTextExtensions.cs",
+      "symbol": "global::SemanticTypeModel.TestData.Inspection.SemanticTestDataTextExtensions",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-372695E4FC",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "path": "src/SemanticTypeModel.PowerBI/PowerBiEnvelopeProjectionOptions.cs",
+      "symbol": "global::SemanticTypeModel.PowerBI.PowerBiEnvelopePolicyBuilder<TEnvelope>",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-45B06ECFC8",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "path": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/GeneratedConfigurationPartialHook.cs",
+      "symbol": "global::SemanticTypeModel.TestModels.ModelA.SemanticTypeModel_TestModels_ModelA_InventoryItemConfiguration",
+      "disambiguator": 0
+    },
+    {
+      "token": "M15-39897ADE62",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+      "symbol": "global::SemanticTypeModel.TestData.TerminologyProfileResult<T>",
+      "disambiguator": 0
+    }
+  ],
+  "rubric": [
+    "Q1 Speculative abstraction: only one meaningful production use/implementation, with no current need for variability?",
+    "Q2 Indirection: multiple forwarding/delegation layers before behavior?",
+    "Q3 Change locality: small behavior change requires coordinated plumbing edits?",
+    "Q4 Hidden machinery: reflection, dynamic discovery, convention registration, custom DSL/framework where ordinary C# suffices?",
+    "Q5 Unclear ownership: difficult to locate the owner of behavior/state?"
+  ],
+  "outcomeValues": [
+    "accepted",
+    "negative",
+    "uncertain"
+  ],
+  "instruction": "Review each token independently from source context at the frozen head revision. Do not view selector comparisons before judgments are locked. Leave uncertain or unavailable evidence as uncertain/missing. Escalate when Q4 is yes or at least two of Q1,Q2,Q3,Q5 are yes."
+}

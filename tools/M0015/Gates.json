@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "gateProtocolFrozenBeforeFirstSmokeRun": true,
+  "rule": "architecture.boringness.review@2",
+  "ruleSemantics": "Source-backed class, struct, record, interface declarations from eligible non-generated C# documents; project-qualified fully-qualified symbol identity and same-symbol declaration ordinal.",
+  "budget": 5,
+  "unchangedCohortMaximum": 25,
+  "pairedRandomness": "Each candidate uses the same seed-derived random variate across all three policies; score changes reflect policy weights and exploration allocation.",
+  "seeds": {
+    "hygiene-pr15": "M0015-v1-hygiene-pr15-seed-01",
+    "semantic-model-head": "M0015-v1-semantic-model-head-seed-01"
+  },
+  "history": "No real individually attributable BORINGness labels are preloaded; only independent evidence with candidate ID and reviewer provenance is admitted.",
+  "calibration": {
+    "gridVersion": "m0015-grid-v1",
+    "grid": [
+      { "changedWeight": 2, "backgroundWeight": 1, "explorationFraction": 0.1 },
+      { "changedWeight": 4, "backgroundWeight": 0.5, "explorationFraction": 0.2 },
+      { "changedWeight": 8, "backgroundWeight": 0.25, "explorationFraction": 0.2 }
+    ],
+    "fallback": { "changedWeight": 4, "backgroundWeight": 0.5, "explorationFraction": 0.2 },
+    "labelState": "uncalibrated: no eligible real gate-local type-level labels"
+  },
+  "gates": [
+    {
+      "id": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "base": "48a87618d02278a178cad02f44a924e207ec88d3",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "solution": "DotNetAiCodeHygiene.slnx"
+    },
+    {
+      "id": "semantic-model-head",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "base": "f45a5a2876115defdec06fc3a18fdf131b2ee914",
+      "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+      "solution": "SemanticTypeModel.slnx"
+    }
+  ]
+}
