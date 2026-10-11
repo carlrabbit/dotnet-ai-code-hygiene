@@ -2,7 +2,7 @@
 
 Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`
 
-**State:** amended milestone ready; prior prototype implementation complete, new RQ-01–RQ-05 investigation pending; human review remains open. This operational ledger is not project authority. The milestone controls on conflict. Planner-seeded obligation rows have been preserved verbatim. The ledger may compress work, never obligations.
+**State:** amended staged milestone ready for Stage A handoff. User-supplied Stage B judgments and resumed Stage C analysis pending; previous prototype evidence complete. No Luna-initiated agent judgments. This operational ledger is not project authority. The milestone controls on conflict. Planner-seeded obligation rows have been preserved verbatim. The ledger may compress work, never obligations.
 
 ## Milestone Obligation Registry
 
@@ -28,14 +28,14 @@ These rows extend, without deleting or paraphrasing, the 13 original obligation 
 
 | ID | Type | Obligation (exact milestone wording) | Work package(s) | Implementation evidence | Validation evidence | Status |
 |---|---|---|---|---|---|---|
-| AC-11 | acceptance | Freeze a policy-blinded, source-revision-pinned independent assessment frame for both source-changing gates, covering each policy's selected-union and independent random control(s), within the 20-candidate cap or with a recorded coverage exception; lock the protocol before any independent judgments. | | | | todo |
-| AC-12 | acceptance | Obtain actual independent Q1–Q5 BORINGness judgments with source evidence and reviewer/model provenance for the frozen assessment frame; preserve missing/uncertain responses without imputing acceptances, and report a genuine unavailable-assessor blocker instead of completing on an unassessed sample. | | | | todo |
-| AC-13 | acceptance | Compare same-gate, same-budget observed actionable findings across uniform, change-first, and history-aware selections; account for overlapping candidate identities, assessment gaps, uncertainty, small sample size, and preregistration limitations without claiming unestablished policy superiority. | | | | todo |
-| AC-14 | acceptance | Assess whether independently reviewed, fingerprint-current type history could affect a subsequent gate without leakage; demonstrate a temporally valid transfer if available or explicitly establish why current evidence cannot test this hypothesis. | | | | todo |
-| AC-15 | acceptance | Analyze outcome-driven local calibration's actual label sufficiency, selection-conditioned bias, fallback behavior, and bounded runtime; use real labels only where temporally and statistically valid, distinguishing test-only grid execution from demonstrated gate improvement. | | | | todo |
-| AC-16 | acceptance | Compare maximum-budget/no-review, explicit background-review, and normal changed-code selection at a no-source-change boundary and a source-changing gate, including zero-work, unknown-impact, and capped-budget behavior; document the selected effort rather than mandating budget exhaustion. | | | | todo |
-| AC-17 | acceptance | Attribute exploration's impact using actual changed-candidate omissions and background replacements, with selection-stage evidence, and evaluate the observed semantic value when independently judged; clearly separate scheduling displacement from discovered issues and hypothetical cost savings. | | | | todo |
-| ART-02 | artifact | Commit a reproducible frozen assessment manifest, blinded token requests, immutable reviewer outcome/provenance evidence when available, and safe token-to-policy analysis with integrity checks. No unapproved Private content or invented assessments. | | | | todo |
+| AC-11 | acceptance | Freeze a policy-blinded, source-revision- and fingerprint-pinned assessment frame on both source-changing gates, covering each policy-selected union plus independently seeded eligible control(s), with versioned protocol and token mapping isolated from the judge. | | | | todo |
+| AC-12 | acceptance | Generate and verify complete clean frozen public repository archives plus an assessor-only blinded handoff, result template, review instructions and read-only integrity receipt; copy them to the specified Google Drive Transfer folder without running or spawning any reviewer, and preserve a resumable Stage A checkpoint pending project-owner judgments. | | | | todo |
+| AC-13 | acceptance | After the project owner supplies actual independent Q1–Q5 judgments in the Drive submissions folder and explicitly resumes work, validate and freeze submitted results before policy unblinding; compare same-gate observed actionable findings at equal review budgets, accounting for overlapping identities, missing/uncertain judgments and small-N limitations. Do not complete without real submissions. | | | | todo |
+| AC-14 | acceptance | Assess whether genuinely prior, fingerprint-current type-level judgments can inform a later gate without leakage; demonstrate a temporally valid transfer if available or establish precisely why the current study cannot test it. | | | | todo |
+| AC-15 | acceptance | Analyze outcome-driven local calibration's valid-label sufficiency, selection-conditioned bias, bounded runtime and deterministic fallback; never reuse current-gate submitted judgments as prior labels for the same gate or claim population-wide quality from selected-only labels. | | | | todo |
+| AC-16 | acceptance | Compare maximum-budget/zero-review, explicitly authorized background-surveillance, and change-driven selection at documentation-only and source-changing gates, including zero-work, unknown impact and bounded review count; do not equate a budget with a fill target. | | | | todo |
+| AC-17 | acceptance | Attribute exploration effects using actual omitted changed IDs, replacement IDs and selection-stage evidence; when valid user-submitted judgments are available evaluate observed actionable-value tradeoffs, otherwise report the unresolved outcome evidence without claiming quality benefit. | | | | todo |
+| ART-02 | artifact | Commit frozen experiment protocol, blinded candidate manifest, token mapping and reproducible intake/analysis tooling plus a verified Google Drive handoff receipt. Put the two source snapshot archives and assessor-only handoff in Transfer, not GitHub; incorporate actual user-submitted judgments only after their receipt and validation, preserving privacy, provenance, and integrity. Never invent judgments. | | | | todo |
 | DOC-02 | documentation | Extend `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with a separate evidence-backed RQ-01–RQ-05 section stating question, protocol, observed/inferred/assumed evidence, result or blocker, uncertainty, and implications for production planning. Preserve original exploratory findings. | | | | todo |
 
 ## Evidence Case Registry
@@ -61,20 +61,20 @@ These rows extend, without deleting or paraphrasing, the 13 original obligation 
 
 | ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
 |---|---|---|---|---|---|
-| EC-11a | AC-11 | Both real source-changing gates contribute the union of competing-policy selections, pinned to source revisions/fingerprints | VAL-06 | | todo |
-| EC-11b | AC-11 | Independent deterministic eligible control(s), blinded tokenization, and frozen analysis contract | VAL-06 | | todo |
-| EC-12a | AC-12 | Independent Q1–Q5 judgments with evidence and provenance, locked before policy unblinding | VAL-07 | | todo |
-| EC-12b | AC-12 | Uncertain, unassessable and missing decisions stay non-accepted with explicit evidence | VAL-07 | | todo |
-| EC-13a | AC-13 | Identity-paired observed findings for all three equal-budget policies on both source-changing gates | VAL-08 | | todo |
-| EC-13b | AC-13 | Small-N, overlap, uncertainty and exploratory/preregistration limitations prevent unsupported quality claims | VAL-08 | | todo |
-| EC-14a | AC-14 | Real prior-gate, fingerprint-current reviewer evidence at a later gate, or explicit proof why unavailable | VAL-09 | | todo |
-| EC-14b | AC-14 | Same-gate and stale/fingerprint-mismatched observations do not leak into calibration or selection | VAL-09 | | todo |
-| EC-15a | AC-15 | Actual valid-label grid search with held-out evidence if sufficient, or recorded insufficient-label result | VAL-09 | | todo |
-| EC-15b | AC-15 | Bounded fallback and measured calibration-cost distinction without biased population-quality claims | VAL-09 | | todo |
-| EC-16a | AC-16 | No-rule-relevant-change gate permits zero semantic reviews when no background work is justified | VAL-10 | | todo |
-| EC-16b | AC-16 | Change-bearing gate preserves bounded prioritization and explicit justified optional background spending | VAL-10 | | todo |
-| EC-17a | AC-17 | Candidate identity, changed-count and selection-stage attribution of replacements | VAL-08 | | todo |
-| EC-17b | AC-17 | Assessed actual findings and qualified opportunity cost, or explicit absence of outcome evidence | VAL-08 | | todo |
+| EC-11a | AC-11 | Both source-changing gates contribute complete selected-union identities and pinned source/fingerprint references. | VAL-06 | | todo |
+| EC-11b | AC-11 | Independent deterministic eligible controls, blinded tokens, locked assessor-independent mapping and protocol hash. | VAL-06 | | todo |
+| EC-12a | AC-12 | Both clean frozen public repository ZIPs and assessor-only handoff are verifiably copied to the configured Drive Transfer destination; manifest/checksum receipt and no policy leaks. | VAL-07 | | todo |
+| EC-12b | AC-12 | Stage A stops at a resumable external-judgments checkpoint without launching any agent or fabricating submitted review outcomes. | VAL-07 | | todo |
+| EC-13a | AC-13 | Actual submitted Q1–Q5 results pass schema, identity, source, provenance and decision checks before unblinding; conflicts and invalid submissions fail. | VAL-08 | | todo |
+| EC-13b | AC-13 | Equal-budget outcome comparison accounts for shared identities, unknown/missing cases, small sample and explicitly exploratory evidence. | VAL-08 | | todo |
+| EC-14a | AC-14 | Genuine earlier-gate, fingerprint-current judgments inform a later gate, or the absence of valid chronological evidence is explicit. | VAL-09 | | todo |
+| EC-14b | AC-14 | Current-gate, stale or fingerprint-mismatched observations are excluded as same-gate historical predictors. | VAL-09 | | todo |
+| EC-15a | AC-15 | Valid prior-label calibration runs when admissible or records concrete insufficiency without fabricated labels. | VAL-09 | | todo |
+| EC-15b | AC-15 | Bounded fallback/time measurements and selection-bias qualifications without unsupported yield claims. | VAL-09 | | todo |
+| EC-16a | AC-16 | No relevant source change and no authorized surveillance produce zero semantic review selections. | VAL-10 | | todo |
+| EC-16b | AC-16 | Change-bearing gate and optional explicitly justified background review remain bounded and observable. | VAL-10 | | todo |
+| EC-17a | AC-17 | Omitted changed identities, replacements, changed-count differences and actual selection stages reconcile. | VAL-08 | | todo |
+| EC-17b | AC-17 | Actual submitted semantic outcomes quantify observed tradeoffs, or clearly identify missing assessment coverage. | VAL-08 | | todo |
 
 ## Work Packages
 
@@ -102,32 +102,36 @@ Executor-owned. Before code or analysis, read the milestone and confirm exact ID
 
 | ID | Required validation | Target/locus | Proves evidence units | Status | Evidence |
 |---|---|---|---|---|---|
-| VAL-06 | Frozen assessment manifest, sample union, controls and integrity | Windows 11/.NET 11 + public frozen gates | EC-11a, EC-11b, ART-02 | todo | |
-| VAL-07 | Independent policy-blinded actual Q1–Q5 judgments | Separate authorized reviewer + public pinned source | EC-12a, EC-12b, AC-12 | todo | |
-| VAL-08 | Identity-paired policy yield and opportunity-cost analysis | Local reproducible evidence analysis | EC-13a, EC-13b, EC-17a, EC-17b | todo | |
-| VAL-09 | Temporal history admissibility and grid/fallback cost | Windows 11/.NET 11 + valid prior-gate records if available | EC-14a, EC-14b, EC-15a, EC-15b | todo | |
-| VAL-10 | Maximum-budget/no-work comparisons and RQ report | Windows 11/.NET 11 + repository review | EC-16a, EC-16b, DOC-02 | todo | |
+| VAL-06 | Frozen assessment manifest, two pinned repository archives, blind sample and source hash tests | Windows 11/.NET 11 + frozen public repos | EC-11a, EC-11b, ART-02 | todo | |
+| VAL-07 | Verify separate assessor handoff and Drive upload, stop without a reviewer invocation | Windows Google Drive mount + connected cloud folder | EC-12a, EC-12b, AC-12 | todo | |
+| VAL-08 | Later ingest and validate user-run judgments from Drive, then unblind and analyze | A separate resumed Luna execution and Drive submissions | EC-13a, EC-13b, EC-17a, EC-17b, AC-13 | pending external user judgments | |
+| VAL-09 | Chronological/fingerprint-admissible history and bounded calibration tests | Windows 11/.NET 11 + real prior gate if available | EC-14a, EC-14b, EC-15a, EC-15b | todo | |
+| VAL-10 | No-change/no-spend and justified background budget selection and RQ report | Windows 11/.NET 11 + repo review | EC-16a, EC-16b, DOC-02 | todo | |
 
 ## Resume Point
 
-Last completed work package: WP-05 from the original prototype/correction phase; evidence and acceptance for that phase remain historical.
+Last completed work package: original prototype and three-gate correction evidence (historical).
 
-Current work package: not yet assigned; implementation must decompose amended AC-11–AC-17, ART-02, DOC-02 and EC-11a–EC-17b into new bounded work packages without changing planner-seeded rows.
+Current work package: Stage A — prepare and verify blinded user assessment handoff in `G:\My Drive\Transfer\M0015-review\handoff\`, without invoking any reviewer.
 
-Next concrete action: reread the amended milestone, reconcile all 22 obligation IDs / 28 evidence cases / VAL-01–VAL-10, freeze a source-grounded and policy-blinded assessment frame, then obtain independent judgments before joining policy identities.
+Next concrete action: reconcile amended obligation wording, build frozen source ZIPs and blinded manifest, verify all target files and hashes in Drive mount, record receipt, then stop BLOCKED awaiting user-authored submissions.
 
-Known agent-resolvable gaps: new assessment protocol/artifacts, selection-outcome analysis, temporal history and calibration diagnosis, discretionary budget test, extended research report and renewed completion audit.
+Stage B actor: project owner, outside this implementation run. They provide judgments in `M0015-review/submissions/` and explicitly request resume.
 
-External blockers or planning escalations: an independent authorized semantic assessor may be unavailable; if so, preserve prepared evidence and report BLOCKED rather than completing AC-12/AC-13. Original M0015 smoke exposure and subsequent descriptive-output amendment remain disclosed as limitations.
+Stage C actor: Luna on a later prompted run, solely to read/validate the user results, unblind, analyze, update report and reconcile the remaining gates.
 
-## Amended Milestone Resume / Reconciliation (pending implementation)
+Agent-resolvable work: frozen archives, reviewer instructions/template, read-only integrity, intake validation fixtures, discretionary budget and history/calibration guardrails, reporting preparation. No agent spawning, no autonomous semantic judgments.
+
+External dependency: user-submitted actual reviews. Their absence after a successful handoff is a genuine BLOCKED state, **not** a reason to fabricate assessments or declare milestone-level human review pending as the only gate.
+
+## Amended Milestone Resume / Reconciliation (Stage A and Stage C pending)
 
 The earlier checked completion audit remains **historical evidence for the original prototype**, not completion authority for the 11 October amendment.
 
 - [ ] Reconcile 22 amended obligations (13 existing plus AC-11–AC-17, ART-02, DOC-02) and 28 evidence cases (14 existing plus EC-11a–EC-17b) against the authoritative milestone.
 - [ ] Reconcile VAL-01–VAL-10, including the five additional validation gates.
-- [ ] Generate frozen blind evidence and obtain real independent reviews. If not available, leave assessor-dependent evidence incomplete and report BLOCKED; do not report semantic success.
-- [ ] Update research RQ-01–RQ-05 and revise the existing REV-M0015-COMPLETION request with outcome-specific evidence.
+- [ ] Stage A: generate frozen blind evidence, both pinned public source ZIPs, portable reviewer handoff and schema, copy to Drive Transfer, verify files and hash receipt, and stop BLOCKED pending user-submitted reviews. Never launch any model/agent.
+- [ ] Stage C (separate explicitly resumed run): read and validate actual user-authored judgments from Drive, freeze receipts, unblind only after validation, and update RQ-01–RQ-05 and REV-M0015-COMPLETION with actual evidence or explicit remaining gaps.
 - [ ] Revalidate the committed checksummed artifact inventory after amendment execution; preserve unmodified original exploratory results.
 - [ ] Repeat the **full** guide-required completion audit and update milestone completion evidence for the new obligations before a human decision.
 
