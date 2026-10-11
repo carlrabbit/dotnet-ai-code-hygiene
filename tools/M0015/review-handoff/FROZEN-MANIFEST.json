@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "m0015-stage-a-frozen-review-manifest",
+  "stage": "A-user-run-semantic-review-handoff",
+  "frozenAtUtc": "2026-10-11T21:13:51Z",
+  "rule": "architecture.boringness.review@2",
+  "purpose": "Independent project-owner assessment; selection policy and control membership are blinded.",
+  "assessmentCount": 24,
+  "blindedCandidateListSha256": "9573405CB05FAE6D08623A27561727B683C7D7EAC0DCAD091A31220ED291028D",
+  "controlProtocol": {
+    "method": "five independent SHA-256 seeded draws without replacement within each source, using separate seeds; draw from the complete eligible frozen head population independently of policy selections",
+    "seeds": {
+      "hygiene-pr15": "M0015-stageA-independent-control-hygiene-20261011",
+      "semantic-model-source": "M0015-stageA-independent-control-semantic-model-20261011"
+    },
+    "drawsPerSource": 5,
+    "membershipNotEncodedInBlindedList": true
+  },
+  "sources": [
+    {
+      "sourceKey": "repository-a",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "base": "48a87618d02278a178cad02f44a924e207ec88d3",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "archivePath": "source-archives/repository-a-source.zip",
+      "archiveSha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699",
+      "trackedFileCount": 128,
+      "headCandidateCount": 96
+    },
+    {
+      "sourceKey": "repository-b",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "base": "9ba2bf4dc8268b490236d9f287f358d7a840353a",
+      "head": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "archivePath": "source-archives/repository-b-source.zip",
+      "archiveSha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777",
+      "trackedFileCount": 334,
+      "headCandidateCount": 396
+    }
+  ],
+  "sourcePopulationSummary": {
+    "hygiene-pr15": {
+      "policySelectionUnionCount": 6,
+      "independentControlDrawCount": 5,
+      "uniqueAssessmentCount": 11
+    },
+    "semantic-model-source": {
+      "policySelectionUnionCount": 8,
+      "independentControlDrawCount": 5,
+      "uniqueAssessmentCount": 13
+    }
+  },
+  "judgmentContract": {
+    "questionAnswers": [
+      "yes",
+      "no",
+      "uncertain"
+    ],
+    "outcomes": [
+      "accepted",
+      "negative",
+      "uncertain"
+    ],
+    "escalation": "Q4 yes or at least two yes answers among Q1,Q2,Q3,Q5",
+    "noJudgmentsIncluded": true
+  }
+}

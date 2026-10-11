@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "kind": "m0015-stage-a-delivery-receipt",
+  "destination": "G:\\My Drive\\Transfer\\M0015-review\\handoff",
+  "verifiedAtUtc": "2026-10-11T21:14:35Z",
+  "assessmentCount": 24,
+  "filesDelivered": 10,
+  "checksummedPayloadFileCount": 9,
+  "sha256SumsFileSha256": "4D7B1571559162A61AEC770DF79C0434F25AE96E96EE9F088DA8A93D5ACDEA71",
+  "sourceArchiveSha256": [
+    {
+      "path": "source-archives/repository-a-source.zip",
+      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699"
+    },
+    {
+      "path": "source-archives/repository-b-source.zip",
+      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777"
+    }
+  ],
+  "checksummedFiles": [
+    {
+      "path": "ASSESSOR-INSTRUCTIONS.md",
+      "sha256": "B05906BD38F4C3EDA906983893B089B202277B610542DC6C7954276F80E108F6"
+    },
+    {
+      "path": "BLINDED-CANDIDATES.json",
+      "sha256": "9573405CB05FAE6D08623A27561727B683C7D7EAC0DCAD091A31220ED291028D"
+    },
+    {
+      "path": "FROZEN-MANIFEST.json",
+      "sha256": "01159EAD73C9A2599D8CD60BEC72DEE4F8C1A1708646E0ABF5AE03150695A12F"
+    },
+    {
+      "path": "JUDGMENT-SCHEMA.json",
+      "sha256": "9B47CE8002270ECF5E4B64F6ACBE91A82ACE1B6353F27744084D3E741F7FAE49"
+    },
+    {
+      "path": "JUDGMENT-TEMPLATE.json",
+      "sha256": "990B1A2418E17823151CC9E27D0E08007757AF72E89756ACADF6B38B221569A7"
+    },
+    {
+      "path": "README.md",
+      "sha256": "6C471F3A8670D3B4081665074D2C042DE3C431878E9A2FC26EE0CB70A39348D9"
+    },
+    {
+      "path": "source-archives/repository-a-source.zip",
+      "sha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699"
+    },
+    {
+      "path": "source-archives/repository-b-source.zip",
+      "sha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777"
+    },
+    {
+      "path": "validate-submission.ps1",
+      "sha256": "EDD00CC1BECD6AA4714F74E156C61A367913654DF81C43BCAABE03FE366D3915"
+    }
+  ],
+  "destinationVerification": "passed",
+  "semanticJudgmentsIncluded": false,
+  "privateTokenPolicyMapIncluded": false,
+  "validatorEvidence": "six synthetic-only fixtures passed; no semantic judgments evaluated"
+}

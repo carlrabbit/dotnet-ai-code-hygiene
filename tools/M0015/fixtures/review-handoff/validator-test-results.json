@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "kind": "m0015-synthetic-validator-test-results",
+  "fixtures": [
+    {
+      "id": "valid-synthetic-accepted-and-negative",
+      "expected": "pass",
+      "actual": "pass",
+      "expectedError": null,
+      "observedError": "",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-duplicate-token",
+      "expected": "fail",
+      "actual": "fail",
+      "expectedError": "Duplicate candidate token",
+      "observedError": "Duplicate candidate token: SYNTHETIC-TOKEN-01",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-missing-token",
+      "expected": "fail",
+      "actual": "fail",
+      "expectedError": "exactly the frozen assessment population",
+      "observedError": "Submission must contain exactly the frozen assessment population.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-escalation-mismatch",
+      "expected": "fail",
+      "actual": "fail",
+      "expectedError": "Q1-Q5 escalation threshold",
+      "observedError": "Q1-Q5 escalation threshold requires a negative outcome for SYNTHETIC-TOKEN-01.",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-unknown-token",
+      "expected": "fail",
+      "actual": "fail",
+      "expectedError": "Unknown candidate token",
+      "observedError": "Unknown candidate token: SYNTHETIC-UNKNOWN",
+      "syntheticOnly": true
+    },
+    {
+      "id": "reject-mismatched-manifest",
+      "expected": "fail",
+      "actual": "fail",
+      "expectedError": "different frozen manifest",
+      "observedError": "Submission references a different frozen manifest.",
+      "syntheticOnly": true
+    }
+  ]
+}

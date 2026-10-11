@@ -6,9 +6,9 @@
 
 At one concrete source-change gate, can a deterministic fixed-budget selector allocate BORINGness reviews more usefully than uniform or change-first selection, using individual historical review evidence and bounded local calibration where available?
 
-**Recommendation: INCONCLUSIVE on adoption; refine the evidence before planning a production migration.** The prototype enumerated real eligible types and reproduced same-gate allocations at a fixed budget. The correction run adds a source-changing gate, but no independent semantic judgments were collected, so neither the selection policies' review quality nor time savings is measured. M0016 should decide whether to obtain a blinded assessment of the ready sample and whether the added source-changing gate is sufficient for further planning.
+**Recommendation: INCONCLUSIVE on adoption; refine the evidence before planning a production migration.** The prototype enumerated real eligible types and reproduced same-gate allocations at a fixed budget. The correction run adds a source-changing gate, but no independent semantic judgments were collected, so neither the selection policies' review quality nor time savings is measured. A blinded assessment is now ready for the project owner; M0016 should use those judgments to decide whether the evidence supports further planning and whether another source-changing gate is needed.
 
-> **Correction status:** The original M0015 observations below are preserved as exploratory evidence. The original comparison JSONs are archived as `tools/M0015/results/exploratory-original-*-comparison.json`. The original displacement field measured theoretical capacity shortfall and was mislabeled as checks displaced; corrected results are in the current `*-comparison.json` files and the frozen three-gate manifest. Use the correction section below for displacement interpretation. The recommendation remains INCONCLUSIVE because no real semantic judgments exist.
+> **Correction status:** The original M0015 observations below are preserved as exploratory evidence. The original comparison JSONs are archived as `tools/M0015/results/exploratory-original-*-comparison.json`. The original displacement field measured theoretical capacity shortfall and was mislabeled as checks displaced; corrected results are in the current `*-comparison.json` files and the frozen three-gate manifest. Use the correction section below for displacement interpretation. The recommendation remains INCONCLUSIVE because no real semantic judgments exist. A separate Stage A user-run assessment package is now frozen and delivered; it adds candidates from both source-changing gates and does not alter or replace the original 11-item exploratory sample.
 
 ## Provenance and evidence boundary
 
@@ -125,12 +125,12 @@ Stage A is complete only when the two exact-head clean public repository archive
 
 ## Semantic assessment and limitations
 
-No authorized independent semantic reviewer was available in the execution environment, and no actual reviewer judgments were provided. `tools/M0015/reviewer-sample.json` contains 11 candidates (six from the hygiene gate, five from the semantic-type-model gate) with policy labels omitted. A separate mapping key remains outside the repository. The sample is ready for a blinded review using the fixed Q1–Q5 rubric; no candidate is marked accepted, negative, or uncertain in this report.
+No authorized independent semantic reviewer was available in the execution environment, and no actual reviewer judgments were provided. `tools/M0015/reviewer-sample.json` preserves the original 11-candidate exploratory sample (six from the hygiene gate, five from the semantic-type-model gate) with policy labels omitted. The separately frozen Stage A package at `tools/M0015/review-handoff/` covers 24 candidates from both source-changing gates, including five independently seeded controls per gate; the documentation-only gate remains a boundary case and is not part of this assessment population. Its exact frozen archives and blinded materials were delivered to `G:\My Drive\Transfer\M0015-review\handoff\`. The token-to-policy mapping remains outside both the repository and handoff. No candidate is marked accepted, negative, or uncertain in this report.
 
 Other limitations:
 
 - Two convenience gates do not establish representative semantic-review quality. One gate is documentation-only.
-- The 11-item blinded sample was prepared from the original hygiene and documentation-only heads; it does not include the added source-changing gate's candidates.
+- The original 11-item exploratory sample was prepared from the prior hygiene and documentation-only heads; it remains unchanged. The Stage A handoff separately covers 24 candidates from the two source-changing gates and retains the documentation-only gate only as a no-source-change boundary.
 - The hygiene gate is an earlier merged change set; the pre-final smoke run and shared-random correction are disclosed above.
 - Project-level impact is not computed. Same-document unchanged declarations use a coarse context-affected class; cross-document impact stays unknown.
 - A 25-item deterministic unchanged cohort is a bounded experiment choice. It can exclude eligible candidates before policy selection.
@@ -141,7 +141,7 @@ Other limitations:
 
 ## Direction for M0016 and decisions still open
 
-M0016 should decide whether the project owner/delegate will assess the blinded sample and whether another independently frozen source-bearing gate plus real blinded semantic judgments are required. This correction adds one source-changing gate but does not address selection-conditioned evidence or establish review effectiveness. Any further study should lock gates, populations, seed, budget, policy code, grid, and analysis protocol before revealing selections, and report scheduling allocation separately from semantic quality.
+M0016 should obtain and validate the project owner's Stage A judgments before drawing any quality conclusion, then decide whether another independently frozen source-bearing gate is required. This correction adds one source-changing gate but does not address selection-conditioned evidence or establish review effectiveness. Stage C validation, unblinding, and analysis has not run and requires a separate explicit request. Any further study should lock gates, populations, seed, budget, policy code, grid, and analysis protocol before revealing selections, and report scheduling allocation separately from semantic quality.
 
 Planning must still decide whether production should expose a gate snapshot/selection API, which history sources are valid and whether per-type evidence may be persisted, how existing hazard state is retained or migrated, and whether/how prototype tickets could map to accepted review tickets. This milestone makes none of those production decisions.
 

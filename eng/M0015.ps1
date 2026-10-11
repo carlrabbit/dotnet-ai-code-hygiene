@@ -22,7 +22,7 @@ function Get-IntegrityPaths([string]$Root) {
     $paths = @(Get-ChildItem (Join-Path $Root 'tools/M0015') -File -Recurse | Where-Object {
         $_.FullName -notmatch '[\\/]bin[\\/]|[\\/]obj[\\/]' -and $_.Name -ne 'SHA256SUMS.txt'
     } | ForEach-Object { [IO.Path]::GetRelativePath($Root, $_.FullName).Replace('\', '/') })
-    $paths += @('eng/M0015.ps1', 'docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md', 'docs/milestones/M0015-gate-local-sampling-prototype.md', '.execution/M0015-gate-local-sampling-prototype.md', '.review/REV-M0015-COMPLETION.md')
+    $paths += @('eng/M0015.ps1', 'eng/M0015-review-handoff.ps1', 'docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md', 'docs/milestones/M0015-gate-local-sampling-prototype.md', '.execution/M0015-gate-local-sampling-prototype.md', '.review/REV-M0015-COMPLETION.md')
     return @($paths | Sort-Object -Unique)
 }
 
