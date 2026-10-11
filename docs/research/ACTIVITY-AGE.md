@@ -1,7 +1,7 @@
 # Activity-Based Sampling Age
 
 ## Status
-Accepted planning direction; implementation requires M0012. Not current runtime behavior.
+**Historical planning direction, implemented by M0012 and investigated by M0013–M0014; no longer the preferred forward planning direction.** The project has subsequently decided to pivot toward gate-local review selection/calibration. This document preserves the original rationale rather than claiming current decision authority. See [the retrospective and pivot](SAMPLING-GATE-PIVOT.md).
 
 ## Decision
 Calendar time is not a defensible universal proxy for aging in bursty agentic repositories. Keep the existing statistical hazard and sampling algorithms, but replace the current wall-clock *rule policies* with abstract, activity-derived age units where aging is useful. Age is exposure, not a claim that existing code has deteriorated.
