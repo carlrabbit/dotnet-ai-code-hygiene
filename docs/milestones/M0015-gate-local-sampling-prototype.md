@@ -72,36 +72,69 @@ A prototype consumes an immutable gate snapshot (base/head revisions and explici
 11. At sparse/no-label gates, use an explicit documented fallback parameter set. Demonstrate parameter sensitivity on controlled fixtures, not fabricated real labels. Persist seed, frozen input IDs, chosen parameters, candidate selection identities, and selection/calibration timings for reproducibility.
 12. Compare uniform random, change-first, and history-aware selector at the **same frozen gate and same completed-review budget**. Report overlap, change/background allocation, displacement of change-relevant candidates, coverage of never-reviewed candidates, and overhead. Quality yield and actual savings require real semantic observations; scheduling metrics do not establish them.
 
-## Amendment — Gate-Local Sampling Research Closure (11 October 2026)
+## Amendment — User-Run Semantic Judgments via Google Drive (11 October 2026)
 
-This extension is **ready for execution on the existing PR #16** and reopens M0015's evidence work before milestone-level human approval. Original AC-01–AC-10, ART-01, DOC-01, REV-01, EC-02a–EC-09b, and VAL-01–VAL-05 retain their exact wording and historical evidence; completed prototype findings are not retroactively revised. The new obligations below are additional, not substitutes. The old **Completion Evidence** records only the initial prototype/correction phase and is **not** final evidence for the amended milestone. Do not mark the amended milestone done until the new obligations are reconciled.
+**Status: ready for Stage A preparation; Stage C requires a later user-submitted assessment.** This replaces the earlier assumption that the Luna implementer can invoke independent reviewing agents. **Luna must not spawn, invoke, delegate to, or simulate another AI reviewer**, whether through subagents, Codex CLI, APIs, browser automation, or tools. The project owner will conduct the semantic judgments separately and explicitly resume the implementation run when submissions are present. This is a *two-run, three-stage milestone*, not a single unattended execution.
 
-### Five research questions to close
+The original AC-01–AC-10, ART-01, DOC-01, REV-01, EC-02a–EC-09b, and VAL-01–VAL-05 remain unchanged and their executed historical evidence remains valid. Amended AC-11–AC-17, ART-02, DOC-02, EC-11a–EC-17b, and VAL-06–VAL-10 replace the unexecuted 11 October research extension wording. The original milestone completion evidence is not completion evidence for these new obligations.
 
-- **RQ-01 — Semantic review yield:** On the same actual source-changing gates and review budget, do the competing policies identify different actionable BORINGness issues? Record outcomes, not only selection distributions.
-- **RQ-02 — Reusable history:** Can real type-specific reviewer observations change a *subsequent* gate's selection without current-gate label leakage or reuse after a fingerprint change?
-- **RQ-03 — Local calibration:** Is there enough independently assessed evidence to calibrate parameters defensibly at a gate, accounting for selection-conditioned labels and the five-minute computation ceiling? A valid conclusion can be “not yet identifiable.”
-- **RQ-04 — Maximum versus mandatory budget:** Is a zero-review outcome appropriate at a gate with no BORINGness-relevant changes? Evaluate rules for intentionally spending background-review budget; do not assume that all five slots must always be filled.
-- **RQ-05 — Exploration's opportunity cost:** Which changed candidates are displaced by unchanged/background exploration, and does independently observed review value justify the substitution?
+### Research questions
 
-### Study design fixed by planning
+- **RQ-01 — Semantic yield:** At a fixed source-changing gate and budget, which candidates selected by competing policies yield actionable BORINGness findings under independently supplied Q1–Q5 judgments?
+- **RQ-02 — Usable history:** Can independently reviewed, fingerprint-current and temporally prior type observations be used at a later gate without label leakage?
+- **RQ-03 — Local calibration:** Is valid past evidence sufficient for bounded outcome-driven calibration, or must the policy use a conservative fallback given selective labels?
+- **RQ-04 — Discretionary budget:** Should a documentation-only/no-rule-change gate spend zero semantic reviews unless background surveillance is separately justified?
+- **RQ-05 — Exploration opportunity cost:** What changed checks are displaced by background selection, and what independently assessed issues (if any) were traded?
 
-1. Retain the original two gates plus the corrected source-changing third gate. For **each of the two source-changing gates**, form a policy-blinded assessment frame from the **union of all three existing five-item policy selections**, plus **one independent uniformly drawn eligible control candidate** not in that union, using a recorded deterministic seed. Aim for 16 candidates total with current frozen selections; cap the assessment at **20 distinct candidates** across both gates. If a union unexpectedly exceeds the cap, retain all actual pairwise difference candidates and report the unavoidable coverage limitation rather than secretly dropping inconvenient cases. The documentation-only gate is a *budget-policy boundary* and need not consume costly semantic assessments.
-2. Freeze the exact revision, candidate identity, fingerprint, source context locations, assessment frame, control-selection method, fixed Q1–Q5 BORINGness rubric, scoring/analysis procedure, reviewer independence, and decision thresholds **before** assessment begins. Existing selection results are exploratory and already visible to the implementer: **the assessor must work in a separate independent review context**, with only blinded tokens and pinned source context, and must not receive policy labels, selections, rankings, or implementation conclusions until its answers are locked. Blinding may establish independence of judgments but does **not** turn the prior observed policy outcomes into a prospectively preregistered experiment.
-3. The assessor may use the public frozen source repositories. A separate agent/reviewer may perform judgments **outside the CLI**; this milestone does not add a model provider or reviewer invocation to production. Require Q1–Q5, exact source revision, contextual evidence, reviewer/model provenance, decision (acceptable/escalate/uncertain), and abstention if context is insufficient. A raw “negative” label requires the rule's actual escalation condition (Q4=yes or two of Q1/Q2/Q3/Q5=yes); do not substitute convenience proxy labels.
-4. Lock observations before joining the token-to-policy mapping. Report matched candidate-level outcomes for each policy at fixed budget, not a general defect rate. A small, purposively selected sample cannot prove population-wide superiority; account for shared candidates, missing/uncertain judgments, and uncertainty without invented confidence estimates.
-5. Test history reuse against a real, later gate **only if a valid same-repository chronological successor exists within bounded local analysis**. Source fingerprint/rule identity and provenance must match; never promote same-gate labels into predictors for that same gate. If valid later-gate history is unavailable, explicitly report the gap rather than fabricate a positive result.
-6. Test **budget as an upper bound** by comparing (i) no semantic review when no rule-relevant changes/evidence justify background work and (ii) explicit, bounded background surveillance. Show selection IDs/counts, policy reasons and effort saved, but distinguish hypothetical avoided review slots from actual reviewer time saved. Distinguish zero-change, changed, and unknown-impact cases.
-7. Compare exploration allocation and displaced changed checks using the corrected identity/stage metrics. Do not attribute a weighted-fill replacement to reserved exploration. Evaluate semantic outcomes if actually assessed; report why any observed preference is inconclusive if coverage/labels are insufficient.
-8. Keep this work **non-production**. No edits to hazard implementation, CLI commands, rule rubrics, sampling state, or accepted-review protocol. No Private data, long M0013/M0014 replay, automatic model invocation by the CLI, or new persistent product API.
+### Stage A — Luna prepares, publishes, and stops
 
-### Evidence availability and terminal states
+1. Using the existing **two source-changing frozen gates**, construct a policy-blinded assessment frame from the union of all three existing five-candidate policy selections for each gate plus **one independently seeded, uniformly sampled eligible control candidate per gate** outside that union. Retain all policy disagreement subjects. Bound the total to **20 unique candidate assessments**; if the union exceeds the bound, preserve all important comparison identities and declare the coverage constraint rather than silently omit them. The documentation-only gate is used for the budget-policy experiment, not necessarily human semantic review.
+2. Before user judgment, freeze a versioned protocol and manifest containing both repository URLs, exact **head revisions**, rule version, Q1–Q5 rubric, subject anchors and fingerprints, token mapping hash, deterministic control-selection seed and procedure, assessment-frame membership, analysis plan, data-schema version, and relevant checksums. Existing gate/policy results are exploratory, not newly preregistered. Keep **token → candidate → policy membership** outside the user-facing handoff; do not disclose it in the blind packet or package names. GitHub research evidence may contain this internal map; direct the judge **not to inspect PR #16 or selection artifacts** before returning judgments.
+3. Create **complete, tracked, clean source snapshots** of the two public repositories at the assessment **head commits** using a repository-aware archive method such as `git archive` (no Git metadata, local state, build products, credentials, or Private sources). These snapshots must be sufficiently complete to inspect project dependencies and surrounding code, not merely isolated source excerpts. Validate exact revision, file identity, archive integrity, source-path reachability for every subject, and a basic sensitive-file inventory before delivery.
+4. Generate an **assessor-only handoff** explaining how the project owner can run judgments manually using their chosen model or human workflow. Include a portable reviewer instruction prompt, blinded subject token list with repository, archived path and symbol, pinned revision, exact Q1–Q5 decision rubric, uncertainty/abstention rules, expected evidence references, the result JSON schema, a partial-results example and validation tool/command. **Never generate judgments, pre-fill reviewer answers, or invoke a reviewer.**
+5. Stage locally, then copy packages into the implementer's connected Drive mount `G:\My Drive\Transfer\M0015-review\` (cloud folder `My Drive/Transfer/M0015-review/`) with the following stable layout:
 
-Independent semantic assessments are necessary to resolve RQ-01 and to evaluate quality-based tradeoffs. **Do not declare AC-12/AC-13 or the amended milestone complete using a prepared sample alone.** If a separate authorized assessor cannot be accessed, complete agent-resolvable preparation, leave those obligations pending, document the missing capability and return **BLOCKED** (or **AWAITING HUMAN REVIEW** only if all agent-resolvable work, including required assessment evidence, is complete and merely the milestone review decision is pending). Other questions may legitimately conclude “insufficient evidence” with the precise missing facts. No fabricated assessments, labels, success rates, or statistical significance.
+   ```text
+   M0015-review/
+     handoff/
+       README.md
+       JUDGMENT-PROMPT.md
+       assessment-manifest.json
+       blinded-candidates.json
+       judgments-template.json
+       SHA256SUMS.txt
+       repositories/
+         dotnet-ai-code-hygiene-<head12>.zip
+         dotnet-semantic-type-model-<head12>.zip
+     submissions/
+       judgments-<review-session-id>.json    # Written by project owner, never by Luna
+   ```
+
+   Package and repository filenames must not encode sampling policy. Manifest references each source archive's exact revision and SHA-256. Write a handoff **receipt** with actual copy destination, file count, size, hashes, and time. Re-read and hash all copied files; if the Drive API is available also verify remote presence, otherwise explicitly state that only the mounted-folder copy was verified and provider sync is not independently confirmed. Do not overwrite existing user submissions or previously frozen handoffs; use immutable versioned subfolders if rerunning an altered protocol.
+6. Create a deterministic **result intake validator** and test it using *synthetic format fixtures only* (correct/invalid tokens, duplicate/conflicting answers, wrong revision or manifest hash, missing fields, inconsistent Q1–Q5 escalation decisions, uncertain/abstained answers). It must validate user judgments without treating fixtures as actual observations. A submitted result has a protocol/manifest reference, reviewer/model/session provenance (record actual values), item token, Q1–Q5 yes/no/uncertain answers, decision, pinned source evidence, and optional uncertainty. Treat partial submissions as incomplete, not a pass.
+7. Luna can also implement and verify agent-resolvable RQ-04 budget-as-maximum scenarios and RQ-02/RQ-03 temporal/fallback guards now, but **must not use unsubmitted judgments as actual evidence**. Commit reproducible manifests, code, commands, and handoff receipt to PR #16; avoid committing large repository ZIP archives or fabricated labels to GitHub.
+
+**Stage A stopping point:** Once the handoff is durably copied and verified, stop and report **BLOCKED — awaiting project-owner semantic judgments in Drive submissions**. The existing milestone-completion human review is a separate final gate and is **not** what is blocking Stage A. Do not claim completion of actual-judgment AC-12/AC-13 or VAL-07/VAL-08 without submitted results. Do not poll Drive or promise background follow-up.
+
+### Stage B — Project owner runs judgments (not Luna)
+
+The project owner independently reviews the `handoff/` contents and clean frozen repository snapshots with any chosen human/model reviewer. They should not show the judge PR #16, the selector's scores, chosen policy labels, or token mapping. Record the source-based Q1–Q5 yes/no/uncertain answers and reviewer/model/session provenance using the supplied template; an escalation is supported by Q4=yes or at least two yes answers across Q1/Q2/Q3/Q5. Uncertain and missing remain non-assessed, never automatic acceptance. Put one or more completed `judgments-<review-session-id>.json` files in `M0015-review/submissions/`, then explicitly ask Luna to resume M0015. Partial submissions are allowed; remaining items stay pending.
+
+### Stage C — Luna ingests only user-supplied results
+
+On **a subsequent explicit execution request** (not in the Stage A run), read results from `G:\My Drive\Transfer\M0015-review\submissions\` or the same cloud Drive folder via an available connected app. Validate receipt hashes, manifest reference, schema, token set, pinned source revision/fingerprint, verdict/rubric consistency, provenance, and conflicts. Do not silently overwrite, invent, or correct reviewer answers. Freeze copies of accepted submitted evidence with provenance before unblinding policy mapping. Commit allowable research evidence/derived aggregates; keep reviewer-sensitive raw records at authorized locations if necessary. Perform identity-paired policy findings comparison at fixed budget only for assessed subjects, with coverage/missingness and shared-candidate accounting; avoid unsupported extrapolation. Study temporal history reuse only on valid later-gate evidence and perform calibration only if admissible prior labels suffice. Update all AC/EC/VAL evidence and RQ-01–RQ-05 report conclusions. If results are partial, document remaining evidence obligations and report **BLOCKED — incomplete submissions** rather than fabricate completion. Once all agent-resolvable evidence is satisfied, request the distinct milestone human completion review `REV-M0015-COMPLETION`.
+
+### Research boundaries and economical controls
+
+- A five-review budget is a **ceiling**, not necessarily a quota. Compare zero-cost/no-rule-change versus deliberately justified background surveillance, and report hypothetical unspent review slots separately from measured reviewer time.
+- Preserve fixed-seed selection traces; distinguish policy-selected identity displacement from theoretical capacity shortfall, and reserved exploration from weighted-fill replacements.
+- Treat labels obtained from this study as **post-gate outcomes**; using them to tune the same gate is invalid. If no valid later gate exists, explicitly report insufficient evidence for historical transfer/calibration.
+- The user decides which judge or model performs Stage B. Luna must neither orchestrate nor masquerade as that judge.
+- No Private repository material, production hazard or CLI changes, new model-provider integration, long M0013/M0014 replay, or invented semantic yield.
 
 ## Baseline Executor Readiness
 
-This is a self-contained **diagnostic/prototype** contract. The baseline executor chooses file layout, local test mechanics, and algorithm implementation, but may not redefine the gate, use simulated reviews as real labels, integrate with the product, or choose a different optimization target after observing results. No prior private/research conversation is needed: this milestone and project authority define the contract. If obtaining independently assessed judgments requires unavailable external reviewers, complete software/scheduling validation and return `AWAITING HUMAN REVIEW` with the empirical conclusion explicitly inconclusive; do not fake quality evidence.
+This is a self-contained **diagnostic/prototype** contract. The baseline executor chooses file layout, local test mechanics, and algorithm implementation, but may not redefine the gate, use simulated reviews as real labels, integrate with the product, or choose a different optimization target after observing results. No prior private/research conversation is needed: this milestone and project authority define the contract. Luna's Stage A is baseline-executable using local Git, .NET, PowerShell and the configured Google Drive mount; it prepares assessor materials but never conducts or launches judgment sessions. The project owner supplies the external judgments in a later stage. If the handoff cannot be copied to the declared Drive target, return `BLOCKED` with the unavailable capability. After a verified handoff, return `BLOCKED — awaiting project-owner judgments` until explicitly resumed. Do not fake quality evidence.
 
 ## Required Authority and Evidence Context
 
@@ -122,13 +155,13 @@ Authority: `AGENTS.md`; `docs/ENGINEERING.md`; `docs/specs/SAMPLING.md`; `docs/s
 
 ### Additional acceptance criteria — research extension
 
-- **AC-11** — Freeze a policy-blinded, source-revision-pinned independent assessment frame for both source-changing gates, covering each policy's selected-union and independent random control(s), within the 20-candidate cap or with a recorded coverage exception; lock the protocol before any independent judgments.
-- **AC-12** — Obtain actual independent Q1–Q5 BORINGness judgments with source evidence and reviewer/model provenance for the frozen assessment frame; preserve missing/uncertain responses without imputing acceptances, and report a genuine unavailable-assessor blocker instead of completing on an unassessed sample.
-- **AC-13** — Compare same-gate, same-budget observed actionable findings across uniform, change-first, and history-aware selections; account for overlapping candidate identities, assessment gaps, uncertainty, small sample size, and preregistration limitations without claiming unestablished policy superiority.
-- **AC-14** — Assess whether independently reviewed, fingerprint-current type history could affect a subsequent gate without leakage; demonstrate a temporally valid transfer if available or explicitly establish why current evidence cannot test this hypothesis.
-- **AC-15** — Analyze outcome-driven local calibration's actual label sufficiency, selection-conditioned bias, fallback behavior, and bounded runtime; use real labels only where temporally and statistically valid, distinguishing test-only grid execution from demonstrated gate improvement.
-- **AC-16** — Compare maximum-budget/no-review, explicit background-review, and normal changed-code selection at a no-source-change boundary and a source-changing gate, including zero-work, unknown-impact, and capped-budget behavior; document the selected effort rather than mandating budget exhaustion.
-- **AC-17** — Attribute exploration's impact using actual changed-candidate omissions and background replacements, with selection-stage evidence, and evaluate the observed semantic value when independently judged; clearly separate scheduling displacement from discovered issues and hypothetical cost savings.
+- **AC-11** — Freeze a policy-blinded, source-revision- and fingerprint-pinned assessment frame on both source-changing gates, covering each policy-selected union plus independently seeded eligible control(s), with versioned protocol and token mapping isolated from the judge.
+- **AC-12** — Generate and verify complete clean frozen public repository archives plus an assessor-only blinded handoff, result template, review instructions and read-only integrity receipt; copy them to the specified Google Drive Transfer folder without running or spawning any reviewer, and preserve a resumable Stage A checkpoint pending project-owner judgments.
+- **AC-13** — After the project owner supplies actual independent Q1–Q5 judgments in the Drive submissions folder and explicitly resumes work, validate and freeze submitted results before policy unblinding; compare same-gate observed actionable findings at equal review budgets, accounting for overlapping identities, missing/uncertain judgments and small-N limitations. Do not complete without real submissions.
+- **AC-14** — Assess whether genuinely prior, fingerprint-current type-level judgments can inform a later gate without leakage; demonstrate a temporally valid transfer if available or establish precisely why the current study cannot test it.
+- **AC-15** — Analyze outcome-driven local calibration's valid-label sufficiency, selection-conditioned bias, bounded runtime and deterministic fallback; never reuse current-gate submitted judgments as prior labels for the same gate or claim population-wide quality from selected-only labels.
+- **AC-16** — Compare maximum-budget/zero-review, explicitly authorized background-surveillance, and change-driven selection at documentation-only and source-changing gates, including zero-work, unknown impact and bounded review count; do not equate a budget with a fill target.
+- **AC-17** — Attribute exploration effects using actual omitted changed IDs, replacement IDs and selection-stage evidence; when valid user-submitted judgments are available evaluate observed actionable-value tradeoffs, otherwise report the unresolved outcome evidence without claiming quality benefit.
 
 ## Additional Deliverable Obligations
 
@@ -138,7 +171,7 @@ Authority: `AGENTS.md`; `docs/ENGINEERING.md`; `docs/specs/SAMPLING.md`; `docs/s
 
 ### Additional deliverables — research extension
 
-- **ART-02** — Commit a reproducible frozen assessment manifest, blinded token requests, immutable reviewer outcome/provenance evidence when available, and safe token-to-policy analysis with integrity checks. No unapproved Private content or invented assessments.
+- **ART-02** — Commit frozen experiment protocol, blinded candidate manifest, token mapping and reproducible intake/analysis tooling plus a verified Google Drive handoff receipt. Put the two source snapshot archives and assessor-only handoff in Transfer, not GitHub; incorporate actual user-submitted judgments only after their receipt and validation, preserving privacy, provenance, and integrity. Never invent judgments.
 - **DOC-02** — Extend `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` with a separate evidence-backed RQ-01–RQ-05 section stating question, protocol, observed/inferred/assumed evidence, result or blocker, uncertainty, and implications for production planning. Preserve original exploratory findings.
 - **REV-01 (existing)** — The pending M0015 human review must examine the *amended* obligations and evidence before approval; do not open a duplicate review or fabricate a decision.
 
@@ -167,20 +200,20 @@ AC-09 / EC-09a is conditional on reviewer availability. If unavailable, record p
 
 | ID | Parent | Required distinct evidence case | Why independent |
 |---|---|---|---|
-| EC-11a | AC-11 | Both real source-changing gates contribute the union of competing-policy selections, pinned to source revisions/fingerprints | Real gate coverage |
-| EC-11b | AC-11 | Independent deterministic eligible control(s), blinded tokenization, and frozen analysis contract | Prevent selection-only sample |
-| EC-12a | AC-12 | Independent Q1–Q5 judgments with evidence and provenance, locked before policy unblinding | Real semantic outcome path |
-| EC-12b | AC-12 | Uncertain, unassessable and missing decisions stay non-accepted with explicit evidence | Missing/uncertain path |
-| EC-13a | AC-13 | Identity-paired observed findings for all three equal-budget policies on both source-changing gates | Outcome comparison |
-| EC-13b | AC-13 | Small-N, overlap, uncertainty and exploratory/preregistration limitations prevent unsupported quality claims | Inference guardrail |
-| EC-14a | AC-14 | Real prior-gate, fingerprint-current reviewer evidence at a later gate, or explicit proof why unavailable | Temporal history path |
-| EC-14b | AC-14 | Same-gate and stale/fingerprint-mismatched observations do not leak into calibration or selection | Leakage prevention |
-| EC-15a | AC-15 | Actual valid-label grid search with held-out evidence if sufficient, or recorded insufficient-label result | Calibration path |
-| EC-15b | AC-15 | Bounded fallback and measured calibration-cost distinction without biased population-quality claims | Fallback/cost path |
-| EC-16a | AC-16 | No-rule-relevant-change gate permits zero semantic reviews when no background work is justified | No-work path |
-| EC-16b | AC-16 | Change-bearing gate preserves bounded prioritization and explicit justified optional background spending | Positive-work path |
-| EC-17a | AC-17 | Candidate identity, changed-count and selection-stage attribution of replacements | Mechanical displacement path |
-| EC-17b | AC-17 | Assessed actual findings and qualified opportunity cost, or explicit absence of outcome evidence | Semantic-value path |
+| EC-11a | AC-11 | Both source-changing gates contribute complete selected-union identities and pinned source/fingerprint references. | Real gate coverage |
+| EC-11b | AC-11 | Independent deterministic eligible controls, blinded tokens, locked assessor-independent mapping and protocol hash. | Prevent selection-only sample |
+| EC-12a | AC-12 | Both clean frozen public repository ZIPs and assessor-only handoff are verifiably copied to the configured Drive Transfer destination; manifest/checksum receipt and no policy leaks. | Real semantic outcome path |
+| EC-12b | AC-12 | Stage A stops at a resumable external-judgments checkpoint without launching any agent or fabricating submitted review outcomes. | Missing/uncertain path |
+| EC-13a | AC-13 | Actual submitted Q1–Q5 results pass schema, identity, source, provenance and decision checks before unblinding; conflicts and invalid submissions fail. | Outcome comparison |
+| EC-13b | AC-13 | Equal-budget outcome comparison accounts for shared identities, unknown/missing cases, small sample and explicitly exploratory evidence. | Inference guardrail |
+| EC-14a | AC-14 | Genuine earlier-gate, fingerprint-current judgments inform a later gate, or the absence of valid chronological evidence is explicit. | Temporal history path |
+| EC-14b | AC-14 | Current-gate, stale or fingerprint-mismatched observations are excluded as same-gate historical predictors. | Leakage prevention |
+| EC-15a | AC-15 | Valid prior-label calibration runs when admissible or records concrete insufficiency without fabricated labels. | Calibration path |
+| EC-15b | AC-15 | Bounded fallback/time measurements and selection-bias qualifications without unsupported yield claims. | Fallback/cost path |
+| EC-16a | AC-16 | No relevant source change and no authorized surveillance produce zero semantic review selections. | No-work path |
+| EC-16b | AC-16 | Change-bearing gate and optional explicitly justified background review remain bounded and observable. | Positive-work path |
+| EC-17a | AC-17 | Omitted changed identities, replacements, changed-count differences and actual selection stages reconcile. | Mechanical displacement path |
+| EC-17b | AC-17 | Actual submitted semantic outcomes quantify observed tradeoffs, or clearly identify missing assessment coverage. | Semantic-value path |
 
 ## Validation Gates
 
@@ -198,11 +231,11 @@ A prototype-generated command must be stable, checked into `tools/M0015/` with i
 
 | ID | Depth | Target | Locus/platform | Command/check | Proves | Required evidence |
 |---|---|---|---|---|---|---|
-| VAL-06 | focused / evidence | Two source-changing frozen gates and assessment frame | Windows 11/.NET 11/Git + repository artifact review | Deterministic sample construction; freeze and integrity checks before separate assessor receives tokens | EC-11a, EC-11b, ART-02 | Manifest, deterministic control identity, union coverage, pinned fingerprint/protocol, pre-review hash |
-| VAL-07 | independent semantic | Fixed BORINGness Q1–Q5 on blinded pinned public source | Independent authorized reviewer/agent separated from selection implementer | Source-grounded item review with recorded model/reviewer identity and no exposed policy mapping | EC-12a, EC-12b, AC-12 | Locked judgments and abstentions with provenance; report unavailable independent assessment as BLOCKED |
-| VAL-08 | analytical | Source-changing gate results joined after assessment lock | Reproducible local analysis | Match identity-paired findings by policy and calculate overlap, uncertainty, displacement/value distinctions | EC-13a, EC-13b, EC-17a, EC-17b | Outcome matrix and limitations, no simulated reviewer outcomes |
-| VAL-09 | diagnostic | Evidence history and bounded gate-local calibration | Windows 11/.NET 11 focused fixtures and available real later-gate records | Test temporal/fingerprint guards; test finite grid versus fallback and measure cold/warm paths | EC-14a, EC-14b, EC-15a, EC-15b | History transfer assessment or evidence of non-identifiability; calibration admissibility and timing |
-| VAL-10 | focused / reporting | Zero-change documentation-only gate, mixed and source-changing gates | Windows 11/.NET 11 prototype fixtures + frozen gates | Compare cap-versus-fill, no-work, explicitly justified background reviews; reconcile new DOC-02 and review request | EC-16a, EC-16b, DOC-02 | Observable selected counts, budgets, reasons, report RQ-01–RQ-05 and amended review request |
+| VAL-06 | focused / evidence | Frozen two-gate policy-blinded assessment frame and reproducible source archives | Local Windows 11/.NET 11/Git | Verify frozen revision/fingerprint, selected-union/control coverage, token separation and SHA-256 | EC-11a, EC-11b, ART-02 | Reproducible frozen manifest, blind frame, mapping hash, checked ZIP source paths |
+| VAL-07 | external handoff / evidence | Assessor-only repository snapshots, prompt, template, verified Google Drive copies | Implementer Windows Drive mount \`G:\\My Drive\\Transfer\\M0015-review\` and user-accessible cloud folder | Verify local staging/copy/hashes/receipt and assessor isolation; return BLOCKED awaiting user-run judgments | EC-12a, EC-12b, AC-12 | Two ZIP archives, handoff, source hashes, Drive receipt, no auto reviewer launch |
+| VAL-08 | independent supplied evidence / analysis | User-submitted judgments, then identity-paired fixed-budget policy results | Separate later Luna run; mounted Google Drive submissions folder | Validate schema/rubric/provenance/pinned sources; freeze submissions before unblind; analyze coverage and yield | EC-13a, EC-13b, EC-17a, EC-17b, AC-13 | Actual validated submitted judgments and analyses; BLOCKED if missing |
+| VAL-09 | diagnostic | Historical evidence admissibility and bounded calibration | Windows 11/.NET 11 fixtures plus truly earlier-gate evidence when present | Reject current-gate and stale labels; compare grid/fallback and measure costs | EC-14a, EC-14b, EC-15a, EC-15b | History or insufficiency evidence, benchmark/validation receipt |
+| VAL-10 | focused / reporting | Zero-change/unknown-impact and changed-code gates; completed research documentation | Windows 11/.NET 11 and repository review | Verify maximum-budget versus fill and optional background work; reconcile DOC-02 and human review request | EC-16a, EC-16b, DOC-02 | Selection-count evidence and RQ report, with staged blocker status |
 
 ## Human Review
 
@@ -216,11 +249,11 @@ A prototype-generated command must be stable, checked into `tools/M0015/` with i
 
 ## Completion Expectations
 
-Use the project's guide 0.9.1 execution workflow. Reconcile every stable obligation and evidence case with `.execution/M0015-gate-local-sampling-prototype.md`, actual experiment outputs and validation gates. Preserve a compact obligation-to-proof summary in this milestone's completion evidence before any ledger cleanup. If only external human judgment is outstanding, return `AWAITING HUMAN REVIEW`. If independent semantic labels are unavailable, the technical prototype may be valid, but empirical superiority is **not** established; the human gate judges whether to request more research.
+Use the project's guide 0.9.1 execution workflow. Reconcile every stable obligation and evidence case with `.execution/M0015-gate-local-sampling-prototype.md`, actual experiment outputs and validation gates. Preserve a compact obligation-to-proof summary in this milestone's completion evidence before any ledger cleanup. If only external human judgment is outstanding, return `AWAITING HUMAN REVIEW`. For the amended AC-11–AC-17 sequence, a completed handoff without user-submitted judgments is `BLOCKED — awaiting project-owner judgments`, not `AWAITING HUMAN REVIEW` or `done`. Only after Stage C reconciles all obligations does the distinct milestone-level human review become the remaining gate. If labels are still unavailable, empirical superiority is unestablished.
 
 ## Completion Evidence
 
-**Historical notice (M0015 amendment):** The evidence table below records the already executed prototype and correction phases only. It does not establish the appended AC-11–AC-17, ART-02, DOC-02, or EC-11a–EC-17b. The implementer must append their individual evidence rows after executing the amendment; milestone completion and REV-M0015-COMPLETION remain pending.
+**Historical notice (M0015 staged user-judgment amendment):** The evidence table below records the already executed prototype and correction phases only. It does not establish the appended AC-11–AC-17, ART-02, DOC-02, or EC-11a–EC-17b. The implementer must append their individual evidence rows after executing the amendment; milestone completion and REV-M0015-COMPLETION remain pending.
 
 
 **Implementation evidence:** `tools/M0015/` contains the isolated Roslyn enumerator, deterministic common-random selector, finite calibration grid and fallback, controlled fixtures, three frozen public gates (including a source-changing gate and a documentation-only boundary), corrected comparison result sets, explicit read-only checksum verification, and a policy-blinded review sample. `docs/research/GATE-LOCAL-SAMPLING-PROTOTYPE.md` records original exploratory findings, corrected displacement, the new source gate, measurements, limitations, and INCONCLUSIVE recommendation. `.execution/M0015-gate-local-sampling-prototype.md` contains the full obligation/evidence reconciliation.
