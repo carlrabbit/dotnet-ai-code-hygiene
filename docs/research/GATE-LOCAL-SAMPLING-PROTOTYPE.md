@@ -111,6 +111,18 @@ The corrected `tools/M0015/results/` directory contains 11 JSON files totaling 1
 
 The replay tool now writes checksums only through the explicit `-Action regenerate-integrity`. `-Action integrity` compares current files to the existing committed reference and rejects missing, unexpected, changed, or mismatched artifacts without writing. The focused validation includes a tamper test that changes a required artifact after checksum generation and requires verification to fail.
 
+## Amended research questions — pending independent evidence (11 October 2026)
+
+PR #16 has an **execution-ready M0015 amendment**, but the RQ-01–RQ-05 findings have **not yet been produced**. The original three-gate scheduling experiment above is preserved and exploratory, not evidence of comparative semantic-review value. The authoritative amendment, frozen-assessment requirements, and per-question acceptance criteria are in `docs/milestones/M0015-gate-local-sampling-prototype.md`; the implementation-owned status is in `.execution/M0015-gate-local-sampling-prototype.md`.
+
+- **RQ-01 — Actual semantic yield:** Requires separate, blinded independent Q1–Q5 decisions for selected-union candidates plus independently sampled controls on the two source-changing gates, locked before policy unblinding.
+- **RQ-02 — Reusable history:** Requires real prior-gate type labels that match identity and source/rule fingerprint on a later gate; missing chronological evidence must remain an explicit gap.
+- **RQ-03 — Locally calibrated parameters:** Must separate test-only grid behavior from real valid-label calibration, address selection-conditioned labels, and retain fallback without unsupported claims.
+- **RQ-04 — Review budget as a ceiling:** Compare a no-rule-change gate yielding zero expensive reviews against explicitly justified background selection; do not interpret a budget of five as a mandate to spend five.
+- **RQ-05 — Exploration tradeoffs:** Attribute actual changed IDs displaced and compare review outcomes only when independently judged; preserve the difference between reserved exploration and weighted-fill selection.
+
+Future execution appends an evidence/provenance/uncertainty/result subsection for **each** RQ. No new actual judgments, cost savings, parameter improvements, or product policy changes are claimed by this planning amendment.
+
 ## Semantic assessment and limitations
 
 No authorized independent semantic reviewer was available in the execution environment, and no actual reviewer judgments were provided. `tools/M0015/reviewer-sample.json` contains 11 candidates (six from the hygiene gate, five from the semantic-type-model gate) with policy labels omitted. A separate mapping key remains outside the repository. The sample is ready for a blinded review using the fixed Q1–Q5 rubric; no candidate is marked accepted, negative, or uncertain in this report.
