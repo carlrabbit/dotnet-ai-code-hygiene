@@ -114,9 +114,17 @@ Replace elapsed-day hazard with a minimal project-scoped source-churn age approx
 Primary milestone: `docs/milestones/M0012-activity-based-sampling-age.md`.
 
 ## M0013 — Cross-Repository Sampling Age Experiment
-**State:** proposed; not executed
+**State:** awaiting human review; mechanical replay complete, effectiveness inconclusive
 **Mode:** AI-executed, human-reviewed
 
 Replay and compare sampling policies across diverse repositories, then publish reproducible findings in project documentation. Depends on completed M0012.
 
 Primary milestone: `docs/milestones/M0013-cross-repository-age-validation.md`.
+
+## M0014 — Sampling Selection Displacement Analysis
+**State:** planned; readiness verification required
+**Mode:** AI-executed, human-reviewed; investigation
+
+Compare candidate-level B-versus-C selection overlap, displacement, first-selection checkpoint timing and cap saturation using frozen M0013 evidence. Distinguish synthetic scheduling from semantic quality; preserve private evidence boundaries.
+
+Primary milestone: `docs/milestones/M0014-sampling-selection-displacement.md`.
