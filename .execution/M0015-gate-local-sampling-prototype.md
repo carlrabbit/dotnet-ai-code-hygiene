@@ -110,15 +110,15 @@ Executor-owned. Before code or analysis, read the milestone and confirm exact ID
 
 ## Resume Point
 
-Last completed work package: WP-05 implementation/evidence reconciliation
+Last completed work package: WP-05 from the original prototype/correction phase; evidence and acceptance for that phase remain historical.
 
-Current work package: human review only
+Current work package: not yet assigned; implementation must decompose amended AC-11–AC-17, ART-02, DOC-02 and EC-11a–EC-17b into new bounded work packages without changing planner-seeded rows.
 
-Next concrete action: project owner/delegate reviews the report, blinded sample, and disclosed protocol limitation, then records an explicit decision or requested corrections.
+Next concrete action: reread the amended milestone, reconcile all 22 obligation IDs / 28 evidence cases / VAL-01–VAL-10, freeze a source-grounded and policy-blinded assessment frame, then obtain independent judgments before joining policy identities.
 
-Known agent-resolvable gaps: none. Real per-type labels and a reviewer decision are external evidence, not inferable from the implementation agent.
+Known agent-resolvable gaps: new assessment protocol/artifacts, selection-outcome analysis, temporal history and calibration diagnosis, discretionary budget test, extended research report and renewed completion audit.
 
-External blockers or planning escalations: no authorized semantic reviewer or actual labels were available. Original M0015 smoke exposure and a descriptive-output amendment after the first corrected replay are disclosed; the three-gate results are reproducible exploratory scheduling evidence only.
+External blockers or planning escalations: an independent authorized semantic assessor may be unavailable; if so, preserve prepared evidence and report BLOCKED rather than completing AC-12/AC-13. Original M0015 smoke exposure and subsequent descriptive-output amendment remain disclosed as limitations.
 
 ## Amended Milestone Resume / Reconciliation (pending implementation)
 
@@ -131,7 +131,7 @@ The earlier checked completion audit remains **historical evidence for the origi
 - [ ] Revalidate the committed checksummed artifact inventory after amendment execution; preserve unmodified original exploratory results.
 - [ ] Repeat the **full** guide-required completion audit and update milestone completion evidence for the new obligations before a human decision.
 
-## Final Reconciliation
+## Historical Final Reconciliation — pre-amendment audit (not current completion)
 
 - [x] Re-read milestone from disk and verify obligation-set equality (13 obligations) and evidence-case-set equality (14 cases).
 - [x] Verify concrete evidence for every row and independent behavior path; real label-dependent paths are explicitly unavailable, not claimed complete.
