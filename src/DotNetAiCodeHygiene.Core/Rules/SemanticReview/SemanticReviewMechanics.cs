@@ -13,7 +13,7 @@ internal interface ISemanticReviewRuleModule : IRuleModule
     public string EscalatedReviewerClass { get; }
 }
 
-internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, SubjectTicket? SubjectTicket, PopulationTicket? PopulationTicket);
+internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, SubjectTicket? SubjectTicket, PopulationTicket? PopulationTicket, GateTicket? GateTicket = null);
 internal sealed record ReviewBatchMaterialization(ReviewBatch Batch, IReadOnlyList<ReviewTicketAssociation> Tickets);
 internal sealed record SemanticReviewMaterialization(ReviewBatch[] Batches, ReviewTicketAssociation[] Tickets);
 
@@ -27,7 +27,7 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
             {
                 RuleModuleResult result = byId[module.Descriptor.Id].Result;
                 return HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
-                    result.ReviewSubjects, result.SelectedReviewSubjects ?? result.ReviewSubjects,
+                    result.ReviewSubjects, result.SelectedReviewSubjects ?? [],
                     result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
                     module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass);
             }).ToArray();
@@ -72,8 +72,11 @@ internal static class SummaryReviewPopulation
                     declaration = subject.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 }
                 var item = new ReviewItem("", path, position.Line + 1, position.Character + 1, reviewSymbol, subject.Summary, declaration);
+                int carrierFirstLine = tree.GetLineSpan(new Microsoft.CodeAnalysis.Text.TextSpan(subject.Declaration.GetLeadingTrivia().FullSpan.Start, 0)).StartLinePosition.Line + 1;
+                int carrierLastLine = tree.GetLineSpan(new Microsoft.CodeAnalysis.Text.TextSpan(subject.Declaration.SpanStart, 0)).StartLinePosition.Line + 1;
                 subjects.Add(new ReviewSubject(project + "\0" + path + "\0" + subject.Anchor,
-                    subject.CarrierContent + "\0" + subject.Declaration.ToFullString(), item));
+                    subject.CarrierContent + "\0" + subject.Declaration.ToFullString(), item,
+                    DirectChange: context.HasChangedLine(path, carrierFirstLine, carrierLastLine)));
                 sourceContents.TryAdd(path, context.Text(document).ToString());
             }
         }

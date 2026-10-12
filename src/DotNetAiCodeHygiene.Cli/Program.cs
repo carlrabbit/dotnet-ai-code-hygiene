@@ -43,8 +43,10 @@ internal static class Program
         agentHelp.SetAction(parse => Run(() => { if (!parse.GetValue(agent)) { Console.WriteLine(root.Description); return 0; } Console.WriteLine(AgentGuidance); return 0; })); root.Subcommands.Add(agentHelp);
         var paths = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
         var changed = new Option<bool>("--changed");
-        var check = new Command("check", "Analyze selected C# source files."); check.Arguments.Add(paths); check.Options.Add(changed); check.Options.Add(output);
-        check.SetAction(parse => Run(() => RenderCheck(new HygieneEngine(), parse.GetValue(paths) ?? [], parse.GetValue(changed), parse.GetValue(output) ?? "text"))); root.Subcommands.Add(check);
+        var baseRef = new Option<string?>("--base") { Description = "Inspect current eligible C# changes relative to the merge base with this Git ref." };
+        var reviewAll = new Option<bool>("--review-all") { Description = "Explicitly request a bounded full-repository semantic review." };
+        var check = new Command("check", "Analyze selected C# source files and optionally inspect semantic review work."); check.Arguments.Add(paths); check.Options.Add(changed); check.Options.Add(baseRef); check.Options.Add(reviewAll); check.Options.Add(output);
+        check.SetAction(parse => Run(() => RenderCheck(new HygieneEngine(), parse.GetValue(paths) ?? [], parse.GetValue(changed), parse.GetValue(output) ?? "text", parse.GetValue(baseRef), parse.GetValue(reviewAll)))); root.Subcommands.Add(check);
         var explainHandle = new Argument<string>("finding"); var explain = new Command("explain", "Explain a finding from the latest run."); explain.Arguments.Add(explainHandle); explain.Options.Add(output);
         explain.SetAction(parse => Run(() => RenderFinding(new HygieneEngine().Explain(parse.GetValue(explainHandle)!), parse.GetValue(output) ?? "text"))); root.Subcommands.Add(explain);
         var ignoreHandle = new Argument<string>("finding"); var reason = new Option<string>("--reason") { DefaultValueFactory = _ => "" }; var ignore = new Command("ignore", "Persist a reviewed finding exception."); ignore.Arguments.Add(ignoreHandle); ignore.Options.Add(reason);
@@ -88,9 +90,9 @@ internal static class Program
         catch (EnvironmentException e) { Console.Error.WriteLine(e.Message); return 4; }
         catch (Exception e) { Console.Error.WriteLine(e.Message); return 1; }
     }
-    private static int RenderCheck(HygieneEngine engine, string[] paths, bool changed, string output)
+    private static int RenderCheck(HygieneEngine engine, string[] paths, bool changed, string output, string? baseRef, bool reviewAll)
     {
-        CheckResult r = engine.Check(paths, changed);
+        CheckResult r = engine.Check(paths, changed, baseRef: baseRef, reviewAll: reviewAll);
         if (output == "json")
         {
             Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
@@ -133,13 +135,13 @@ internal static class Program
     private const string AgentGuidance = """
         hygiene is a repository-scoped .NET hygiene tool. Run it from a Git repository.
         Workflow: hygiene bootstrap (once per repository) -> implement/change code -> run relevant tests -> hygiene normalize -> hygiene check -> resolve findings/review work -> rerun tests/check. Use hygiene update to reconcile the installed dotnet-11 v2 profile.
-        Targets: omit paths for repository C# files; pass files/directories; or use --changed (mutually exclusive with paths). Targets are de-duplicated and exclude .git, .hygiene, bin, and obj.
+        Targets: omit paths for deterministic full-scope checks; pass files/directories for bounded manual review; use --changed for worktree changes or --base <ref> for PR changes from the merge base. These options are mutually exclusive with explicit paths. --review-all explicitly requests bounded full-repository semantic review and cannot be combined with target selectors.
         Output: --output text|json. Exit 0 means command succeeded; rewrite --check may report pending changes. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency.
         format is presentation-only and applies enabled format-remediation rules. normalize applies enabled semantics-preserving normalization rules, then enabled format rules on changed documents, validates compilation before and after, and commits all selected changes together. Both support non-mutating --check and are idempotent.
-        check reports deterministic findings and statistical semantic-review batches. A batch can be 0/N when eligible work is not due. Review batches are not findings.
-        After every required question is confidently acceptable and no escalation applies, use hygiene review accept <batch-handle> <item-id>... or --all to record observations. Acceptance revalidates tickets and commits them atomically.
+        check always reports deterministic findings and one bounded gate-local batch per enabled semantic-review rule. Bare checks schedule zero semantic review; source changes and explicit paths authorize only relevant review work. A batch can be 0/N or 0/0. Review batches are not findings, and selection is a risk-stratified inspection rather than population certification.
+        After every required question is confidently acceptable and no escalation applies, use hygiene review accept <batch-handle> <item-id>... or --all to record explicit accepted observations. Acceptance revalidates gate tickets and commits them atomically.
         Negative or uncertain items remain due. Use hygiene review expand <batch-handle> or hygiene review handoff <batch-handle> [--file <path>] for the rule's full-population escalation (frontier for summaries, planner for BORINGness).
-        Expansion, handoff, check, and rendering do not consume sampling state. The CLI invokes no model/provider. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
+        Expansion, handoff, check, and rendering do not consume accepted-review state. The CLI invokes no model/provider. .hygiene/config.json and decisions.json are product state; .hygiene/.state is engine-owned. Handoff request files are explicit work products.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
     {

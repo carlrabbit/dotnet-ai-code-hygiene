@@ -9,7 +9,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class SummaryQualityReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "docs.summary.quality.review";
-    private static readonly Rule RuleDescriptor = new(RuleId, 5, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for correctness, value, and clarity.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 6, "review-batch", "review-batch", "Statistically sample explicit documentation summaries for correctness, value, and clarity.", true);
 
     public Rule Descriptor => RuleDescriptor;
     internal static readonly ReviewQuestion[] RuleQuestions =
@@ -27,17 +27,7 @@ internal sealed class SummaryQualityReviewRuleModule : ISemanticReviewRuleModule
     public RuleModuleResult Evaluate(RuleContext context)
     {
         RuleModuleResult population = SummaryReviewPopulation.CreatePopulation(context);
-        var sampler = context.Sampling.SubjectSampler(RuleId, 5);
-        foreach (ReviewSubject subject in population.ReviewSubjects)
-        {
-            string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject.Content)));
-            var state = sampler.State(subject.Identity);
-            if (state.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(state.LastEvaluationFingerprint, fingerprint)) { sampler.AddHazard(subject.Identity, 1); }
-            sampler.SetEvaluationFingerprint(subject.Identity, fingerprint);
-        }
-        var selected = sampler.SelectDue(population.ReviewSubjects.Select(s => s.Identity), 5)
-            .ToDictionary(x => x.Ticket.SubjectId, x => x.Ticket, StringComparer.Ordinal);
-        return population with { SelectedReviewSubjects = population.ReviewSubjects.Where(s => selected.ContainsKey(s.Identity)).Select(s => s with { SubjectTicket = selected[s.Identity] }).ToArray() };
+        return population with { SelectedReviewSubjects = context.SelectGate(Descriptor, population.ReviewSubjects) };
     }
     internal static RuleModuleResult BuildPopulation(RuleContext context) => SummaryReviewPopulation.CreatePopulation(context);
 }

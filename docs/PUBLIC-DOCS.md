@@ -34,6 +34,6 @@ Documentation policy must state:
 - `<example>` and other non-governed/custom tags are not forbidden;
 - semantic summary-quality review remains separate from deterministic structure/punctuation checks.
 
-Public docs must also retain installed-tool/format/normalize usage and semantic-review workflow. M0010 documents rule-owned remediation and EditorConfig projection, including the profile v1-to-v2 migration and whole-rule toggles. M0011 documents statistical selection, zero-due batches, explicit accepted observations, full-population expansion/handoff, BORINGness planner escalation, local sampler state, and the no-model/provider boundary. M0012 documents no-age summary sampling and project-scoped source-activity aging for BORINGness, without implying that its nominal scale has been experimentally validated.
+Public docs must also retain installed-tool/format/normalize usage and semantic-review workflow. M0010 documents rule-owned remediation and EditorConfig projection, including the profile v1-to-v2 migration and whole-rule toggles. M0011–M0015 remain documented as historical decisions and evidence. Current M0016-facing docs describe gate admission, bounded risk-stratified selection, explicit accepted observations, full-population expansion/handoff, BORINGness planner escalation, legacy-state separation, and the no-model/provider boundary. They make no defect-rate, population-coverage, or defect-free acceptance claim.
 
 Do not claim support for StyleCop, third-party async analyzers, non-.NET languages, or arbitrary analyzer stacks.

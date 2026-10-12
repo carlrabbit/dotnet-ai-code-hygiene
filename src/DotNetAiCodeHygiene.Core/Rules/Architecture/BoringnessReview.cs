@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -8,7 +6,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "architecture.boringness.review";
-    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Sample source-backed types for observable architectural pressure that may warrant planner attention.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 3, "review-batch", "review-batch", "Sample source-backed types for observable architectural pressure that may warrant planner attention.", true);
     internal static readonly ReviewQuestion[] RuleQuestions =
     [
         new("Q1", "Speculative abstraction: Is there an interface, provider, factory, strategy, generic mechanism, extension point, or similar abstraction with only one meaningful production use/implementation and no current requirement for variability?"),
@@ -18,11 +16,6 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         new("Q5", "Unclear ownership: After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?")
     ];
     internal const string EscalationText = "Escalate to the planner when Q4 is yes or at least two of Q1, Q2, Q3, and Q5 are yes. Legitimate external-service, persistence, platform, and interoperability boundaries may justify abstraction.";
-    internal sealed record HazardContribution(double FingerprintHazard, double ActivityHazard)
-    {
-        internal double Total => FingerprintHazard + ActivityHazard;
-    }
-
     public Rule Descriptor => RuleDescriptor;
     public int BatchNumber => 3;
     public IReadOnlyList<ReviewQuestion> Questions => RuleQuestions;
@@ -35,33 +28,15 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
         return answers[3] || answers.Where((_, index) => index != 3).Count(answer => answer) >= 2;
     }
 
-    internal static string PopulationFingerprint(IEnumerable<string> orderedCandidates) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\0", orderedCandidates))));
-
-    internal static HazardContribution RecordPopulationEvaluation(DotNetAiCodeHygiene.Core.Sampling.PopulationHazardSampler sampler,
-        string unit, string fingerprint, int candidateCount, double projectAgeUnits)
-    {
-        var old = sampler.State(unit);
-        double fingerprintHazard = old.LastEvaluationFingerprint is null || !StringComparer.Ordinal.Equals(old.LastEvaluationFingerprint, fingerprint) ? 1 : 0;
-        if (fingerprintHazard > 0) { sampler.AddHazard(unit, fingerprintHazard); }
-        double activityHazard = sampler.AccrueActivity(unit, projectAgeUnits);
-        sampler.SetEvaluationMetadata(unit, fingerprint, candidateCount);
-        return new(fingerprintHazard, activityHazard);
-    }
-
     public RuleModuleResult Evaluate(RuleContext context)
     {
-        var populationSampler = context.Sampling.PopulationSampler(RuleId, 2);
         var subjects = new List<ReviewSubject>();
         var sourceContents = new Dictionary<string, string>(StringComparer.Ordinal);
-        var units = new List<(string Path, string UnitId, string Fingerprint, List<ReviewSubject> Subjects)>();
 
         foreach (Document document in context.ReportingDocuments)
         {
             if (!RuleContext.IsEligibleSourceDocument(document)) { continue; }
             string path = context.RelativePath(document);
-            string unitId = context.ProjectIdentity(document) + "\0" + path;
-            double projectAge = context.ProjectActivityAge(document);
             string source = context.Text(document).ToString();
             SyntaxNode root = context.Root(document);
             var declarations = root.DescendantNodes().OfType<MemberDeclarationSyntax>()
@@ -74,34 +49,18 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
             foreach (var declaration in declarations)
             {
                 var position = context.Tree(document).GetLineSpan(declaration.Node.Span).StartLinePosition;
-                string itemIdentity = path + "\0" + declaration.Identity + "\0" + declaration.Node.SpanStart;
+                string itemIdentity = context.ProjectIdentity(document) + "\0" + path + "\0" + declaration.Identity + "\0" + declaration.Node.SpanStart;
                 string declarationText = declaration.Node.ToFullString();
                 var item = new ReviewItem("", path, position.Line + 1, position.Character + 1,
                     declaration.Identity, "", declaration.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
-                current.Add(new ReviewSubject(itemIdentity, declarationText, item));
+                int firstLine = position.Line + 1;
+                int lastLine = context.Tree(document).GetLineSpan(declaration.Node.Span).EndLinePosition.Line + 1;
+                current.Add(new ReviewSubject(itemIdentity, declarationText, item, DirectChange: context.HasChangedLine(path, firstLine, lastLine)));
             }
-            if (current.Count == 0 && !populationSampler.States.Any(state => StringComparer.Ordinal.Equals(state.UnitId, unitId))) { continue; }
-            string fingerprint = PopulationFingerprint(current.Select(x => x.Content));
-            RecordPopulationEvaluation(populationSampler, unitId, fingerprint, current.Count, projectAge);
             if (current.Count == 0) { continue; }
             subjects.AddRange(current);
             sourceContents[path] = source;
-            units.Add((path, unitId, fingerprint, current));
         }
-
-        var dueUnits = units.Select(unit => (Unit: unit, Event: populationSampler.DueEvents(unit.UnitId, 1).FirstOrDefault()))
-            .Where(x => x.Event is not null)
-            .OrderByDescending(x => x.Event!.ResidualAfterThreshold)
-            .ThenBy(x => x.Unit.Path, StringComparer.Ordinal)
-            .Take(5).ToArray();
-        var selected = new List<ReviewSubject>();
-        foreach (var due in dueUnits)
-        {
-            var candidate = populationSampler.SelectSubjects(due.Unit.UnitId, due.Unit.Subjects.Select(x => x.Identity).ToArray(), 1).SingleOrDefault();
-            if (candidate.Candidate is null) { continue; }
-            ReviewSubject subject = due.Unit.Subjects.Single(x => x.Identity == candidate.Candidate);
-            selected.Add(subject with { PopulationTicket = candidate.Ticket });
-        }
-        return new RuleModuleResult([], subjects, sourceContents, selected, "implementer");
+        return new RuleModuleResult([], subjects, sourceContents, context.SelectGate(Descriptor, subjects), "implementer");
     }
 }

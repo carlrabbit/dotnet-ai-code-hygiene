@@ -53,8 +53,9 @@ internal sealed class RepositorySession : IDisposable
     internal int FactComputations(object key) => factComputations.GetValueOrDefault(key);
 
 /// <inheritdoc/>
-    internal string[] ResolveTargets(string[] paths, bool changed)
+    internal string[] ResolveTargets(string[] paths, bool changed, string? baseRef = null)
     {
+        if (baseRef is not null && (changed || paths.Length > 0)) { throw new ArgumentException("--base is mutually exclusive with explicit paths and --changed."); }
         if (changed && paths.Length > 0)
         {
             throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
@@ -65,6 +66,12 @@ internal sealed class RepositorySession : IDisposable
         if (changed)
         {
             try { files = GitChanged().ToArray(); }
+            catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
+        }
+        else if (baseRef is not null)
+        {
+            try { files = GitChanged(baseRef).ToArray(); }
+            catch (ProductException) { throw; }
             catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
         }
         else if (paths.Length == 0)
@@ -158,34 +165,92 @@ internal sealed class RepositorySession : IDisposable
         || Path.GetFullPath(path).StartsWith(Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     private bool Excluded(string path) => Path.GetRelativePath(Root, path).Split(Path.DirectorySeparatorChar).Any(x => x is ".git" or ".hygiene" or "bin" or "obj");
 
-    private IEnumerable<string> GitChanged()
+    internal string[] ChangedPaths(bool changed, string? baseRef)
+    {
+        try
+        {
+            IEnumerable<string> values = baseRef is not null ? GitChanged(baseRef) : changed ? GitChanged() : [];
+            return values.Select(Path.GetFullPath).Where(WithinRoot).Where(p => File.Exists(p) && p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !Excluded(p))
+                .Select(Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        }
+        catch (ProductException) { throw; }
+        catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
+    }
+
+    internal Dictionary<string, HashSet<int>> ChangedLineNumbers(string[] paths, bool changed, string? baseRef)
+    {
+        var result = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+        string reference = baseRef is not null ? MergeBase(baseRef) : HeadId();
+        foreach (string relative in paths)
+        {
+            string full = Path.Combine(Root, relative.Replace('/', Path.DirectorySeparatorChar));
+            var lines = new HashSet<int>();
+            bool untracked = Git("status", "--porcelain", "--", relative).Split('\n', StringSplitOptions.RemoveEmptyEntries).Any(x => x.StartsWith("??", StringComparison.Ordinal));
+            if (untracked || reference == "UNBORN")
+            {
+                lines.UnionWith(Enumerable.Range(1, File.ReadAllLines(full).Length));
+            }
+            else
+            {
+                string diff = Git("diff", "--no-ext-diff", "--unified=0", reference, "--", relative);
+                foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(diff, "(?m)^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,(\\d+))? @@"))
+                {
+                    int start = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    int count = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) : 1;
+                    for (int line = start; line < start + count; line++) { lines.Add(line); }
+                }
+            }
+            result[relative] = lines;
+        }
+        return result;
+    }
+
+    internal string HeadId()
+    {
+        try { return Git("rev-parse", "--verify", "HEAD").Trim(); }
+        catch (IOException e) when (e.Message.Contains("Needed a single revision", StringComparison.Ordinal) || e.Message.Contains("unknown revision", StringComparison.Ordinal)) { return "UNBORN"; }
+        catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
+    }
+    internal string MergeBase(string reference)
+    {
+        if (string.IsNullOrWhiteSpace(reference)) { throw new ArgumentException("--base requires a Git ref."); }
+        try { return Git("merge-base", reference, "HEAD").Trim(); }
+        catch (IOException) { throw new ProductException($"Git ref '{reference}' is invalid or has no merge base with HEAD."); }
+    }
+
+    private IEnumerable<string> GitChanged(string? baseRef = null)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (baseRef is null)
+        {
+            string[] entries = Git("status", "--porcelain", "-z", "--untracked-files=all").Split('\0', StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < entries.Length; i++)
+            {
+                string entry = entries[i];
+                if (entry.Length < 4 || entry.StartsWith(" D", StringComparison.Ordinal) || entry.StartsWith("D ", StringComparison.Ordinal)) { continue; }
+                string relative = entry[3..];
+                if (entry.StartsWith("R", StringComparison.Ordinal) || entry.StartsWith("C", StringComparison.Ordinal)) { i++; }
+                paths.Add(Path.GetFullPath(Path.Combine(Root, relative)));
+            }
+        }
+        else
+        {
+            string merge = MergeBase(baseRef);
+            foreach (string path in Git("diff", "--name-only", "--no-renames", "--diff-filter=ACMRTUXB", "-z", merge, "--").Split('\0', StringSplitOptions.RemoveEmptyEntries))
+            { paths.Add(Path.GetFullPath(Path.Combine(Root, path))); }
+            foreach (string path in GitChanged()) { paths.Add(path); }
+        }
+        return paths.Where(File.Exists).Order(StringComparer.Ordinal);
+    }
+
+    private string Git(params string[] arguments)
     {
         var psi = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        psi.ArgumentList.Add("status"); psi.ArgumentList.Add("--porcelain"); psi.ArgumentList.Add("-z"); psi.ArgumentList.Add("--untracked-files=all");
+        foreach (string argument in arguments) { psi.ArgumentList.Add(argument); }
         using var process = System.Diagnostics.Process.Start(psi) ?? throw new IOException();
-        string output = process.StandardOutput.ReadToEnd(); process.WaitForExit();
-
-        if (process.ExitCode != 0)
-        {
-            throw new IOException();
-        }
-
-        foreach (string entry in output.Split('\0', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (entry.Length < 4 || entry.StartsWith(" D", StringComparison.Ordinal) || entry.StartsWith("D ", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            string relative = entry[3..];
-
-            if (relative.Contains(" -> "))
-            {
-                relative = relative[(relative.LastIndexOf(" -> ", StringComparison.Ordinal) + 4)..];
-            }
-
-            yield return Path.Combine(Root, relative);
-        }
+        string output = process.StandardOutput.ReadToEnd(); string error = process.StandardError.ReadToEnd(); process.WaitForExit();
+        if (process.ExitCode != 0) { throw new IOException(error); }
+        return output;
     }
 
     private MSBuildWorkspace CreateWorkspace()

@@ -13,7 +13,7 @@ supported .NET profile
 deterministic bootstrap/update
 deterministic rule-owned format/normalize remediation
 deterministic hygiene findings
-statistically scheduled semantic review/handoff
+gate-local semantic review/handoff
 ```
 
 ## Rule principles
@@ -27,7 +27,7 @@ statistically scheduled semantic review/handoff
 - Commands may choose whether to execute available remediation.
 - Mandatory profile rules cannot be disabled or ignored.
 - Configurable source/review rules retain enable/disable behavior.
-- Semantic-review rules may use the shared statistical sampling substrate through ordinary rule-owned policy code.
+- Semantic-review rules use the shared gate-local selector while keeping eligibility and review contracts rule-owned.
 - The engine does not dynamically resolve contradictions between arbitrary third-party analyzers.
 
 ## Public CLI
@@ -66,26 +66,15 @@ docs/specs/PROFILE.md
 
 Normal checking requires a current profile marker.
 
-## Statistical sampling
+## Gate-local semantic review
 
-Shared statistical mechanics are specified by:
+Gate admission, bounded selection, accepted-review state, and legacy-state boundaries are specified by:
 
 ```text
 docs/specs/SAMPLING.md
 ```
 
-M0011 makes the first production use of both models:
-
-```text
-subject-state:
-  docs.summary.quality.review
-  docs.summary.language.german.review
-
-aggregate population:
-  architecture.boringness.review
-```
-
-Rule-specific populations, hazard policy, review acceptance, and escalation semantics are authoritative in:
+The three current rules share the selector but preserve independent eligibility, fixed questions, and escalation semantics. Detailed contracts are authoritative in:
 
 ```text
 docs/specs/SEMANTIC-REVIEWS.md
@@ -119,7 +108,7 @@ docs/specs/DOCUMENTATION.md
 
 Semantic documentation review is specified separately in `docs/specs/SEMANTIC-REVIEWS.md`.
 
-## Canonical normal rule order after M0011
+## Canonical normal rule order after M0016
 
 ```text
 1.  profile.dotnet.analysis.required          v2
@@ -132,26 +121,26 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 8.  docs.summary.required                     v2
 9.  docs.xml.consistent                       v1
 10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v5
-12. docs.summary.language.german.review       v3
+11. docs.summary.quality.review               v6
+12. docs.summary.language.german.review       v4
 13. readability.long-line.review              v1
 14. readability.control-flow.visual-block     v1
-15. architecture.boringness.review            v2
+15. architecture.boringness.review            v3
 ```
 
-The new rule is appended so all pre-M0011 relative ordering remains unchanged.
+The new rule is appended so all pre-M0011 relative ordering remains unchanged. M0016 changes only the three semantic-review selection versions.
 
-The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`; M0011 must update its catalogue/version sections consistently.
+The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 
 ## Package/version
 
-M0011 product/package version is:
+M0016 product/package version is:
 
 ```text
-0.7.0
+0.8.0
 ```
 
-Installed-tool Tier-4 validation remains required because M0011 changes public rule contracts and adds a public CLI review command.
+Installed-tool Tier-4 validation remains required because M0016 changes public rule versions and adds `check --base` and `check --review-all`.
 
 ## Exit semantics
 

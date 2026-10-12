@@ -1,211 +1,55 @@
-# Semantic Review Batches
+# Semantic review batches
 
-## Model
+## Model and output
 
-The deterministic engine discovers eligible semantic-review populations; each rule owns the semantic contract and any statistical selection policy. The caller judges review work. The CLI performs no model/provider invocation.
+The deterministic engine discovers each rule's complete eligible population. The three existing semantic-review rules use the shared gate-local selector specified in `docs/specs/SAMPLING.md`; each rule retains its own population semantics, questions, reviewer class, escalation condition, and acceptance meaning. The CLI performs no model/provider invocation.
 
-A semantic-review rule owns:
+Every enabled semantic-review rule emits exactly one normal batch on a successful check, including `0/N` and `0/0`. `PopulationCount` is the complete rule-eligible population for the reporting scope. `SampleCount` is the selected subset, with a fixed maximum of five per rule. Mechanical findings remain exhaustive. The host materializes the selected items as supplied and never performs another ranking.
 
-- fixed rule ID/version;
-- eligible population semantics;
-- review questions/rubric;
-- normal and escalated reviewer class;
-- escalation condition;
-- statistical hazard policy when it opts into sampling;
-- the meaning of an accepted observation.
-
-Shared host mechanics own:
-
-- run/batch/item materialization;
-- population fingerprinting for stale-run protection;
-- latest-run persistence;
-- expansion/handoff;
-- durable sampling-state commit/discard boundaries;
-- the `review accept` command surface.
-
-Statistical selection remains rule-owned ordinary C# over the shared sampling substrate. There is no sampling descriptor DSL, sampling-rule hierarchy, scheduler, model client, or provider integration.
-
-## Population, due workload, and normal selection
-
-These concepts are distinct:
+## Gate surfaces
 
 ```text
-eligible population
-    all subjects that the rule can review in the current reporting scope
-
-due workload
-    eligible subjects/events whose sampling thresholds are currently due
-
-normal selection
-    bounded subset of due workload emitted by normal `hygiene check`
+hygiene check [paths...] [--changed | --base <git-ref> | --review-all]
 ```
 
-The public `PopulationCount` remains the eligible-population count. `SampleCount` is the number of selected due items emitted for the current normal batch and may be zero even when `PopulationCount` is non-zero.
+- Bare `check` runs deterministic rules over the full default source scope and schedules zero semantic review.
+- `--changed` retains its existing worktree-relative-to-`HEAD` target meaning and admits semantic review only for current eligible C# changes.
+- `--base <ref>` resolves `git merge-base <ref> HEAD`, then includes committed feature changes and staged, unstaged, and untracked current C# changes relative to that base. Only current existing C# files are reporting targets; unchanged project context remains readable for analysis.
+- Explicit paths select a manual bounded inspection, independent of Git diff.
+- `--review-all` explicitly requests bounded full-repository semantic inspection.
 
-The host must not independently rerank a statistical rule's normal selection. A rule supplies its selected due subjects in deterministic order while the host retains the full eligible population for population fingerprinting and expansion/handoff.
+`--base` cannot combine with explicit paths, `--changed`, or `--review-all`. `--review-all` cannot combine with any target selector. Deleted paths are not current candidates; rename destinations are deduplicated. Invalid refs and invalid option combinations are errors, never a silent full scan. Non-source changes and unchanged gates do not admit ordinary semantic review.
 
-Every enabled semantic-review rule continues to emit exactly one normal batch on successful check, including `0/N` and `0/0` batches.
+On ordinary source-change gates, changed subject content ranks first. Up to one unchanged context-affected subject from a gate-touched source document can be selected, leaving up to four slots for changed subjects. If there is no context candidate, up to five changed subjects may be selected. Unrelated background subjects are eligible only under explicit `--review-all`. Explicit paths and `--review-all` may select up to five without the context reserve. Selection is deterministic and without replacement, but can be biased; it does not certify population quality or provide a calibrated defect-rate estimate.
 
-## Statistical observation protocol
+## Acceptance, expansion, and handoff
 
-Sampling state advances only after explicit accepted review evidence.
+`hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist separately from legacy hazard/age state.
 
-M0011 adds:
+Acceptance revalidates the current gate, base, full eligible population and each private ticket before an atomic write. Any missing, duplicate, stale, nonselected, incompatible, or previously accepted item rejects the complete request. Repeating a gate cannot replenish its fixed sample after partial acceptance. Accepted unchanged fingerprints are suppressed; changed content can become eligible again.
 
-```text
-hygiene review accept <batch-handle> <item-id>...
-hygiene review accept <batch-handle> --all
-```
+`hygiene review expand <batch-handle>` and `hygiene review handoff <batch-handle> [--file <path>]` revalidate and expose the complete eligible population, even if the normal sample is zero. Handoff stays transport-neutral and includes the source context needed by a decoupled reviewer. It contains no private ticket or selection state and never invokes a model.
 
-`--all` means every item in that batch's current normal sample, never the full eligible population.
+## Documentation summary rules
 
-Acceptance means that the caller has answered every required rule question for each accepted item and the item satisfies the rule's non-escalation condition. The CLI does not infer this judgment.
-
-Before mutating sampling state, `review accept` must:
-
-1. resolve the latest-run batch handle using the existing bare/qualified rules;
-2. revalidate the current eligible-population fingerprint;
-3. resolve only items that belonged to the stored normal sample;
-4. verify every selected sampling ticket is still current and observable;
-5. reject the complete operation if any requested item is stale, unknown, non-selected, already consumed, or otherwise invalid.
-
-A successful multi-item acceptance is one atomic sampling-state transaction. No requested item is consumed if any requested item fails validation.
-
-Accepted subject-state items consume their matching current ticket as a successful observation. Accepted aggregate items consume their matching current event ticket. M0011 does not use aggregate pass/fail Beta evidence for `architecture.boringness.review`; its acceptance consumes the event without making a population-quality posterior claim.
-
-There is no `fail` or `uncertain` observation command in M0011. A materially negative or uncertain review does not consume the due ticket. It remains due until the relevant code/documentation is changed and a later review is confidently acceptable.
-
-`review accept` supports text and JSON output. Its JSON output is schema version 1 and exposes the source batch/rule plus accepted item IDs/count. Sampling tickets, state epochs, repository seed material, hazards, thresholds, and internal fingerprints are never public output.
-
-## Expansion and handoff
-
-The existing escalation surfaces remain:
-
-```text
-hygiene review expand <batch-handle>
-hygiene review handoff <batch-handle> [--file <path>]
-```
-
-Expansion/handoff revalidate the full eligible population, not merely the normal due workload. This preserves the existing "inspect the complete current population when escalation is required" contract.
-
-Expanded/handoff items need not themselves be due and therefore are not automatically observable. `review accept` only accepts items from the normal sampled batch that carry current due tickets.
-
-Handoff artifacts remain transport-neutral review requests and expose no sampling ticket, hazard, state epoch, repository seed, or evidence-state metadata. A decoupled reviewer result is not automatically imported. After an external planning/review decision, the local caller applies any resulting change, reruns/revalidates as needed, and explicitly accepts current normal sampled items only when they satisfy the rule.
-
-## Shared summary population
-
-Both summary rules use the covered API subject and summary-carrier population described in `docs/specs/DOCUMENTATION.md`:
+Both summary rules use the shared API subject and summary-carrier population from `docs/specs/DOCUMENTATION.md`:
 
 - ordinary subjects use explicit non-empty `<summary>` prose;
 - synthesized positional-record properties use matching `<param>` prose;
 - inheritdoc-only subjects are excluded;
 - optional parameter documentation is not a separate review subject.
 
-A summary sampling subject uses a stable project-qualified documentation anchor rather than source position alone.
+`docs.summary.quality.review` is version 6, batch B-1, with the fixed Q1 technical correctness, Q2 information value, and Q3 clarity/scope questions. Its normal reviewer is `implementer`, escalated reviewer is `frontier`, and escalation applies when a sampled summary materially fails any required question or the implementer is uncertain.
 
-The rule-owned evaluation fingerprint must change when review-relevant local evidence changes. For M0011 it includes the summary carrier and the corresponding source declaration text needed to judge the fixed rubric. The shared sampling store persists the last evaluation fingerprint so the rule can distinguish first evaluation, unchanged evaluation, and a new fingerprint without using run count as a proxy for change.
+`docs.summary.language.german.review` is version 4, batch B-2, with the fixed question: “German language: Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?” Its normal reviewer is `implementer`, escalated reviewer is `frontier`, and escalation applies when the sampled summary materially fails or the implementer is uncertain. German is fixed in the rule identity; there is no language parameter. English summaries are eligible and fail this question.
 
-For each summary rule independently (versions 5 and 3 respectively):
-
-```text
-first evaluation of subject          -> add H = 1
-new evaluation fingerprint           -> add H = 1 exactly once
-age accrual                           -> none
-accepted review                      -> consume/reset current subject event
-failed/uncertain review              -> do not consume
-normal batch budget                  -> at most 5 due subjects
-```
-
-Fingerprint updates are persisted with sampling state. Repeating the same fingerprint does not add duplicate hazard. Wall-clock time and project activity do not age summary-review subjects.
-
-`H=1` is deliberately interpretable rather than tuned pseudo-precision: one independent unit of integrated hazard corresponds to `1-exp(-1)` (about 63%) probability of having crossed the current exponential inspection threshold. Three accumulated units correspond to about 95%.
-
-## `docs.summary.quality.review`
-
-Version: `5`
-Output kind: `review-batch`
-Normal reviewer: `implementer`
-Escalated reviewer: `frontier`
-Sampling model: `subject-state`
-Normal batch budget: `5`
-
-Rationale: correctness, information value, and clarity are semantic prose questions that deterministic syntax and structure checks cannot establish reliably without brittle proxies. Stable API documentation subjects justify per-subject revisit state.
-
-Questions:
-
-- **Q1 — Technical correctness:** Is it consistent with the declaration and relevant implementation/API context, without inventing behavior?
-- **Q2 — Information value:** Does it add useful caller-relevant meaning rather than simply repeat/paraphrase the symbol name/type/signature?
-- **Q3 — Clarity and scope:** Is it concise, specific, and clear enough to communicate responsibility without irrelevant implementation detail?
-
-A sampled item is acceptable only when Q1-Q3 are all confidently acceptable.
-
-Escalate when any sampled summary materially fails a required question or the implementer cannot confidently answer one. Failed/uncertain items are not accepted into sampling history.
-
-## `docs.summary.language.german.review`
-
-Version: `3`
-Output kind: `review-batch`
-Normal reviewer: `implementer`
-Escalated reviewer: `frontier`
-Sampling model: `subject-state`
-Normal batch budget: `5`
-
-Rationale: some consuming repositories deliberately require German documentation quality. Keeping this as its own optional fixed rule lets those projects apply that policy without making German intrinsic to generic summary quality.
-
-Question:
-
-- **Q1 — German language:** Is the summary natural, comprehensible German rather than awkward literal translation or merely German-looking text?
-
-German is fixed in the rule identity; there is no language parameter. English summaries are eligible and fail this question.
-
-The rule uses the same population/fingerprint/hazard shape as the quality rule but owns independent sampling state under its own rule ID/version. A sampled item is acceptable only when Q1 is confidently acceptable.
+The rules retain independent populations, state identity, toggles, and batches. Their rule IDs and review questions remain stable as selection semantics advance.
 
 ## `architecture.boringness.review`
 
-Version: `2`
-Output kind: `review-batch`
-Normal reviewer: `implementer`
-Escalated reviewer: `planner`
-Sampling model: `aggregate population`
-Aggregate unit: repository-relative C# source document
-Candidate: source-backed class, struct, record, or interface declaration
-Normal batch budget: `5`
+Version 3, batch B-3, reviews source-backed class, struct, record, and interface declarations, including nested and partial declarations. Enums, delegates, and generated source are excluded. Candidate identity is project-qualified and source-backed. Current accepted-review state stores the selected subject identity and fingerprint, never source text; legacy aggregate sampling records are not imported.
 
-Purpose: detect architectural pressure that may justify planner attention without asking the implementer to make a vague global judgment about "BORINGness."
-
-Enums and delegates are not candidates. Nested types are candidates. Candidate identities are transient and are not persisted in aggregate sampling state.
-
-The aggregate unit is the source document qualified by its stable owning project identity. Candidate identities remain transient. Its evaluation fingerprint represents the current ordered eligible type-declaration source for that document. The shared aggregate state persists the previously observed eligible-candidate count and the last-accounted project activity-age position.
-
-Rule-owned aggregate hazard policy:
-
-```text
-first evaluation of a document        -> add aggregate H = 1
-new document evaluation fingerprint  -> add aggregate H = 1 exactly once
-activity age                          -> add H = previousCandidateCount * ageDelta / 365
-accepted review                       -> consume one current aggregate event
-failed/uncertain review               -> do not consume
-```
-
-Activity age is project scoped and has no time-based accrual. A first project observation records its eligible-source baseline at age zero. Later complete observations compare eligible non-generated C# source snapshots and add `365 * (added LOC + deleted LOC) / max(previous project LOC, 100)` age units. Repeated identical snapshots add zero. The previous observed candidate count weights only the age since the unit's last-accounted position. Each document unit initializes its position at current project age, accounts activity at its next eligible evaluation even when nothing is due, and advances the position when it observes an empty candidate population so new candidates do not inherit old exposure. Partial reporting scope can advance the project snapshot and total if the complete project source state is independently readable; report findings and review items remain target-scoped. Linked paths are deduplicated within a project; project activity never transfers across projects.
-
-The source snapshot uses current tracked, staged, and uncommitted source contents and does not inspect commit history. Activity observation is project-scoped and independent of report scope: a check of one changed/requested file still compares the complete eligible source state of its owning project when all sources are readable, while findings and review batches remain limited to requested targets. If any eligible source cannot be inspected, the prior baseline and total are retained. Exact-content file moves within a project contribute zero; without reliable rename evidence, other added/deleted paths are counted independently (including edited renames), and edits at stable paths contribute their deterministic line diff. Missing or irreconcilable baselines are rebased without fabricated activity. Generated C# is excluded by path (`bin`, `obj`, `.git`, `.hygiene`, and common generated-file suffixes) and an auto-generated header in the first five lines. Every eligible file retains a SHA-256 fingerprint and line count. Exact source text is bounded at 128 Ki characters per file and 512 Ki characters per project; if represented source text across projects exceeds 1 Mi characters, commit drops exact text for every project while retaining metadata, independent of evaluation order. Changes without comparable exact text count the full prior and current file line counts; unchanged fingerprints add zero. Activity metadata size scales with eligible file count. Diff work is capped at 12,000 combined lines, 2,000,000 retained frontier cells, and edit distance 1,024; exceeding a diff limit counts whole-file additions and deletions as a conservative upper bound. Activity state version 3 upgrades prior source states; unavailable legacy baselines are safely re-established without inferred churn. Failed checks and revalidation discard staged snapshot and sampling changes. Activity snapshots, project totals, sampler positions, and sampler state share one concurrent-change-checked atomic state publication with `latest-run.json`.
-
-Normal selection:
-
-1. enumerate current due aggregate units;
-2. consider only the current generation/event from each unit, so one normal batch never selects two events from the same file;
-3. order due units deterministically by current event debt/overshoot, then repository-relative path;
-4. take at most five units;
-5. use the aggregate sampler's deterministic transient candidate ranking to choose one current type from each selected unit.
-
-Unselected due units/events remain due. Concrete type identities are not persisted.
-
-The rule makes no defect-rate, repository-percentage, or individual-type revisit claim. It is population surveillance plus an escalation signal.
-
-### BORINGness questions
-
-Each question is intentionally observable and narrow. "Yes" means the signal is present.
+Its normal reviewer is `implementer` and escalated reviewer is `planner`. The fixed questions are:
 
 - **Q1 — Speculative abstraction:** Is there an interface, provider, factory, strategy, generic mechanism, extension point, or similar abstraction with only one meaningful production use/implementation and no current requirement for variability?
 - **Q2 — Indirection:** To understand what this code actually does, must you follow several forwarding/delegation layers before reaching the behavior?
@@ -213,49 +57,11 @@ Each question is intentionally observable and narrow. "Yes" means the signal is 
 - **Q4 — Hidden machinery:** Does the implementation rely on reflection, dynamic discovery, convention-based registration, a custom DSL/framework, or other implicit machinery where ordinary explicit C# could satisfy the current requirement?
 - **Q5 — Unclear ownership:** After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?
 
-Legitimate boundaries are not failures merely because they currently have one implementation. External-service, persistence, platform, interoperability, or other real boundaries may justify abstraction. The reviewer evaluates the current requirement rather than hypothetical future extensibility.
+Legitimate external-service, persistence, platform, and interoperability boundaries may justify abstraction. Escalate when Q4 is yes or at least two of Q1, Q2, Q3, and Q5 are yes. One non-Q4 signal alone is review evidence, not planner escalation. The reviewer evaluates current requirements rather than hypothetical future extensibility.
 
-Escalation rule:
+## Compatibility
 
-```text
-Q4 = yes                         -> escalate to planner
-2 or more of Q1/Q2/Q3/Q5 = yes -> escalate to planner
-otherwise                        -> acceptable for this rule
-```
-
-One non-Q4 signal alone is review evidence, not a planner escalation.
-
-When escalation is required, do not accept the sampled event. Use expansion/handoff as appropriate. The planner decides whether complexity is justified or whether simplification is a project-level change; the implementer does not redesign architecture merely to satisfy the sampled rule.
-
-## Relationship to deterministic rules
-
-```text
-docs.summary.required
-    -> required documentation carrier exists
-
-docs.xml.consistent
-    -> present XML documentation is structurally coherent
-
-docs.text.sentence
-    -> selected explicit documentation prose has mechanical sentence punctuation
-
-docs.summary.quality.review
-    -> statistically scheduled semantic quality review of documentation subjects
-
-docs.summary.language.german.review
-    -> statistically scheduled German-language review of documentation subjects
-
-architecture.boringness.review
-    -> statistically scheduled architectural-pressure review with planner escalation
-```
-
-Deterministic structural failures remain exhaustive and are not replaced by semantic sampling.
-
-## Compatibility and boundaries
-
-M0012 changes all three sampled policies, therefore each rule version advances. Old elapsed-day hazard is discarded under the new versions; it is not converted to activity exposure. The deterministic sampling algorithms, threshold derivation, tickets, budgets, acceptance protocol, and public output remain unchanged.
-
-Batch IDs remain fixed by semantic-review order:
+Batch order and identifiers remain:
 
 ```text
 B-1 docs.summary.quality.review
@@ -263,8 +69,4 @@ B-2 docs.summary.language.german.review
 B-3 architecture.boringness.review
 ```
 
-Disabled rules do not emit a batch or accrue sampling state. Omitted subjects/units in partial reporting scope are not pruned or treated as absent. A later eligible BORINGness evaluation accounts for project activity since that unit's last accounted position; summary rules have no age cursor.
-
-M0012 adds no repository-configurable sample size, hazard coefficient, denominator floor, language, cohort, prior, reviewer threshold, or BORINGness threshold.
-
-The CLI still performs no model/provider invocation.
+Rule enable/disable remains whole-rule participation. Disabled rules emit no batch; enabled rules preserve their independent rule contract. Historical M0009–M0015 evidence and `.hygiene/.state/sampling.json` remain intact as legacy records and are not imported as semantic judgments. The CLI continues to perform no model/provider invocation.

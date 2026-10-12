@@ -201,9 +201,9 @@ It does not apply to `<inheritdoc/>`, `<remarks>`, `<example>`, `<code>`, `<c>`,
 
 ## Summary quality review
 
-`docs.summary.quality.review` is version `5`; it uses subject-state sampling with first-evaluation and changed-fingerprint hazards, with no age accrual. `docs.summary.language.german.review` is version `3` and maintains independent subject-state with the same no-age policy. Both contracts are defined in `docs/specs/SEMANTIC-REVIEWS.md`.
+`docs.summary.quality.review` is version `6`; `docs.summary.language.german.review` is version `4`. Each rule uses independent gate-local selection over the shared subject/carrier population. Gate admission and priority are defined in `docs/specs/SEMANTIC-REVIEWS.md`.
 
-Version 4 uses subject-state statistical sampling with a maximum normal budget of five due subjects and explicit accepted observations. Its language-neutral rubric remains separate from the independent German review policy.
+Each rule has a maximum normal budget of five selected subjects and records accepted observations only through explicit review acceptance. The language-neutral quality rubric remains separate from the independent German review policy.
 
 Population changes from literal `<summary>` elements to explicit non-empty documentation summaries resolved through the summary-carrier model:
 
@@ -226,11 +226,11 @@ Canonical normal order:
 3. docs.summary.required                    v2  configurable finding
 4. docs.xml.consistent                      v1  configurable finding
 5. docs.text.sentence                       v1  configurable finding
-6. docs.summary.quality.review              v5  configurable review-batch
-7. docs.summary.language.german.review      v3  configurable review-batch
+6. docs.summary.quality.review              v6  configurable review-batch
+7. docs.summary.language.german.review      v4  configurable review-batch
 8. readability.long-line.review             v1  configurable review-candidate
 9. readability.control-flow.visual-block    v1  configurable finding
-10. architecture.boringness.review          v2  configurable review-batch
+10. architecture.boringness.review          v3  configurable review-batch
 ```
 
 Structural documentation findings are evaluated before semantic summary review.
