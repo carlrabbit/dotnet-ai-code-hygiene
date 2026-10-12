@@ -96,12 +96,13 @@ public sealed class LifecycleTests
         {
             await Git(repo, "init", "-q");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Types.cs"), "public class Outer { public class Nested { } public record NestedRecord(); public interface INested { } } public struct Value { } public record Entry(); public interface IEntry { } public enum State { Ready } public delegate void Handler();");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Types.cs"), "public class Outer { public class Nested { } public record NestedRecord(); public interface INested { } } public struct Value { } public record Entry(); public interface IEntry { } public enum State { Ready } public delegate void Handler(); public partial class Repeated { } public partial class Repeated { }");
             ReviewBatch batch = new HygieneEngine(repo).Check([], false).ReviewBatches.Single(item => item.RuleId == "architecture.boringness.review");
-            await Assert.That(batch.PopulationCount).IsEqualTo(7);
+            await Assert.That(batch.PopulationCount).IsEqualTo(9);
             string[] symbols = batch.PopulationItems!.Select(item => item.Symbol).ToArray();
             await Assert.That(symbols.Any(symbol => symbol.Contains("Nested", StringComparison.Ordinal))).IsTrue();
             await Assert.That(symbols.Any(symbol => symbol.Contains("INested", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(symbols.Count(symbol => symbol.Contains("Repeated", StringComparison.Ordinal))).IsEqualTo(2);
             await Assert.That(symbols.Any(symbol => symbol.Contains("Handler", StringComparison.Ordinal))).IsFalse();
             await Assert.That(symbols.Any(symbol => symbol.Contains("State", StringComparison.Ordinal))).IsFalse();
             await Assert.That(File.Exists(Path.Combine(repo, ".hygiene", ".state", "sampling.json"))).IsFalse();

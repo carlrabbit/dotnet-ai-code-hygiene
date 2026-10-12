@@ -11,7 +11,7 @@ internal sealed record GateReviewState(int SchemaVersion, GateReviewObservation[
 /// <summary>Deterministic, gate-local selection and explicit accepted-review evidence.</summary>
 internal sealed class GateLocalReviewStore
 {
-    internal const int AlgorithmVersion = 1;
+    internal const int AlgorithmVersion = 2;
     private const int MaximumObservations = 50_000;
     private static readonly JsonSerializerOptions StateJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private readonly string path;
@@ -43,16 +43,22 @@ internal sealed class GateLocalReviewStore
         string ruleGateId = Hash(gateId + "\0" + rule.Id + "\0" + rule.Version + "\0" + AlgorithmVersion + "\0" + populationIdentity);
         if (mode == "closed" || limit == 0) { return []; }
         bool broad = mode is "all" or "paths";
-        var direct = eligible.Where(x => changedPaths.Contains(x.Subject.Item.Path) && x.Subject.DirectChange).ToArray();
-        var touched = eligible.Where(x => changedPaths.Contains(x.Subject.Item.Path) && !direct.Any(d => d.Subject.Identity == x.Subject.Identity)).ToArray();
+        bool Accepted((ReviewSubject Subject, string Fingerprint) candidate) => observations.Any(o => o.RuleId == rule.Id && o.RuleVersion == rule.Version && o.SubjectId == candidate.Subject.Identity && o.Fingerprint == candidate.Fingerprint);
+        bool AcceptedBeforeThisGate((ReviewSubject Subject, string Fingerprint) candidate) => observations.Any(o => o.RuleId == rule.Id && o.RuleVersion == rule.Version && o.SubjectId == candidate.Subject.Identity && o.Fingerprint == candidate.Fingerprint && o.GateId != ruleGateId);
+        // Earlier gates must not spend this gate's budget. Accepted items from this exact
+        // gate stay in the ranked allocation until after the ceiling is applied, so a
+        // partial accept cannot cause the same gate to backfill with new identities.
+        var eligibleForAllocation = eligible.Where(x => !AcceptedBeforeThisGate(x)).ToArray();
+        var direct = eligibleForAllocation.Where(x => changedPaths.Contains(x.Subject.Item.Path) && x.Subject.DirectChange).ToArray();
+        var touched = eligibleForAllocation.Where(x => changedPaths.Contains(x.Subject.Item.Path) && !direct.Any(d => d.Subject.Identity == x.Subject.Identity)).ToArray();
         IEnumerable<(ReviewSubject Subject, string Fingerprint)> Rank(IEnumerable<(ReviewSubject Subject, string Fingerprint)> values) => values
             .OrderBy(x => RankKey(ruleGateId, rule, x.Subject.Identity, x.Fingerprint), StringComparer.Ordinal)
             .ThenBy(x => x.Subject.Identity, StringComparer.Ordinal);
 
         IEnumerable<(ReviewSubject Subject, string Fingerprint)> chosen = broad
-            ? Rank(eligible).Take(limit)
+            ? Rank(eligibleForAllocation).Take(limit)
             : Rank(direct).Take(Math.Max(0, limit - (touched.Length > 0 ? 1 : 0))).Concat(Rank(touched).Take(touched.Length > 0 && limit > 0 ? 1 : 0));
-        return chosen.Where(x => !observations.Any(o => o.RuleId == rule.Id && o.RuleVersion == rule.Version && o.SubjectId == x.Subject.Identity && o.Fingerprint == x.Fingerprint))
+        return chosen.Where(x => !Accepted(x))
             .Select(x => x.Subject with { GateTicket = Ticket(ruleGateId, rule, x.Subject.Identity, x.Fingerprint) }).ToArray();
     }
 
@@ -98,9 +104,9 @@ internal sealed class GateLocalReviewStore
         string id = Hash(gate + "\0" + rule.Id + "\0" + rule.Version + "\0" + AlgorithmVersion + "\0" + subject + "\0" + fingerprint);
         return new(gate, rule.Id, rule.Version, subject, fingerprint, id);
     }
-    internal static string GateIdentity(string mode, string? baseRef, string head, IEnumerable<string> paths, IEnumerable<(string Rule, int Version, IEnumerable<ReviewSubject> Subjects)> populations)
+    internal static string GateIdentity(string selectionGateId, string mode, string? baseRef, string head, IEnumerable<string> paths, IEnumerable<(string Rule, int Version, IEnumerable<ReviewSubject> Subjects)> populations)
     {
-        string data = string.Join("\n", new[] { mode, baseRef ?? "", head, string.Join("\n", paths.Order(StringComparer.Ordinal)) }
+        string data = string.Join("\n", new[] { selectionGateId, mode, baseRef ?? "", head, string.Join("\n", paths.Order(StringComparer.Ordinal)) }
             .Concat(populations.OrderBy(x => x.Rule, StringComparer.Ordinal).Select(x => x.Rule + "/" + x.Version + "/" + string.Join("\n", x.Subjects.OrderBy(s => s.Identity, StringComparer.Ordinal).Select(s => s.Identity + "\0" + Fingerprint(s.Content))))));
         return Hash(data);
     }

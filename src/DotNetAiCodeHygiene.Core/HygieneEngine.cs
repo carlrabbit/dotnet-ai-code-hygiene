@@ -139,7 +139,7 @@ public sealed class HygieneEngine
         return value;
     }
     private sealed record Config(int SchemaVersion, string[] DisabledRules);
-    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null, bool ChangedScope = false, string[]? InputPaths = null, ReviewTicketAssociation[]? ReviewTickets = null, string? BaseRef = null, bool ReviewAll = false);
+    private sealed record RunSnapshot(int SchemaVersion, string RunId, Finding[] Findings, int IgnoredCount, ReviewBatch[]? ReviewBatches = null, string[]? TargetPaths = null, bool ChangedScope = false, string[]? InputPaths = null, ReviewTicketAssociation[]? ReviewTickets = null, string? BaseRef = null, bool ReviewAll = false, string? GateIdentity = null);
     private sealed record DecisionFile(int SchemaVersion, IgnoreDecision[] Decisions);
 
     public void SetRule(string id, bool enabled)
@@ -167,7 +167,7 @@ public sealed class HygieneEngine
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true, string? baseRef = null, bool reviewAll = false) =>
         CheckCore(paths, changed, applyIgnores, includeDisabled, publishLatest, SamplingExecutionBoundary.Commit, baseRef: baseRef, reviewAll: reviewAll);
 
-    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, SamplingExecutionBoundary samplingBoundary, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false)
+    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, SamplingExecutionBoundary samplingBoundary, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false, Action<string>? gateIdentitySink = null)
     {
         RequireProfile();
         using var session = new RepositorySession(root);
@@ -175,6 +175,7 @@ public sealed class HygieneEngine
         string[] targets = session.ResolveTargets(paths, changed, baseRef);
         string[] changedPaths = session.ChangedPaths(changed, baseRef);
         string mode = baseRef is not null ? (changedPaths.Length == 0 ? "closed" : "base") : changed ? (changedPaths.Length == 0 ? "closed" : "changed") : paths.Length > 0 ? "paths" : reviewAll ? "all" : "closed";
+        string inspectionMode = baseRef is not null ? "base" : changed ? "changed" : paths.Length > 0 ? "paths" : reviewAll ? "all" : "full";
         if (mode == "paths") { changedPaths = targets.Select(session.Relative).ToArray(); }
         Dictionary<string, HashSet<int>> changedLines = mode == "paths"
             ? targets.ToDictionary(session.Relative, path => Enumerable.Range(1, File.ReadAllLines(path).Length).ToHashSet(), StringComparer.Ordinal)
@@ -183,6 +184,7 @@ public sealed class HygieneEngine
         string head;
         try { head = session.HeadId(); }
         catch (EnvironmentException) when (!changed && baseRef is null) { head = "NO-GIT-HEAD"; }
+        if (!changed && baseRef is null && head == "UNBORN") { head = "NO-GIT-HEAD"; }
         string gateData = string.Join("\n", new[] { root, mode, resolvedBase, head }.Concat(targets.Select(path => session.Relative(path) + "\0" + GateLocalReviewStore.Fingerprint(File.ReadAllText(path))).Order(StringComparer.Ordinal)));
         string gateId = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(gateData)));
         Dictionary<string, (Project Project, Document Document)> projectsByTarget = session.AssignTargets(targets, paths);
@@ -192,6 +194,10 @@ public sealed class HygieneEngine
         var ruleContext = new RuleContext(session, reportingDocuments, samplingBoundary, beforeSamplingCommit,
             new GateSelectionContext(gateId, mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines));
         IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
+        string completeGateIdentity = GateLocalReviewStore.GateIdentity(gateId, inspectionMode, resolvedBase, head,
+            targets.Select(session.Relative), executions.Where(execution => RuleCatalog.SemanticReviewModules.Any(module => module.Descriptor.Id == execution.Descriptor.Id))
+                .Select(execution => (execution.Descriptor.Id, execution.Descriptor.Version, (IEnumerable<ReviewSubject>)execution.Result.ReviewSubjects)));
+        gateIdentitySink?.Invoke(completeGateIdentity);
         var candidates = executions.SelectMany(execution => execution.Result.Findings).ToList();
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
@@ -206,7 +212,7 @@ public sealed class HygieneEngine
             string[] storedTargets = targets.Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             string[] storedInputs = changed || baseRef is not null ? [] : paths.Select(p => Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(root, p)))
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
-            string latest = JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed || baseRef is not null, storedInputs, review.Tickets, baseRef, reviewAll), json);
+            string latest = JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed || baseRef is not null, storedInputs, review.Tickets, baseRef, reviewAll, completeGateIdentity), json);
             using PreparedSamplingCommit? preparedSampling = ruleContext.PrepareSamplingCommit();
             try
             {
@@ -248,7 +254,7 @@ public sealed class HygieneEngine
     public ReviewBatch ExpandReview(string handle)
     {
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null)
+        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
         {
             throw new ProductException("Review batch is unavailable; run check again.");
         }
@@ -267,8 +273,10 @@ public sealed class HygieneEngine
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
         CheckResult fresh;
         string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
-        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, SamplingExecutionBoundary.Discard, baseRef: snapshot.BaseRef, reviewAll: snapshot.ReviewAll); }
+        string? freshGateIdentity = null;
+        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, SamplingExecutionBoundary.Discard, baseRef: snapshot.BaseRef, reviewAll: snapshot.ReviewAll, gateIdentitySink: value => freshGateIdentity = value); }
         catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
+        if (!StringComparer.Ordinal.Equals(snapshot.GateIdentity, freshGateIdentity)) { throw new ProductException("Review gate changed; rerun hygiene check."); }
         ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId) ?? throw new ProductException("Review population changed; rerun hygiene check.");
         if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
         {
@@ -309,7 +317,7 @@ public sealed class HygieneEngine
     {
         string? initialLatest = Snapshot(LatestPath);
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null)
+        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
         { throw new ProductException("Review batch is unavailable; run check again."); }
         string batchId = ResolveBatchId(handle, snapshot);
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
@@ -327,13 +335,13 @@ public sealed class HygieneEngine
             if (association.GateTicket is null || association.SubjectTicket is not null || association.PopulationTicket is not null) { throw new ProductException("Review ticket state is invalid; rerun hygiene check."); }
             associations.Add(association);
         }
-        if (associations.Count == 0) { return new(stored.Handle, stored.RuleId, []); }
-
         string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
         CheckResult fresh;
+        string? freshGateIdentity = null;
         var freshTickets = new List<ReviewTicketAssociation>();
-        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, SamplingExecutionBoundary.Discard, freshTickets, snapshot.BaseRef, snapshot.ReviewAll); }
+        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, SamplingExecutionBoundary.Discard, freshTickets, snapshot.BaseRef, snapshot.ReviewAll, value => freshGateIdentity = value); }
         catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
+        if (!StringComparer.Ordinal.Equals(snapshot.GateIdentity, freshGateIdentity)) { throw new ProductException("Review gate changed; rerun hygiene check."); }
         ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId)
             ?? throw new ProductException("Review population changed; rerun hygiene check.");
         if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
@@ -342,6 +350,7 @@ public sealed class HygieneEngine
         {
             if (!freshTickets.Contains(association)) { throw new ProductException("A sampled review ticket is stale or no longer selected; rerun hygiene check."); }
         }
+        if (associations.Count == 0) { return new(stored.Handle, stored.RuleId, []); }
 
         var gateReviews = new GateLocalReviewStore(root, beforeAtomicReplace);
         foreach (ReviewTicketAssociation association in associations)

@@ -46,11 +46,17 @@ internal sealed class BoringnessReviewRuleModule : ISemanticReviewRuleModule
                 .Select(pair => (pair.Node, Symbol: pair.Symbol!, Identity: pair.Symbol!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                 .OrderBy(pair => pair.Node.SpanStart).ThenBy(pair => pair.Identity, StringComparer.Ordinal).ToArray();
             var current = new List<ReviewSubject>(declarations.Length);
+            var declarationOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var declaration in declarations)
             {
                 var position = context.Tree(document).GetLineSpan(declaration.Node.Span).StartLinePosition;
-                string itemIdentity = context.ProjectIdentity(document) + "\0" + path + "\0" + declaration.Identity + "\0" + declaration.Node.SpanStart;
-                string declarationText = declaration.Node.ToFullString();
+                string symbolIdentity = context.ProjectIdentity(document) + "\0" + path + "\0" + declaration.Identity;
+                int ordinal = declarationOrdinals.GetValueOrDefault(symbolIdentity);
+                declarationOrdinals[symbolIdentity] = ordinal + 1;
+                string itemIdentity = symbolIdentity + "\0declaration:" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                // Exclude trivia inherited from the preceding declaration so unrelated
+                // insertions before this subject do not change its content fingerprint.
+                string declarationText = declaration.Node.WithoutLeadingTrivia().ToFullString();
                 var item = new ReviewItem("", path, position.Line + 1, position.Character + 1,
                     declaration.Identity, "", declaration.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
                 int firstLine = position.Line + 1;
