@@ -6,7 +6,7 @@ Primary milestone: `docs/milestones/M0016-production-gate-local-semantic-review.
 
 Planning owns ID/type/exact wording for obligations and evidence cases. Do not rename, paraphrase, compress or mark complete without concrete evidence.
 
-**State:** implementation complete; VAL-01–VAL-06 passed; VAL-07 awaiting human review.
+**State:** implementation complete; VAL-01–VAL-07 passed; project-owner milestone approval recorded; PR remains open for independent review.
 
 **Work packages:**
 
@@ -88,15 +88,15 @@ Completed packages: WP-01 Git scope/CLI modes; WP-02 shared gate-local selection
 | VAL-04 | Tier 3: Create isolated base/feature/dirty-worktree fixture and run built `hygiene check --base <ref>` plus existing commands | Real PR committed diff, worktree changes, zero-work, expansion and handoff; local Windows 11/.NET 11/Git fixture repos | AC-02, AC-15, AC-18, EC-02a, EC-02b, EC-15a, EC-15b, EC-20a | passed | PASS: final 24/24 CLI process tests cover --base, --review-all, invalid args, expansion/handoff, and stale-source contracts; Core deletion fixtures confirm staged/unstaged `--changed` and `--base` attribution, plus middle/EOF boundary behavior. |
 | VAL-05 | Tier 2: `.\eng\validate.ps1` using any advertised plan/shard/verify flow | Complete repo regression and authority consistency; Windows 11/.NET 11/PowerShell | AC-02, AC-04, AC-09, AC-12, AC-14, AC-16, AC-17, AC-18, AC-19, DOC-01, DOC-02 | passed | PASS: final `.\eng\validate.ps1` run built Release with 0 warnings/0 errors and passed 115/115 (91 Core, 24 CLI), M0006 self-host, and `git diff --check`. |
 | VAL-06 | Tier 4: Pack current version and install into isolated manifest/tool path; invoke installed `hygiene` check/review/format/profile scenarios per docs/ENGINEERING.md | Actual packaged .NET tool installed into isolated consumer; Windows 11/.NET 11 with local `dotnet tool` package/install | AC-18, AC-20, EC-20b | passed | PASS: final canonical run packed `DotNetAiCodeHygiene.Tool.0.8.0`, installed that exact package in an isolated tool path, and passed consumer check/review/accept/expand/handoff/format/profile workflows. |
-| VAL-07 | Human: Human review record followed by repository documented milestone-scoped check if available | Project-owner/delegate milestone acceptance; review of PR and `.review/REV-M0016-COMPLETION.md` | REV-01 | pending-human-review | PENDING: human review request prepared; awaiting project-owner/delegate; no self-approval. |
+| VAL-07 | Human: Human review record followed by repository documented milestone-scoped check if available | Project-owner/delegate milestone acceptance; review of PR and `.review/REV-M0016-COMPLETION.md` | REV-01 | passed | PASS: project owner explicitly approved M0016 in this conversation; decision recorded in `.review/REV-M0016-COMPLETION.md` on 2026-10-12. Checked `docs/ENGINEERING.md` and the M0016 completion instructions: no separate milestone-scoped command is documented. PR #17 remains open for independent review; no GitHub PR approval or merge is claimed. |
 
 ## Resume Point
 
-Last completed work package: WP-04; VAL-01–VAL-06 passed.
+Last completed work package: WP-04; VAL-01–VAL-07 passed.
 
-Current work package: WP-04 review handoff; awaiting project-owner/delegate.
+Current work package: WP-04 review handoff; project-owner milestone approval recorded.
 
-Next concrete action: reviewer examines [PR #17](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17) and records a decision in `.review/REV-M0016-COMPLETION.md`; keep the PR open until review.
+Next concrete action: retain [PR #17](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17) open for independent review; do not merge.
 
 Known agent-resolvable gaps: none after final implementation and evidence reconciliation.
 
@@ -112,4 +112,4 @@ External blockers or planning escalations: none identified in planning; do not a
 - [x] Downgrade unsupported aggregate-only, sibling-only, stale, substitute-only or claimed-but-unrun validation rows.
 - [x] Confirm no remaining agent-resolvable gap.
 - [x] Write compact durable completion evidence into milestone, preserve remaining limits, and update review request.
-- [x] If human approval is the sole blocker, report `AWAITING HUMAN REVIEW` with canonical `REV-M0016-COMPLETION`.
+- [x] Record the project-owner approval in canonical `REV-M0016-COMPLETION`; keep the PR open for independent review and do not merge.

@@ -1,6 +1,6 @@
 # REV-M0016-COMPLETION — Human Acceptance Request
 
-**Status:** awaiting project-owner/delegate review
+**Status:** project-owner approval recorded; PR remains open for independent review
 **Milestone:** M0016 Production Gate-Local Semantic Review
 **Branch:** `implementation/m0016-gate-local-semantic-review`
 **PR:** https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17
@@ -39,11 +39,11 @@ Please review and accept or reject the production behavior and compatibility dec
 
 Selection is risk-stratified and can be biased. It is not a calibrated defect-rate estimate, statistical coverage guarantee, or proof that code is defect-free. No model/reviewer was invoked and no probability or quality judgment was synthesized. Historical M0009–M0015 artifacts remain historical; legacy sampling data is preserved and is not active production input.
 
-This request is for human review only. The implementation agent has not self-approved, waived, merged, or closed the milestone. Record the reviewer, decision, rationale, and any scoped follow-up below.
+The project owner has approved the milestone in this conversation. The approval is recorded below. PR #17 remains open for independent review; this record does not claim a GitHub PR approval or authorize a merge.
 
 ## Reviewer decision
 
-- Reviewer:
-- Decision: pending
-- Date:
-- Rationale / follow-up:
+- Reviewer: Project owner (approval in this conversation; identity not specified)
+- Decision: approved
+- Date: 2026-10-12
+- Rationale / follow-up: Approved the M0016 milestone. Keep PR #17 open for independent review; do not merge.
