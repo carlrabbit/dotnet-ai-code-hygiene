@@ -300,14 +300,14 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 8.  docs.summary.required                     v2
 9.  docs.xml.consistent                       v1
 10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v5
-12. docs.summary.language.german.review       v3
+11. docs.summary.quality.review               v6
+12. docs.summary.language.german.review       v4
 13. readability.long-line.review              v1
 14. readability.control-flow.visual-block     v1
-15. architecture.boringness.review            v2
+15. architecture.boringness.review            v3
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0011 added the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. M0012 versions the three sampled policies and gives BORINGness project-scoped activity age; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0011 added the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. M0016 versions all three semantic-review rules for bounded gate-local selection; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
 
 ## Non-goals
 

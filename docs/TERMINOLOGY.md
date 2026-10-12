@@ -57,7 +57,9 @@
 **Stale ignore** — persisted ignore decision whose subject still exists but whose current evidence no longer matches the accepted fingerprint/discriminator.
 
 **Semantic review handoff** — explicit persisted request that transfers expanded semantic-review work and source context to the rule's frontier or planner reviewer class without invoking a model inside the CLI.
-# Sampling terms
+# Legacy statistical sampling terms
+
+These terms describe the preserved M0009–M0015 statistical sampler and legacy state. They do not describe the current production semantic-review selector.
 
 - **Hazard:** rule-supplied non-negative cumulative inspection pressure.
 - **Due:** a threshold has been crossed and inspection work is available; due does not mean observed.
@@ -65,3 +67,9 @@
 - **Subject-state sampling:** persistent hazard and generation for each tracked stable subject; can express individual revisit behavior.
 - **Aggregate population sampling:** persistent hazard/evidence for a structural scope and optional cohort; does not preserve individual candidate history.
 - **Effective Beta evidence:** discounted pass/fail counts that a rule may combine with its own prior; not a strict stationary-population posterior.
+
+## Current semantic-review terms
+
+- **Gate:** one explicit check opportunity identified by repository, inspection mode, Git base/head and worktree, reporting paths, rule version, and eligible population.
+- **Gate-local selection:** deterministic ranking of changed and context-affected subjects under a fixed per-rule ceiling; it is potentially biased selective inspection, not a population-quality estimate.
+- **Accepted observation:** a subject/rule/content-fingerprint record written only after explicit caller acceptance of the fixed review contract.

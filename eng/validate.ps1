@@ -15,7 +15,7 @@ dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --confi
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
 
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.7.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.8.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -42,7 +42,7 @@ if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256
 "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
 $previousNugetPackages = $env:NUGET_PACKAGES
 $env:NUGET_PACKAGES = $nugetCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.7.0
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.8.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { $hygiene = Join-Path $toolPath 'hygiene' }
@@ -51,12 +51,14 @@ Push-Location $consumer
 try {
     git init -q
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 fixture git init failed.' }
+    git config user.email hygiene-tier4@example.invalid
+    git config user.name 'Hygiene Tier 4'
     Set-Content -NoNewline -Path Consumer.csproj -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
     Set-Content -NoNewline -Path Sample.cs -Value 'public class Sample{private int value;public int Value(){return this.value;}}'
     & $hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = & $hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.7\.0') { throw 'Installed hygiene version does not match 0.7.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.8\.0') { throw 'Installed hygiene version does not match 0.8.0.' }
     & $hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = & $hygiene bootstrap --output json | ConvertFrom-Json
@@ -114,20 +116,27 @@ try {
     if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }
     $reviewSource = @('/// <summary>Sample API</summary>', 'public class Sample { public void Run() { } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
     Set-Content -NoNewline -Path Sample.cs -Value ($reviewSource -join "`n")
-    $check = & $hygiene check --output json | ConvertFrom-Json
+    git add Sample.cs
+    git commit -m 'review fixture baseline' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 baseline commit failed.' }
+    $baseCommit = (& git rev-parse HEAD).Trim()
+    Add-Content -Path Sample.cs -Value "`n/// <summary>An additional API description for the PR gate.</summary>`npublic class ReviewedAdditional { }"
+    $bareCheck = & $hygiene check --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or @($bareCheck.reviewBatches | Where-Object sampleCount -ne 0).Count -ne 0) { throw 'Bare installed check must schedule zero semantic review.' }
+    $check = & $hygiene check --base $baseCommit --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene check failed.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.summary.required')) { throw 'Installed check did not report a missing API summary.' }
     if (-not ($check.findings | Where-Object ruleId -eq 'docs.text.sentence')) { throw 'Installed check did not report missing summary punctuation.' }
     $quality = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
     $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
-    if (-not $quality -or $quality.ruleVersion -ne 5 -or $quality.sampleCount -ne 5 -or -not $german -or $german.ruleVersion -ne 3) { throw 'Installed check did not emit the independent v5 quality and v3 German review batches.' }
+    if (-not $quality -or $quality.ruleVersion -ne 6 -or $quality.sampleCount -lt 1 -or $quality.sampleCount -gt 5 -or -not $german -or $german.ruleVersion -ne 4) { throw 'Installed PR-base check did not emit bounded independent v6 quality and v4 German review batches.' }
     if (-not ($check.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Installed check omitted BORINGness review.' }
     $internalFields = 'samplingTicket|stateEpoch|repositorySeed|hazard|threshold|evaluationFingerprint|aggregateEvidence'
     if (($check | ConvertTo-Json -Depth 32) -match $internalFields) { throw 'Installed check exposed internal sampling metadata.' }
     $firstQualityItem = $quality.items[0].id
     $accepted = & $hygiene review accept $quality.handle $firstQualityItem --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $accepted.acceptedCount -ne 1 -or $accepted.ruleId -ne 'docs.summary.quality.review') { throw 'Installed explicit review accept failed.' }
-    $checkAgain = & $hygiene check --output json | ConvertFrom-Json
+    $checkAgain = & $hygiene check --base $baseCommit --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Installed follow-up hygiene check failed.' }
     $qualityAgain = $checkAgain.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review'
     $germanAgain = $checkAgain.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'

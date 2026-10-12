@@ -50,7 +50,7 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
-Opt-in statistical sampling is a separate lazy `RuleContext` service. It stages durable hazard/evidence state outside `RepositorySession` facts and commits at the host-owned boundary after rule evaluation and result materialization. The summary quality and German-language semantic-review rules use subject-state sampling; the BORINGness review uses aggregate population sampling and consumes a versioned project-scoped source-activity total. The shared substrate stores opaque rule evaluation fingerprints, optional elapsed cursors for future time-based rules, and BORINGness age positions; rule modules retain eligibility, hazard, selection, and observation policy.
+Gate-local semantic selection is a separate lazy `RuleContext` service. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. A separate small store records only explicit accepted observations. Legacy hazard/activity state remains untouched and is not read by production semantic-review rules.
 
 ## Reporting scope versus readable context
 
@@ -231,11 +231,11 @@ resolve all targets
 
 No selected source file is committed before complete planning and required validation succeed.
 
-## Sampling boundary
+## Gate-local review boundary
 
-Statistical sampling is an opt-in shared execution service used by the semantic-review rules that own statistical policy. It persists transparent per-subject or per-population-unit state and generic evaluation metadata. M0012 also persists bounded eligible source snapshots and normalized activity totals per project for BORINGness. Activity observation reads complete project context independently of target-scoped reporting, and bounded diff fallback trades precision for predictable work on extensive rewrites. It introduces no candidate index, external telemetry, risk-feature framework, sampling descriptor DSL, or rule hierarchy.
+The three semantic-review rules use deterministic, finite gate-local selection with a fixed ceiling of five subjects per rule. Changed subjects rank ahead of at most one context subject from a touched source document; unrelated background candidates require explicit `--review-all`. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
 
-Existing deterministic semantic-review sampling remains supported.
+Selection is potentially biased selective inspection, not a calibrated defect-rate estimate or a population-quality certificate. Tickets bind the gate, rule/algorithm versions, eligible population, subject identity, and content fingerprint. Only explicit review acceptance persists an observation. Legacy hazard, elapsed-age, activity-age, and aggregate state remain separate from current gate-local state and are not production inputs.
 
 ## Profile ownership
 

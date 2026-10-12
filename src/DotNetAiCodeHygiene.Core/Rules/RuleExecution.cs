@@ -4,7 +4,7 @@ using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
-internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, SubjectTicket? SubjectTicket = null, PopulationTicket? PopulationTicket = null);
+internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, SubjectTicket? SubjectTicket = null, PopulationTicket? PopulationTicket = null, GateTicket? GateTicket = null, bool DirectChange = false);
 
 internal sealed record RuleModuleResult(
     IReadOnlyList<Finding> Findings,
@@ -26,14 +26,22 @@ internal enum SamplingExecutionBoundary
 }
 
 /// <summary>Lazy services available to production rule modules for this command.</summary>
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit, Action? beforeSamplingCommit = null)
+internal sealed record GateSelectionContext(string GateId, string Mode, IReadOnlySet<string> ChangedPaths, IReadOnlyDictionary<string, HashSet<int>> ChangedLines);
+
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit, Action? beforeSamplingCommit = null, GateSelectionContext? gate = null)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
     private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root, beforeSamplingCommit), LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<GateLocalReviewStore> gateReviewStore = new(() => new GateLocalReviewStore(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
     private readonly Dictionary<string, double> activityAges = new(StringComparer.Ordinal);
 
     internal RepositorySession Session { get; } = session;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
+    internal GateSelectionContext Gate { get; } = gate ?? new GateSelectionContext("", "closed", new HashSet<string>(StringComparer.Ordinal), new Dictionary<string, HashSet<int>>(StringComparer.Ordinal));
+    internal GateLocalReviewStore GateReviewStore => gateReviewStore.Value;
+    internal bool HasChangedLine(string path, int first, int last) => Gate.ChangedLines.TryGetValue(path, out HashSet<int>? lines) && lines.Any(line => line >= first && line <= last);
+    internal IReadOnlyList<ReviewSubject> SelectGate(Rule rule, IReadOnlyList<ReviewSubject> population) =>
+        GateReviewStore.Select(Gate.GateId, rule, population, Gate.ChangedPaths, Gate.Mode);
     internal string RelativePath(Document document) => document.FilePath is string path ? Session.Relative(path) : document.Name;
     internal string ProjectIdentity(Document document) => ProjectIdentity(document.Project);
     internal string ProjectIdentity(Project project) => project.FilePath is string path ? Session.Relative(path) : project.Name;

@@ -149,67 +149,6 @@ public sealed class SamplingTests
     }
 
     [Test]
-    public async Task BoringnessZeroCandidatePopulationTransitionsResetTheAggregateBaseline()
-    {
-        const string unit = "src/Tracked.cs";
-        string repository = Path.Combine(Path.GetTempPath(), "hygiene-boringness-zero-population-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(repository);
-        try
-        {
-            string populated = BoringnessReviewRuleModule.PopulationFingerprint(["type-a", "type-b", "type-c", "type-d"]);
-            string empty = BoringnessReviewRuleModule.PopulationFingerprint([]);
-            var firstSession = new SamplingSession(repository);
-            var firstSampler = firstSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 2);
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, populated, 4, 0);
-            await Assert.That(firstSampler.State(unit).ResidualHazard).IsEqualTo(1d);
-            await Assert.That(firstSampler.State(unit).LastCandidateCount).IsEqualTo(4);
-            await Assert.That(firstSampler.State(unit).LastActivityAgeUnits).IsEqualTo(0d);
-
-            BoringnessReviewRuleModule.HazardContribution contribution = BoringnessReviewRuleModule.RecordPopulationEvaluation(firstSampler, unit, empty, 0, 365);
-            await Assert.That(contribution.FingerprintHazard).IsEqualTo(1d);
-            await Assert.That(contribution.ActivityHazard).IsEqualTo(4d);
-            await Assert.That(contribution.Total).IsEqualTo(5d);
-            var zero = firstSampler.State(unit);
-            await Assert.That(zero.LastEvaluationFingerprint).IsEqualTo(empty);
-            await Assert.That(zero.LastCandidateCount).IsEqualTo(0);
-            await Assert.That(zero.LastActivityAgeUnits).IsEqualTo(365d);
-            await Assert.That(zero.ResidualHazard).IsEqualTo(6d);
-            await Assert.That(firstSampler.SelectSubjects(unit, [], 1)).IsEmpty();
-            await Assert.That(firstSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
-            firstSession.Commit();
-
-            using (JsonDocument persistedZero = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, ".hygiene", ".state", "sampling.json"))))
-            {
-                JsonElement persisted = persistedZero.RootElement.GetProperty("Rules").EnumerateArray().Single(rule => rule.GetProperty("RuleId").GetString() == BoringnessReviewRuleModule.RuleId).GetProperty("Populations")[0];
-                await Assert.That(persisted.GetProperty("LastCandidateCount").GetInt32()).IsEqualTo(0);
-                await Assert.That(persisted.GetProperty("LastEvaluationFingerprint").GetString()).IsEqualTo(empty);
-                await Assert.That(persisted.GetProperty("LastActivityAgeUnits").GetDouble()).IsEqualTo(365d);
-                await Assert.That(persisted.GetProperty("UnitId").GetString()).IsEqualTo(unit);
-            }
-
-            var secondSession = new SamplingSession(repository);
-            var secondSampler = secondSession.PopulationSampler(BoringnessReviewRuleModule.RuleId, 2);
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, empty, 0, 730);
-            var stillZero = secondSampler.State(unit);
-            await Assert.That(stillZero.LastActivityAgeUnits).IsEqualTo(730d);
-            await Assert.That(stillZero.LastCandidateCount).IsEqualTo(0);
-            await Assert.That(stillZero.ResidualHazard).IsEqualTo(6d);
-
-            string returned = BoringnessReviewRuleModule.PopulationFingerprint(["type-e"]);
-            BoringnessReviewRuleModule.RecordPopulationEvaluation(secondSampler, unit, returned, 1, 1095);
-            var reappeared = secondSampler.State(unit);
-            await Assert.That(reappeared.LastEvaluationFingerprint).IsEqualTo(returned);
-            await Assert.That(reappeared.LastCandidateCount).IsEqualTo(1);
-            await Assert.That(reappeared.LastActivityAgeUnits).IsEqualTo(1095d);
-            await Assert.That(reappeared.ResidualHazard).IsEqualTo(7d);
-            await Assert.That(secondSampler.States.Select(state => state.UnitId).ToArray()).IsEquivalentTo([unit]);
-            await Assert.That(secondSampler.SelectSubjects(unit, ["transient-type-e"], 1).Count).IsEqualTo(1);
-            secondSession.Commit();
-        }
-        finally { Directory.Delete(repository, recursive: true); }
-    }
-
-    [Test]
     public async Task ProjectActivityUsesExactSourceDiffAndPreviousSizeNormalization()
     {
         var monotonicSampler = new PopulationHazardSampler(Seed, "activity-position.rule", 1, 1);

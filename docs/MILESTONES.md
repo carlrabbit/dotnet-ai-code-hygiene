@@ -134,3 +134,11 @@ Compare candidate-level B-versus-C selection overlap, displacement, first-select
 **Mode:** AI-executed, human-reviewed
 
 Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`.
+
+## M0016 — Production Gate-Local Semantic Review
+**State:** implementation complete; awaiting human review
+**Mode:** AI-executed, human-reviewed
+
+Replaces production hazard/age scheduling for the three existing semantic-review rules with bounded gate-local selection. Adds explicit PR-base inspection and `--review-all`, preserves the review lifecycle and legacy sampling records, and records only explicit accepted observations.
+
+Primary milestone: `docs/milestones/M0016-production-gate-local-semantic-review.md`.
