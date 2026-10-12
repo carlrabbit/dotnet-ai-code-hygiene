@@ -174,4 +174,12 @@ From a checkout with the frozen revisions available and a local clone of `carlra
 .\eng\M0015-review-handoff.ps1 -Action validate-submission -SubmissionPath <judgments-file>
 ```
 
+To reproduce Stage C conclusions without rewriting committed evidence, use a copy of the actual owner submission from Drive and run:
+
+```powershell
+.\eng\M0015-stage-c.ps1 -SubmissionPath <judgments-file> -OutputPath <independent-verification.json>
+```
+
+This first validates the submission, then independently rejoins the frozen token map and gate comparisons, recalculates judgments, policy yields, overlaps, changed-candidate displacement and budget-scenario counts, and compares these against the committed Stage C artifact. It does **not** regenerate the environment-specific Drive receipt; that remains separately recorded provenance. The analysis is read-only unless an explicit output path is provided. The assessor's reasoning itself is not reconstructed by this deterministic analysis. The reviewer-facing validator checks that evidence paths are safe relative paths with nonempty notes; source-path existence was also checked during handoff preparation, but the validator alone does not verify every cited path and line in the archives.
+
 The replay command resolves the checked-in gate manifest, materializes detached Git worktrees, enumerates both source snapshots with Roslyn, writes the frozen counts/diff manifest before the paired comparisons, and emits the reproducible candidate/result artifacts. Integrity validation compares against the committed SHA-256 list without rewriting it; use `-Action regenerate-integrity` only after an intentional evidence update, then rerun read-only `-Action integrity`.
