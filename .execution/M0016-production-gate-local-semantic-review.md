@@ -96,7 +96,7 @@ Last completed work package: WP-04; VAL-01–VAL-06 passed.
 
 Current work package: WP-04 review handoff; awaiting project-owner/delegate.
 
-Next concrete action: reviewer examines PR and records decision in `.review/REV-M0016-COMPLETION.md`; keep PR open until review.
+Next concrete action: reviewer examines [PR #17](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17) and records a decision in `.review/REV-M0016-COMPLETION.md`; keep the PR open until review.
 
 Known agent-resolvable gaps: unknown until implementation review; resolve locally.
 

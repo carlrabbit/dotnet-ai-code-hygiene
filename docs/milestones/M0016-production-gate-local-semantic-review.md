@@ -208,7 +208,7 @@ Reread the milestone and seeded ledger after implementation; verify exact obliga
 - Canonical validation: `eng/validate.ps1` passed on Windows 11/.NET 11. Release build succeeded with 0 warnings/0 errors; Core 85/85 and CLI 24/24 passed (109/109 total); package `DotNetAiCodeHygiene.Tool.0.8.0` packed and installed from the exact current artifact into an isolated consumer; installed consumer scenarios and repository M0006 self-check passed; `git diff --check` passed.
 - Authority/documentation: current sampling and semantic-review specifications, architecture, engineering, CLI/agent help, README and milestone index describe the gate-local model. Historical M0009–M0015 research and legacy `sampling.json` data remain preserved; production rules no longer consume the legacy hazard/age path.
 - Limits: selection is biased and is not a calibrated defect-rate estimate, coverage guarantee, or proof of defect-free code. No semantic reviewer was invoked. VAL-07 remains pending project-owner/delegate review; this implementation does not approve or waive itself.
-- PR: to be recorded after publishing the branch.
+- PR: [#17](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17), open against `main`; implementation commit `88d475d`.
 
 ## Escalation Boundary
 

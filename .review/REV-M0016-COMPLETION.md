@@ -3,7 +3,8 @@
 **Status:** awaiting project-owner/delegate review
 **Milestone:** M0016 Production Gate-Local Semantic Review
 **Branch:** `implementation/m0016-gate-local-semantic-review`
-**PR:** pending publication
+**PR:** https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17
+**Implementation commit:** `88d475d`
 
 ## Review request
 
