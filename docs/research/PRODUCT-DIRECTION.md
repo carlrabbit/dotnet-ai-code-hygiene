@@ -6,9 +6,11 @@ Planning context, not implementation authority.
 
 This document preserves the current product thesis and the reasoning that should inform future milestone planning. Concrete behavior remains governed by milestones, specifications, architecture, and engineering authority.
 
-## Current sampling research direction
+## Current product and research direction
 
-M0012–M0014 established deterministic historical activity-age sampling and measured substantial due pressure and candidate displacement, without demonstrating semantic-review usefulness. **Planning has since pivoted to bounded, gate-local selection and local parameter calibration at a concrete change/review gate**, using historical population information as optional context rather than treating accumulating project age as the default mechanism. Existing hazards and samplers may be retained, simplified, or replaced; no new production policy is authorized by this research note. See [the research synthesis](SAMPLING-GATE-PIVOT.md). Earlier sampling and age documents below preserve historical reasoning, not a competing active decision.
+M0016 replaced production hazard/age-based semantic-review scheduling with deterministic, bounded, gate-local candidate selection for the three original semantic-review rules. A concrete changed-source/manual/explicit-surveillance gate, not the passage of time, authorizes semantic review work. Historical M0009–M0015 hazard and age research remains historical rather than operative authority. The research synthesis is in [SAMPLING-GATE-PIVOT.md](SAMPLING-GATE-PIVOT.md); the implemented behavior is governed by the current specifications.
+
+M0017 planning expands that mechanism to type-responsibility, test-quality, and ordinary-comment review. It also reclassifies the existing visual-block blank-line signal as a review *candidate*, not proof of a missing mandatory formatting fix. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md) for the product/agent boundary.
 
 ## Product thesis
 
@@ -66,15 +68,13 @@ Do not attempt to replace Roslyn analyzers, dotnet format, IDE tooling, or every
 
 Add rules or rewrites where the tool can provide a distinct AI-development benefit, a stronger opinionated contract, useful agent-oriented output, or a workflow that existing tools do not provide well.
 
-### Quantify uncertainty instead of pretending sampling is coverage
+### Verify review-work machinery, not the reviewing model
 
-Expensive semantic rules may eventually inspect only part of an eligible population.
+The hygiene product's verifiable contract is to discover rule-eligible subjects, identify and explain deterministic indicators, select bounded gate-relevant review work, supply truthful context, persist explicit accepted evidence, and invalidate stale work. A deterministic trigger is not proof of a semantic defect.
 
-When they do, prefer statistically defensible sampling with explicit uncertainty over arbitrary per-run sample counts. The product should be able to spend more persistent state only where a stronger individual-subject guarantee is worth its cost, while dense populations may use aggregate/cohort models.
+Judgment and context-sensitive remediation belong to the external invoking agent. Do not make software acceptance depend on benchmarks of the current model's subjective correctness, usefulness scores, a particular model/provider, or predictions about future agent capability. The tool must remain useful as models change.
 
-Sampling is not exhaustive verification. Its output and documentation must state the guarantee the chosen model can actually support.
-
-See docs/research/SAMPLING-RULES.md.
+Gate-local selection is selective inspection, not population certification. No defect-rate, completeness, or false-positive guarantee follows from a five-item sample. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md).
 
 ## Likely evolution themes
 
@@ -82,22 +82,15 @@ These are planning candidates, not roadmap commitments.
 
 ### Rule-application architecture
 
-The current vertical slice proves behavior but concentrates rule evaluation inside the engine. More rules, shared semantic prerequisites, repository-level rules, or multi-file rules may justify an explicit analysis pipeline and shared context model.
+M0007 established independent explicit in-process rule modules over a shared lazy `RepositorySession`. New rules should follow that pattern rather than trigger a generalized pipeline, callback framework, plugin registry, or a separate executable per rule. Add lazy shared facts only for actual shared semantics or measured cost.
 
 See docs/research/RULE-APPLICATION-ARCHITECTURE.md.
 
-### Statistical sampling for expensive rules
+### Bounded semantic-review selection
 
-Some high-value rules may be too dense or too expensive for exhaustive semantic review on every run.
+M0016 supplies the active fixed-budget gate-local mechanism. New semantic rules should reuse it, with independently defined subjects, questions and escalation, rather than reviving historical hazard clocks or introducing parameter-learning experiments.
 
-A future sampling subsystem may support both:
-
-- subject-state sampling, with decaying inspection value and randomized hazard thresholds when individual coverage matters;
-- aggregate population sampling, optionally with bounded cohorts, when population-level quality surveillance is sufficient and per-subject state would be disproportionate.
-
-The framework should provide the statistical machinery while rules provide interpretable population definitions and risk signals. Normal repositories should not require a database or opaque binary analysis index.
-
-See docs/research/SAMPLING-RULES.md.
+The historical subject-state and aggregate/cohort studies remain in docs/research/SAMPLING-RULES.md for provenance, not as an implementation roadmap or substitute for the current sampling specification.
 
 ### Higher-value hygiene rules
 
@@ -109,7 +102,7 @@ Each candidate should first answer:
 
 1. Is the problem common enough in AI-produced code to justify product complexity?
 2. Can it be detected deterministically with acceptable false positives?
-3. Is deterministic remediation safe, or should the output remain guidance/review work?
+3. Does detection establish a mechanical defect, or only a candidate requiring external judgment and contextual remediation?
 4. Does an existing .NET tool already solve it adequately?
 
 ### Deterministic remediation
@@ -150,7 +143,7 @@ A mature version should provide a compact set of high-value hygiene operations t
 
 - deterministic behavior where determinism is appropriate;
 - bounded semantic review where judgment is required;
-- statistically defensible sampling where exhaustive semantic review would be disproportionate;
+- bounded gate-local selective inspection with claims limited to what the selection actually establishes;
 - safe rewrite semantics;
 - predictable low-configuration policy;
 - repository-scale performance appropriate to normal agent workflows;
