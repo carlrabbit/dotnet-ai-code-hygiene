@@ -4,7 +4,7 @@
 **Milestone:** M0016 Production Gate-Local Semantic Review
 **Branch:** `implementation/m0016-gate-local-semantic-review`
 **PR:** https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/17
-**Implementation commit:** `88d475d`
+**Implementation commit:** `f16178f` (correction commit on the existing PR branch)
 
 ## Review request
 
@@ -16,14 +16,21 @@ Please review and accept or reject the production behavior and compatibility dec
 4. The rule-version and tool-version changes and the current documentation/help descriptions.
 5. Whether the evidence hooks and limitations are clear for future rule expansion without introducing additional sampling research or calibration.
 
+## Correction evidence
+
+- Cross-gate capacity and fixed same-gate allocation: `GateLocalReviewTests.EarlierAcceptedSubjectsDoNotSpendNewGateCapacityButSameGateDoesNotRefill`.
+- Full stale-gate revalidation with identical eligible population and changed resolved merge-base: `GateLocalReviewTests.ChangedMergeBaseRejectsOldExpansionHandoffAndAcceptanceWithSamePopulation`.
+- BORINGness identity after unrelated preceding declaration insertion and distinct partial declarations: `GateLocalReviewTests.AcceptedBoringnessSubjectSurvivesUnrelatedPrecedingDeclarationInsertion` and `LifecycleTests.BoringnessIncludesNestedTypeDeclarationsAndExcludesEnumsAndDelegates`.
+- The gate identity also normalizes Git-unavailable and unborn-head states for unchanged gates; existing CLI expand/handoff compatibility cases pass.
+
 ## Validation evidence
 
-- `.\eng\validate.ps1` passed on Windows 11/.NET 11.
+- Final `.\eng\validate.ps1` run passed on Windows 11/.NET 11.
 - Release build succeeded with 0 warnings and 0 errors.
-- Complete test run passed: 109/109 tests (85 Core, 24 CLI).
+- Complete test run passed: 112/112 tests (88 Core, 24 CLI), including the correction regressions listed above and the CLI expand/handoff compatibility cases.
 - The exact current `DotNetAiCodeHygiene.Tool.0.8.0` package was installed into an isolated tool path and passed the consumer workflows in the canonical validation script.
 - Canonical validation also passed the repository M0006 self-host check and `git diff --check`.
-- Detailed per-obligation, evidence-case, and validation-gate receipts are in `.execution/M0016-production-gate-local-semantic-review.md`.
+- Detailed per-obligation, evidence-case, and validation-gate receipts, including explicit reconciliation of 20 acceptance criteria, 26 evidence cases, and 7 validation gates, are in `.execution/M0016-production-gate-local-semantic-review.md`.
 
 ## Limits and disposition
 
