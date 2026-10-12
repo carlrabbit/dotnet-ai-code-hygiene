@@ -303,11 +303,14 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 11. docs.summary.quality.review               v6
 12. docs.summary.language.german.review       v4
 13. readability.long-line.review              v1
-14. readability.control-flow.visual-block     v1
+14. readability.control-flow.visual-block     v2
 15. architecture.boringness.review            v3
+16. readability.type-responsibility.review    v1
+17. tests.quality.review                      v1
+18. comments.intent.review                    v1
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0011 added the configurable, diagnosis/review-only Architecture rule at the end of the catalogue. M0016 versions all three semantic-review rules for bounded gate-local selection; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
 
 ## Non-goals
 

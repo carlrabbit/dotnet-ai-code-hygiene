@@ -108,7 +108,7 @@ Required semantics:
 - `createdAtUtc` records artifact creation, not semantic acceptance.
 - `source.runId` and `source.batchHandle` tie the artifact to latest-run evidence.
 - `mode` is exactly `expanded`.
-- `reviewerClass` is the fixed escalated reviewer class owned by the rule: `frontier` for summary rules and `planner` for `architecture.boringness.review`.
+- `reviewerClass` is the fixed escalated reviewer class owned by the rule: `planner` for `architecture.boringness.review` and `readability.type-responsibility.review`; `frontier` for summary rules, `tests.quality.review`, and `comments.intent.review`.
 - `populationCount` equals `items.length`.
 - `questions` are exactly the rule's fixed rubric.
 - `items` represent the complete revalidated eligible population.

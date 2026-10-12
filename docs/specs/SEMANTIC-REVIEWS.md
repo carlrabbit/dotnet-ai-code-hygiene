@@ -2,7 +2,7 @@
 
 ## Model and output
 
-The deterministic engine discovers each rule's complete eligible population. The three existing semantic-review rules use the shared gate-local selector specified in `docs/specs/SAMPLING.md`; each rule retains its own population semantics, questions, reviewer class, escalation condition, and acceptance meaning. The CLI performs no model/provider invocation.
+The deterministic engine discovers each rule's complete eligible population. All six semantic-review rules use the shared gate-local selector specified in `docs/specs/SAMPLING.md`; each rule retains its own population semantics, questions, reviewer class, escalation condition, and acceptance meaning. The CLI performs no model/provider invocation.
 
 Every enabled semantic-review rule emits exactly one normal batch on a successful check, including `0/N` and `0/0`. `PopulationCount` is the complete rule-eligible population for the reporting scope. `SampleCount` is the selected subset, with a fixed maximum of five per rule. Mechanical findings remain exhaustive. The host materializes the selected items as supplied and never performs another ranking.
 
@@ -59,6 +59,34 @@ Its normal reviewer is `implementer` and escalated reviewer is `planner`. The fi
 
 Legitimate external-service, persistence, platform, and interoperability boundaries may justify abstraction. Escalate when Q4 is yes or at least two of Q1, Q2, Q3, and Q5 are yes. One non-Q4 signal alone is review evidence, not planner escalation. The reviewer evaluates current requirements rather than hypothetical future extensibility.
 
+## M0017 rules
+
+`readability.type-responsibility.review` is v1/B-4. It reviews source-backed class, struct, interface, and record declarations, including nested and partial parts; enums, delegates, generated/ineligible sources, and nondeclarations are excluded. Its fixed questions are:
+
+- **Q1 — Ownership:** Does this type mix responsibilities without one coherent ownership/purpose?
+- **Q2 — Coupling:** Does understanding or changing ordinary behavior require reconstructing unrelated state or workflows within this type?
+- **Q3 — Separation:** Is there a concrete responsibility that should be owned elsewhere without creating needless abstraction or fragmentation?
+
+`implementer` reviews; material concerns or insufficient context escalate to `planner`. Type length and member count are not verdicts.
+
+`tests.quality.review` is v1/B-5. It includes source-backed methods whose Roslyn-resolved attributes are TUnit `[Test]`, xUnit `[Fact]`/`[Theory]`, NUnit `[Test]`/`[TestCase]`, MSTest `[TestMethod]`/`[DataTestMethod]`, or derived from those framework attributes. Name-only matches and setup/teardown methods are not test evidence. Its fixed questions are:
+
+- **Q1 — Regression evidence:** Could the assertions plausibly detect a meaningful violation of the tested behavior rather than merely successful execution or a non-null result?
+- **Q2 — Contract focus:** Does the test primarily examine observable behavior rather than unnecessarily binding itself to implementation details?
+- **Q3 — Maintainability:** Is the setup/assertion structure clear enough to diagnose failure without unjustified fragility, coupling or mock choreography?
+
+`implementer` reviews; material concerns or uncertainty escalate to `frontier`. Assertion and mock counts are not verdicts.
+
+`comments.intent.review` is v1/B-6. It reviews ordinary source-backed `//` groups and `/* ... */` blocks, excluding XML documentation, directives, disabled/inactive code, generated sources, license/copyright headers, and strings. Its fixed questions are:
+
+- **Q1 — Intent:** Does the comment provide useful non-obvious rationale, constraint or meaning rather than narrate nearby syntax?
+- **Q2 — Fidelity:** Is the comment consistent with current implementation and relevant local context?
+- **Q3 — Clarity:** Is the explanation sufficiently specific, scoped and concise to help a reader without redundant narrative?
+
+`implementer` reviews; material concerns or uncertainty escalate to `frontier`. It neither requires nor rewrites comments.
+
+All three include accurate source locations and current file context. Non-applicable summary fields are empty. An external reviewer inspects related code or reports uncertainty when the embedded context cannot establish a dependency or contract.
+
 ## Compatibility
 
 Batch order and identifiers remain:
@@ -67,6 +95,9 @@ Batch order and identifiers remain:
 B-1 docs.summary.quality.review
 B-2 docs.summary.language.german.review
 B-3 architecture.boringness.review
+B-4 readability.type-responsibility.review
+B-5 tests.quality.review
+B-6 comments.intent.review
 ```
 
 Rule enable/disable remains whole-rule participation. Disabled rules emit no batch; enabled rules preserve their independent rule contract. Historical M0009–M0015 evidence and `.hygiene/.state/sampling.json` remain intact as legacy records and are not imported as semantic judgments. The CLI continues to perform no model/provider invocation.

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Lifecycle state | ready — planning complete; implementation pending |
+| Lifecycle state | implementation complete — awaiting blocking human review |
 | Mode | ai-executed-human-reviewed |
 | Baseline implementation model | GPT-5.6 Luna; Agentic Guide System 0.9.1 |
 | Baseline executor readiness | confirmed after M0016 production gate-local surface |
@@ -33,6 +33,7 @@ A source change/PR gate can deliver bounded, correctly identified semantic revie
 
 - M0017 depends on production M0016 (PR #17). Its planning branch starts from PR #17's implementation head because PR #17 is not yet merged at the time of planning. When PR #17 is squash-merged, rebase the M0017 implementation branch onto that merged `main` before opening the final merge PR; do not unintentionally replay M0016 as new M0017 work.
 - The planning branch is `planning/m0017-semantic-hygiene-expansion`. This is a ready **contract**, not a claim that M0017 source functionality has been implemented.
+- **Resolved during execution:** M0016 was squash-merged to `main` at `ec8ec547`. The implementation branch started there and carried only the two M0017 planning commits; historical M0016 implementation commits were not replayed.
 
 ## Scope
 
@@ -205,7 +206,13 @@ The implementer maps the exact seeded obligations and evidence cases into execut
 
 ## Completion Evidence
 
-Pending implementation. The executor fills a compact obligation/evidence-case-to-proof mapping here after final reconciliation. Do not fabricate validation or reviewer judgments during planning.
+Implementation and verification are complete; the blocking human review remains pending. Criterion-level proof mappings and validation receipts are in `.execution/M0017-semantic-hygiene-rule-expansion.md`.
+
+- AC-01–AC-03: `ControlFlowVisualBlock.cs`, `M0017RuleTests`, existing visual-block trigger/ignore lifecycle fixtures, and installed format/normalize consumer.
+- AC-04–AC-10: the three dedicated rule modules, explicit catalogue order, and focused Roslyn fixture for types, resolved test attributes, comments, exclusions, fixed rubrics, identities, and empty non-applicable summary fields.
+- AC-11–AC-18: existing M0016 gate selector/store/lifecycle plus new-rule acceptance/nonrefill and stable-identity fixture; full Core and CLI process suites; installed changed/base, zero-work, expand, accept, and handoff scenarios.
+- AC-19–AC-21 and DOC-01/DOC-02: canonical Windows/.NET 11 validation passed (117/117 tests); freshly built `DotNetAiCodeHygiene.Tool` 0.9.0 installed and exercised in an isolated consumer; repository self-check and `git diff --check` passed. Validation verifies deterministic tool behavior and review-work transport only; no external model judgment or quality certification was required.
+- REV-01: `.review/REV-M0017-COMPLETION.md` is prepared. No human approval is recorded; the milestone remains awaiting the project-owner/delegate decision.
 
 ## Escalation Boundary
 
