@@ -1,11 +1,12 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('prepare', 'verify', 'test-validator')]
+    [ValidateSet('prepare', 'verify', 'test-validator', 'validate-submission')]
     [string]$Action,
     [string]$SemanticModelRepositoryPath,
     [string]$StageRoot,
     [string]$PrivateMapPath,
-    [string]$HandoffRoot
+    [string]$HandoffRoot,
+    [string]$SubmissionPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -76,6 +77,14 @@ if ($Action -eq 'test-validator') {
     $validator = Join-Path $packageRoot 'validate-judgments.ps1'
     $results = Join-Path $repoRoot 'tools/M0015/fixtures/review-handoff/validator-test-results.json'
     & $validator -Action test -PackageRoot $packageRoot -TestResultsPath $results
+    exit 0
+}
+
+if ($Action -eq 'validate-submission') {
+    if ([string]::IsNullOrWhiteSpace($SubmissionPath)) { throw 'Pass -SubmissionPath for the user-submitted judgment JSON.' }
+    $validator = Join-Path $packageRoot 'validate-judgments.ps1'
+    & $validator -Action validate -PackageRoot $packageRoot -SubmissionPath $SubmissionPath
+    if ($LASTEXITCODE -ne 0) { throw 'Judgment submission validation failed.' }
     exit 0
 }
 

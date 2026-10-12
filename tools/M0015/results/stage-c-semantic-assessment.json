@@ -1,0 +1,718 @@
+{
+  "schemaVersion": 1,
+  "kind": "m0015-stage-c-validated-semantic-assessment",
+  "protocolVersion": "m0015-stage-a-amended-20261011-v1",
+  "manifestSha256": "286A0FF45640773E9B5572D66D7FC6E5FF1A5881BB7089D86A3603C38CD6577C",
+  "submissionFileName": "judgments-gpt6-independent-20261012-e2c3bd6ae5f7.json",
+  "submissionSha256": "2276613E4ACB111C1F0CC4220DE1C9E8A71228E0D1B8F91F29213AD111E2D8BA",
+  "reviewerProvenance": {
+    "reviewerId": "openai-chatgpt-gpt-6",
+    "role": "independent-policy-blinded-semantic-code-reviewer",
+    "model": "GPT-6 (ChatGPT); source-archive reading, manual Q1-Q5 judgments and deterministic schema/checksum validation",
+    "sessionId": "gpt6-independent-20261012-e2c3bd6ae5f7",
+    "completedAtUtc": "2026-10-12T04:30:17Z"
+  },
+  "assessmentCount": 16,
+  "decisionCounts": {
+    "actionable": 0,
+    "accepted": 16,
+    "uncertain": 0
+  },
+  "yesAnswerCounts": {
+    "q1": 0,
+    "q2": 0,
+    "q3": 0,
+    "q4": 0,
+    "q5": 0
+  },
+  "gates": [
+    {
+      "gateId": "hygiene-pr15",
+      "assessedCount": 7,
+      "selectionUnionCount": 6,
+      "controlCount": 1,
+      "policies": [
+        {
+          "policy": "uniform",
+          "selectedCount": 5,
+          "changedCount": 3,
+          "backgroundOrUnknownCount": 2,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-0D9EE4DD26E72357E9B058EADAB8962C",
+            "M15A-4D4F236FB3391DAB2344B57B6AA20DF4",
+            "M15A-5FED23CF545E77E2EB457E59245EB7D1",
+            "M15A-BE99FFED923B039E0A47E8A413143599",
+            "M15A-FA14AC29DA57C2009160FF80268A4616"
+          ]
+        },
+        {
+          "policy": "change-first",
+          "selectedCount": 5,
+          "changedCount": 4,
+          "backgroundOrUnknownCount": 1,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-0D9EE4DD26E72357E9B058EADAB8962C",
+            "M15A-1940CB3D3380AC9516535A0076F5EA39",
+            "M15A-4D4F236FB3391DAB2344B57B6AA20DF4",
+            "M15A-BE99FFED923B039E0A47E8A413143599",
+            "M15A-FA14AC29DA57C2009160FF80268A4616"
+          ]
+        },
+        {
+          "policy": "history-aware",
+          "selectedCount": 5,
+          "changedCount": 3,
+          "backgroundOrUnknownCount": 2,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-0D9EE4DD26E72357E9B058EADAB8962C",
+            "M15A-4D4F236FB3391DAB2344B57B6AA20DF4",
+            "M15A-5FED23CF545E77E2EB457E59245EB7D1",
+            "M15A-BE99FFED923B039E0A47E8A413143599",
+            "M15A-FA14AC29DA57C2009160FF80268A4616"
+          ]
+        }
+      ],
+      "pairwiseOverlap": [
+        {
+          "policyA": "uniform",
+          "policyB": "change-first",
+          "sharedCount": 4,
+          "sharedActionableCount": 0
+        },
+        {
+          "policyA": "uniform",
+          "policyB": "history-aware",
+          "sharedCount": 5,
+          "sharedActionableCount": 0
+        },
+        {
+          "policyA": "change-first",
+          "policyB": "history-aware",
+          "sharedCount": 4,
+          "sharedActionableCount": 0
+        }
+      ],
+      "displacement": {
+        "changedSelectionCountDifference": 1,
+        "changedCandidateIdentityDisplacementCount": 1,
+        "omittedChangedCandidates": [
+          {
+            "id": "0502209F717B9BF7416B91701F1B3494E74C418232FDED8F19E6E748C1FCADC2",
+            "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+            "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs"
+          }
+        ],
+        "historyAwareReplacements": [
+          {
+            "id": "538FB3EED147F5C629D36D25AAE6FDBF845D0D4EC0931E71B7826CB97DB0AA84",
+            "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+            "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+            "selectionStage": "weighted-fill"
+          }
+        ]
+      }
+    },
+    {
+      "gateId": "semantic-model-source",
+      "assessedCount": 9,
+      "selectionUnionCount": 8,
+      "controlCount": 1,
+      "policies": [
+        {
+          "policy": "uniform",
+          "selectedCount": 5,
+          "changedCount": 0,
+          "backgroundOrUnknownCount": 5,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-45D7E61C123158EB67517FC09A2EC947",
+            "M15A-72FE62B8DF7430F16CF8B30367D5286E",
+            "M15A-A07B92CEC2932AA6FE17D577A799D550",
+            "M15A-B572492C45B8989F2DD678C5DBF1780F",
+            "M15A-FB248047CBBDB169AE55B5107C10ADF3"
+          ]
+        },
+        {
+          "policy": "change-first",
+          "selectedCount": 5,
+          "changedCount": 3,
+          "backgroundOrUnknownCount": 2,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-00DFF023DE0547D5D9A87F868ECDA5AE",
+            "M15A-A07B92CEC2932AA6FE17D577A799D550",
+            "M15A-AD185E732243356B3FA44D466F1DECAE",
+            "M15A-B572492C45B8989F2DD678C5DBF1780F",
+            "M15A-F7E087452929FD9D66C17DDE00CE282D"
+          ]
+        },
+        {
+          "policy": "history-aware",
+          "selectedCount": 5,
+          "changedCount": 2,
+          "backgroundOrUnknownCount": 3,
+          "actionableCount": 0,
+          "acceptedCount": 5,
+          "uncertainCount": 0,
+          "selectedTokens": [
+            "M15A-00DFF023DE0547D5D9A87F868ECDA5AE",
+            "M15A-45D7E61C123158EB67517FC09A2EC947",
+            "M15A-A07B92CEC2932AA6FE17D577A799D550",
+            "M15A-B572492C45B8989F2DD678C5DBF1780F",
+            "M15A-F7E087452929FD9D66C17DDE00CE282D"
+          ]
+        }
+      ],
+      "pairwiseOverlap": [
+        {
+          "policyA": "uniform",
+          "policyB": "change-first",
+          "sharedCount": 2,
+          "sharedActionableCount": 0
+        },
+        {
+          "policyA": "uniform",
+          "policyB": "history-aware",
+          "sharedCount": 3,
+          "sharedActionableCount": 0
+        },
+        {
+          "policyA": "change-first",
+          "policyB": "history-aware",
+          "sharedCount": 4,
+          "sharedActionableCount": 0
+        }
+      ],
+      "displacement": {
+        "changedSelectionCountDifference": 1,
+        "changedCandidateIdentityDisplacementCount": 1,
+        "omittedChangedCandidates": [
+          {
+            "id": "2ABF38B2D94DFE00358A57AF8A8AB7821A398E761A566295DD672C5D9D0900B8",
+            "symbol": "global::SemanticTypeModel.TestData.Tests.Unit.TestDataCorrectiveTests",
+            "path": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs"
+          }
+        ],
+        "historyAwareReplacements": [
+          {
+            "id": "A548CFCF12FF4F55F37125CA4008C2C435DB9D5672EA64CA9111DFE9584DB714",
+            "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+            "path": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+            "selectionStage": "weighted-fill"
+          }
+        ]
+      }
+    }
+  ],
+  "budgetScenarios": [
+    {
+      "gateId": "semantic-model-head",
+      "sourceChangePaths": 6,
+      "policy": "uniform",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 0,
+      "backgroundOrUnknownSelected": 5,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 0,
+      "unknownImpactCandidatePopulation": 0,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "semantic-model-head",
+      "sourceChangePaths": 6,
+      "policy": "change-first",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 0,
+      "backgroundOrUnknownSelected": 5,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 0,
+      "unknownImpactCandidatePopulation": 0,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "semantic-model-head",
+      "sourceChangePaths": 6,
+      "policy": "history-aware",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 0,
+      "backgroundOrUnknownSelected": 5,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 0,
+      "unknownImpactCandidatePopulation": 0,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "hygiene-pr15",
+      "sourceChangePaths": 54,
+      "policy": "uniform",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 3,
+      "backgroundOrUnknownSelected": 2,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 15,
+      "unknownImpactCandidatePopulation": 56,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "hygiene-pr15",
+      "sourceChangePaths": 54,
+      "policy": "change-first",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 4,
+      "backgroundOrUnknownSelected": 1,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 15,
+      "unknownImpactCandidatePopulation": 56,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "hygiene-pr15",
+      "sourceChangePaths": 54,
+      "policy": "history-aware",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 3,
+      "backgroundOrUnknownSelected": 2,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 15,
+      "unknownImpactCandidatePopulation": 56,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "semantic-model-source",
+      "sourceChangePaths": 3,
+      "policy": "uniform",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 0,
+      "backgroundOrUnknownSelected": 5,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 4,
+      "unknownImpactCandidatePopulation": 11,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "semantic-model-source",
+      "sourceChangePaths": 3,
+      "policy": "change-first",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 3,
+      "backgroundOrUnknownSelected": 2,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 4,
+      "unknownImpactCandidatePopulation": 11,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    },
+    {
+      "gateId": "semantic-model-source",
+      "sourceChangePaths": 3,
+      "policy": "history-aware",
+      "budgetCap": 5,
+      "selectedCount": 5,
+      "changedSelected": 2,
+      "backgroundOrUnknownSelected": 3,
+      "zeroBudgetSelectionCount": 0,
+      "newOrChangedCandidatePopulation": 4,
+      "unknownImpactCandidatePopulation": 11,
+      "zeroBudgetReviewCount": 0,
+      "budgetIsCeiling": true,
+      "surveillanceAuthorization": "hypothetical scenario only; explicit owner authorization is required and none is asserted"
+    }
+  ],
+  "candidates": [
+    {
+      "token": "M15A-1940CB3D3380AC9516535A0076F5EA39",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "0502209F717B9BF7416B91701F1B3494E74C418232FDED8F19E6E748C1FCADC2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+      "fingerprint": "A858BF9680F0E5671388B89296BC0D908028B3CA8A0191CD8AA319F9E75FEB22",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-0D9EE4DD26E72357E9B058EADAB8962C",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "2B886355C593A54C18E1808A20E9ED22CB24F3C2AFAFB1328AA867EF0B962517",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+      "fingerprint": "514B9DBC4534DDD5DD9E74944B605E9F56FD5ED030FCA6C0B7BE9E4491DD6AEA",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-4D4F236FB3391DAB2344B57B6AA20DF4",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "3E0177F70BC45D24BD9A4C9F923A696ED69182FF6E499876AAFB0037E514FFCE",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+      "fingerprint": "6E6BDE4195EF5AEC968D231CC12DD10A45DF00DFF51AB49FD20A7ECE3A3ED11D",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-5FED23CF545E77E2EB457E59245EB7D1",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "538FB3EED147F5C629D36D25AAE6FDBF845D0D4EC0931E71B7826CB97DB0AA84",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+      "fingerprint": "6A5A37DAF90021643542C914B6E1CFEEF22AEB47C2F1B5080D96C1822D44D69F",
+      "change": "UnchangedContextAffected",
+      "policyMembership": [
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-FA14AC29DA57C2009160FF80268A4616",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "5D9C1D0318E605DB5C8C4135D232BE4F0467B5722B8825E1A5A7001D13BB8191",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+      "fingerprint": "A3E729F7A99EFFFA4F5FB48900B58035D94514FC12D4413646444F601F56DBB6",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-3E8E7D05BD2AD76579D420BC5BC696ED",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "75E6A8FDA581415F937714C7E38AD66FAF0B3514727A6D6059A5A7B16C0B327F",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.HygieneEngine.RunSnapshot",
+      "fingerprint": "8DE5F2178D6B98E361D01D81427CFE0DE044A96C068B08E83C121A4D99217031",
+      "change": "Unknown",
+      "policyMembership": [],
+      "independentControl": true,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-BE99FFED923B039E0A47E8A413143599",
+      "gateId": "hygiene-pr15",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "candidateId": "A9F6CF2AA156FB22436447419AF210517656A55ACA1147A9AB128CD9D553445F",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+      "fingerprint": "EBD32F31BE1BF6448C2FB1CA16B80833980345D84F57A79208114E0656B36984",
+      "change": "Unknown",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-FB248047CBBDB169AE55B5107C10ADF3",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "06A3A4E5B29A6E6DEE9ABB00A4ADD9996D0500FD963075BB99AEE10F099D3655",
+      "project": "src/SemanticTypeModel.DotNet/SemanticTypeModel.DotNet.csproj",
+      "path": "src/SemanticTypeModel.DotNet/RoslynDotNetTypeExtractor.cs",
+      "symbol": "global::SemanticTypeModel.DotNet.RoslynDotNetTypeExtractor",
+      "fingerprint": "2562010E9E47E6B9E938A5A318773357D7E1AA0CF0B338F5AB9DCED83D8D4EB7",
+      "change": "UnchangedBackground",
+      "policyMembership": [
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-AD185E732243356B3FA44D466F1DECAE",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "2ABF38B2D94DFE00358A57AF8A8AB7821A398E761A566295DD672C5D9D0900B8",
+      "project": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/SemanticTypeModel.TestData.Tests.Unit.csproj",
+      "path": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs",
+      "symbol": "global::SemanticTypeModel.TestData.Tests.Unit.TestDataCorrectiveTests",
+      "fingerprint": "9E7BE2AC55D3AA73C4E4FF9B64C68DA6E7697F67B8A44CBE55985269DCD68084",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-72FE62B8DF7430F16CF8B30367D5286E",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "3A1E329904AEF92F5EF4166FFDB900586F4C17F52A772A0E38A0C43DE6A83D81",
+      "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+      "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.ProjectionCoverage.cs",
+      "symbol": "global::SemanticTypeModel.TestModels.ModelA.StorageMatrixEntity",
+      "fingerprint": "CA28D89C6B037C4A5097889523FEE026C493AA112A8B9FB3CCB001F8774AB313",
+      "change": "UnchangedBackground",
+      "policyMembership": [
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-A07B92CEC2932AA6FE17D577A799D550",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "3EC65A04FCCC2C10E01F1207E67DF1ED2EC72CAF35A6589B2399A432A867E414",
+      "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+      "path": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.cs",
+      "symbol": "global::SemanticTypeModel.TestModels.ModelA.BaseEntity",
+      "fingerprint": "7197432D771830A371A2E22FC6573B6D382945CF4896BF8547DFB90319FBF555",
+      "change": "UnchangedBackground",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-00DFF023DE0547D5D9A87F868ECDA5AE",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "4BC8BBCD5F147C46E313B5CC78CAE51671EDC255DD786E541BBBB5A268592616",
+      "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+      "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+      "symbol": "global::SemanticTypeModel.TestData.SemanticTerminologyProfile",
+      "fingerprint": "D1048D8992EF1A2508B432013010321D73CA78DD13B6324EEC9BDB994E9A207E",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first",
+        "history-aware"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-45D7E61C123158EB67517FC09A2EC947",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "A548CFCF12FF4F55F37125CA4008C2C435DB9D5672EA64CA9111DFE9584DB714",
+      "project": "src/SemanticTypeModel.JsonSchema/SemanticTypeModel.JsonSchema.csproj",
+      "path": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+      "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+      "fingerprint": "66A4F4097C431C7E05532EED19C02EEE7F09A93A7D3DC0DB6C64BC63E75A1CB8",
+      "change": "UnchangedBackground",
+      "policyMembership": [
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-F7E087452929FD9D66C17DDE00CE282D",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "AE269896C160B93C6FA5726A9EB03D71AD18B463B45C311BC119206D2EA7E362",
+      "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+      "path": "src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs",
+      "symbol": "global::SemanticTypeModel.TestData.SemanticTestDataGenerator.Context",
+      "fingerprint": "991FBD4561B51151A8DD1DBB9A555B06C3BB2D6403517CD125D851D6FB736A32",
+      "change": "NewOrChanged",
+      "policyMembership": [
+        "change-first",
+        "history-aware"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-B572492C45B8989F2DD678C5DBF1780F",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "B27E4AC69DB3147AB0987B2668DEAF56390AFE16A9FD531F8C9D50653872F932",
+      "project": "src/SemanticTypeModel.Abstractions/SemanticTypeModel.Abstractions.csproj",
+      "path": "src/SemanticTypeModel.Abstractions/Model/TypeModelContracts.cs",
+      "symbol": "global::SemanticTypeModel.Abstractions.Model.SchemaPipelineOptions",
+      "fingerprint": "CFADD798BCBFBC4D6FC5EFCD7E28D5AE94A0A400DFBAD27AC3884797D246C41B",
+      "change": "UnchangedBackground",
+      "policyMembership": [
+        "change-first",
+        "history-aware",
+        "uniform"
+      ],
+      "independentControl": false,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    },
+    {
+      "token": "M15A-FB77BA26A17A906B50A01118A2DC3DBF",
+      "gateId": "semantic-model-source",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "candidateId": "F5AAF8F93BB19D9A66EE1A975FC9911601F29A4B0E7E62E2B0B87FECFD50ABF6",
+      "project": "src/SemanticTypeModel.EFCore.Generators/SemanticTypeModel.EFCore.Generators.csproj",
+      "path": "src/SemanticTypeModel.EFCore.Generators/SemanticEfConfigurationGenerator.cs",
+      "symbol": "global::SemanticTypeModel.EFCore.Generators.SemanticEfConfigurationGenerator",
+      "fingerprint": "5DDAC09716D03C95FD55855CB678588421A18F4085742B9D8303673490E3A7C4",
+      "change": "UnchangedBackground",
+      "policyMembership": [],
+      "independentControl": true,
+      "q1": "no",
+      "q2": "no",
+      "q3": "no",
+      "q4": "no",
+      "q5": "no",
+      "decision": "accepted"
+    }
+  ],
+  "submissionReceipt": {
+    "driveFileId": "1opHSHh5HjlUPGL1a9FX1hO5NKdzJQfjO",
+    "driveSubmissionFolderId": "1VDafPQdZMC95YpHfzqvNDtYFLiTRw0JX",
+    "mountedPath": "G:\\My Drive\\Transfer\\M0015-review\\submissions\\judgments-gpt6-independent-20261012-e2c3bd6ae5f7.json",
+    "driveListedBytes": 23282,
+    "driveModifiedTimeUtc": "2026-10-12T04:36:02.855Z",
+    "frozenCopyPath": "C:\\src\\m0015-evidence\\stage-c-private\\judgments-gpt6-independent-20261012-e2c3bd6ae5f7.json",
+    "frozenCopyBytes": 23282,
+    "frozenCopySha256": "2276613E4ACB111C1F0CC4220DE1C9E8A71228E0D1B8F91F29213AD111E2D8BA",
+    "copyIntegrity": "source and frozen copy SHA-256 match"
+  }
+}
