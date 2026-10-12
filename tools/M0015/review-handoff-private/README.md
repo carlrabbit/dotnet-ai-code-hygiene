@@ -1,0 +1,3 @@
+# M0015 private Stage A token map
+
+Internal analysis evidence only. This file maps the blinded token to the frozen candidate and policy-selection/control membership. It is intentionally excluded from every assessor handoff and source archive. Do not share it with the project owner before judgment submissions are locked and validated. Its SHA-256 is pinned in the corresponding `assessment-manifest.json` and delivery receipt.

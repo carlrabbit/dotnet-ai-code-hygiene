@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "gateId": "semantic-model-head",
+  "repository": "carlrabbit/dotnet-semantic-type-model",
+  "base": "f45a5a2876115defdec06fc3a18fdf131b2ee914",
+  "head": "4be96e7bf40b5a7a44911b4e64fa94bed7c2b31a",
+  "rule": "architecture.boringness.review@2",
+  "seed": "M0015-v1-semantic-model-head-seed-01",
+  "budget": 5,
+  "changedPathCount": 6,
+  "changedPathSha256": "6799C6DA8A74419C12303768391E8199832028D8624B81A6AA299B0420DBFE4E",
+  "calibration": {
+    "status": "uncalibrated: insufficient independent labels (train=0, evaluation=0)",
+    "gridVersion": "m0015-grid-v1",
+    "gridSearchRan": false,
+    "fallback": {
+      "changedWeight": 4,
+      "backgroundWeight": 0.5,
+      "explorationFraction": 0.2
+    }
+  },
+  "population": {
+    "base": 420,
+    "head": 420,
+    "newOrChanged": 0,
+    "unchangedContextAffected": 0,
+    "unchangedBackground": 420,
+    "unknownImpact": 0,
+    "unchangedContextOrBackground": 420,
+    "unchangedExplorationCohort": 25,
+    "comparisonPool": 25,
+    "eligibleBeyondPool": 395
+  },
+  "policies": {
+    "uniform": {
+      "selected": [
+        {
+          "id": "D21023A5E38C43D0BED084C2CDBF73A12B157E39F6B404AF59A0A4BE6DD76DFD",
+          "project": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/SemanticTypeModel.JsonSchema.Tests.Unit.csproj",
+          "path": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/M0077LogicalTypeTests.cs",
+          "symbol": "global::SemanticTypeModel.JsonSchema.Tests.Unit.M0077LogicalTypeTests",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+          "symbol": "global::SemanticTypeModel.TestData.TerminologyProfileResult\u003CT\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
+          "project": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/SemanticTypeModel.EFCore.Tests.Integration.csproj",
+          "path": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/GeneratedConfigurationPartialHook.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.SemanticTypeModel_TestModels_ModelA_InventoryItemConfiguration",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/Inspection/SemanticTestDataTextExtensions.cs",
+          "symbol": "global::SemanticTypeModel.TestData.Inspection.SemanticTestDataTextExtensions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
+          "project": "src/SemanticTypeModel.PowerBI/SemanticTypeModel.PowerBI.csproj",
+          "path": "src/SemanticTypeModel.PowerBI/PowerBiEnvelopeProjectionOptions.cs",
+          "symbol": "global::SemanticTypeModel.PowerBI.PowerBiEnvelopePolicyBuilder\u003CTEnvelope\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        }
+      ],
+      "changeRelevantCount": 0,
+      "backgroundCount": 5,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5
+    },
+    "change-first": {
+      "selected": [
+        {
+          "id": "D21023A5E38C43D0BED084C2CDBF73A12B157E39F6B404AF59A0A4BE6DD76DFD",
+          "project": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/SemanticTypeModel.JsonSchema.Tests.Unit.csproj",
+          "path": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/M0077LogicalTypeTests.cs",
+          "symbol": "global::SemanticTypeModel.JsonSchema.Tests.Unit.M0077LogicalTypeTests",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+          "symbol": "global::SemanticTypeModel.TestData.TerminologyProfileResult\u003CT\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
+          "project": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/SemanticTypeModel.EFCore.Tests.Integration.csproj",
+          "path": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/GeneratedConfigurationPartialHook.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.SemanticTypeModel_TestModels_ModelA_InventoryItemConfiguration",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/Inspection/SemanticTestDataTextExtensions.cs",
+          "symbol": "global::SemanticTypeModel.TestData.Inspection.SemanticTestDataTextExtensions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
+          "project": "src/SemanticTypeModel.PowerBI/SemanticTypeModel.PowerBI.csproj",
+          "path": "src/SemanticTypeModel.PowerBI/PowerBiEnvelopeProjectionOptions.cs",
+          "symbol": "global::SemanticTypeModel.PowerBI.PowerBiEnvelopePolicyBuilder\u003CTEnvelope\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        }
+      ],
+      "changeRelevantCount": 0,
+      "backgroundCount": 5,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5
+    },
+    "history-aware": {
+      "selected": [
+        {
+          "id": "D21023A5E38C43D0BED084C2CDBF73A12B157E39F6B404AF59A0A4BE6DD76DFD",
+          "project": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/SemanticTypeModel.JsonSchema.Tests.Unit.csproj",
+          "path": "tests/unit/SemanticTypeModel.JsonSchema.Tests.Unit/M0077LogicalTypeTests.cs",
+          "symbol": "global::SemanticTypeModel.JsonSchema.Tests.Unit.M0077LogicalTypeTests",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "D5CB23DAF52381F59324618FD3A021FBDD8F14BE623D47172CF43CA65A442788",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "17009EBA38A8160C21FC2DDB7B233C1A27DB79B4C6CA30F81757B596716FC680",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+          "symbol": "global::SemanticTypeModel.TestData.TerminologyProfileResult\u003CT\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "69BC40430676867A5F2C4C93C435ECAC66DCA440DD824C61038A62EDB3952813",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "D12CC6885329538094F5AF0D9F494F24029736064909BBD935192A8E611BCE50",
+          "project": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/SemanticTypeModel.EFCore.Tests.Integration.csproj",
+          "path": "tests/integration/SemanticTypeModel.EFCore.Tests.Integration/GeneratedConfigurationPartialHook.cs",
+          "symbol": "global::SemanticTypeModel.TestModels.ModelA.SemanticTypeModel_TestModels_ModelA_InventoryItemConfiguration",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "7DBB605A176A7EE582C2A0BE65E9D597A3D3A663805FC91A3AB649F12C2CE5B0",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "F881F7A6B15C7895F21A15F54BC956251A7AC2383E8E42C0D838965DCEB95906",
+          "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+          "path": "src/SemanticTypeModel.TestData/Inspection/SemanticTestDataTextExtensions.cs",
+          "symbol": "global::SemanticTypeModel.TestData.Inspection.SemanticTestDataTextExtensions",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "2AA00F361767ED633B7C240515A0B7630E45C03ABFED98A86C8F9B903538C6A7",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        },
+        {
+          "id": "A9F75A6446AE39B98E9A3987D7A0A84905A98C892CE9971569BE1257C8468D89",
+          "project": "src/SemanticTypeModel.PowerBI/SemanticTypeModel.PowerBI.csproj",
+          "path": "src/SemanticTypeModel.PowerBI/PowerBiEnvelopeProjectionOptions.cs",
+          "symbol": "global::SemanticTypeModel.PowerBI.PowerBiEnvelopePolicyBuilder\u003CTEnvelope\u003E",
+          "disambiguator": 0,
+          "change": "UnchangedBackground",
+          "fingerprint": "0F56DB65C82D29858FC8C86722E1871D78C7FED26DB2C4DCA19661EEF5276534",
+          "reason": "exploration/background",
+          "history": "Unknown"
+        }
+      ],
+      "changeRelevantCount": 0,
+      "backgroundCount": 5,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5
+    }
+  },
+  "overlap": {
+    "uniform/change-first": {
+      "overlapCount": 5,
+      "jaccard": 1
+    },
+    "uniform/history-aware": {
+      "overlapCount": 5,
+      "jaccard": 1
+    },
+    "change-first/history-aware": {
+      "overlapCount": 5,
+      "jaccard": 1
+    }
+  },
+  "displacement": {
+    "changeRelevantEligible": 0,
+    "historyAwareChangeRelevantSelected": 0,
+    "changeRelevantDisplacedByExploration": 0
+  },
+  "timing": {
+    "baseEnumerationColdMs": 17391.047,
+    "headEnumerationColdMs": 17729.27,
+    "selectionColdMs": 7.548,
+    "selectionWarmMs": 0.31,
+    "calibrationColdMs": 3.684,
+    "calibrationWarmMs": 0.021,
+    "managedHeapSnapshotBytes": 4202488,
+    "processWorkingSetBytes": 34562048
+  },
+  "history": {
+    "acceptedOrNegativeLabelsAdmitted": 0,
+    "unknownHeadCandidates": 420
+  },
+  "workspaceDiagnostics": {
+    "base": 0,
+    "head": 0
+  }
+}

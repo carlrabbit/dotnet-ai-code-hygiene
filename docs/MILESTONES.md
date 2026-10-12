@@ -128,3 +128,9 @@ Primary milestone: `docs/milestones/M0013-cross-repository-age-validation.md`.
 Compare candidate-level B-versus-C selection overlap, displacement, first-selection checkpoint timing and cap saturation using frozen M0013 evidence. Distinguish synthetic scheduling from semantic quality; preserve private evidence boundaries.
 
   Primary milestone: `docs/milestones/M0014-sampling-selection-displacement.md`; report: `docs/research/ACTIVITY-AGE-SELECTION-COMPARISON.md`; review request: `.review/REV-M0014-COMPLETION.md`.
+
+## M0015 — Gate-Local Semantic Sampling: Design and Prototype
+**State:** Stage C evidence reconciled — 16 submitted judgments validated and analyzed; broader semantic effectiveness inconclusive; milestone human review outstanding
+**Mode:** AI-executed, human-reviewed
+
+Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`.

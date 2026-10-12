@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "gateId": "hygiene-pr15",
+  "repository": "carlrabbit/dotnet-ai-code-hygiene",
+  "base": "48a87618d02278a178cad02f44a924e207ec88d3",
+  "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+  "rule": "architecture.boringness.review@2",
+  "seed": "M0015-v1-hygiene-pr15-seed-01",
+  "budget": 5,
+  "changedPathCount": 54,
+  "changedPathSha256": "DD83B0B54359EA2D3BACFF3AF6DF6567955EF6EAC221283445986834A3AD0D91",
+  "calibration": {
+    "status": "uncalibrated: insufficient independent labels (train=0, evaluation=0)",
+    "gridVersion": "m0015-grid-v1",
+    "gridSearchRan": false,
+    "trainingScope": "previously-selected-and-independently-labeled candidates only; selection-conditioned subset",
+    "evaluationScope": "held-out candidates from the same selected-and-labeled subset",
+    "interpretation": "conditional labeled-subset yield does not establish general policy optimization or population semantic quality",
+    "fallback": {
+      "changedWeight": 4,
+      "backgroundWeight": 0.5,
+      "explorationFraction": 0.2
+    }
+  },
+  "population": {
+    "base": 91,
+    "head": 96,
+    "newOrChanged": 15,
+    "unchangedContextAffected": 22,
+    "unchangedBackground": 3,
+    "unknownImpact": 56,
+    "unchangedContextOrBackground": 81,
+    "unchangedExplorationCohort": 25,
+    "comparisonPool": 40,
+    "eligibleBeyondPool": 56
+  },
+  "policies": {
+    "uniform": {
+      "selected": [
+        {
+          "id": "A9F6CF2AA156FB22436447419AF210517656A55ACA1147A9AB128CD9D553445F",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+          "disambiguator": 0,
+          "change": "Unknown",
+          "fingerprint": "EBD32F31BE1BF6448C2FB1CA16B80833980345D84F57A79208114E0656B36984",
+          "reason": "unknown-impact exploration",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "5D9C1D0318E605DB5C8C4135D232BE4F0467B5722B8825E1A5A7001D13BB8191",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "A3E729F7A99EFFFA4F5FB48900B58035D94514FC12D4413646444F601F56DBB6",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "2B886355C593A54C18E1808A20E9ED22CB24F3C2AFAFB1328AA867EF0B962517",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "514B9DBC4534DDD5DD9E74944B605E9F56FD5ED030FCA6C0B7BE9E4491DD6AEA",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "538FB3EED147F5C629D36D25AAE6FDBF845D0D4EC0931E71B7826CB97DB0AA84",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+          "disambiguator": 0,
+          "change": "UnchangedContextAffected",
+          "fingerprint": "6A5A37DAF90021643542C914B6E1CFEEF22AEB47C2F1B5080D96C1822D44D69F",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3E0177F70BC45D24BD9A4C9F923A696ED69182FF6E499876AAFB0037E514FFCE",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "6E6BDE4195EF5AEC968D231CC12DD10A45DF00DFF51AB49FD20A7ECE3A3ED11D",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 3,
+      "backgroundCount": 2,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    },
+    "change-first": {
+      "selected": [
+        {
+          "id": "5D9C1D0318E605DB5C8C4135D232BE4F0467B5722B8825E1A5A7001D13BB8191",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "A3E729F7A99EFFFA4F5FB48900B58035D94514FC12D4413646444F601F56DBB6",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "A9F6CF2AA156FB22436447419AF210517656A55ACA1147A9AB128CD9D553445F",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+          "disambiguator": 0,
+          "change": "Unknown",
+          "fingerprint": "EBD32F31BE1BF6448C2FB1CA16B80833980345D84F57A79208114E0656B36984",
+          "reason": "unknown-impact exploration",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "2B886355C593A54C18E1808A20E9ED22CB24F3C2AFAFB1328AA867EF0B962517",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "514B9DBC4534DDD5DD9E74944B605E9F56FD5ED030FCA6C0B7BE9E4491DD6AEA",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3E0177F70BC45D24BD9A4C9F923A696ED69182FF6E499876AAFB0037E514FFCE",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "6E6BDE4195EF5AEC968D231CC12DD10A45DF00DFF51AB49FD20A7ECE3A3ED11D",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "0502209F717B9BF7416B91701F1B3494E74C418232FDED8F19E6E748C1FCADC2",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "A858BF9680F0E5671388B89296BC0D908028B3CA8A0191CD8AA319F9E75FEB22",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 4,
+      "backgroundCount": 1,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    },
+    "history-aware": {
+      "selected": [
+        {
+          "id": "A9F6CF2AA156FB22436447419AF210517656A55ACA1147A9AB128CD9D553445F",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+          "disambiguator": 0,
+          "change": "Unknown",
+          "fingerprint": "EBD32F31BE1BF6448C2FB1CA16B80833980345D84F57A79208114E0656B36984",
+          "reason": "unknown-impact exploration",
+          "selectionStage": "reserved-exploration",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "5D9C1D0318E605DB5C8C4135D232BE4F0467B5722B8825E1A5A7001D13BB8191",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "A3E729F7A99EFFFA4F5FB48900B58035D94514FC12D4413646444F601F56DBB6",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "2B886355C593A54C18E1808A20E9ED22CB24F3C2AFAFB1328AA867EF0B962517",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "514B9DBC4534DDD5DD9E74944B605E9F56FD5ED030FCA6C0B7BE9E4491DD6AEA",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "3E0177F70BC45D24BD9A4C9F923A696ED69182FF6E499876AAFB0037E514FFCE",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+          "disambiguator": 0,
+          "change": "NewOrChanged",
+          "fingerprint": "6E6BDE4195EF5AEC968D231CC12DD10A45DF00DFF51AB49FD20A7ECE3A3ED11D",
+          "reason": "change-relevant",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        },
+        {
+          "id": "538FB3EED147F5C629D36D25AAE6FDBF845D0D4EC0931E71B7826CB97DB0AA84",
+          "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+          "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+          "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+          "disambiguator": 0,
+          "change": "UnchangedContextAffected",
+          "fingerprint": "6A5A37DAF90021643542C914B6E1CFEEF22AEB47C2F1B5080D96C1822D44D69F",
+          "reason": "exploration/background",
+          "selectionStage": "weighted-fill",
+          "history": "Unknown",
+          "evidenceStatus": "Missing"
+        }
+      ],
+      "changeRelevantCount": 3,
+      "backgroundCount": 2,
+      "labeledAcceptedCount": 0,
+      "labeledNegativeCount": 0,
+      "unknownHistorySelectedCount": 5,
+      "staleEvidenceSelectedCount": 0
+    }
+  },
+  "overlap": {
+    "uniform/change-first": {
+      "overlapCount": 4,
+      "jaccard": 0.6666666666666666
+    },
+    "uniform/history-aware": {
+      "overlapCount": 5,
+      "jaccard": 1
+    },
+    "change-first/history-aware": {
+      "overlapCount": 4,
+      "jaccard": 0.6666666666666666
+    }
+  },
+  "displacement": {
+    "changeFirstChangedSelectedCount": 4,
+    "historyAwareChangedSelectedCount": 3,
+    "changedSelectionCountDifference": 1,
+    "changeFirstChangedCandidatesOmittedByHistoryAware": [
+      {
+        "id": "0502209F717B9BF7416B91701F1B3494E74C418232FDED8F19E6E748C1FCADC2",
+        "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+        "path": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs",
+        "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+        "change": "NewOrChanged"
+      }
+    ],
+    "historyAwareReplacementCandidates": [
+      {
+        "id": "538FB3EED147F5C629D36D25AAE6FDBF845D0D4EC0931E71B7826CB97DB0AA84",
+        "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+        "path": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+        "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+        "change": "UnchangedContextAffected",
+        "selectionStage": "weighted-fill",
+        "reason": "exploration/background"
+      }
+    ],
+    "changedCandidateIdentityDisplacementCount": 1,
+    "selectedIdentitySymmetricDifferenceCount": 2,
+    "theoreticalChangedCapacityShortfall": 2
+  },
+  "timing": {
+    "baseEnumerationColdMs": 5900.184,
+    "headEnumerationColdMs": 5607.358,
+    "selectionColdMs": 4.975,
+    "selectionWarmMs": 0.297,
+    "calibrationMode": "deterministic-fallback",
+    "calibrationColdMs": 2.199,
+    "calibrationWarmMs": 0.013,
+    "managedHeapSnapshotBytes": 2068464,
+    "processWorkingSetBytes": 32190464
+  },
+  "history": {
+    "acceptedOrNegativeLabelsAdmitted": 0,
+    "currentEvidenceCandidates": 0,
+    "staleEvidenceCandidates": 0,
+    "missingEvidenceCandidates": 96,
+    "unknownHeadCandidates": 96
+  },
+  "workspaceDiagnostics": {
+    "base": 0,
+    "head": 0
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "m0015-stage-a-amended-20261011-v1",
+  "rule": "architecture.boringness.review@2",
+  "selectionFrame": {
+    "policySets": [
+      "uniform",
+      "change-first",
+      "history-aware"
+    ],
+    "selectedCountPerPolicy": 5,
+    "membership": "identity union across all three frozen policy sets per source-changing gate",
+    "maximumAssessmentCount": 20
+  },
+  "controlProtocol": {
+    "method": "rank eligible head candidates outside the policy-selection union by SHA-256(seed NUL gateId NUL stableCandidateId), choose smallest rank and break ties by stableCandidateId",
+    "seeds": {
+      "hygiene-pr15": "M0015-stageA-control-hygiene-20261011-v1",
+      "semantic-model-source": "M0015-stageA-control-semantic-model-20261011-v1"
+    },
+    "controlsPerGate": 1
+  },
+  "rubric": {
+    "questions": [
+      {
+        "id": "Q1",
+        "name": "Speculative abstraction",
+        "text": "Is there an interface, provider, factory, strategy, generic mechanism, extension point, or similar abstraction with only one meaningful production use/implementation and no current requirement for variability?"
+      },
+      {
+        "id": "Q2",
+        "name": "Indirection",
+        "text": "To understand what this code actually does, must you follow several forwarding/delegation layers before reaching the behavior?"
+      },
+      {
+        "id": "Q3",
+        "name": "Change locality",
+        "text": "Would a small behavioral change require coordinated edits across multiple plumbing types, registrations, adapters, or mappings rather than mostly changing the code that owns the behavior?"
+      },
+      {
+        "id": "Q4",
+        "name": "Hidden machinery",
+        "text": "Does the implementation rely on reflection, dynamic discovery, convention-based registration, a custom DSL/framework, or other implicit machinery where ordinary explicit C# could satisfy the current requirement?"
+      },
+      {
+        "id": "Q5",
+        "name": "Unclear ownership",
+        "text": "After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?"
+      }
+    ],
+    "answers": [
+      "yes",
+      "no",
+      "uncertain"
+    ],
+    "escalation": "Q4=yes or at least two yes answers among Q1,Q2,Q3,Q5",
+    "abstention": "Any uncertain answer requires an uncertain decision with explanation."
+  },
+  "analysisPlan": [
+    "Validate submission manifest and source revisions before unblinding.",
+    "Do not inspect PR #16, selection artifacts, or policy mappings before judgment submission is locked.",
+    "Compare only observed judgments for the same assessed identities at equal review budget; account for shared candidates, partial coverage, uncertain outcomes, and small N.",
+    "Report scheduling selection separately from semantic findings. Controls follow the frozen protocol; no population-wide extrapolation is permitted.",
+    "These judgments are post-gate outcomes and cannot calibrate the same gate; temporal transfer requires later-gate evidence."
+  ],
+  "dataSchemaVersion": 1
+}

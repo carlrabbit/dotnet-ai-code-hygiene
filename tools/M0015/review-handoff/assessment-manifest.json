@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "kind": "m0015-stage-a-assessment-manifest",
+  "protocolVersion": "m0015-stage-a-amended-20261011-v1",
+  "protocolSha256": "B9C0915683AD3A0EC5CCC8BF3DC023963DF7621436A9BC68B0008D7C017096FB",
+  "frozenAtUtc": "2026-10-11T21:20:39Z",
+  "rule": "architecture.boringness.review@2",
+  "ruleVersion": 2,
+  "assessmentCount": 16,
+  "sources": [
+    {
+      "sourceKey": "repository-a",
+      "repository": "carlrabbit/dotnet-ai-code-hygiene",
+      "url": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "base": "48a87618d02278a178cad02f44a924e207ec88d3",
+      "head": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "archivePath": "repositories/dotnet-ai-code-hygiene-4d05393b4501.zip",
+      "archiveSha256": "AE7C0C51C51ADF69D5D2CE2FDC5FAF4A90C811B4D64D1FCF4D6055E3274C7699",
+      "trackedFileCount": 128,
+      "eligibleHeadCandidateCount": 96,
+      "sensitivePathInventory": "no tracked sensitive-looking paths found"
+    },
+    {
+      "sourceKey": "repository-b",
+      "repository": "carlrabbit/dotnet-semantic-type-model",
+      "url": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "base": "9ba2bf4dc8268b490236d9f287f358d7a840353a",
+      "head": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "archivePath": "repositories/dotnet-semantic-type-model-88b5ad5092e3.zip",
+      "archiveSha256": "3A3DBA59938B0B6632511EAD748E3BBE97EA31691F1A1AAC1F893E76DCECF777",
+      "trackedFileCount": 334,
+      "eligibleHeadCandidateCount": 396,
+      "sensitivePathInventory": "no tracked sensitive-looking paths found"
+    }
+  ],
+  "subjects": [
+    {
+      "token": "M15A-1940CB3D3380AC9516535A0076F5EA39",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryQualityReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryQualityReviewRuleModule",
+      "disambiguator": 0,
+      "fingerprint": "A858BF9680F0E5671388B89296BC0D908028B3CA8A0191CD8AA319F9E75FEB22"
+    },
+    {
+      "token": "M15A-0D9EE4DD26E72357E9B058EADAB8962C",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/Rules/SemanticReview/SummaryGermanReview.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SummaryGermanReviewRuleModule",
+      "disambiguator": 0,
+      "fingerprint": "514B9DBC4534DDD5DD9E74944B605E9F56FD5ED030FCA6C0B7BE9E4491DD6AEA"
+    },
+    {
+      "token": "M15A-4D4F236FB3391DAB2344B57B6AA20DF4",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/Sampling/SamplingSession.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.SamplingSession",
+      "disambiguator": 0,
+      "fingerprint": "6E6BDE4195EF5AEC968D231CC12DD10A45DF00DFF51AB49FD20A7ECE3A3ED11D"
+    },
+    {
+      "token": "M15A-5FED23CF545E77E2EB457E59245EB7D1",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/Rules/RuleExecution.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.RuleCatalog",
+      "disambiguator": 0,
+      "fingerprint": "6A5A37DAF90021643542C914B6E1CFEEF22AEB47C2F1B5080D96C1822D44D69F"
+    },
+    {
+      "token": "M15A-FA14AC29DA57C2009160FF80268A4616",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/Sampling/ProjectActivity.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.Sampling.ActivitySourceFile",
+      "disambiguator": 0,
+      "fingerprint": "A3E729F7A99EFFFA4F5FB48900B58035D94514FC12D4413646444F601F56DBB6"
+    },
+    {
+      "token": "M15A-3E8E7D05BD2AD76579D420BC5BC696ED",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.HygieneEngine.RunSnapshot",
+      "disambiguator": 0,
+      "fingerprint": "8DE5F2178D6B98E361D01D81427CFE0DE044A96C068B08E83C121A4D99217031"
+    },
+    {
+      "token": "M15A-BE99FFED923B039E0A47E8A413143599",
+      "sourceKey": "repository-a",
+      "repository": "https://github.com/carlrabbit/dotnet-ai-code-hygiene",
+      "revision": "4d05393b4501a0b4d701f6ba6e1d051e9bd35ec2",
+      "project": "src/DotNetAiCodeHygiene.Core/DotNetAiCodeHygiene.Core.csproj",
+      "archivedPath": "src/DotNetAiCodeHygiene.Core/HygieneEngine.cs",
+      "symbol": "global::DotNetAiCodeHygiene.Core.SemanticReviewRequest",
+      "disambiguator": 0,
+      "fingerprint": "EBD32F31BE1BF6448C2FB1CA16B80833980345D84F57A79208114E0656B36984"
+    },
+    {
+      "token": "M15A-FB248047CBBDB169AE55B5107C10ADF3",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.DotNet/SemanticTypeModel.DotNet.csproj",
+      "archivedPath": "src/SemanticTypeModel.DotNet/RoslynDotNetTypeExtractor.cs",
+      "symbol": "global::SemanticTypeModel.DotNet.RoslynDotNetTypeExtractor",
+      "disambiguator": 0,
+      "fingerprint": "2562010E9E47E6B9E938A5A318773357D7E1AA0CF0B338F5AB9DCED83D8D4EB7"
+    },
+    {
+      "token": "M15A-AD185E732243356B3FA44D466F1DECAE",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/SemanticTypeModel.TestData.Tests.Unit.csproj",
+      "archivedPath": "tests/unit/SemanticTypeModel.TestData.Tests.Unit/TestDataCorrectiveTests.cs",
+      "symbol": "global::SemanticTypeModel.TestData.Tests.Unit.TestDataCorrectiveTests",
+      "disambiguator": 0,
+      "fingerprint": "9E7BE2AC55D3AA73C4E4FF9B64C68DA6E7697F67B8A44CBE55985269DCD68084"
+    },
+    {
+      "token": "M15A-72FE62B8DF7430F16CF8B30367D5286E",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+      "archivedPath": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.ProjectionCoverage.cs",
+      "symbol": "global::SemanticTypeModel.TestModels.ModelA.StorageMatrixEntity",
+      "disambiguator": 0,
+      "fingerprint": "CA28D89C6B037C4A5097889523FEE026C493AA112A8B9FB3CCB001F8774AB313"
+    },
+    {
+      "token": "M15A-A07B92CEC2932AA6FE17D577A799D550",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/SemanticTypeModel.TestModels.ModelA.csproj",
+      "archivedPath": "tests/fixtures/SemanticTypeModel.TestModels.ModelA/ModelA.cs",
+      "symbol": "global::SemanticTypeModel.TestModels.ModelA.BaseEntity",
+      "disambiguator": 0,
+      "fingerprint": "7197432D771830A371A2E22FC6573B6D382945CF4896BF8547DFB90319FBF555"
+    },
+    {
+      "token": "M15A-00DFF023DE0547D5D9A87F868ECDA5AE",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+      "archivedPath": "src/SemanticTypeModel.TestData/SemanticTerminologyProfile.cs",
+      "symbol": "global::SemanticTypeModel.TestData.SemanticTerminologyProfile",
+      "disambiguator": 0,
+      "fingerprint": "D1048D8992EF1A2508B432013010321D73CA78DD13B6324EEC9BDB994E9A207E"
+    },
+    {
+      "token": "M15A-45D7E61C123158EB67517FC09A2EC947",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.JsonSchema/SemanticTypeModel.JsonSchema.csproj",
+      "archivedPath": "src/SemanticTypeModel.JsonSchema/Derivation/JsonSchemaUnsupportedCompositionTransformation.cs",
+      "symbol": "global::SemanticTypeModel.JsonSchema.Derivation.JsonSchemaUnsupportedCompositionTransformation",
+      "disambiguator": 0,
+      "fingerprint": "66A4F4097C431C7E05532EED19C02EEE7F09A93A7D3DC0DB6C64BC63E75A1CB8"
+    },
+    {
+      "token": "M15A-F7E087452929FD9D66C17DDE00CE282D",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.TestData/SemanticTypeModel.TestData.csproj",
+      "archivedPath": "src/SemanticTypeModel.TestData/SemanticTestDataGenerator.cs",
+      "symbol": "global::SemanticTypeModel.TestData.SemanticTestDataGenerator.Context",
+      "disambiguator": 0,
+      "fingerprint": "991FBD4561B51151A8DD1DBB9A555B06C3BB2D6403517CD125D851D6FB736A32"
+    },
+    {
+      "token": "M15A-B572492C45B8989F2DD678C5DBF1780F",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.Abstractions/SemanticTypeModel.Abstractions.csproj",
+      "archivedPath": "src/SemanticTypeModel.Abstractions/Model/TypeModelContracts.cs",
+      "symbol": "global::SemanticTypeModel.Abstractions.Model.SchemaPipelineOptions",
+      "disambiguator": 0,
+      "fingerprint": "CFADD798BCBFBC4D6FC5EFCD7E28D5AE94A0A400DFBAD27AC3884797D246C41B"
+    },
+    {
+      "token": "M15A-FB77BA26A17A906B50A01118A2DC3DBF",
+      "sourceKey": "repository-b",
+      "repository": "https://github.com/carlrabbit/dotnet-semantic-type-model",
+      "revision": "88b5ad5092e38e00257d4e327d6606afa2bf4952",
+      "project": "src/SemanticTypeModel.EFCore.Generators/SemanticTypeModel.EFCore.Generators.csproj",
+      "archivedPath": "src/SemanticTypeModel.EFCore.Generators/SemanticEfConfigurationGenerator.cs",
+      "symbol": "global::SemanticTypeModel.EFCore.Generators.SemanticEfConfigurationGenerator",
+      "disambiguator": 0,
+      "fingerprint": "5DDAC09716D03C95FD55855CB678588421A18F4085742B9D8303673490E3A7C4"
+    }
+  ],
+  "sourcePopulationSummary": {
+    "hygiene-pr15": {
+      "eligiblePopulation": 96,
+      "selectionUnionCount": 6,
+      "perPolicySelectionCount": 5,
+      "independentControlCount": 1,
+      "uniqueAssessmentCount": 7
+    },
+    "semantic-model-source": {
+      "eligiblePopulation": 396,
+      "selectionUnionCount": 8,
+      "perPolicySelectionCount": 5,
+      "independentControlCount": 1,
+      "uniqueAssessmentCount": 9
+    }
+  },
+  "blindedCandidateListSha256": "BAFFD52EC39DB8C43912F7A18CB76D745A27F9B69F2FACBC6B7F7CD983F9AF66",
+  "tokenMappingSha256": "247540A9683A9B8192BDB0EA19955C43F221A6343D3B219875EB0F35CCA675FA",
+  "controlProtocol": {
+    "method": "For each gate, rank eligible head candidates outside the union of the three five-candidate policy selections by SHA-256(seed NUL gateId NUL stableCandidateId); choose the smallest rank, with stableCandidateId as tie-breaker.",
+    "seeds": {
+      "hygiene-pr15": "M0015-stageA-control-hygiene-20261011-v1",
+      "semantic-model-source": "M0015-stageA-control-semantic-model-20261011-v1"
+    },
+    "controlsPerGate": 1,
+    "outsidePolicySelectionUnion": true
+  },
+  "policySelectionFrame": {
+    "policies": [
+      "uniform",
+      "change-first",
+      "history-aware"
+    ],
+    "selectionsPerPolicy": 5,
+    "coverage": "union of all selected candidate identities for the frozen gate; policy membership is withheld in the user-facing package",
+    "historicalGateResults": "exploratory; the assessment frame is newly frozen for this protocol"
+  },
+  "rubric": {
+    "questions": [
+      {
+        "id": "Q1",
+        "name": "Speculative abstraction",
+        "text": "Is there an interface, provider, factory, strategy, generic mechanism, extension point, or similar abstraction with only one meaningful production use/implementation and no current requirement for variability?"
+      },
+      {
+        "id": "Q2",
+        "name": "Indirection",
+        "text": "To understand what this code actually does, must you follow several forwarding/delegation layers before reaching the behavior?"
+      },
+      {
+        "id": "Q3",
+        "name": "Change locality",
+        "text": "Would a small behavioral change require coordinated edits across multiple plumbing types, registrations, adapters, or mappings rather than mostly changing the code that owns the behavior?"
+      },
+      {
+        "id": "Q4",
+        "name": "Hidden machinery",
+        "text": "Does the implementation rely on reflection, dynamic discovery, convention-based registration, a custom DSL/framework, or other implicit machinery where ordinary explicit C# could satisfy the current requirement?"
+      },
+      {
+        "id": "Q5",
+        "name": "Unclear ownership",
+        "text": "After reading the relevant types, is it difficult to identify the single place that owns the behavior or state being reviewed?"
+      }
+    ],
+    "answers": [
+      "yes",
+      "no",
+      "uncertain"
+    ],
+    "escalation": "negative when Q4=yes or at least two yes answers among Q1,Q2,Q3,Q5; accepted when all answers are determined and the threshold is not met; uncertain when insufficient evidence prevents a reliable decision",
+    "abstention": "Use uncertain if any question cannot be assessed from the frozen archive; leave partial items absent rather than inferring an answer."
+  },
+  "analysisPlan": [
+    "Validate submission manifest and source revisions before unblinding.",
+    "Do not inspect PR #16, selection artifacts, or policy mappings before judgment submission is locked.",
+    "Compare only observed judgments for the same assessed identities at equal review budget; account for shared candidates, partial coverage, uncertain outcomes, and small N.",
+    "Report scheduling selection separately from semantic findings. Controls follow the frozen protocol; no population-wide extrapolation is permitted.",
+    "These judgments are post-gate outcomes and cannot calibrate the same gate; temporal transfer requires later-gate evidence."
+  ],
+  "dataSchemaVersion": 1,
+  "submissionSchema": "judgments-schema.json",
+  "noJudgmentsIncluded": true
+}
