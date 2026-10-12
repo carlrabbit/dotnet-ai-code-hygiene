@@ -91,6 +91,85 @@ public sealed class GateLocalReviewTests
     }
 
     [Test]
+    public async Task DeletionOnlyChangesMarkSurvivingClassesDirectForChangedAndBaseGates()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-gate-delete-direct-" + Guid.NewGuid().ToString("N"));
+        const string source = "public class Alpha\n{\n    public void Removed() { }\n}\npublic class Beta\n{\n    public void Removed() { }\n}\npublic class Gamma\n{\n    public void Removed() { }\n}\n";
+        try
+        {
+            string sourcePath = Path.Combine(repository, "Api.cs");
+            await InitializeGitReviewRepository(repository, sourcePath, source);
+            string changed = source.Replace("    public void Removed() { }\n", "", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(sourcePath, changed);
+
+            ReviewBatch changedBatch = new HygieneEngine(repository).Check([], true).ReviewBatches
+                .Single(batch => batch.RuleId == BoringnessReviewRuleModule.RuleId);
+            await Assert.That(changedBatch.SampleCount).IsEqualTo(3);
+            await Assert.That(changedBatch.Items.Select(item => item.Symbol).ToArray())
+                .IsEquivalentTo(new[] { "global::Alpha", "global::Beta", "global::Gamma" });
+
+            await Git(repository, "add", "Api.cs");
+            ReviewBatch stagedBatch = new HygieneEngine(repository).Check([], true).ReviewBatches
+                .Single(batch => batch.RuleId == BoringnessReviewRuleModule.RuleId);
+            await Assert.That(stagedBatch.SampleCount).IsEqualTo(3);
+
+            ReviewBatch baseBatch = new HygieneEngine(repository).Check([], false, baseRef: "main").ReviewBatches
+                .Single(batch => batch.RuleId == BoringnessReviewRuleModule.RuleId);
+            await Assert.That(baseBatch.SampleCount).IsEqualTo(3);
+            await Assert.That(baseBatch.Items.Select(item => item.Symbol).ToArray())
+                .IsEquivalentTo(new[] { "global::Alpha", "global::Beta", "global::Gamma" });
+        }
+        finally { RemoveFixture(repository); }
+    }
+
+    [Test]
+    public async Task TopLevelAndEndOfFileDeletionsDoNotMarkNeighboringClassesDirect()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-gate-delete-boundary-" + Guid.NewGuid().ToString("N"));
+        const string middleType = "public class RemovedMiddle\n{\n    public void Gone() { }\n}\n";
+        const string finalType = "public class RemovedAtEnd\n{\n    public void Gone() { }\n}\n";
+        const string source = "public class First\n{\n    public void Keep() { }\n}\n" + middleType +
+            "public class Last\n{\n    public void Keep() { }\n}\n" + finalType;
+        try
+        {
+            string sourcePath = Path.Combine(repository, "Api.cs");
+            await InitializeGitReviewRepository(repository, sourcePath, source);
+            await File.WriteAllTextAsync(sourcePath, source.Replace(middleType, "", StringComparison.Ordinal)
+                .Replace(finalType, "", StringComparison.Ordinal));
+
+            ReviewBatch batch = new HygieneEngine(repository).Check([], true).ReviewBatches
+                .Single(item => item.RuleId == BoringnessReviewRuleModule.RuleId);
+            await Assert.That(batch.PopulationCount).IsEqualTo(2);
+            await Assert.That(batch.SampleCount).IsEqualTo(1);
+            await Assert.That(new[] { "global::First", "global::Last" }.Contains(batch.Items.Single().Symbol)).IsTrue();
+        }
+        finally { RemoveFixture(repository); }
+    }
+
+    [Test]
+    public async Task AddedAndReplacedLinesRemainDirectWithOneContextCandidate()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-gate-add-replace-" + Guid.NewGuid().ToString("N"));
+        const string source = "public class First\n{\n    public int Value() => 1;\n}\npublic class Second\n{\n    public int Value() => 2;\n}\npublic class Third\n{\n    public int Value() => 3;\n}\n";
+        try
+        {
+            string sourcePath = Path.Combine(repository, "Api.cs");
+            await InitializeGitReviewRepository(repository, sourcePath, source);
+            string changed = source.Replace("Value() => 1", "Value() => 10", StringComparison.Ordinal)
+                + "public class Added\n{\n    public int Value() => 4;\n}\n";
+            await File.WriteAllTextAsync(sourcePath, changed);
+
+            ReviewBatch batch = new HygieneEngine(repository).Check([], true).ReviewBatches
+                .Single(item => item.RuleId == BoringnessReviewRuleModule.RuleId);
+            await Assert.That(batch.SampleCount).IsEqualTo(3);
+            await Assert.That(batch.Items.Any(item => item.Symbol == "global::First")).IsTrue();
+            await Assert.That(batch.Items.Any(item => item.Symbol == "global::Added")).IsTrue();
+            await Assert.That(batch.Items.Count(item => item.Symbol is "global::Second" or "global::Third")).IsEqualTo(1);
+        }
+        finally { RemoveFixture(repository); }
+    }
+
+    [Test]
     public async Task ChangedMergeBaseRejectsOldExpansionHandoffAndAcceptanceWithSamePopulation()
     {
         string repository = Path.Combine(Path.GetTempPath(), "hygiene-gate-base-stale-" + Guid.NewGuid().ToString("N"));
@@ -293,6 +372,19 @@ public sealed class GateLocalReviewTests
         await process.WaitForExitAsync();
         if (process.ExitCode != 0) { throw new InvalidOperationException(error); }
         return output;
+    }
+
+    private static async Task InitializeGitReviewRepository(string repository, string sourcePath, string source)
+    {
+        Directory.CreateDirectory(repository);
+        await Git(repository, "init", "-q", "-b", "main");
+        await Git(repository, "config", "user.email", "fixture@example.invalid");
+        await Git(repository, "config", "user.name", "Gate Fixture");
+        await File.WriteAllTextAsync(Path.Combine(repository, "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(sourcePath, source);
+        _ = new ProfileManager(repository).Bootstrap();
+        await Git(repository, "add", "-A");
+        await Git(repository, "commit", "-m", "deletion attribution baseline");
     }
 
     private static void RemoveFixture(string repository)

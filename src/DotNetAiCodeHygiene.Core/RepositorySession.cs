@@ -2,7 +2,10 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.CodeAnalysis.Text;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -193,11 +196,30 @@ internal sealed class RepositorySession : IDisposable
             else
             {
                 string diff = Git("diff", "--no-ext-diff", "--unified=0", reference, "--", relative);
-                foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(diff, "(?m)^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,(\\d+))? @@"))
+                SourceText? sourceText = null;
+                SyntaxNode? syntaxRoot = null;
+                foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(diff, "(?m)^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@"))
                 {
-                    int start = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-                    int count = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) : 1;
+                    int start = int.Parse(match.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    int count = match.Groups[4].Success ? int.Parse(match.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture) : 1;
                     for (int line = start; line < start + count; line++) { lines.Add(line); }
+                    if (count != 0) { continue; }
+
+                    // A deletion has no added line to overlap a surviving declaration.
+                    // Attribute its insertion point only when that point is strictly
+                    // inside a surviving type; a top-level declaration removed between
+                    // types or at EOF must not make its neighbor look changed.
+                    sourceText ??= SourceText.From(File.ReadAllText(full));
+                    syntaxRoot ??= CSharpSyntaxTree.ParseText(sourceText).GetRoot();
+                    int newStart = int.Parse(match.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    int position = newStart == 0
+                        ? 0
+                        : sourceText.Lines[Math.Min(newStart - 1, sourceText.Lines.Count - 1)].EndIncludingLineBreak;
+                    if (position > 0 && position < sourceText.Length && syntaxRoot.DescendantNodes().OfType<TypeDeclarationSyntax>()
+                        .Any(declaration => declaration.SpanStart < position && position < declaration.Span.End))
+                    {
+                        lines.Add(sourceText.Lines.GetLineFromPosition(position).LineNumber + 1);
+                    }
                 }
             }
             result[relative] = lines;
