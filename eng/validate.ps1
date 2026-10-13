@@ -118,7 +118,7 @@ try {
     if (@($rules.rules | Where-Object { $_.id -in $newRuleIds }).Count -ne 3) { throw 'Installed rule catalog omitted an M0017 review rule.' }
     $visualRule = $rules.rules | Where-Object id -eq 'readability.control-flow.visual-block'
     if ($visualRule.version -ne 2 -or $visualRule.classification -ne 'review-candidate') { throw 'Installed visual-block rule did not expose its v2 candidate contract.' }
-    $reviewSource = @('/// <summary>Sample API</summary>', 'public class Sample { public void Run() { int value = 1; if (value > 0) { System.Console.WriteLine(value); } } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
+    $reviewSource = @('// Copyright 2026 Example. All rights reserved.', '// MIT License', '/// <summary>Sample API</summary>', 'public class Sample { public void Run() { int value = 1; if (value > 0) { System.Console.WriteLine(value); } } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
     Set-Content -NoNewline -Path Sample.cs -Value ($reviewSource -join "`n")
     & $hygiene format | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed formatter failed on the visual-block fixture.' }
@@ -137,7 +137,12 @@ namespace Xunit { [System.AttributeUsage(System.AttributeTargets.Method)] public
 public class ReviewedAdditional
 {
     // Keep this guard aligned with the request contract.
-    public void Run() { }
+    public void Run()
+    {
+        var key = 1; // Keep the source statement and trailing review separate.
+        // Avoid the guarded operation when the key is empty.
+        if (key > 0) { System.Console.WriteLine(key); }
+    }
     [Xunit.Fact]
     public void ChangedBehaviorHasRegressionTest() { System.Console.WriteLine("observable"); }
 }
@@ -161,7 +166,13 @@ public class ReviewedAdditional
     $newAccepted = & $hygiene review accept $testReview.handle $testReview.items[0].id --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $newAccepted.acceptedCount -ne 1 -or $newAccepted.ruleId -ne 'tests.quality.review') { throw 'Installed test-quality review acceptance failed.' }
     $commentExpanded = & $hygiene review expand $commentReview.handle --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $commentExpanded.reviewBatch.ruleId -ne 'comments.intent.review' -or $commentExpanded.reviewBatch.items.Count -lt 1) { throw 'Installed comment-intent expansion failed.' }
+    if ($LASTEXITCODE -ne 0 -or $commentExpanded.reviewBatch.ruleId -ne 'comments.intent.review' -or $commentExpanded.reviewBatch.items.Count -lt 4) { throw 'Installed comment-intent expansion failed or omitted comment groups.' }
+    $commentHandoff = & $hygiene review handoff $commentReview.handle
+    if ($LASTEXITCODE -ne 0 -or $commentHandoff -notmatch 'Review handoff written: ') { throw 'Installed comment-intent handoff failed.' }
+    $commentRequestPath = $commentHandoff.Substring('Review handoff written: '.Length).Trim()
+    $commentRequest = Get-Content -LiteralPath $commentRequestPath -Raw | ConvertFrom-Json
+    $commentSource = $commentRequest.sources | Where-Object path -eq 'Sample.cs'
+    if (-not $commentSource -or $commentSource.content -notmatch 'Copyright 2026' -or $commentSource.content -notmatch 'MIT License' -or $commentSource.content -notmatch 'trailing review separate' -or $commentSource.content -notmatch 'Avoid the guarded operation') { throw 'Installed comment-intent expansion did not preserve current source context or ordinary legal comments.' }
     $typeHandoff = & $hygiene review handoff $typeReview.handle
     if ($LASTEXITCODE -ne 0 -or $typeHandoff -notmatch 'Review handoff written: ') { throw 'Installed type-responsibility handoff failed.' }
     $typeRequestPath = $typeHandoff.Substring('Review handoff written: '.Length).Trim()

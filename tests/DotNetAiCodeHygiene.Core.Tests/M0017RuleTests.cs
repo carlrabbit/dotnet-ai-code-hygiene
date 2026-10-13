@@ -40,11 +40,15 @@ public sealed class M0017RuleTests
             await Assert.That(expandedTypes.Items.Where(item => item.Symbol.EndsWith("Sample", StringComparison.Ordinal)).Count()).IsEqualTo(2);
             await Assert.That(tests.PopulationCount).IsEqualTo(8);
             await Assert.That(tests.Items.All(item => item.Summary == "")).IsTrue();
-            await Assert.That(comments.PopulationCount).IsEqualTo(5);
-            await Assert.That(comments.Items.All(item => item.Line > 1 && item.Declaration.Length > 0)).IsTrue();
+            await Assert.That(comments.PopulationCount).IsEqualTo(6);
+            await Assert.That(comments.Items.All(item => item.Line >= 1 && item.Declaration.Length > 0)).IsTrue();
             string[] stableTypeIds = GetPopulation(repository, new TypeResponsibilityReviewRuleModule()).Select(subject => subject.Identity).ToArray();
             string[] stableCommentIds = GetPopulation(repository, new CommentIntentReviewRuleModule()).Select(subject => subject.Identity).ToArray();
             string[] stableTestIds = GetPopulation(repository, new TestQualityReviewRuleModule()).Select(subject => subject.Identity).ToArray();
+            ReviewSubject[] duplicateCommentAnchors = GetPopulation(repository, new CommentIntentReviewRuleModule())
+                .Where(subject => CommentBody(subject).Contains("Same owner and anchor.", StringComparison.Ordinal)).ToArray();
+            await Assert.That(duplicateCommentAnchors.Length).IsEqualTo(2);
+            await Assert.That(duplicateCommentAnchors[0].Identity == duplicateCommentAnchors[1].Identity).IsFalse();
             await Assert.That(result.ReviewBatches.Select(batch => batch.RuleId).ToArray()).IsEquivalentTo(new[]
             {
                 SummaryQualityReviewRuleModule.RuleId, SummaryGermanReviewRuleModule.RuleId, BoringnessReviewRuleModule.RuleId,
@@ -106,6 +110,12 @@ public sealed class M0017RuleTests
         return module.Evaluate(new RuleContext(session, documents)).ReviewSubjects;
     }
 
+    private static string CommentBody(ReviewSubject subject)
+    {
+        int separator = subject.Content.IndexOf('\0');
+        return separator < 0 ? subject.Content : subject.Content[..separator];
+    }
+
     [Test]
     public async Task VisualBlockIsVersionedAsAReviewCandidateWithoutRewriteCapability()
     {
@@ -115,6 +125,92 @@ public sealed class M0017RuleTests
         IRuleModule visualBlock = new ControlFlowVisualBlockRuleModule();
         await Assert.That(visualBlock is IFormatRemediationRule).IsFalse();
         await Assert.That(visualBlock is INormalizeRemediationRule).IsFalse();
+    }
+
+    [Test]
+    public async Task CommentDiscoverySeparatesSyntaxBoundariesAndPreservesStableLifecycleEvidence()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-m0017-comments-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string source = CommentFixture;
+            string fixturePath = Path.Combine(repository, "Fixture.cs");
+            await File.WriteAllTextAsync(fixturePath, source);
+            RunGit(repository, "init", "-q");
+            RunGit(repository, "config", "user.email", "m0017-test@example.invalid");
+            RunGit(repository, "config", "user.name", "M0017 Test");
+            var engine = new HygieneEngine(repository);
+            _ = engine.Bootstrap();
+            RunGit(repository, "add", ".");
+            RunGit(repository, "commit", "-m", "comment fixture");
+
+            ReviewSubject[] initial = GetPopulation(repository, new CommentIntentReviewRuleModule()).ToArray();
+            await Assert.That(initial.Length).IsEqualTo(5);
+            ReviewSubject[] leadingPair = initial.Where(subject => CommentBody(subject).Contains("// first leading line", StringComparison.Ordinal)
+                || CommentBody(subject).Contains("// second leading line", StringComparison.Ordinal)).ToArray();
+            await Assert.That(leadingPair.Length).IsEqualTo(1);
+            ReviewSubject trailing = initial.Single(subject => CommentBody(subject).Contains("// trailing on key statement", StringComparison.Ordinal));
+            ReviewSubject leading = initial.Single(subject => CommentBody(subject).Contains("// avoid another request", StringComparison.Ordinal));
+            ReviewSubject separateBlock = initial.Single(subject => CommentBody(subject).Contains("/* separate block for a different statement */", StringComparison.Ordinal));
+            await Assert.That(trailing.Identity == leading.Identity).IsFalse();
+            await Assert.That(separateBlock.Identity == leading.Identity).IsFalse();
+            await Assert.That(trailing.Item.Line).IsEqualTo(7);
+            await Assert.That(leading.Item.Line).IsEqualTo(8);
+            ReviewSubject copyright = initial.Single(subject => CommentBody(subject).Contains("Copyright 2026", StringComparison.Ordinal));
+            ReviewSubject license = initial.Single(subject => CommentBody(subject).Contains("MIT License", StringComparison.Ordinal));
+            await Assert.That(copyright.Item.Line).IsEqualTo(1);
+            await Assert.That(license.Identity).IsEqualTo(copyright.Identity);
+            await Assert.That(initial.Any(subject => CommentBody(subject).Contains("avoid another request", StringComparison.Ordinal))).IsTrue();
+
+            string[] stableIds = initial.Select(subject => subject.Identity).ToArray();
+            await File.WriteAllTextAsync(fixturePath, "public class UnrelatedPrefix { }\n" + source);
+            ReviewSubject[] afterPrefix = GetPopulation(repository, new CommentIntentReviewRuleModule()).ToArray();
+            await Assert.That(stableIds.All(id => afterPrefix.Any(subject => subject.Identity == id))).IsTrue();
+
+            string withSimilarBlock = "public class UnrelatedPrefix { }\n" + source.Replace(
+                "// MIT License\nclass Cache",
+                "// MIT License\n\n// Copyright 2026 Example. All rights reserved.\nclass Cache", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(fixturePath, withSimilarBlock);
+            ReviewSubject[] afterInsert = GetPopulation(repository, new CommentIntentReviewRuleModule()).ToArray();
+            await Assert.That(stableIds.All(id => afterInsert.Any(subject => subject.Identity == id))).IsTrue();
+            await Assert.That(initial.All(before => afterInsert.Any(after => after.Identity == before.Identity && after.Content == before.Content))).IsTrue();
+            await File.WriteAllTextAsync(fixturePath, "public class UnrelatedPrefix { }\n" + source);
+            ReviewSubject[] afterRemove = GetPopulation(repository, new CommentIntentReviewRuleModule()).ToArray();
+            await Assert.That(stableIds.All(id => afterRemove.Any(subject => subject.Identity == id))).IsTrue();
+
+            CheckResult initialGate = engine.Check([], false, reviewAll: true);
+            ReviewBatch initialBatch = initialGate.ReviewBatches.Single(batch => batch.RuleId == CommentIntentReviewRuleModule.RuleId);
+            IReadOnlyList<ReviewItem> populationItems = initialBatch.PopulationItems!;
+            await Assert.That(populationItems.Select(item => item.Line)
+                .SequenceEqual(populationItems.Select(item => item.Line).Order())).IsTrue();
+            await Assert.That(initialBatch.SourceContents!.Single().Content).IsEqualTo("public class UnrelatedPrefix { }\n" + source);
+            string acceptedId = initialBatch.Items.Single(item => item.Line == 9).Id;
+            _ = engine.AcceptReview(initialBatch.Handle, [acceptedId]);
+            ReviewBatch repeated = engine.Check([], false, reviewAll: true).ReviewBatches.Single(batch => batch.RuleId == CommentIntentReviewRuleModule.RuleId);
+            await Assert.That(repeated.SampleCount).IsEqualTo(initialBatch.SampleCount - 1);
+
+            string changed = ("public class UnrelatedPrefix { }\n" + source).Replace("// avoid another request when offline.", "// avoids repeated network requests after a comment edit.", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(fixturePath, changed);
+            ReviewBatch afterEdit = engine.Check([], false, reviewAll: true).ReviewBatches.Single(batch => batch.RuleId == CommentIntentReviewRuleModule.RuleId);
+            await Assert.That(afterEdit.PopulationFingerprint == repeated.PopulationFingerprint).IsFalse();
+            await Assert.That(afterEdit.Items.Any(item => item.Line == 9)).IsTrue();
+            await Assert.That(afterEdit.SourceContents!.Single().Content).Contains("avoids repeated network requests after a comment edit.");
+
+            CheckResult staleGate = engine.Check([], false, reviewAll: true);
+            ReviewBatch staleBatch = staleGate.ReviewBatches.Single(batch => batch.RuleId == CommentIntentReviewRuleModule.RuleId);
+            await File.WriteAllTextAsync(fixturePath, changed.Replace("// avoids repeated network requests after a comment edit.", "// edited again before acceptance.", StringComparison.Ordinal));
+            bool staleRejected = false;
+            try { _ = engine.AcceptReview(staleBatch.Handle, [staleBatch.Items[0].Id]); }
+            catch (ProductException error) when (error.Message.Contains("rerun hygiene check", StringComparison.Ordinal)) { staleRejected = true; }
+            await Assert.That(staleRejected).IsTrue();
+        }
+        finally
+        {
+            foreach (string file in Directory.EnumerateFiles(repository, "*", SearchOption.AllDirectories)) { File.SetAttributes(file, FileAttributes.Normal); }
+            Directory.Delete(repository, recursive: true);
+        }
     }
 
     private const string Source = """
@@ -166,5 +262,29 @@ public sealed class M0017RuleTests
         public enum ExcludedEnum { Value }
         public delegate void ExcludedDelegate();
         public class VisualCandidate { public void Run() { int value = 1; if (value > 0) { value++; } } }
+        """;
+
+    private const string CommentFixture = """
+        // Copyright 2026 Example. All rights reserved.
+        // MIT License
+        class Cache
+        {
+            void Read()
+            {
+                var key = BuildKey(); // trailing on key statement
+                // avoid another request when offline.
+                var cached = ReadCache(key);
+
+                // first leading line
+                // second leading line
+                var result = cached;
+
+                /* separate block for a different statement */
+                var another = BuildAnother();
+            }
+            object BuildKey() => new();
+            object ReadCache(object key) => key;
+            object BuildAnother() => new();
+        }
         """;
 }

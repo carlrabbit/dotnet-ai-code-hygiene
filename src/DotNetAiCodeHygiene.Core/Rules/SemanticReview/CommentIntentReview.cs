@@ -14,7 +14,7 @@ internal sealed class CommentIntentReviewRuleModule : ISemanticReviewRuleModule
         new("Q2", "Fidelity: Is the comment consistent with current implementation and relevant local context?"),
         new("Q3", "Clarity: Is the explanation sufficiently specific, scoped and concise to help a reader without redundant narrative?")
     ];
-    internal const string EscalationText = "Escalate a material concern or uncertainty to frontier. Do not require comments or score prose mechanically.";
+    internal const string EscalationText = "Comment purpose is contextual: ordinary legal and administrative comments remain eligible, and a comment is not defective only because it does not explain implementation behavior. Escalate a material concern or uncertainty to frontier. Do not require comments or score prose mechanically.";
     public Rule Descriptor => RuleDescriptor;
     public int BatchNumber => 6;
     public IReadOnlyList<ReviewQuestion> Questions => RuleQuestions;
@@ -36,7 +36,6 @@ internal sealed class CommentIntentReviewRuleModule : ISemanticReviewRuleModule
             var comments = root.DescendantTrivia(descendIntoTrivia: false)
                 .Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia))
                 .Where(t => !t.IsPartOfStructuredTrivia())
-                .Where(t => !IsLicenseHeader(source, t.SpanStart))
                 .OrderBy(t => t.SpanStart).ToArray();
             int index = 0;
             while (index < comments.Length)
@@ -44,11 +43,13 @@ internal sealed class CommentIntentReviewRuleModule : ISemanticReviewRuleModule
                 var group = new List<SyntaxTrivia> { comments[index++] };
                 while (index < comments.Length && group[^1].IsKind(SyntaxKind.SingleLineCommentTrivia)
                     && comments[index].IsKind(SyntaxKind.SingleLineCommentTrivia)
+                    && IsStandaloneComment(source, group[^1]) && IsStandaloneComment(source, comments[index])
                     && OnlyWhitespaceOrLineBreaks(source, group[^1].Span.End, comments[index].SpanStart))
                 {
                     group.Add(comments[index++]);
                 }
                 SyntaxTrivia first = group[0], last = group[^1];
+                bool standalone = IsStandaloneComment(source, first);
                 SyntaxNode? ownerNode = first.Token.Parent?.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax or LocalFunctionStatementSyntax);
                 ISymbol? ownerSymbol = ownerNode switch
                 {
@@ -58,12 +59,20 @@ internal sealed class CommentIntentReviewRuleModule : ISemanticReviewRuleModule
                 };
                 string owner = ownerSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? path;
                 SyntaxNode? contextNode = ownerNode ?? first.Token.Parent?.AncestorsAndSelf().FirstOrDefault(n => n is CompilationUnitSyntax);
-                string localContext = contextNode?.WithoutLeadingTrivia().ToFullString() ?? "";
+                string localContext = StableCodeContext(contextNode);
                 string commentText = string.Join("\n", group.Select(t => t.ToFullString()));
                 string semanticOwner = context.ProjectIdentity(document) + "\0" + path + "\0" + owner;
-                string anchor = NormalizeComment(commentText);
-                int duplicate = subjects.Count(s => s.Identity.StartsWith(semanticOwner + "\0comment:" + anchor + "\0", StringComparison.Ordinal));
-                string identity = semanticOwner + "\0comment:" + anchor + "\0" + duplicate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                SyntaxNode? syntaxAnchor = first.Token.Parent?.AncestorsAndSelf().FirstOrDefault(n => n is StatementSyntax or MemberDeclarationSyntax or LocalFunctionStatementSyntax);
+                string anchorSyntax = StableSyntaxAnchor(context, document, syntaxAnchor);
+                string identity = semanticOwner + "\0comment:" + (standalone ? "leading" : "trailing") + ":"
+                    + anchorSyntax + ":" + NormalizeComment(commentText);
+                // Truly identical blocks with the same owner and same adjacent syntax have no
+                // stable distinguishing information without relying on source offsets. Keep
+                // those indistinguishable duplicates deterministic; edits to other blocks do
+                // not renumber subjects with distinct comment or syntax anchors.
+                int duplicate = subjects.Count(s => string.Equals(s.Identity, identity, StringComparison.Ordinal)
+                    || s.Identity.StartsWith(identity + "\0duplicate:", StringComparison.Ordinal));
+                if (duplicate > 0) { identity += "\0duplicate:" + duplicate.ToString(System.Globalization.CultureInfo.InvariantCulture); }
                 var position = context.Tree(document).GetLineSpan(new Microsoft.CodeAnalysis.Text.TextSpan(first.SpanStart, 0)).StartLinePosition;
                 int endLine = context.Tree(document).GetLineSpan(new Microsoft.CodeAnalysis.Text.TextSpan(last.Span.End, 0)).EndLinePosition.Line + 1;
                 var item = new ReviewItem("", path, position.Line + 1, position.Character + 1, owner, "", ownerSymbol?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) ?? "");
@@ -81,12 +90,33 @@ internal sealed class CommentIntentReviewRuleModule : ISemanticReviewRuleModule
         string between = text[start..end];
         return between.All(char.IsWhiteSpace) && between.Count(character => character == '\n') <= 1;
     }
-    private static bool IsLicenseHeader(string source, int offset)
+    private static bool IsStandaloneComment(string source, SyntaxTrivia trivia)
     {
-        int line = source.AsSpan(0, Math.Clamp(offset, 0, source.Length)).Count('\n') + 1;
-        if (line > 10) { return false; }
-        string header = string.Join("\n", source.Split('\n').Take(10));
-        return header.Contains("copyright", StringComparison.OrdinalIgnoreCase) || header.Contains("license", StringComparison.OrdinalIgnoreCase);
+        int lineStart = source.LastIndexOf('\n', Math.Max(0, trivia.SpanStart - 1)) + 1;
+        return source.AsSpan(lineStart, trivia.SpanStart - lineStart).Trim().IsEmpty;
     }
     private static string NormalizeComment(string comment) => string.Join(" ", comment.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    private static string NormalizeSyntax(string syntax) => string.Join(" ", syntax.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    private static string StableSyntaxAnchor(RuleContext context, Document document, SyntaxNode? node)
+    {
+        if (node is null) { return ""; }
+        if (node is MemberDeclarationSyntax member)
+        {
+            ISymbol? symbol = context.SemanticModel(document).GetDeclaredSymbol(member);
+            if (symbol is not null) { return symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat); }
+            if (member is FieldDeclarationSyntax field)
+            {
+                string[] fields = field.Declaration.Variables
+                    .Select(variable => context.SemanticModel(document).GetDeclaredSymbol(variable))
+                    .Where(fieldSymbol => fieldSymbol is not null)
+                    .Select(fieldSymbol => fieldSymbol!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                    .OrderBy(name => name, StringComparer.Ordinal).ToArray();
+                if (fields.Length > 0) { return string.Join("|", fields); }
+            }
+        }
+        return node.Kind().ToString() + ":" + NormalizeSyntax(node.WithoutTrivia().ToFullString());
+    }
+    private static string StableCodeContext(SyntaxNode? node) => node is null
+        ? ""
+        : string.Join("\0", node.DescendantTokens(descendIntoTrivia: false).Select(token => token.Text));
 }
