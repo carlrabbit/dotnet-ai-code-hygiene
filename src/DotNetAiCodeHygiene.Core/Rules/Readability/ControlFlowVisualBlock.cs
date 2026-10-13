@@ -8,7 +8,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class ControlFlowVisualBlockRuleModule : IRuleModule
 {
     internal const string RuleId = "readability.control-flow.visual-block";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "finding", "finding", "Separate control-flow blocks visually from preceding statements.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "finding", "review-candidate", "Identify control-flow adjacency for context-sensitive visual grouping review.", true);
 
     public Rule Descriptor => RuleDescriptor;
 
@@ -51,10 +51,10 @@ internal sealed class ControlFlowVisualBlockRuleModule : IRuleModule
                         + "|" + current.Kind() + ":" + string.Join(" ", current.DescendantTokens().Select(token => token.ToString()));
                     string discriminator = HygieneEngine.NextDiscriminator(counts, Descriptor, anchor, evidence);
                     findings.Add(HygieneEngine.Make(Descriptor, path, tree, boundary, container?.ToDisplayString(),
-                        "Control-flow statement needs a blank line after the preceding linear statement.",
-                        "Insert one completely blank line before this control-flow group.",
-                        "A control-flow statement immediately follows a linear statement without a blank line.",
-                        "Keep comments documenting the control-flow statement with that statement.", anchor, evidence + "\0" + discriminator, discriminator));
+                        "Review whether this control-flow statement belongs visually with the preceding statement or starts a distinct conceptual group.",
+                        "Inspect the surrounding behavior and choose whether to leave it unchanged, add whitespace, or restructure the code.",
+                        "A control-flow statement follows a linear statement without a blank line; this is an inspection signal, not a proven readability defect.",
+                        "Keep comments documenting the control-flow statement with that statement. Do not add whitespace mechanically.", anchor, evidence + "\0" + discriminator, discriminator));
                 }
             }
         }

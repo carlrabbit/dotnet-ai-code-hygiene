@@ -64,7 +64,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.8.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.9.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -211,11 +211,11 @@ public sealed class CliProcessTests
             await Assert.That(noFindings.RootElement.GetProperty("runId").GetString()!.StartsWith("R-", StringComparison.Ordinal)).IsTrue();
             await Assert.That(noFindings.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(0);
             await Assert.That(noFindings.RootElement.GetProperty("ignoredCount").GetInt32()).IsEqualTo(0);
-            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(3);
+            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(6);
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "docs.summary.quality.review")).ExitCode).IsEqualTo(0);
             ProcessResult reviewDisabled = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument reviewDisabledJson = JsonDocument.Parse(reviewDisabled.StandardOutput);
-            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(2);
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(5);
             await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches")[0].GetProperty("ruleId").GetString()).IsEqualTo("docs.summary.language.german.review");
             await Assert.That(reviewDisabledJson.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(noFindings.RootElement.GetProperty("findings").GetArrayLength());
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
@@ -490,7 +490,9 @@ public sealed class CliProcessTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
         JsonElement rules = json.RootElement.GetProperty("rules");
-        await Assert.That(rules.GetArrayLength()).IsEqualTo(15);
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(18);
+        await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(4).ToArray())
+            .IsEquivalentTo(new[] { "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
         JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
         await Assert.That(formatter.GetProperty("configurable").GetBoolean()).IsTrue();
         await Assert.That(formatter.GetProperty("capabilities").GetProperty("format").GetBoolean()).IsTrue();

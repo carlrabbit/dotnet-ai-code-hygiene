@@ -15,7 +15,7 @@ dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --confi
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
 
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.8.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.9.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $consumer = Join-Path $tierRoot 'consumer'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -42,7 +42,7 @@ if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256
 "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
 $previousNugetPackages = $env:NUGET_PACKAGES
 $env:NUGET_PACKAGES = $nugetCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.8.0
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.9.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { $hygiene = Join-Path $toolPath 'hygiene' }
@@ -58,7 +58,7 @@ try {
     & $hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = & $hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.8\.0') { throw 'Installed hygiene version does not match 0.8.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.9\.0') { throw 'Installed hygiene version does not match 0.9.0.' }
     & $hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = & $hygiene bootstrap --output json | ConvertFrom-Json
@@ -111,16 +111,42 @@ try {
     if ($LASTEXITCODE -ne 0 -or $updateAgain.findingCount -ne 0 -or $updateAgain.changedPaths.Count -ne 0) { throw 'Installed update was not idempotent after migration.' }
     $rules = & $hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
-    if ($rules.rules.Count -ne 15 -or -not (($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format)) { throw 'Installed rule capabilities are incomplete.' }
+    if ($rules.rules.Count -ne 18 -or -not (($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format)) { throw 'Installed rule capabilities are incomplete.' }
     if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
     if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }
-    $reviewSource = @('/// <summary>Sample API</summary>', 'public class Sample { public void Run() { } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
+    $newRuleIds = @('readability.type-responsibility.review', 'tests.quality.review', 'comments.intent.review')
+    if (@($rules.rules | Where-Object { $_.id -in $newRuleIds }).Count -ne 3) { throw 'Installed rule catalog omitted an M0017 review rule.' }
+    $visualRule = $rules.rules | Where-Object id -eq 'readability.control-flow.visual-block'
+    if ($visualRule.version -ne 2 -or $visualRule.classification -ne 'review-candidate') { throw 'Installed visual-block rule did not expose its v2 candidate contract.' }
+    $reviewSource = @('// Copyright 2026 Example. All rights reserved.', '// MIT License', '/// <summary>Sample API</summary>', 'public class Sample { public void Run() { int value = 1; if (value > 0) { System.Console.WriteLine(value); } } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
     Set-Content -NoNewline -Path Sample.cs -Value ($reviewSource -join "`n")
+    & $hygiene format | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Installed formatter failed on the visual-block fixture.' }
+    & $hygiene normalize | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Installed normalizer failed on the visual-block fixture.' }
+    $visualCheck = & $hygiene check --review-all --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or -not ($visualCheck.findings | Where-Object { $_.ruleId -eq 'readability.control-flow.visual-block' -and $_.classification -eq 'review-candidate' })) { throw 'Installed visual-block candidate was not retained after format/normalize.' }
     git add Sample.cs
     git commit -m 'review fixture baseline' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 baseline commit failed.' }
     $baseCommit = (& git rev-parse HEAD).Trim()
-    Add-Content -Path Sample.cs -Value "`n/// <summary>An additional API description for the PR gate.</summary>`npublic class ReviewedAdditional { }"
+    Add-Content -Path Sample.cs -Value @'
+
+namespace Xunit { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class FactAttribute : System.Attribute { } }
+/// <summary>An additional API description for the PR gate.</summary>
+public class ReviewedAdditional
+{
+    // Keep this guard aligned with the request contract.
+    public void Run()
+    {
+        var key = 1; // Keep the source statement and trailing review separate.
+        // Avoid the guarded operation when the key is empty.
+        if (key > 0) { System.Console.WriteLine(key); }
+    }
+    [Xunit.Fact]
+    public void ChangedBehaviorHasRegressionTest() { System.Console.WriteLine("observable"); }
+}
+'@
     $bareCheck = & $hygiene check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or @($bareCheck.reviewBatches | Where-Object sampleCount -ne 0).Count -ne 0) { throw 'Bare installed check must schedule zero semantic review.' }
     $check = & $hygiene check --base $baseCommit --output json | ConvertFrom-Json
@@ -131,6 +157,27 @@ try {
     $german = $check.reviewBatches | Where-Object ruleId -eq 'docs.summary.language.german.review'
     if (-not $quality -or $quality.ruleVersion -ne 6 -or $quality.sampleCount -lt 1 -or $quality.sampleCount -gt 5 -or -not $german -or $german.ruleVersion -ne 4) { throw 'Installed PR-base check did not emit bounded independent v6 quality and v4 German review batches.' }
     if (-not ($check.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Installed check omitted BORINGness review.' }
+    if (@($check.reviewBatches | Where-Object { $_.ruleId -in $newRuleIds }).Count -ne 3) { throw 'Installed PR-base check omitted an M0017 review batch.' }
+    $typeReview = $check.reviewBatches | Where-Object ruleId -eq 'readability.type-responsibility.review'
+    $testReview = $check.reviewBatches | Where-Object ruleId -eq 'tests.quality.review'
+    $commentReview = $check.reviewBatches | Where-Object ruleId -eq 'comments.intent.review'
+    if ($typeReview.sampleCount -lt 1 -or $testReview.sampleCount -lt 1 -or $commentReview.sampleCount -lt 1) { throw 'Installed M0017 rules did not select changed type, test, and comment subjects.' }
+    if (($testReview.questions.Count -ne 3) -or $testReview.items[0].summary -ne '') { throw 'Installed test-quality review did not retain its fixed questions and empty non-applicable summary.' }
+    $newAccepted = & $hygiene review accept $testReview.handle $testReview.items[0].id --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $newAccepted.acceptedCount -ne 1 -or $newAccepted.ruleId -ne 'tests.quality.review') { throw 'Installed test-quality review acceptance failed.' }
+    $commentExpanded = & $hygiene review expand $commentReview.handle --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $commentExpanded.reviewBatch.ruleId -ne 'comments.intent.review' -or $commentExpanded.reviewBatch.items.Count -lt 4) { throw 'Installed comment-intent expansion failed or omitted comment groups.' }
+    $commentHandoff = & $hygiene review handoff $commentReview.handle
+    if ($LASTEXITCODE -ne 0 -or $commentHandoff -notmatch 'Review handoff written: ') { throw 'Installed comment-intent handoff failed.' }
+    $commentRequestPath = $commentHandoff.Substring('Review handoff written: '.Length).Trim()
+    $commentRequest = Get-Content -LiteralPath $commentRequestPath -Raw | ConvertFrom-Json
+    $commentSource = $commentRequest.sources | Where-Object path -eq 'Sample.cs'
+    if (-not $commentSource -or $commentSource.content -notmatch 'Copyright 2026' -or $commentSource.content -notmatch 'MIT License' -or $commentSource.content -notmatch 'trailing review separate' -or $commentSource.content -notmatch 'Avoid the guarded operation') { throw 'Installed comment-intent expansion did not preserve current source context or ordinary legal comments.' }
+    $typeHandoff = & $hygiene review handoff $typeReview.handle
+    if ($LASTEXITCODE -ne 0 -or $typeHandoff -notmatch 'Review handoff written: ') { throw 'Installed type-responsibility handoff failed.' }
+    $typeRequestPath = $typeHandoff.Substring('Review handoff written: '.Length).Trim()
+    $typeRequest = Get-Content -LiteralPath $typeRequestPath -Raw | ConvertFrom-Json
+    if ($typeRequest.reviewerClass -ne 'planner' -or $typeRequest.rule.id -ne 'readability.type-responsibility.review') { throw 'Installed type-responsibility handoff contract is invalid.' }
     $internalFields = 'samplingTicket|stateEpoch|repositorySeed|hazard|threshold|evaluationFingerprint|aggregateEvidence'
     if (($check | ConvertTo-Json -Depth 32) -match $internalFields) { throw 'Installed check exposed internal sampling metadata.' }
     $firstQualityItem = $quality.items[0].id
@@ -158,7 +205,7 @@ try {
     & $hygiene rules disable docs.summary.language.german.review | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
     $qualityOnly = & $hygiene check --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 2 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review')) { throw 'Disabling the installed German rule changed or removed other semantic-review rules.' }
+    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 5 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'comments.intent.review')) { throw 'Disabling the installed German rule changed or removed other semantic-review rules.' }
 }
 finally {
     Pop-Location

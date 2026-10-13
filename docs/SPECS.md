@@ -124,20 +124,23 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 11. docs.summary.quality.review               v6
 12. docs.summary.language.german.review       v4
 13. readability.long-line.review              v1
-14. readability.control-flow.visual-block     v1
+14. readability.control-flow.visual-block     v2
 15. architecture.boringness.review            v3
+16. readability.type-responsibility.review    v1
+17. tests.quality.review                      v1
+18. comments.intent.review                    v1
 ```
 
-The new rule is appended so all pre-M0011 relative ordering remains unchanged. M0016 changes only the three semantic-review selection versions.
+M0017 appends three independent semantic-review rules after B-3 and reclassifies visual-block as v2 review-candidate. Earlier rule identities and relative ordering are unchanged.
 
 The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 
 ## Package/version
 
-M0016 product/package version is:
+M0017 product/package version is:
 
 ```text
-0.8.0
+0.9.0
 ```
 
 Installed-tool Tier-4 validation remains required because M0016 changes public rule versions and adds `check --base` and `check --review-all`.

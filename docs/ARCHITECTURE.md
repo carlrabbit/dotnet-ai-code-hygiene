@@ -233,7 +233,7 @@ No selected source file is committed before complete planning and required valid
 
 ## Gate-local review boundary
 
-The three semantic-review rules use deterministic, finite gate-local selection with a fixed ceiling of five subjects per rule. Changed subjects rank ahead of at most one context subject from a touched source document; unrelated background candidates require explicit `--review-all`. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
+The six semantic-review rules use deterministic, finite gate-local selection with a fixed ceiling of five subjects per rule. Changed subjects rank ahead of at most one context subject from a touched source document; unrelated background candidates require explicit `--review-all`. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
 
 Selection is potentially biased selective inspection, not a calibrated defect-rate estimate or a population-quality certificate. Tickets bind the gate, rule/algorithm versions, eligible population, subject identity, and content fingerprint. Only explicit review acceptance persists an observation. Legacy hazard, elapsed-age, activity-age, and aggregate state remain separate from current gate-local state and are not production inputs.
 

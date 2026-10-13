@@ -229,8 +229,11 @@ Canonical normal order:
 6. docs.summary.quality.review              v6  configurable review-batch
 7. docs.summary.language.german.review      v4  configurable review-batch
 8. readability.long-line.review             v1  configurable review-candidate
-9. readability.control-flow.visual-block    v1  configurable finding
+9. readability.control-flow.visual-block    v2  configurable review-candidate
 10. architecture.boringness.review          v3  configurable review-batch
+11. readability.type-responsibility.review  v1  configurable review-batch
+12. tests.quality.review                    v1  configurable review-batch
+13. comments.intent.review                  v1  configurable review-batch
 ```
 
 Structural documentation findings are evaluated before semantic summary review.

@@ -155,7 +155,8 @@ internal static class RuleCatalog
         new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(),
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
-        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule()
+        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule(),
+        new TypeResponsibilityReviewRuleModule(), new TestQualityReviewRuleModule(), new CommentIntentReviewRuleModule()
     ];
 
     internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor with

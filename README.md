@@ -4,7 +4,7 @@ AI-first code hygiene tooling for deterministic hygiene analysis and bounded sem
 
 ## Status
 
-The project targets Windows 11 and the .NET 11 SDK line. The installable `0.8.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and gate-local semantic review.
+The project targets Windows 11 and the .NET 11 SDK line. The installable `0.9.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and gate-local semantic review for summaries, types, tests, and ordinary comments. Visual-block matches are non-prescriptive review candidates.
 
 The CLI discovers complete review populations and selects up to five subjects per enabled semantic-review rule at an explicitly admitted gate. Changed subjects take priority, with at most one context subject from a touched source file. A coding agent or human answers the fixed questions. Only explicit `review accept` records accepted observations; negative or uncertain judgments are not inferred by the CLI. The CLI never invokes a model or provider.
 
@@ -24,7 +24,7 @@ Windows 11 and the .NET 11 SDK line are the supported platform. The package is l
 Install the tool package from the configured NuGet source:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.8.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.9.0
 hygiene --version
 hygiene help --agent
 ```

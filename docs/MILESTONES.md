@@ -142,3 +142,12 @@ Primary milestone: `docs/milestones/M0015-gate-local-sampling-prototype.md`.
 Replaces production hazard/age scheduling for the three existing semantic-review rules with bounded gate-local selection. Adds explicit PR-base inspection and `--review-all`, preserves the review lifecycle and legacy sampling records, and records only explicit accepted observations.
 
 Primary milestone: `docs/milestones/M0016-production-gate-local-semantic-review.md`.
+
+## M0017 — Semantic Hygiene Rule Expansion
+**State:** complete; project-owner approval recorded 2026-10-13; PR #18 remains open for independent review on `implementation/m0017-semantic-hygiene-expansion`
+**Mode:** AI-executed, human-reviewed
+
+One consolidated milestone: reframe the existing control-flow visual-block signal as a non-prescriptive review candidate, and add gate-local semantic-review rules for type responsibility, test quality, and ordinary comment intent. Verification concerns deterministic discovery, selection, context, state and installed-tool contracts; model judgment and quality/usefulness certification are expressly outside milestone validation. M0017 builds on M0016 as merged into `main` at `ec8ec547`.
+
+Primary milestone: `docs/milestones/M0017-semantic-hygiene-rule-expansion.md`.
+Planning-seeded ledger: `.execution/M0017-semantic-hygiene-rule-expansion.md`.

@@ -135,3 +135,16 @@ A future milestone focused on human consumability should begin with a small numb
 - Can diff/repository structure provide useful locality signals cheaply?
 - How should the tool distinguish useful abstraction from abstraction for its own sake?
 - Which BORING conventions are universal enough to enforce, and which are project/domain choices?
+
+
+## Deterministic indicators are not semantic verdicts
+
+The visual-block rule currently detects a syntactic adjacency pattern: a control-flow statement after an ordinary statement without a blank line. That is verifiable as a *trigger predicate*; it does not establish that a blank line is universally desirable, that a mechanical fixer is safe, or that the detector captures all important visual-structure problems. A lookup followed by its guard may be more readable as one group; a perfectly spaced method may still hide unrelated conceptual stages.
+
+M0017 therefore intends to version the visual-block rule as a review candidate, retaining its existing mechanical signal while replacing mandatory-fix wording with an agent-directed inspection request. It does not add a formatter or mandate a blank-line change. Other subjective concerns such as type cohesion, test assertions, and explanatory comments likewise require external judgment.
+
+## Engineering verification boundary
+
+Verify deterministic discovery, exclusions, subject identity, source context, rule/question contracts, bounded selection, revalidation, transport-neutral handoff, state compatibility and installed-tool behavior. Do not require an AI reviewer to agree with a curated subjective gold label as a software completion test. Such assessments may inform later product decisions, but their dependence on model, cost, tools and context makes them unsuitable as prerequisites for these rule implementations.
+
+The aim is verifiable and useful *review work production*, not a claim that a model's decisions have been independently certified. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md).

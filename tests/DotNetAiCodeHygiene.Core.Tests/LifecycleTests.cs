@@ -546,7 +546,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.cs"), "public class Sample { public void Run() { var x = 1; if (x > 0) { x++; } } }\n");
             var engine = new HygieneEngine(repo);
-            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit", "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review", "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review" });
+            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit", "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review", "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
             await Assert.That(engine.ListRules().All(x => x.Enabled)).IsTrue();
             CheckResult result = engine.Check([], false);
             await Assert.That(result.Findings.Select(x => x.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.required", "readability.control-flow.visual-block" });
@@ -787,7 +787,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
             var engine = new HygieneEngine(repo);
             CheckResult both = engine.Check([], false);
-            await Assert.That(both.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "docs.summary.language.german.review", "architecture.boringness.review" });
+            await Assert.That(both.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "docs.summary.language.german.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
             ReviewBatch quality = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             ReviewBatch german = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.language.german.review");
             await Assert.That(quality.RuleVersion).IsEqualTo(6);
@@ -806,7 +806,7 @@ public sealed class LifecycleTests
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
             disabledEngine.SetRule("docs.summary.language.german.review", false);
             CheckResult englishPolicy = disabledEngine.Check([], false);
-            await Assert.That(englishPolicy.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "architecture.boringness.review" });
+            await Assert.That(englishPolicy.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
             ReviewBatch qualityOnly = englishPolicy.ReviewBatches.Single(batch => batch.RuleId == "docs.summary.quality.review");
             await Assert.That(qualityOnly.PopulationFingerprint).IsEqualTo(quality.PopulationFingerprint);
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
