@@ -144,7 +144,7 @@ Replaces production hazard/age scheduling for the three existing semantic-review
 Primary milestone: `docs/milestones/M0016-production-gate-local-semantic-review.md`.
 
 ## M0017 — Semantic Hygiene Rule Expansion
-**State:** implementation complete; awaiting blocking human review on `implementation/m0017-semantic-hygiene-expansion`
+**State:** complete; project-owner approval recorded 2026-10-13; PR #18 remains open for independent review on `implementation/m0017-semantic-hygiene-expansion`
 **Mode:** AI-executed, human-reviewed
 
 One consolidated milestone: reframe the existing control-flow visual-block signal as a non-prescriptive review candidate, and add gate-local semantic-review rules for type responsibility, test quality, and ordinary comment intent. Verification concerns deterministic discovery, selection, context, state and installed-tool contracts; model judgment and quality/usefulness certification are expressly outside milestone validation. M0017 builds on M0016 as merged into `main` at `ec8ec547`.

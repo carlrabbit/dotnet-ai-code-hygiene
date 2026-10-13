@@ -31,7 +31,7 @@ Planning-seeded for Agentic Guide System 0.9.1. The milestone is authoritative; 
 | AC-21 | acceptance | Rule-owned context includes the selected declaration/test method/comment block with current enclosing/source text and accurate source locations. When the available source context cannot establish an external contract or dependency, the rule request leaves judgment to the reviewer or escalates uncertainty rather than inventing an assertion. | WP-04 | ReviewItem carries source coordinates/symbol/declaration and empty summary; full current file context is mapped | VAL-01; VAL-03; VAL-05 | verified |
 | DOC-01 | documentation | After implementation, update the operative rule specifications (especially `docs/specs/READABILITY.md`, `SEMANTIC-REVIEWS.md`, `RULE-CAPABILITIES.md`, `SAMPLING.md` where affected), architecture/engineering authority, CLI/agent help and `docs/MILESTONES.md` to describe live M0017 behavior and v0.9.0, without retrospectively rewriting completed historical milestone evidence. | WP-04 | Operative specs, CLI guidance, README, architecture/engineering and milestones updated | VAL-04 | verified |
 | DOC-02 | documentation | Preserve and reflect the planning distinction documented in `docs/research/VERIFIABLE-REVIEW-WORK.md`: a visual-block match is only an indicator; semantic output is review work; software verification does not grade the external agent. Avoid language asserting that triggering proves a defect or that a sampling budget certifies quality. | WP-04 | Indicator/review-work/verification boundary reflected in live specs and REV-M0017-COMPLETION | VAL-04 | verified |
-| REV-01 | human review | Prepare `.review/REV-M0017-COMPLETION.md` for blocking project-owner/delegate acceptance of scope, compatibility, identity/context correctness, verification-only validation boundary, complete criterion-specific evidence and correct installed-tool provenance. Do not fabricate reviewer approval or merge before the human decision. | WP-05 | REV-M0017-COMPLETION prepared; no approval entered | VAL-06 pending human decision | prepared-awaiting-human |
+| REV-01 | human review | Prepare `.review/REV-M0017-COMPLETION.md` for blocking project-owner/delegate acceptance of scope, compatibility, identity/context correctness, verification-only validation boundary, complete criterion-specific evidence and correct installed-tool provenance. Do not fabricate reviewer approval or merge before the human decision. | WP-05 | REV-M0017-COMPLETION records explicit project-owner approval dated 2026-10-13 for corrected PR head 9609ebb | VAL-06 approved human decision | approved |
 
 ## Evidence Case Registry
 
@@ -61,7 +61,7 @@ Planning-seeded for Agentic Guide System 0.9.1. The milestone is authoritative; 
 
 ## Work Packages
 
-Completed work packages: WP-01 visual-block v2 candidate and guidance; WP-02 three explicit rule modules, questions, identity/context, and Roslyn fixtures; WP-03 shared M0016 selection/acceptance/expand/handoff integration and lifecycle fixtures; WP-04 operative documentation, 0.9.0 package, canonical and installed-consumer validation; WP-05 completion review packet prepared and awaiting owner/delegate decision.
+Completed work packages: WP-01 visual-block v2 candidate and guidance; WP-02 three explicit rule modules, questions, identity/context, and Roslyn fixtures; WP-03 shared M0016 selection/acceptance/expand/handoff integration and lifecycle fixtures; WP-04 operative documentation, 0.9.0 package, canonical and installed-consumer validation; WP-05 completion review packet and recorded project-owner decision.
 
 ## Validation Gates
 
@@ -72,19 +72,19 @@ Completed work packages: WP-01 visual-block v2 candidate and guidance; WP-02 thr
 | VAL-03 | Tier 3 — built CLI in isolated real SDK-style .NET/Git repositories, changed/base/manual/all scope and handoff | local Windows 11/.NET 11 with Git and PowerShell; actual Roslyn workspace and built CLI process | EC-02a, EC-11a, EC-11b, EC-13a, EC-13b, EC-14a, EC-14b, AC-02, AC-03, AC-15, AC-17, AC-18, AC-21 | passed | PASS: final CLI process suite 24/24; real Git base/changed/manual/all, zero batches, output compatibility, expand/handoff and stale lifecycle tests. Installed consumer exercises all new changed-source batches and comment handoff context. |
 | VAL-04 | Tier 2 — canonical repo regression, docs and version consistency | local Windows 11/.NET 11/PowerShell; `./eng/validate.ps1` and `git diff --check` | EC-19a, AC-03, AC-10, AC-15, AC-16, AC-17, AC-18, AC-20, DOC-01, DOC-02 | passed | PASS: final .\eng\validate.ps1: Release build 0 warnings/0 errors; Core 94/94; CLI 24/24; repository M0006 self-check; final git diff --check. Windows 11, dotnet --version 11.0.100-rc.1.26425.128. |
 | VAL-05 | Tier 4 — freshly built and installed actual v0.9.0 dotnet tool in isolated consumer | local Windows 11/.NET 11 PowerShell/Git; extend `eng/validate.ps1` isolated tool install and consumer commands | EC-19b, EC-14b, AC-19 | passed | PASS: canonical run packed and installed DotNetAiCodeHygiene.Tool 0.9.0 from the current artifact into an isolated tool path and consumer; package SHA-256 5F9A821858C7DB1F13B160360D97B6A1977C763650F3E38AB64195DD6AA02AF9. Consumer passed visual-block format/normalize, zero/base/review-all, rules, accept, expand, comment handoff with current source plus copyright/license eligibility, profile and rewrite workflows. |
-| VAL-06 | Human — independent owner/delegate completion review | milestone PR and `.review/REV-M0017-COMPLETION.md` | REV-01 | prepared-awaiting-human | PENDING HUMAN: .review/REV-M0017-COMPLETION.md is prepared with no decision recorded; project owner/delegate review remains blocking. |
+| VAL-06 | Human — independent owner/delegate completion review | milestone PR and `.review/REV-M0017-COMPLETION.md` | REV-01 | approved | APPROVED: project owner explicitly approved on 2026-10-13; decision recorded in `.review/REV-M0017-COMPLETION.md` for corrected PR head `9609ebb`. PR #18 remains open and unmerged for another independent review. |
 
 ## Resume Point
 
-Last completed work package: WP-05 review packet prepared; implementation and validation complete.
+Last completed work package: WP-05 review packet approved; implementation and validation complete.
 
-Current work package: human completion review pending.
+Current work package: none; M0017 completion review is approved and recorded.
 
-Next concrete action: project owner/delegate reviews the open implementation PR and records an explicit REV-M0017-COMPLETION decision.
+Next concrete action: no M0017 implementation action remains. Keep PR #18 open and unmerged for the requested independent GitHub review.
 
-Known agent-resolvable gaps: none identified by planning.
+Known agent-resolvable gaps: none.
 
-External blocker: REV-01 is a required human decision. Branch preparation was resolved by starting from merged main ec8ec547 and carrying only the two M0017 planning commits.
+External blocker: none for M0017 completion. PR #18 remains open for another independent review. Branch preparation was resolved by starting from merged main ec8ec547 and carrying only the two M0017 planning commits.
 
 ## Final Reconciliation
 
@@ -95,6 +95,6 @@ External blocker: REV-01 is a required human decision. Branch preparation was re
 - [x] Attach criterion-specific implementation and validation evidence, not only aggregate passing tests.
 - [x] Verify no requirement depends on a model's subjective answers or fabricated review evidence.
 - [x] Verify current packed/installed v0.9.0 tool consumer behavior and stable existing rules.
-- [x] Prepare human review request and leave milestone awaiting human approval when required.
-- [ ] Run the repository's supported review-check if available after the human decision.
-- [ ] Complete durable milestone Completion Evidence reconciliation before declaring COMPLETE.
+- [x] Prepare human review request and retain the milestone pending only until an explicit decision is recorded.
+- [x] Record the explicit project-owner decision in the review packet; the documented milestone-scoped check is this decision record, and no separate review-check command is defined by the repository.
+- [x] Complete durable milestone Completion Evidence reconciliation and record approved completion; PR #18 remains open for independent review.

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Lifecycle state | implementation complete — awaiting blocking human review |
+| Lifecycle state | complete — project-owner approval recorded 2026-10-13; PR #18 remains open for independent review |
 | Mode | ai-executed-human-reviewed |
 | Baseline implementation model | GPT-5.6 Luna; Agentic Guide System 0.9.1 |
 | Baseline executor readiness | confirmed after M0016 production gate-local surface |
@@ -188,7 +188,7 @@ Evidence cases are reserved for behaviors with different code paths or failure s
 
 ## Human Review
 
-Applicability: required, blocking. Canonical review ID: `REV-M0017-COMPLETION`. Reviewer: project owner or delegated human. Subject: coherent addition of three independently selected semantic-review rules; nonprescriptive v2 visual-block candidates; faithful context/identity/state; fixed question contracts; sound project/installed-tool verification without grading the model. Waiver: none without planning authority change. Implementer prepares `.review/REV-M0017-COMPLETION.md` and retains the milestone in awaiting-human-review state until the reviewer explicitly decides; use the repository's actual documented milestone-scoped review check if available, do not invent one.
+Applicability: required, blocking until decided. Canonical review ID: `REV-M0017-COMPLETION`. Reviewer: project owner or delegated human. Subject: coherent addition of three independently selected semantic-review rules; nonprescriptive v2 visual-block candidates; faithful context/identity/state; fixed question contracts; sound project/installed-tool verification without grading the model. Waiver: none without planning authority change. The implementer prepares `.review/REV-M0017-COMPLETION.md` and retains the milestone in awaiting-human-review state until an explicit decision; use the repository's actual documented milestone-scoped review check if available, do not invent one. The project owner explicitly approved on 2026-10-13; the decision is recorded in the review packet.
 
 ## Documentation Policy
 
@@ -206,13 +206,13 @@ The implementer maps the exact seeded obligations and evidence cases into execut
 
 ## Completion Evidence
 
-Implementation and verification are complete; the blocking human review remains pending. Criterion-level proof mappings and validation receipts are in `.execution/M0017-semantic-hygiene-rule-expansion.md`.
+Implementation and verification are complete, and the project-owner completion decision is approved and recorded. Criterion-level proof mappings and validation receipts are in `.execution/M0017-semantic-hygiene-rule-expansion.md`.
 
 - AC-01–AC-03: `ControlFlowVisualBlock.cs`, `M0017RuleTests`, existing visual-block trigger/ignore lifecycle fixtures, and installed format/normalize consumer.
 - AC-04–AC-10: the three dedicated rule modules, explicit catalogue order, and focused Roslyn fixture for types, resolved test attributes, comment eligibility/grouping boundaries, exclusions, fixed rubrics, identities, and empty non-applicable summary fields. The comment fixture covers legal/admin comments, trailing versus leading groups, syntax anchors, unchanged comment fingerprints under unrelated comment insertion/removal, material edits, stale tickets, and no-refill acceptance.
 - AC-11–AC-18: existing M0016 gate selector/store/lifecycle plus new-rule acceptance/nonrefill and stable-identity fixture; full Core and CLI process suites; installed changed/base, zero-work, expand, accept, and handoff scenarios. Comment identity uses normalized syntax anchors, not source offsets; indistinguishable identical duplicate blocks use deterministic ordinals and may be renumbered when that duplicate set changes.
 - AC-19–AC-21 and DOC-01/DOC-02: canonical Windows/.NET 11 validation passed (118/118 tests); freshly built `DotNetAiCodeHygiene.Tool` 0.9.0 installed and exercised in an isolated consumer, including comment handoff source context and ordinary copyright/license comment eligibility; repository self-check and `git diff --check` passed. Validation verifies deterministic tool behavior and review-work transport only; no external model judgment or quality certification was required.
-- REV-01: `.review/REV-M0017-COMPLETION.md` is prepared. No human approval is recorded; the milestone remains awaiting the project-owner/delegate decision.
+- REV-01: `.review/REV-M0017-COMPLETION.md` records explicit project-owner approval dated 2026-10-13 for corrected commit `9609ebb`; PR #18 remains open and unmerged for another independent review.
 
 ## Escalation Boundary
 

@@ -1,11 +1,11 @@
 # REV-M0017-COMPLETION — Semantic Hygiene Rule Expansion
 
-**Status:** Corrective response prepared for another independent project-owner/delegate review; no human decision recorded.
-**Review scope:** M0017 implementation on `implementation/m0017-semantic-hygiene-expansion`, based on merged `main` at `ec8ec547`.
+**Status:** Approved by the project owner on 2026-10-13.
+**Review scope:** M0017 implementation on `implementation/m0017-semantic-hygiene-expansion`, based on merged `main` at `ec8ec547`; corrective response reviewed at commit `9609ebb`.
 
 ## Review request
 
-The first independent review identified comment eligibility and grouping defects plus missing focused identity/lifecycle evidence. Those findings are corrected in this PR update. Please review the M0017 changes for contract fidelity, compatibility, source identity/context, and verification evidence. This remains a blocking completion review; implementation verification does not constitute approval. The branch must remain unmerged until the project owner or delegate records a decision.
+The first independent review identified comment eligibility and grouping defects plus missing focused identity/lifecycle evidence. Those findings are corrected in this PR update. The project owner reviewed the corrected M0017 changes for contract fidelity, compatibility, source identity/context, and verification evidence and approved completion on 2026-10-13. The PR remains open for another independent GitHub review.
 
 ## Implemented scope
 
@@ -25,4 +25,4 @@ The first independent review identified comment eligibility and grouping defects
 
 ## Human decision
 
-**Not recorded.** Project owner/delegate: please record an explicit accept/reject decision and date here after reviewing the implementation branch and its evidence. Do not infer approval from this prepared request or from passing software validation.
+**APPROVED — project owner — 2026-10-13.** The decision was provided explicitly in the task conversation after review of the corrected PR branch at `9609ebb`. This records the project owner's decision; it is not an implementer self-approval. PR #18 remains open and unmerged for another independent review.
