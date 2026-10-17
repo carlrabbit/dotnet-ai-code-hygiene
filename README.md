@@ -1,96 +1,73 @@
 # dotnet-ai-code-hygiene
 
-AI-first code hygiene tooling for deterministic hygiene analysis and bounded semantic review.
+`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The current package version is `0.10.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
 
-## Status
-
-The project targets Windows 11 and the .NET 11 SDK line. The installable `0.9.0` tool provides a fixed supported profile, rule-owned deterministic formatting/normalization and EditorConfig policy, and gate-local semantic review for summaries, types, tests, and ordinary comments. Visual-block matches are non-prescriptive review candidates.
-
-The CLI discovers complete review populations and selects up to five subjects per enabled semantic-review rule at an explicitly admitted gate. Changed subjects take priority, with at most one context subject from a touched source file. A coding agent or human answers the fixed questions. Only explicit `review accept` records accepted observations; negative or uncertain judgments are not inferred by the CLI. The CLI never invokes a model or provider.
-
-```text
-generated or edited code
--> deterministic findings
--> gate-local semantic review work
--> explicit accepted observation
--> frontier or planner escalation when needed
--> remediation by the calling agent
-```
-
-Windows 11 and the .NET 11 SDK line are the supported platform. The package is locally validated; public-feed publication is not claimed. No GitHub Actions/workflows are used.
-
-## Install and agent workflow
-
-Install the tool package from the configured NuGet source:
+The `0.10.0` package is validated from a local feed; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.9.0
-hygiene --version
-hygiene help --agent
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.10.0
+dotnet hygiene --version
 ```
 
-## Supported profile
+## First Bootstrap
 
-Each repository runs `hygiene bootstrap` once to establish the supported `dotnet-11` v2 profile, then `hygiene update` to reconcile its profile-owned state and `hygiene check` to analyze source. Update migrates valid v1 markers. Normal checking requires the committed `.hygiene/profile.json` marker. Bootstrap and update are repository-wide, idempotent operations; they preserve content outside the delimited hygiene blocks in root `.editorconfig` and `Directory.Build.props`.
+In a Git repository, ask an implementation agent to run `dotnet hygiene` and follow the emitted steps. On first use, the tool assesses existing project formatting without changing source, installs the `dotnet-11` v2 profile, and formats eligible repository C# sources. It writes a baseline report under `.hygiene/reports/` with changed paths and observed validation. The report remains **approval-required** until an authorized external approver reviews and accepts the baseline. The tool cannot determine who has that authority.
 
-The generated `.hygiene/profile/Hygiene.props` pins `AnalysisLevel=11`, enables built-in .NET analyzers, and enforces code-style analyzers during builds. By default, the configurable `style.braces.required` and `style.accessibility.explicit` rules project braces (IDE0011) and explicit accessibility (IDE0040) as errors; their managed EditorConfig contributions include visible rule-ID comments and are reconciled immediately when toggled. The profile does not promote other diagnostics or set a global warnings-as-errors policy. Mandatory profile findings cannot be disabled or ignored. StyleCop analyzers are prohibited and are reported for caller resolution; hygiene does not remove them automatically.
+Review the baseline report and source diff before accepting it. Bootstrap preserves content outside the profile-owned sections in `.editorconfig` and `Directory.Build.props`; malformed or incompatible profile state requires a safe manual decision. The pre-hygiene formatter assessment reports current drift; it does not infer whether a formatter was previously run.
 
-## Documentation hygiene
-
-Only a generic summary is required for covered API subjects. Summary is semantic: ordinary declarations use `<summary>`, while positional record and record-struct properties use the matching record `<param name="...">` text. A direct `<inheritdoc/>` satisfies a missing summary without recursively inspecting inherited documentation. Ordinary parameters, type parameters, returns, values, and exceptions remain optional.
-
-Optional XML documentation that is present is checked for structural consistency. Explicit prose in summaries, parameters, type parameters, returns, values, and exceptions must end in `.`, `?`, or `!`. Examples and custom elements are not independently sentence-checked. Deterministic structure and punctuation rules are separate from semantic summary-quality review.
-
-The canonical coding-agent workflow is:
-
-```text
-implement/change code
--> run relevant tests
--> hygiene normalize
--> hygiene check
--> resolve deterministic findings and semantic review work
--> rerun tests/check as needed
+```powershell
+dotnet hygiene --output json
+dotnet hygiene bootstrap --output json  # manual bootstrap/diagnostics
 ```
 
-`hygiene format [paths...]` applies enabled format-remediation rules and remains presentation-only. `hygiene normalize [paths...]` applies enabled semantics-preserving normalization rules, validates project compilation before and after, and applies enabled format rules to changed documents. The canonical rule catalogue owns these policies; `hygiene rules` and rewrite results expose capability participation. Both commands support repository-default, explicit file/directory, and `--changed` targets; explicit paths cannot be combined with `--changed`. Both support non-mutating `--check` and text/JSON output. Rewrite plans cover the selected set before mutation, commits roll back on failure, and repeated runs are idempotent. A successful `--check` means the command succeeded even when paths would change.
+## Run on Gates
 
-Commands select enabled rule capabilities: disabling an unrelated diagnostic rule does not disable normalization, and disabling a rewrite rule prevents its own transformation. Findings remain deterministic and can be explained or explicitly ignored. Semantic review remains caller-judged; uncertain or materially negative sample answers can be escalated with `hygiene review expand` or written as a durable handoff with `hygiene review handoff`, locally or to an explicit external file. The CLI invokes no model.
+After the baseline is approved, run `dotnet hygiene` from the repository. It applies enabled deterministic normalization and formatting, infers a trusted local gate where possible, and reports deterministic findings plus selected semantic-review work grouped by source file. Follow only the selected work order. Inspect each rule's questions independently; remediation or acceptance for one rule does not satisfy another.
 
-Semantic review workflow:
-
-```text
-hygiene check
-hygiene review accept <batch-handle> <item-id>...
-hygiene review accept <batch-handle> --all
-hygiene review expand <batch-handle>
-hygiene review handoff <batch-handle> [--file <path>]
+```powershell
+dotnet hygiene
+dotnet hygiene check --base origin/main --output json
+dotnet hygiene review accept <batch-handle> <item-id>...
+dotnet hygiene review accept <batch-handle> --all
 ```
 
-`hygiene check` reports deterministic findings and one semantic-review batch for each enabled semantic-review rule. Each batch shows `SampleCount/PopulationCount`; its maximum is five and it may be zero even when the population is non-empty. Bare full-repository checks schedule zero semantic reviews. `--changed` admits current worktree C# changes relative to `HEAD`; `--base <ref>` inspects current C# files changed since the merge base with that ref, including committed feature changes and current worktree edits. Explicit paths request a bounded manual inspection. `--review-all` explicitly requests bounded full-repository inspection. These selectors cannot be combined. Documentation-only and unchanged gates spend no ordinary review work. For ordinary source changes, directly changed subjects rank first and at most one unchanged context subject from a touched source document can be selected. Other background subjects are eligible only under `--review-all`. Selection is risk-stratified and can be biased; it is not a defect-rate estimate, population-coverage guarantee, or proof that the code is defect-free. Each rule is enabled or disabled as a whole; none has repository-supplied sampling or rubric parameters. This English repository disables only the German-language rule in `.hygiene/config.json`.
+Accept only items whose fixed questions you inspected and answered positively. Leave negative or uncertain items unaccepted and use the rule's escalation guidance. Rerun `dotnet hygiene` after source changes. `complete` means the selected gate obligations were processed; it does not certify the full repository population as defect-free. A successful command execution is not itself a complete gate.
 
-The reviewer checks each normal sampled item against that rule's questions. When all required answers are confidently acceptable and no escalation condition applies, record the observation explicitly:
+The six semantic-review rules keep independent, bounded gate-local selection. A rule may select up to five items; `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
 
-```text
-hygiene review accept B-1 RI-1 RI-3
-hygiene review accept B-1 --all
+## Manual Inspection and Debugging
+
+The normal workflow needs no subcommand knowledge. Use these commands for nonmutating diagnostics and review handoffs:
+
+```powershell
+dotnet hygiene check src/Example.cs
+dotnet hygiene check --changed --output json
+dotnet hygiene check --base origin/main --output json
+dotnet hygiene check --review-all --output json
+dotnet hygiene rules --output json
+dotnet hygiene explain <finding-handle>
+dotnet hygiene review expand <batch-handle>
+dotnet hygiene review handoff <batch-handle> --output json
+dotnet hygiene format --check
+dotnet hygiene normalize --check
 ```
 
-`--all` accepts only the current normal sample. Acceptance revalidates the batch and its tickets and commits requested observations atomically. If an answer materially fails or is uncertain, leave it unaccepted and expand or hand off the complete eligible population:
+Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
 
-```text
-hygiene review expand B-1
+## Updating to a New Release
+
+On each autonomous run, the entrypoint checks configured NuGet sources for a newer stable package using an isolated temporary tool installation. If it finds one and can identify the current local-manifest or tool-path scope, it starts a separate updater, exits to release its loaded files, then the updater updates the package, restarts the installed command, and returns its revalidation report. The running executable is never replaced in process. If no stable package can be resolved, the compatible installed version continues and the lifecycle report says release discovery was unavailable. Unknown installation scopes receive an update instruction rather than an inferred global update.
+
+You can also update explicitly from the same trusted package source:
+
+```powershell
+dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.10.0
+dotnet hygiene --version
+dotnet hygiene
 ```
 
-`review expand B-1` is a transient stdout operation for the rule's escalated reviewer (`frontier` for summaries, `planner` for BORINGness). It accepts a bare batch ID or a fully qualified latest-run handle such as `R-7K2M9P/B-1` and emits the full revalidated population, including items not selected in the normal gate.
+For a tool installed with `--tool-path`, run `dotnet tool update --tool-path <tool-path> DotNetAiCodeHygiene.Tool --version <approved-version>` from the same trusted package source. Offline or unavailable release metadata is not evidence that the installation is current; follow the explicit next action in the lifecycle report. Do not use floating prerelease versions or arbitrary package feeds.
 
-`review handoff B-1` creates a durable JSON request at `.hygiene/reviews/<handoff-id>/request.json`. This namespaced folder is intentionally not Git-ignored, so a team can include the request in the same branch or PR. The CLI does not commit it; whether to add the artifact is a caller/team decision.
+## Deferred Work
 
-For a completely decoupled frontier reviewer, choose an external destination:
-
-```text
-hygiene review handoff B-1 --file "G:\My Drive\Transfer\HR-R7K2M9P-B1-request.json"
-```
-
-Both handoff forms use the same latest-run and population revalidation as `review expand`. Summary handoffs target a frontier reviewer; BORINGness handoffs target a planner. The request embeds full source text for each file containing a review item. The CLI writes the file locally; it does not transmit source, invoke Git, or commit the request.
-
-The CLI never invokes a model/provider and does not determine whether a review passes. Versioned accepted observations live in `.hygiene/.state/gate-reviews.json`; legacy `.hygiene/.state/sampling.json` is preserved and is not used by production semantic review. Expansion and handoff do not advance accepted-review state; there is no negative/uncertain observation command or external result import.
+`dotnet hygiene --yolo-all` is deferred to M0019 and is not available in 0.10.0. `--review-all` is a bounded inspection request, not exhaustive authorization. No hosted CI/workflow, provider integration, or public package publication is part of this release.

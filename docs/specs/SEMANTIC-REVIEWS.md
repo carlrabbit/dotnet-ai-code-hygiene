@@ -1,5 +1,7 @@
 # Semantic review batches
 
+The supported public CLI namespace is `dotnet hygiene`. The autonomous no-argument lifecycle presents selected review batches as a grouped, selected-only work order while preserving the exact per-rule questions, escalation policy, handles, tickets, and independent acceptance described here. Manual diagnostics use the same rule contracts through `dotnet hygiene check` and `dotnet hygiene review`.
+
 ## Model and output
 
 The deterministic engine discovers each rule's complete eligible population. All six semantic-review rules use the shared gate-local selector specified in `docs/specs/SAMPLING.md`; each rule retains its own population semantics, questions, reviewer class, escalation condition, and acceptance meaning. The CLI performs no model/provider invocation.
@@ -9,7 +11,7 @@ Every enabled semantic-review rule emits exactly one normal batch on a successfu
 ## Gate surfaces
 
 ```text
-hygiene check [paths...] [--changed | --base <git-ref> | --review-all]
+dotnet hygiene check [paths...] [--changed | --base <git-ref> | --review-all]
 ```
 
 - Bare `check` runs deterministic rules over the full default source scope and schedules zero semantic review.
@@ -24,11 +26,11 @@ On ordinary source-change gates, changed subject content ranks first. Up to one 
 
 ## Acceptance, expansion, and handoff
 
-`hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist separately from legacy hazard/age state.
+`dotnet hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist separately from legacy hazard/age state.
 
 Acceptance revalidates the current gate, base, full eligible population and each private ticket before an atomic write. Any missing, duplicate, stale, nonselected, incompatible, or previously accepted item rejects the complete request. Repeating a gate cannot replenish its fixed sample after partial acceptance. Accepted unchanged fingerprints are suppressed; changed content can become eligible again.
 
-`hygiene review expand <batch-handle>` and `hygiene review handoff <batch-handle> [--file <path>]` revalidate and expose the complete eligible population, even if the normal sample is zero. Handoff stays transport-neutral and includes the source context needed by a decoupled reviewer. It contains no private ticket or selection state and never invokes a model.
+`dotnet hygiene review expand <batch-handle>` and `dotnet hygiene review handoff <batch-handle> [--file <path>]` revalidate and expose the complete eligible population, even if the normal sample is zero. Handoff stays transport-neutral and includes the source context needed by a decoupled reviewer. It contains no private ticket or selection state and never invokes a model.
 
 ## Documentation summary rules
 
