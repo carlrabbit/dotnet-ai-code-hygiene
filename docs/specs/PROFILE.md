@@ -35,13 +35,13 @@ The tool does not support arbitrary profile selection or custom profile paramete
 
 ## Prerequisite
 
-Normal `hygiene check` requires a current supported profile marker. A missing marker returns product exit `3` with guidance to run:
+The autonomous `dotnet hygiene` entrypoint bootstraps when the profile marker is missing and reconciles supported profile drift. Manual `dotnet hygiene check` requires a current supported profile marker. A missing marker returns product exit `3` with guidance to run:
 
 ```text
-hygiene bootstrap
+dotnet hygiene bootstrap
 ```
 
-An unsupported/future profile ID/version returns exit `3`. An older supported profile version is handled by `hygiene update` when such a migration exists.
+An unsupported/future profile ID/version returns exit `3`. An older supported profile version is handled by `dotnet hygiene update` when such a migration exists.
 
 ## Fixed rule sets
 
@@ -99,7 +99,7 @@ A rule without deterministic remediation remains a finding for the caller to res
 ## Bootstrap
 
 ```text
-hygiene bootstrap [--output text|json]
+dotnet hygiene bootstrap [--output text|json]
 ```
 
 Repository-wide; no file/directory target and no `--changed`.
@@ -120,7 +120,7 @@ Profile findings do not become process errors merely because they exist; success
 ## Update
 
 ```text
-hygiene update [--output text|json]
+dotnet hygiene update [--output text|json]
 ```
 
 Repository-wide; no targets and no `--changed`.

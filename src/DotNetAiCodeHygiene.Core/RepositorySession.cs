@@ -270,7 +270,8 @@ internal sealed class RepositorySession : IDisposable
         var psi = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in arguments) { psi.ArgumentList.Add(argument); }
         using var process = System.Diagnostics.Process.Start(psi) ?? throw new IOException();
-        string output = process.StandardOutput.ReadToEnd(); string error = process.StandardError.ReadToEnd(); process.WaitForExit();
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync(); Task<string> errorTask = process.StandardError.ReadToEndAsync(); process.WaitForExit();
+        Task.WaitAll(outputTask, errorTask); string output = outputTask.Result; string error = errorTask.Result;
         if (process.ExitCode != 0) { throw new IOException(error); }
         return output;
     }

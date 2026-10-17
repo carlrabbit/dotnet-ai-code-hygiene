@@ -1,17 +1,9 @@
 # Agent Help Contract
 
-M0004 adds:
+The only supported command namespace is `dotnet hygiene`. The no-argument command is the ordinary agent entrypoint; `dotnet hygiene help --agent` provides stable CLI-owned workflow guidance without provider-specific prompting.
 
-```text
-hygiene help --agent
-```
+Guidance describes bootstrap and explicit external baseline approval, trusted gate selection, repository-wide deterministic formatting and normalization, findings, selected-only grouped review work, independent rule questions and acceptances, escalation, stale-work revalidation, reruns after remediation, terminal status semantics, practical manual diagnostics, release upgrades, and the fact that the CLI does not invoke a model/provider.
 
-This is a stable CLI-owned guidance surface for coding agents, not provider-specific prompting.
+Acceptance is a caller assertion that every fixed question passes and no escalation condition applies. Check rendering, expansion, and handoff do not consume review tickets. Negative or uncertain summary, test-quality, and comment-intent work goes to the frontier; BORINGness and type-responsibility concerns go to the planner. Comment intent is contextual: legal, administrative, and ordinary comments remain eligible; a comment is not defective merely because it does not narrate implementation. The visual-block review candidate indicates an opportunity, does not mandate a blank line, and is not automatically rewritten.
 
-It must concisely describe: product role; repository-scoped execution; target forms, `--changed`, `--base`, and `--review-all`; exit meanings; text/JSON output; canonical implementation workflow; `format`; `normalize`; `--check`; enabled rule-owned remediation selection; deterministic finding/explain/ignore flow; gate-local semantic review and zero-work batches; explicit `review accept` as the only accepted-observation boundary; expansion/handoff as full-population escalation; BORINGness and type-responsibility planner escalation; test-quality and comment-intent frontier escalation; the non-prescriptive v2 visual-block candidate; local gate-review state ownership and legacy sampling-state separation; and the fact that no model/provider is invoked by the CLI.
-
-Guidance must say that acceptance is a caller assertion that all fixed questions pass and no escalation condition applies; check, repeated rendering, expansion, and handoff do not consume tickets. It must direct negative or uncertain summary, test-quality, and comment-intent work to the frontier and BORINGness or type-responsibility concerns to the planner. Comment intent is contextual: legal, administrative, and other ordinary comments remain eligible, and a comment is not defective only because it does not explain implementation behavior. It must say the visual-block candidate indicates a review opportunity, does not mandate a blank line, and is not automatically rewritten.
-
-The command returns exit `0` and writes guidance to stdout. Root and subcommand `--help` must remain accurate and discoverable.
-
-M0004 does not require a portable Agent Skill, MCP server, IDE integration, or provider-specific instructions.
+Manual diagnostics remain under `dotnet hygiene check`, `rules`, `explain`, `format`, `normalize`, and `review`. `--review-all` remains bounded. `--yolo-all` is deferred to M0019. Root and subcommand help accurately describe the installed command and lifecycle. There is no pre-1.0 compatibility obligation for the old bare `hygiene` command or former CLI layout.

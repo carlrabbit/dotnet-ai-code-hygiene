@@ -35,15 +35,15 @@ gate-local semantic review/handoff
 Core public command surfaces include:
 
 ```text
-hygiene bootstrap [--output text|json]
-hygiene update [--output text|json]
-hygiene format ...
-hygiene normalize ...
-hygiene check ...
-hygiene review expand <batch-handle>
-hygiene review handoff <batch-handle> [--file <path>]
-hygiene review accept <batch-handle> <item-id>...
-hygiene review accept <batch-handle> --all
+dotnet hygiene bootstrap [--output text|json]
+dotnet hygiene update [--output text|json]
+dotnet hygiene format ...
+dotnet hygiene normalize ...
+dotnet hygiene check ...
+dotnet hygiene review expand <batch-handle>
+dotnet hygiene review handoff <batch-handle> [--file <path>]
+dotnet hygiene review accept <batch-handle> <item-id>...
+dotnet hygiene review accept <batch-handle> --all
 ```
 
 `review accept` records only explicit acceptable semantic-review observations. It does not infer reviewer judgment and it does not add a fail/uncertain result-import protocol.
@@ -64,7 +64,7 @@ Detailed profile contract:
 docs/specs/PROFILE.md
 ```
 
-Normal checking requires a current profile marker.
+The no-argument `dotnet hygiene` entrypoint bootstraps a missing marker; manual check commands require a current profile marker.
 
 ## Gate-local semantic review
 
@@ -137,10 +137,10 @@ The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 
 ## Package/version
 
-M0017 product/package version is:
+M0018 product/package version is:
 
 ```text
-0.9.0
+0.10.0
 ```
 
 Installed-tool Tier-4 validation remains required because M0016 changes public rule versions and adds `check --base` and `check --review-all`.
