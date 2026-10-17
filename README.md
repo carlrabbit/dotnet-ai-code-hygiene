@@ -52,11 +52,13 @@ dotnet hygiene format --check
 dotnet hygiene normalize --check
 ```
 
-Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Profile setup and source rewrites are planned and validated before their transactional writes; inspect a failed or incomplete outcome rather than treating it as a successful gate.
+Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
 
 ## Updating to a New Release
 
-Use only a configured trusted NuGet source. When a release is approved, update out of process and rerun the installed entrypoint so it can reconcile the repository profile and request approval for a material policy change:
+On each autonomous run, the entrypoint checks configured NuGet sources for a newer stable package using an isolated temporary tool installation. If it finds one and can identify the current local-manifest or tool-path scope, it starts a separate updater, exits to release its loaded files, then the updater updates the package, restarts the installed command, and returns its revalidation report. The running executable is never replaced in process. If no stable package can be resolved, the compatible installed version continues and the lifecycle report says release discovery was unavailable. Unknown installation scopes receive an update instruction rather than an inferred global update.
+
+You can also update explicitly from the same trusted package source:
 
 ```powershell
 dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.10.0

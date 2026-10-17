@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using DotNetAiCodeHygiene.Core;
 
@@ -102,11 +103,242 @@ internal static class Program
     private sealed record FormatObservation(string Project, string Status, string Output, IReadOnlyList<string> ChangedPaths);
     private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation);
     private sealed record WorkOrderFile(string Path, string CurrentContentSha256, string CurrentContent, IReadOnlyList<WorkOrderItem> Items);
+    private sealed record AutonomousUpdateResult(int ExitCode, object? RevalidatedLifecycle, string Message, bool Handoff = false);
+    private static object? releaseUpdateState;
+    private static string ToolVersion => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
+
+    private static AutonomousUpdateResult TryUpdateInstalledTool()
+    {
+        const string packageId = "DotNetAiCodeHygiene.Tool";
+        string root = new HygieneEngine().Root;
+        string currentVersion = ToolVersion;
+        string tempRoot = Path.Combine(Path.GetTempPath(), "dotnet-hygiene-update-" + Guid.NewGuid().ToString("N"));
+        string stage = Path.Combine(tempRoot, "stage");
+        string cache = Path.Combine(tempRoot, "packages");
+        string cliHome = Path.Combine(tempRoot, "cli-home");
+        bool handoffStarted = false;
+        try
+        {
+            Directory.CreateDirectory(stage);
+            var isolatedEnvironment = new Dictionary<string, string?> { ["NUGET_PACKAGES"] = cache, ["DOTNET_CLI_HOME"] = cliHome };
+            (int installCode, string installOut, string installErr) = RunProcess("dotnet", root, isolatedEnvironment, "tool", "install", packageId, "--tool-path", stage, "--verbosity", "quiet");
+            if (installCode != 0)
+            {
+                releaseUpdateState = new { status = "unavailable", currentVersion, detail = JoinOutput(installOut, installErr), action = "The configured NuGet sources did not provide a stable package for release discovery. Continue with this compatible installation or use the documented dotnet tool update command when online." };
+                return new(0, null, "Release discovery was unavailable; continuing with the compatible installed tool.");
+            }
+            (int listCode, string installedList, string listError) = RunProcess("dotnet", root, isolatedEnvironment, "tool", "list", "--tool-path", stage, "--format", "json");
+            string? stagedVersion = null;
+            if (listCode == 0)
+            {
+                using JsonDocument list = JsonDocument.Parse(installedList);
+                if (list.RootElement.TryGetProperty("data", out JsonElement data) && data.ValueKind == JsonValueKind.Array)
+                {
+                    stagedVersion = data.EnumerateArray().Where(item => item.TryGetProperty("packageId", out JsonElement id) && string.Equals(id.GetString(), packageId, StringComparison.OrdinalIgnoreCase))
+                        .Select(item => item.GetProperty("version").GetString()).FirstOrDefault();
+                }
+            }
+            if (!Version.TryParse(stagedVersion, out Version? candidate) || !Version.TryParse(currentVersion, out Version? current))
+            {
+                releaseUpdateState = new { status = "incompatible", currentVersion, detail = JoinOutput(installedList, listError, installOut, installErr), action = "Resolve the installed or staged package version before an automatic update can be applied." };
+                return new(0, null, "Release discovery returned an invalid package version; continuing with the current installation.");
+            }
+            if (candidate <= current)
+            {
+                releaseUpdateState = new { status = candidate < current ? "newer-than-configured-stable" : "current", currentVersion, latestStableVersion = candidate.ToString(), feedPolicy = "configured NuGet sources; stable packages only", action = candidate < current ? "This installation is newer than the latest stable package visible in configured sources; no downgrade was attempted." : null };
+                return new(0, null, "The installed tool is current.");
+            }
+
+            string? manifest = FindLocalToolManifest(root, packageId);
+            string stagedShim = Path.Combine(stage, OperatingSystem.IsWindows() ? "dotnet-hygiene.exe" : "dotnet-hygiene");
+            string? shim = FindOnPath(stagedShim);
+            string? installPath = null;
+            if (manifest is not null)
+            {
+                installPath = null;
+            }
+            else if (shim is not null)
+            {
+                installPath = Path.GetDirectoryName(shim)!;
+            }
+            else
+            {
+                releaseUpdateState = new { status = "update-available", currentVersion, latestStableVersion = candidate.ToString(), action = "A stable update is available, but the installation scope could not be identified safely. Run dotnet tool update DotNetAiCodeHygiene.Tool using the same scope and NuGet configuration used for installation, then restart and rerun dotnet hygiene." };
+                return new(0, null, "A release is available, but the tool could not identify its install scope; follow the update instruction.");
+            }
+
+            string requestPath = Path.Combine(tempRoot, "update-request.json");
+            string helperPath = Path.Combine(tempRoot, "update-after-exit.ps1");
+            var request = new { root, tempRoot, packageId, version = candidate.ToString(), manifest, installPath, shim, parentProcessId = Environment.ProcessId, previousVersion = current.ToString() };
+            File.WriteAllText(requestPath, JsonSerializer.Serialize(request, Json), new System.Text.UTF8Encoding(false));
+            File.WriteAllText(helperPath, UpdateHelperScript, new System.Text.UTF8Encoding(false));
+            var helper = new ProcessStartInfo("powershell.exe") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
+            helper.ArgumentList.Add("-NoProfile"); helper.ArgumentList.Add("-NonInteractive"); helper.ArgumentList.Add("-File"); helper.ArgumentList.Add(helperPath); helper.ArgumentList.Add(requestPath);
+            using (Process? background = Process.Start(helper))
+            {
+                if (background is null) { throw new EnvironmentException("Could not start the out-of-process release update helper."); }
+            }
+            handoffStarted = true;
+            return new(0, null, "A stable release is available. The updater will wait for this process to exit, update the tool, restart it, and revalidate the lifecycle.", Handoff: true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or EnvironmentException or InvalidOperationException or JsonException or FormatException)
+        {
+            releaseUpdateState = new { status = "unavailable", currentVersion, detail = error.Message, action = "Continue with the compatible installed tool and retry release discovery when the configured NuGet sources are available." };
+            return new(0, null, "Release discovery was unavailable; continuing with the installed tool.");
+        }
+        finally
+        {
+            if (!handoffStarted) { try { if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, true); } } catch (IOException) { } }
+        }
+    }
+
+    private static string JoinOutput(params string[] values) => string.Join(Environment.NewLine, values.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
+
+    private const string UpdateHelperScript = @"
+param([Parameter(Mandatory=$true)][string]$RequestPath)
+$ErrorActionPreference = 'Stop'
+$request = Get-Content -LiteralPath $RequestPath -Raw | ConvertFrom-Json
+while (Get-Process -Id $request.parentProcessId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 100 }
+$updateArgs = @('tool', 'update', $request.packageId)
+if ($request.manifest) { $updateArgs += @('--local', '--tool-manifest', $request.manifest) }
+else { $updateArgs += @('--tool-path', $request.installPath) }
+$updateArgs += @('--version', $request.version, '--verbosity', 'quiet')
+$updateOutput = (& dotnet @updateArgs 2>&1 | Out-String).Trim()
+$updateCode = $LASTEXITCODE
+$updateInfo = @{ status = 'update-failed'; previousVersion = $request.previousVersion; latestStableVersion = $request.version; detail = $updateOutput; action = 'Resolve the configured feed or installation-scope issue, then rerun dotnet hygiene.' }
+if ($updateCode -eq 0) {
+  $env:DOTNET_HYGIENE_SKIP_UPDATE = '1'
+  if ($request.manifest) { $childOutput = (& dotnet hygiene --output json 2>&1 | Out-String).Trim() }
+  else { $childOutput = (& $request.shim --output json 2>&1 | Out-String).Trim() }
+  $childCode = $LASTEXITCODE
+  try {
+    $result = $childOutput | ConvertFrom-Json
+    $updateInfo = @{ status = $(if ($childCode -eq 0) { 'updated-and-revalidated' } else { 'revalidation-failed' }); previousVersion = $request.previousVersion; installedVersion = $request.version; revalidatedStatus = $result.status; updateOutput = $updateOutput }
+    $result | Add-Member -NotePropertyName releaseUpdate -NotePropertyValue $updateInfo -Force
+    $result | ConvertTo-Json -Depth 64 -Compress
+  } catch {
+    @{ schemaVersion = 1; status = 'incomplete'; lifecycle = 'release-update'; action = 'The installed tool restarted but returned invalid lifecycle output; inspect the installation and rerun dotnet hygiene.'; releaseUpdate = @{ status = 'revalidation-failed'; previousVersion = $request.previousVersion; installedVersion = $request.version; detail = $childOutput; updateOutput = $updateOutput } } | ConvertTo-Json -Depth 32 -Compress
+  }
+} else {
+  @{ schemaVersion = 1; status = 'incomplete'; lifecycle = 'release-update'; action = 'The update did not complete. Resolve the configured NuGet source or installation state, then rerun dotnet hygiene.'; releaseUpdate = $updateInfo } | ConvertTo-Json -Depth 32 -Compress
+}
+Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+";
+
+    private static string? FindOnPath(string expectedShim)
+    {
+        string shimName = Path.GetFileName(expectedShim);
+        foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string candidate = Path.Combine(directory.Trim('"'), shimName);
+            if (File.Exists(candidate)) { return Path.GetFullPath(candidate); }
+        }
+        return null;
+    }
+
+    private static string? FindLocalToolManifest(string root, string packageId)
+    {
+        string path = Path.Combine(root, ".config", "dotnet-tools.json");
+        if (!File.Exists(path)) { return null; }
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.GetProperty("tools").TryGetProperty(packageId, out _) ? path : null;
+        }
+        catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException) { return null; }
+    }
+
+    private sealed class AutonomousMutationTransaction : IDisposable
+    {
+        private readonly string root;
+        private readonly Dictionary<string, byte[]?> original;
+        private Dictionary<string, byte[]?> expected;
+        private bool rolledBack;
+
+        public AutonomousMutationTransaction(string root)
+        {
+            this.root = root;
+            original = Capture();
+            expected = Capture();
+        }
+
+        public void Checkpoint() => expected = Capture();
+
+        public IReadOnlyList<string> Rollback()
+        {
+            if (rolledBack) { return []; }
+            rolledBack = true;
+            var conflicts = new List<string>();
+            foreach (string path in original.Keys.Union(expected.Keys, StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                byte[]? originalBytes = original.GetValueOrDefault(path);
+                byte[]? expectedBytes = expected.GetValueOrDefault(path);
+                if (Equal(originalBytes, expectedBytes)) { continue; }
+                try
+                {
+                    byte[]? current = File.Exists(path) ? File.ReadAllBytes(path) : null;
+                    if (!Equal(current, expectedBytes)) { conflicts.Add(Path.GetRelativePath(root, path).Replace('\\', '/')); continue; }
+                    if (originalBytes is null) { if (File.Exists(path)) { File.Delete(path); } }
+                    else { ReplaceAtomically(path, originalBytes); }
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                { conflicts.Add(Path.GetRelativePath(root, path).Replace('\\', '/')); }
+            }
+            return conflicts;
+        }
+
+        public void Dispose() { }
+
+        private Dictionary<string, byte[]?> Capture()
+        {
+            var paths = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+                .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj" or ".git"))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string relative in new[] { ".editorconfig", "Directory.Build.props", ".hygiene/profile.json", ".hygiene/profile/Hygiene.props", ".hygiene/.state/baseline-approval.json" })
+            { paths.Add(Path.Combine(root, relative)); }
+            string reports = Path.Combine(root, ".hygiene", "reports");
+            if (Directory.Exists(reports)) { paths.UnionWith(Directory.EnumerateFiles(reports, "*", SearchOption.AllDirectories)); }
+            return paths.ToDictionary(path => path, path => File.Exists(path) ? File.ReadAllBytes(path) : null, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static bool Equal(byte[]? left, byte[]? right) => left is null ? right is null : right is not null && left.AsSpan().SequenceEqual(right);
+
+        private static void ReplaceAtomically(string path, byte[] content)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string temp = path + "." + Guid.NewGuid().ToString("N") + ".rollback";
+            File.WriteAllBytes(temp, content);
+            if (File.Exists(path)) { File.Replace(temp, path, null); } else { File.Move(temp, path); }
+        }
+    }
 
     private static int RunAutonomous(string output)
     {
         if (output is not ("text" or "json")) { throw new ArgumentException("--output must be text or json."); }
+        if (Environment.GetEnvironmentVariable("DOTNET_HYGIENE_SKIP_UPDATE") != "1")
+        {
+            AutonomousUpdateResult update = TryUpdateInstalledTool();
+            if (update.Handoff) { return update.ExitCode; }
+            if (update.RevalidatedLifecycle is not null) { WriteLifecycle(update.RevalidatedLifecycle, output, update.Message); return update.ExitCode; }
+        }
+        return RunAutonomousLifecycle(output);
+    }
+
+    private static int RunAutonomousLifecycle(string output)
+    {
         var engine = new HygieneEngine();
+        using var transaction = new AutonomousMutationTransaction(engine.Root);
+        try { return RunAutonomousLifecycleCore(output, engine, transaction); }
+        catch (Exception error)
+        {
+            IReadOnlyList<string> conflicts = transaction.Rollback();
+            string recovery = conflicts.Count == 0 ? "Repository changes made by this run were rolled back." : $"Rollback preserved concurrent or conflicting edits at: {string.Join(", ", conflicts)}.";
+            throw new ProductException($"Autonomous hygiene stopped before completion. {recovery} Original error: {error.Message}");
+        }
+    }
+
+    private static int RunAutonomousLifecycleCore(string output, HygieneEngine engine, AutonomousMutationTransaction transaction)
+    {
         string marker = Path.Combine(engine.Root, ".hygiene", "profile.json");
         if (!File.Exists(marker))
         {
@@ -117,17 +349,29 @@ internal static class Program
                 return 0;
             }
             ProfileResult profile = engine.Bootstrap(output);
+            transaction.Checkpoint();
             FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
+            transaction.Checkpoint();
+            if (restrictedStyle.Any(item => item.Status == "failed"))
+            {
+                IReadOnlyList<string> conflicts = transaction.Rollback();
+                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "bootstrap", action = "Resolve the formatter failure and rerun dotnet hygiene; baseline changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, preHygieneFormatting = preFormat, failedFormatterSteps = restrictedStyle };
+                WriteLifecycle(failed, output, "Bootstrap failed during restricted formatting. No baseline was accepted or installed as complete.");
+                return 0;
+            }
             RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+            transaction.Checkpoint();
             RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
+            transaction.Checkpoint();
             string baselineStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, baselineStatus);
+            transaction.Checkpoint();
             var report = new
             {
                 schemaVersion = 1,
                 status = baselineStatus,
                 lifecycle = "bootstrap",
-                toolVersion = "0.10.0",
+                toolVersion = ToolVersion,
                 profile = new { id = "dotnet-11", version = 2 },
                 changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal),
                 preHygieneFormatting = preFormat,
@@ -157,22 +401,51 @@ internal static class Program
             WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Restore SDK project dependencies or provide the formatter required for a nonmutating assessment, then rerun dotnet hygiene.", preHygieneFormatting = priorFormatting }, output, "Profile reconciliation stopped because the formatting assessment was unavailable.");
             return 0;
         }
-        ProfileResult reconciliation = engine.UpdateProfile();
+        ProfileResult reconciliation;
+        try { reconciliation = engine.UpdateProfile(); }
+        catch (ProductException error)
+        {
+            var incompatible = new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Resolve the unsupported or malformed hygiene profile without discarding repository data, then rerun dotnet hygiene.", compatibilityError = error.Message };
+            WriteLifecycle(incompatible, output, "The installed tool cannot safely reconcile this profile state.");
+            return 0;
+        }
+        transaction.Checkpoint();
         if (reconciliation.ChangedPaths.Count > 0)
         {
             FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
+            transaction.Checkpoint();
+            if (restrictedStyle.Any(item => item.Status == "failed"))
+            {
+                IReadOnlyList<string> conflicts = transaction.Rollback();
+                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Resolve the formatter failure and rerun dotnet hygiene; profile migration and source changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyle };
+                WriteLifecycle(failed, output, "Profile update failed during restricted formatting. No new baseline was accepted.");
+                return 0;
+            }
             RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+            transaction.Checkpoint();
             RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
+            transaction.Checkpoint();
             string updateStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, priorFormatting, reconciliation, restrictedStyle, normalized, formatted, updateStatus);
-            var updateReport = new { schemaVersion = 1, status = updateStatus, lifecycle = "profile-update", toolVersion = "0.10.0", changedPaths = reconciliation.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = priorFormatting, restrictedStyle, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/') };
+            transaction.Checkpoint();
+            var updateReport = new { schemaVersion = 1, status = updateStatus, lifecycle = "profile-update", toolVersion = ToolVersion, changedPaths = reconciliation.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = priorFormatting, restrictedStyle, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/') };
             WriteLifecycle(updateReport, output, updateStatus == "incomplete" ? "Profile update validation is incomplete." : "Profile policy changed. Review the new baseline and obtain explicit authorized external approval before proceeding.");
             return 0;
         }
         engine.RequireProfile();
         FormatObservation[] restrictedStyleGate = ApplyRestrictedFormatting(engine.Root, engine);
+        transaction.Checkpoint();
+        if (restrictedStyleGate.Any(item => item.Status == "failed"))
+        {
+            IReadOnlyList<string> conflicts = transaction.Rollback();
+            var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "gate", action = "Resolve the formatter failure and rerun dotnet hygiene; all changes from this gate were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyleGate };
+            WriteLifecycle(failed, output, "Gate failed during restricted formatting. The gate is incomplete.");
+            return 0;
+        }
         RewriteResult normalizedGate = new RewriteEngine().Rewrite("normalize", [], false, false);
+        transaction.Checkpoint();
         RewriteResult formattedGate = new RewriteEngine().Rewrite("format", [], false, false);
+        transaction.Checkpoint();
         string[] changedPaths = normalizedGate.ChangedPaths.Concat(formattedGate.ChangedPaths).Distinct(StringComparer.Ordinal).ToArray();
         string[] changedSources = GitLines(engine.Root, "status", "--porcelain", "--", "*.cs");
         string branch = GitLine(engine.Root, "branch", "--show-current");
@@ -300,22 +573,29 @@ internal static class Program
         var observations = new List<FormatObservation>();
         foreach (string project in projects)
         {
-            (int whitespaceCode, string whitespaceOut, string whitespaceErr) = RunProcess("dotnet", root, formatter, project, "whitespace", "--no-restore");
-            string styleOutput = "";
-            string styleStatus = "not-enabled";
-            if (diagnostics.Length > 0)
+            try
             {
-                string[] args = [formatter, "style", project, "--diagnostics", .. diagnostics, "--no-restore"];
-                (int styleCode, string styleOut, string styleErr) = RunProcess("dotnet", root, args);
-                styleOutput = string.Join(Environment.NewLine, new[] { styleOut, styleErr }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                styleStatus = styleCode == 0 ? "applied" : "failed";
+                (int whitespaceCode, string whitespaceOut, string whitespaceErr) = RunProcess("dotnet", root, formatter, project, "whitespace", "--no-restore");
+                string styleOutput = "";
+                string styleStatus = "not-enabled";
+                if (diagnostics.Length > 0)
+                {
+                    string[] args = [formatter, "style", project, "--diagnostics", .. diagnostics, "--no-restore"];
+                    (int styleCode, string styleOut, string styleErr) = RunProcess("dotnet", root, args);
+                    styleOutput = string.Join(Environment.NewLine, new[] { styleOut, styleErr }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
+                    styleStatus = styleCode == 0 ? "applied" : "failed";
+                }
+                string output = string.Join(Environment.NewLine, new[] { whitespaceOut, whitespaceErr, styleOutput }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
+                string projectDirectory = Path.GetDirectoryName(project)!;
+                string[] changed = original.Where(pair => pair.Key.StartsWith(projectDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                        && File.Exists(pair.Key) && File.ReadAllText(pair.Key) != pair.Value)
+                    .Select(pair => Path.GetRelativePath(root, pair.Key).Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray();
+                observations.Add(new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), whitespaceCode == 0 && styleStatus != "failed" ? "applied" : "failed", $"whitespace=exit:{whitespaceCode}; style={styleStatus}; {output}".Trim(), changed));
             }
-            string output = string.Join(Environment.NewLine, new[] { whitespaceOut, whitespaceErr, styleOutput }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-            string projectDirectory = Path.GetDirectoryName(project)!;
-            string[] changed = original.Where(pair => pair.Key.StartsWith(projectDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                    && File.Exists(pair.Key) && File.ReadAllText(pair.Key) != pair.Value)
-                .Select(pair => Path.GetRelativePath(root, pair.Key).Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray();
-            observations.Add(new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), whitespaceCode == 0 && styleStatus != "failed" ? "applied" : "failed", $"whitespace=exit:{whitespaceCode}; style={styleStatus}; {output}".Trim(), changed));
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or EnvironmentException)
+            {
+                observations.Add(new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), "failed", error.Message, []));
+            }
         }
         return observations.ToArray();
     }
@@ -350,7 +630,7 @@ internal static class Program
             schemaVersion = 1,
             status,
             createdAtUtc = DateTimeOffset.UtcNow,
-            tool = new { package = "DotNetAiCodeHygiene.Tool", version = "0.10.0" },
+            tool = new { package = "DotNetAiCodeHygiene.Tool", version = ToolVersion },
             profile = new { id = "dotnet-11", version = 2 },
             ruleVersions = HygieneEngine.Rules.Select(rule => new { rule.Id, rule.Version }),
             changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal),
@@ -369,13 +649,23 @@ internal static class Program
 
     private static void WriteLifecycle<T>(T report, string output, string text)
     {
-        if (output == "json") { Console.WriteLine(JsonSerializer.Serialize(report, Json)); }
+        if (output == "json")
+        {
+            if (releaseUpdateState is null) { Console.WriteLine(JsonSerializer.Serialize(report, Json)); }
+            else
+            {
+                Dictionary<string, JsonElement> envelope = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(JsonSerializer.Serialize(report, Json), Json)!;
+                envelope["releaseUpdate"] = JsonSerializer.SerializeToElement(releaseUpdateState, Json);
+                Console.WriteLine(JsonSerializer.Serialize(envelope, Json));
+            }
+        }
         else
         {
             using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(report, Json));
             JsonElement root = document.RootElement;
             Console.WriteLine($"Status: {GetString(root, "status") ?? "incomplete"}");
             Console.WriteLine(text);
+            if (releaseUpdateState is not null) { Console.WriteLine($"Release update: {JsonSerializer.Serialize(releaseUpdateState, Json)}"); }
             if (GetString(root, "gate") is string gate) { Console.WriteLine($"Gate: {gate}"); }
             if (GetString(root, "action") is string action) { Console.WriteLine($"Next action: {action}"); }
             if (GetString(root, "reportPath") is string path) { Console.WriteLine($"Baseline report: {path}"); }
@@ -435,9 +725,12 @@ internal static class Program
         return main ? "origin/main" : "origin/master";
     }
 
-    private static (int ExitCode, string Stdout, string Stderr) RunProcess(string executable, string workingDirectory, params string[] args)
+    private static (int ExitCode, string Stdout, string Stderr) RunProcess(string executable, string workingDirectory, params string[] args) => RunProcess(executable, workingDirectory, null, args);
+
+    private static (int ExitCode, string Stdout, string Stderr) RunProcess(string executable, string workingDirectory, IReadOnlyDictionary<string, string?>? environment, params string[] args)
     {
         var start = new ProcessStartInfo(executable) { WorkingDirectory = workingDirectory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        if (environment is not null) { foreach ((string key, string? value) in environment) { if (value is null) { start.Environment.Remove(key); } else { start.Environment[key] = value; } } }
         foreach (string arg in args) { start.ArgumentList.Add(arg); }
         using Process process = Process.Start(start) ?? throw new EnvironmentException($"Could not start '{executable}'.");
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();

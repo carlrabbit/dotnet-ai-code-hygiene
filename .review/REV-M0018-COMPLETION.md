@@ -4,7 +4,7 @@
 **Requested reviewer:** project owner or explicitly delegated approver.  
 **Implementation branch:** `implementation/m0018-autonomous-hygiene-lifecycle`.
 
-This file is a review request, not evidence of reviewer consent. Do not mark M0018 complete until the implementation is finished, the evidence registry is reconciled, and an authorized reviewer records a decision.
+This file is a review request, not evidence of reviewer consent. Do not mark M0018 complete until all implementation/evidence gaps are closed, the registry is reconciled, and an authorized reviewer records a decision.
 
 ## Review scope
 
@@ -19,11 +19,9 @@ Please review the final pull request and verify:
 
 ## Evidence state at preparation
 
-The branch contains an implementation in progress. A Release build succeeded on Windows 11 with .NET SDK `11.0.100-rc.1.26425.128`. An isolated 0.10.0 package installation resolved `dotnet hygiene --version`, and a consumer bootstrap emitted `approval-required`. A project consumer also exercised the actual SDK `dotnet-format.dll`, profile approval state, gate check, and grouped selected review output.
+The latest canonical `eng/validate.ps1` run completed on Windows 11 with .NET SDK `11.0.100-rc.1.26425.128`: Release build passed, 118/118 tests passed (94 Core, 24 CLI), the fresh isolated 0.10.0 installed consumer passed, the repository self-host fixture passed, and `git diff --check` passed. It also exercised a local 0.10.0-to-0.10.1 autonomous stable-feed update after parent exit, installed-shim restart and lifecycle revalidation; offline feed reporting; preservation of an unsupported profile marker; and rollback after a formatter failure on a later project.
 
-The final `eng/validate.ps1` run completed successfully on Windows 11 with .NET SDK `11.0.100-rc.1.26425.128`: build passed, 118/118 tests passed (94 Core, 24 CLI), the freshly packed 0.10.0 isolated consumer passed, and the repository self-host fixture passed. The script also installed 0.9.0 and updated to 0.10.0 from a controlled local feed, then verified the `dotnet-hygiene` shim and version.
-
-This does not close every review item. Repository-wide source formatting is not rolled back atomically if a later external formatter/project invocation fails, and autonomous no-argument execution does not detect an available trusted-feed release. The update test proves the package manager path, not autonomous update discovery/restart. Offline/incompatible update states and full dirty-worktree preservation during a failed formatting run also lack evidence. See the execution ledger for criterion-specific status. The reviewer must decide whether these are required corrections before approval.
+The implementation and several path-specific evidence cases remain incomplete. The ledger records gaps for multiple-solution/orphan discovery, generated/unsupported-source exclusions, non-allowlisted analyzer rejection plus second-run no-op, rejected/materially changed baseline behavior, preservation of staged/unstaged/untracked work on successful bootstrap, grouped-work edge cases, the complete terminal-report matrix, and the combined installed-package formatter/provenance receipt. AC-09 and AC-19 remain partial for those cases. M0018 is currently BLOCKED on those evidence gaps. If they are resolved, the review decision remains yours or an explicitly delegated approver's; no approval is recorded here.
 
 ## Reviewer decision
 

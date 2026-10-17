@@ -61,6 +61,119 @@ $env:PATH = $upgradeToolPath + [IO.Path]::PathSeparator + $env:PATH
 $updatedVersion = dotnet hygiene --version
 if ($LASTEXITCODE -ne 0 -or ($updatedVersion -join '').Trim() -ne '0.10.0') { throw 'Tier-4 updated dotnet hygiene command did not restart and report version 0.10.0.' }
 $env:PATH = $pathBeforeUpgrade
+
+# A newer stable fixture proves autonomous discovery. Keep the required 0.10.0
+# consumer above exact; 0.10.1 exists only in this disposable feed.
+ $releaseFeed = Join-Path $tierRoot 'release-feed'
+New-Item -ItemType Directory -Force $releaseFeed | Out-Null
+Copy-Item -LiteralPath $package.FullName -Destination $releaseFeed
+dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-restore --output $releaseFeed -p:Version=0.10.1
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $releaseFeed 'DotNetAiCodeHygiene.Tool.0.10.1.nupkg'))) { throw 'Tier-4 release-update fixture package failed to pack.' }
+$releaseToolPath = Join-Path $tierRoot 'release-tools'; $releaseConsumer = Join-Path $tierRoot 'release-consumer'; $releaseCache = Join-Path $tierRoot 'release-cache'; $releaseNugetConfig = Join-Path $tierRoot 'release-consumer\NuGet.config'
+New-Item -ItemType Directory -Force $releaseToolPath, $releaseConsumer | Out-Null
+$releaseConfigText = @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration><packageSources><clear/><add key="ReleaseFixture" value="$releaseFeed"/><add key="NuGetOfficial" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="ReleaseFixture"><package pattern="DotNetAiCodeHygiene.Tool"/></packageSource><packageSource key="NuGetOfficial"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
+"@
+Set-Content -LiteralPath $releaseNugetConfig -Value $releaseConfigText -Encoding utf8
+$env:NUGET_PACKAGES = $releaseCache
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $releaseToolPath --configfile $releaseNugetConfig --version 0.10.0
+if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous-upgrade fixture failed to install exact 0.10.0.' }
+$releaseShim = Join-Path $releaseToolPath 'dotnet-hygiene.exe'
+Push-Location $releaseConsumer
+try {
+    git init -q
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 release consumer git init failed.' }
+    Set-Content -LiteralPath ReleaseFixture.csproj -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+    Set-Content -LiteralPath Release.cs -NoNewline -Value 'public class ReleaseFixture { }'
+    dotnet restore .\ReleaseFixture.csproj | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 release fixture restore failed.' }
+    $env:PATH = $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
+    $releaseReport = dotnet hygiene --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $releaseReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $releaseReport.releaseUpdate.previousVersion -ne '0.10.0' -or $releaseReport.releaseUpdate.installedVersion -ne '0.10.1' -or $releaseReport.releaseUpdate.revalidatedStatus -ne 'approval-required') { throw 'Autonomous trusted-feed update did not restart and revalidate the installed command.' }
+    $releaseVersion = dotnet hygiene --version
+    if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.10.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
+}
+finally { Pop-Location; $env:PATH = $pathBeforeUpgrade }
+
+# Unavailable/offline sources must be reported while the compatible binary
+# continues; incompatible profile state must remain untouched and actionable.
+$offlineConsumer = Join-Path $tierRoot 'offline-consumer'; $incompatibleConsumer = Join-Path $tierRoot 'incompatible-consumer'
+New-Item -ItemType Directory -Force $offlineConsumer, $incompatibleConsumer, (Join-Path $incompatibleConsumer '.hygiene') | Out-Null
+@'
+<configuration><packageSources><clear /></packageSources></configuration>
+'@ | Set-Content -LiteralPath (Join-Path $offlineConsumer 'NuGet.config') -Encoding utf8
+$env:PATH = $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
+Push-Location $offlineConsumer
+try {
+    git init -q
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 offline consumer git init failed.' }
+    $offlineReport = dotnet hygiene --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $offlineReport.releaseUpdate.status -ne 'unavailable' -or $offlineReport.status -ne 'approval-required') { throw 'Offline release discovery was not reported while the compatible tool continued bootstrap.' }
+}
+finally { Pop-Location }
+Push-Location $incompatibleConsumer
+try {
+    git init -q
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 incompatible-profile consumer git init failed.' }
+    $unsupportedProfile = '{"schemaVersion":1,"profile":"dotnet-11","version":99}'
+    Set-Content -LiteralPath .hygiene\profile.json -NoNewline -Value $unsupportedProfile
+    $incompatibleReport = dotnet hygiene --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $incompatibleReport.status -ne 'incomplete' -or $incompatibleReport.lifecycle -ne 'profile-update' -or [string]::IsNullOrWhiteSpace($incompatibleReport.compatibilityError) -or (Get-Content -LiteralPath .hygiene\profile.json -Raw) -cne $unsupportedProfile) { throw 'Incompatible profile was not reported safely or its user data changed.' }
+}
+finally { Pop-Location; $env:PATH = $pathBeforeUpgrade }
+
+# Inject a late style failure after the first project was formatted. The real
+# installed tool must restore sources and managed bootstrap files on failure.
+$rollbackConsumer = Join-Path $tierRoot 'rollback-consumer'; $rollbackWrapperProject = Join-Path $tierRoot 'dotnet-wrapper'; $rollbackCounter = Join-Path $tierRoot 'style-call-count.txt'
+$rollbackWrapperBin = Join-Path $rollbackWrapperProject 'bin\Release\net11.0'
+$dotnetExecutable = (Get-Command dotnet).Source
+New-Item -ItemType Directory -Force $rollbackConsumer, (Join-Path $rollbackConsumer 'A'), (Join-Path $rollbackConsumer 'B') | Out-Null
+dotnet new console --framework net11.0 --no-restore --output $rollbackWrapperProject | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Tier-4 formatter wrapper project creation failed.' }
+$wrapperProjectFile = Get-ChildItem -LiteralPath $rollbackWrapperProject -Filter *.csproj | Select-Object -First 1
+(Get-Content -LiteralPath $wrapperProjectFile.FullName -Raw).Replace('<PropertyGroup>', '<PropertyGroup><AssemblyName>dotnet</AssemblyName>') | Set-Content -LiteralPath $wrapperProjectFile.FullName -NoNewline
+$wrapperSource = @"
+using System.Diagnostics;
+string[] cliArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
+string joined = string.Join(" ", cliArgs);
+if (joined.Contains("dotnet-format.dll", StringComparison.OrdinalIgnoreCase) && joined.Contains(" style ", StringComparison.OrdinalIgnoreCase))
+{
+    string counter = Environment.GetEnvironmentVariable("M0018_STYLE_COUNT")!;
+    int count = File.Exists(counter) ? int.Parse(File.ReadAllText(counter)) : 0;
+    count++;
+    File.WriteAllText(counter, count.ToString());
+    if (count >= 2) { Console.Error.WriteLine("Injected second-project style failure for rollback validation."); return 42; }
+}
+var start = new ProcessStartInfo(@"$dotnetExecutable") { UseShellExecute = false };
+foreach (string argument in cliArgs) { start.ArgumentList.Add(argument); }
+using Process process = Process.Start(start)!;
+process.WaitForExit();
+return process.ExitCode;
+"@
+Set-Content -LiteralPath (Join-Path $rollbackWrapperProject 'Program.cs') -Value $wrapperSource
+& $dotnetExecutable build $wrapperProjectFile.FullName --configuration Release | Out-Null
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $rollbackWrapperBin 'dotnet.exe'))) { throw 'Tier-4 formatter wrapper build failed.' }
+$rollbackSourceA = 'public class A{public void Run(){if(true){System.Console.WriteLine("a");}}}'
+$rollbackSourceB = 'public class B{public void Run(){if(true){System.Console.WriteLine("b");}}}'
+Set-Content -LiteralPath (Join-Path $rollbackConsumer 'A\A.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+Set-Content -LiteralPath (Join-Path $rollbackConsumer 'B\B.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+Set-Content -LiteralPath (Join-Path $rollbackConsumer 'A\A.cs') -NoNewline -Value $rollbackSourceA
+Set-Content -LiteralPath (Join-Path $rollbackConsumer 'B\B.cs') -NoNewline -Value $rollbackSourceB
+Push-Location $rollbackConsumer
+try {
+    git init -q
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 rollback fixture git init failed.' }
+    & $dotnetExecutable restore .\A\A.csproj | Out-Null
+    & $dotnetExecutable restore .\B\B.csproj | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 rollback fixture restore failed.' }
+    $env:M0018_STYLE_COUNT = $rollbackCounter
+    $env:PATH = $rollbackWrapperBin + [IO.Path]::PathSeparator + $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
+    $rollbackReport = & $releaseShim --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $rollbackReport.status -ne 'incomplete' -or $rollbackReport.lifecycle -ne 'bootstrap' -or -not $rollbackReport.rolledBack -or (Get-Content -LiteralPath A\A.cs -Raw).Trim() -cne $rollbackSourceA -or (Get-Content -LiteralPath B\B.cs -Raw).Trim() -cne $rollbackSourceB -or (Test-Path -LiteralPath .hygiene\profile.json) -or (Test-Path -LiteralPath .editorconfig) -or (Test-Path -LiteralPath Directory.Build.props)) { throw 'Tier-4 late formatter failure did not roll back source and managed profile changes.' }
+}
+finally { Pop-Location; $env:PATH = $pathBeforeUpgrade; Remove-Item Env:\M0018_STYLE_COUNT -ErrorAction SilentlyContinue }
+
 Push-Location $autonomousConsumer
 try {
     git init -q
@@ -84,6 +197,7 @@ try {
     }
 }
 finally { Pop-Location }
+$env:PATH = $toolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
 Push-Location $consumer
 try {
     git init -q
