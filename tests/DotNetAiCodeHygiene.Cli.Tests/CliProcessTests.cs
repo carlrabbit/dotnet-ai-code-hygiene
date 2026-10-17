@@ -281,7 +281,8 @@ public sealed class CliProcessTests
             ProcessResult handoff = await RunCliInAsync(repo, true, "review", "handoff", "B-1");
             if (handoff.ExitCode != 0) { throw new InvalidOperationException(handoff.StandardError); }
             await Assert.That(handoff.ExitCode).IsEqualTo(0);
-            string handoffPath = handoff.StandardOutput["Review handoff written: ".Length..].Trim();
+            string handoffLine = handoff.StandardOutput.Split('\n').Single(line => line.TrimStart().StartsWith("Review handoff written: ", StringComparison.Ordinal));
+            string handoffPath = handoffLine[(handoffLine.IndexOf("Review handoff written: ", StringComparison.Ordinal) + "Review handoff written: ".Length)..].Trim();
             using JsonDocument handoffJson = JsonDocument.Parse(await File.ReadAllTextAsync(handoffPath));
             JsonElement handoffItem = handoffJson.RootElement.GetProperty("items").EnumerateArray()
                 .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
@@ -456,13 +457,18 @@ public sealed class CliProcessTests
             if (defaultHandoff.ExitCode != 0) { throw new InvalidOperationException(defaultHandoff.StandardError); }
             await Assert.That(defaultHandoff.ExitCode).IsEqualTo(0);
             await Assert.That(defaultHandoff.StandardOutput).Contains(".hygiene");
-            string defaultPath = defaultHandoff.StandardOutput["Review handoff written: ".Length..].Trim();
+            await Assert.That(defaultHandoff.StandardOutput).Contains("Status: escalation-required");
+            string handoffLine = defaultHandoff.StandardOutput.Split('\n').Single(line => line.TrimStart().StartsWith("Review handoff written: ", StringComparison.Ordinal));
+            string defaultPath = handoffLine[(handoffLine.IndexOf("Review handoff written: ", StringComparison.Ordinal) + "Review handoff written: ".Length)..].Trim();
             await Assert.That(File.Exists(defaultPath)).IsTrue();
 
             string externalPath = Path.Combine(external, "nested", "request.json");
-            ProcessResult externalHandoff = await RunCliInAsync(repo, true, "review", "handoff", handle, "--file", externalPath);
+            ProcessResult externalHandoff = await RunCliInAsync(repo, true, "review", "handoff", handle, "--file", externalPath, "--output", "json");
             await Assert.That(externalHandoff.ExitCode).IsEqualTo(0);
             await Assert.That(File.Exists(externalPath)).IsTrue();
+            using JsonDocument handoffReport = JsonDocument.Parse(externalHandoff.StandardOutput);
+            await Assert.That(handoffReport.RootElement.GetProperty("status").GetString()).IsEqualTo("escalation-required");
+            await Assert.That(handoffReport.RootElement.GetProperty("reviewerClass").GetString()).IsNotNull();
             using JsonDocument externalJson = JsonDocument.Parse(await File.ReadAllTextAsync(externalPath));
             await Assert.That(externalJson.RootElement.GetProperty("mode").GetString()).IsEqualTo("expanded");
 

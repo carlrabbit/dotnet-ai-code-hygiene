@@ -83,8 +83,9 @@ public sealed class RewriteEngine
             : normalizeRules.Select(module => ((IRuleModule)module).Descriptor.Id).Concat(formatRules.Select(module => ((IRuleModule)module).Descriptor.Id)).ToArray();
         using var session = new RepositorySession(root);
         string[] targets = session.ResolveTargets(paths, changed);
-        var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         Dictionary<string, (Project Project, Document Document)> assigned = session.AssignTargets(targets, paths);
+        targets = assigned.Keys.Order(StringComparer.Ordinal).ToArray();
+        var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
         var plan = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var changedByProject = new Dictionary<ProjectId, Dictionary<string, string>>();
         foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))

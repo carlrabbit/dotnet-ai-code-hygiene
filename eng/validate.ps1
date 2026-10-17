@@ -85,12 +85,13 @@ try {
     git init -q
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 release consumer git init failed.' }
     Set-Content -LiteralPath ReleaseFixture.csproj -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
-    Set-Content -LiteralPath Release.cs -NoNewline -Value 'public class ReleaseFixture { }'
+    Set-Content -LiteralPath Release.cs -NoNewline -Value 'using System.Collections.Generic; public class ReleaseFixture { }'
     dotnet restore .\ReleaseFixture.csproj | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 release fixture restore failed.' }
     $env:PATH = $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
     $releaseReport = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $releaseReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $releaseReport.releaseUpdate.previousVersion -ne '0.10.0' -or $releaseReport.releaseUpdate.installedVersion -ne '0.10.1' -or $releaseReport.releaseUpdate.revalidatedStatus -ne 'approval-required') { throw 'Autonomous trusted-feed update did not restart and revalidate the installed command.' }
+    if ((Get-Content -LiteralPath Release.cs -Raw) -notmatch 'using System\.Collections\.Generic;') { throw 'Autonomous style formatting applied non-allowlisted IDE0005 and removed an unused import.' }
     $releaseVersion = dotnet hygiene --version
     if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.10.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
 }
@@ -178,20 +179,59 @@ Push-Location $autonomousConsumer
 try {
     git init -q
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture git init failed.' }
+    git config user.email hygiene-autonomous@example.invalid
+    git config user.name 'Hygiene Autonomous Fixture'
     Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Autonomous.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
-    Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Sample.cs') -NoNewline -Value 'public class Sample{void Run(){if(true){System.Console.WriteLine("x");}}}'
+@'
+/// <summary>A sample type coordinates one operation.</summary>
+public class Sample {
+    // Keep this note close to the operation it explains.
+    public string UserEdit() { return "retained"; }
+    public void Run() { if (true) { System.Console.WriteLine("x"); } }
+}
+'@ | Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Sample.cs')
+@'
+/// <summary>A second sample type.</summary>
+public class Other {
+    // This comment explains the second declaration.
+    public void Run() { }
+}
+'@ | Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Other.cs')
     dotnet restore (Join-Path $autonomousConsumer 'Autonomous.csproj') | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture restore failed.' }
+    git add Autonomous.csproj Sample.cs Other.cs
+    git commit -m 'autonomous fixture baseline' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture baseline commit failed.' }
+    Set-Content -LiteralPath staged.txt -NoNewline -Value 'staged value'
+    git add staged.txt
+    Set-Content -LiteralPath staged.txt -NoNewline -Value 'unstaged value'
+    Set-Content -LiteralPath user-untracked.txt -NoNewline -Value 'preserve this untracked user file'
+    Set-Content -LiteralPath Sample.cs -NoNewline -Value 'public class Sample{public string UserEdit(){return "retained";}}'
+@'
+/// <summary>An updated second sample type.</summary>
+public class Other {
+    // This comment explains the second declaration after a user edit.
+    public void Run() { if (true) { System.Console.WriteLine("other"); } }
+}
+'@ | Set-Content -LiteralPath Other.cs
     $autonomousBootstrap = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $autonomousBootstrap.status -ne 'approval-required' -or $autonomousBootstrap.lifecycle -ne 'bootstrap') { throw 'Installed no-argument dotnet hygiene did not bootstrap into an approval-required baseline.' }
     if ($autonomousBootstrap.preHygieneFormatting[0].status -ne 'drift' -or $autonomousBootstrap.changedPaths -notcontains 'Sample.cs') { throw 'Installed bootstrap did not assess original formatting or report the post-hygiene source change.' }
     if (-not (Test-Path -LiteralPath $autonomousBootstrap.reportPath)) { throw 'Installed autonomous bootstrap did not persist its baseline report.' }
+    $cachedPaths = @(git diff --cached --name-only)
+    $worktreePaths = @(git diff --name-only)
+    if ($LASTEXITCODE -ne 0 -or $cachedPaths -notcontains 'staged.txt' -or $cachedPaths -contains 'Sample.cs' -or $worktreePaths -notcontains 'staged.txt' -or $worktreePaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath staged.txt -Raw) -cne 'unstaged value' -or (Get-Content -LiteralPath user-untracked.txt -Raw) -cne 'preserve this untracked user file' -or (Get-Content -LiteralPath Sample.cs -Raw) -notmatch 'retained') { throw 'Successful bootstrap failed to preserve staged, unstaged, and untracked user work.' }
     $stillPending = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $stillPending.status -ne 'approval-required') { throw 'Installed autonomous entrypoint bypassed its explicit baseline approval boundary.' }
     dotnet hygiene baseline accept --approver 'Isolated Tier-4 fixture approver' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed baseline approval command failed for the isolated authorized fixture.' }
     $autonomousGate = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $autonomousGate.lifecycle -ne 'gate' -or @($autonomousGate.workOrder).Count -eq 0) { throw 'Installed autonomous gate omitted its selected grouped semantic work order.' }
+    $groupedFiles = @($autonomousGate.workOrder)
+    $multiRuleGroup = @($groupedFiles | Where-Object { @($_.items | Select-Object -ExpandProperty ruleId -Unique).Count -gt 1 })
+    $zeroWorkBatches = @($autonomousGate.batches | Where-Object { $_.sampleCount -eq 0 })
+    $workBatchHandles = @($groupedFiles | ForEach-Object { $_.items } | Select-Object -ExpandProperty batchHandle -Unique)
+    if ($groupedFiles.Count -lt 2 -or $multiRuleGroup.Count -eq 0 -or $zeroWorkBatches.Count -eq 0 -or @($zeroWorkBatches | Where-Object { $workBatchHandles -contains $_.handle }).Count -gt 0) { throw 'Installed work order did not preserve multi-file grouping, independent same-file rules, and zero-work batch identity without phantom items.' }
     foreach ($fileWork in $autonomousGate.workOrder) {
         if ($fileWork.CurrentContentSha256.Length -ne 64 -or [string]::IsNullOrWhiteSpace($fileWork.CurrentContent) -or @($fileWork.items).Count -eq 0) { throw 'Installed work order omitted current source identity/context or selected items.' }
     }
@@ -319,14 +359,16 @@ public class ReviewedAdditional
     $commentExpanded = dotnet hygiene review expand $commentReview.handle --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $commentExpanded.reviewBatch.ruleId -ne 'comments.intent.review' -or $commentExpanded.reviewBatch.items.Count -lt 4) { throw 'Installed comment-intent expansion failed or omitted comment groups.' }
     $commentHandoff = dotnet hygiene review handoff $commentReview.handle
-    if ($LASTEXITCODE -ne 0 -or $commentHandoff -notmatch 'Review handoff written: ') { throw 'Installed comment-intent handoff failed.' }
-    $commentRequestPath = $commentHandoff.Substring('Review handoff written: '.Length).Trim()
+    $commentHandoffText = [string]::Join([Environment]::NewLine, @($commentHandoff))
+    if ($LASTEXITCODE -ne 0 -or $commentHandoffText -notmatch 'Review handoff written: ') { throw 'Installed comment-intent handoff failed.' }
+    $commentRequestPath = [regex]::Match($commentHandoffText, '(?m)^Review handoff written: (.+)$').Groups[1].Value.Trim()
     $commentRequest = Get-Content -LiteralPath $commentRequestPath -Raw | ConvertFrom-Json
     $commentSource = $commentRequest.sources | Where-Object path -eq 'Sample.cs'
     if (-not $commentSource -or $commentSource.content -notmatch 'Copyright 2026' -or $commentSource.content -notmatch 'MIT License' -or $commentSource.content -notmatch 'trailing review separate' -or $commentSource.content -notmatch 'Avoid the guarded operation') { throw 'Installed comment-intent expansion did not preserve current source context or ordinary legal comments.' }
     $typeHandoff = dotnet hygiene review handoff $typeReview.handle
-    if ($LASTEXITCODE -ne 0 -or $typeHandoff -notmatch 'Review handoff written: ') { throw 'Installed type-responsibility handoff failed.' }
-    $typeRequestPath = $typeHandoff.Substring('Review handoff written: '.Length).Trim()
+    $typeHandoffText = [string]::Join([Environment]::NewLine, @($typeHandoff))
+    if ($LASTEXITCODE -ne 0 -or $typeHandoffText -notmatch 'Review handoff written: ') { throw 'Installed type-responsibility handoff failed.' }
+    $typeRequestPath = [regex]::Match($typeHandoffText, '(?m)^Review handoff written: (.+)$').Groups[1].Value.Trim()
     $typeRequest = Get-Content -LiteralPath $typeRequestPath -Raw | ConvertFrom-Json
     if ($typeRequest.reviewerClass -ne 'planner' -or $typeRequest.rule.id -ne 'readability.type-responsibility.review') { throw 'Installed type-responsibility handoff contract is invalid.' }
     $internalFields = 'samplingTicket|stateEpoch|repositorySeed|hazard|threshold|evaluationFingerprint|aggregateEvidence'
@@ -347,16 +389,49 @@ public class ReviewedAdditional
     $boringExpanded = dotnet hygiene review expand $boringness.handle --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $boringExpanded.reviewBatch.items.Count -lt 32) { throw 'Installed BORINGness expansion did not retain the complete type population.' }
     $handoff = dotnet hygiene review handoff $germanAgain.handle
-    if ($LASTEXITCODE -ne 0 -or $handoff -notmatch 'Review handoff written: ') { throw 'Installed German review handoff failed.' }
+    $handoffText = [string]::Join([Environment]::NewLine, @($handoff))
+    if ($LASTEXITCODE -ne 0 -or $handoffText -notmatch 'Review handoff written: ') { throw 'Installed German review handoff failed.' }
     $plannerHandoff = dotnet hygiene review handoff $boringness.handle
-    if ($LASTEXITCODE -ne 0 -or $plannerHandoff -notmatch 'Review handoff written: ') { throw 'Installed BORINGness planner handoff failed.' }
-    $plannerPath = $plannerHandoff.Substring('Review handoff written: '.Length).Trim()
+    $plannerHandoffText = [string]::Join([Environment]::NewLine, @($plannerHandoff))
+    if ($LASTEXITCODE -ne 0 -or $plannerHandoffText -notmatch 'Review handoff written: ') { throw 'Installed BORINGness planner handoff failed.' }
+    $plannerPath = [regex]::Match($plannerHandoffText, '(?m)^Review handoff written: (.+)$').Groups[1].Value.Trim()
     $plannerRequest = Get-Content -LiteralPath $plannerPath -Raw | ConvertFrom-Json
     if ($plannerRequest.reviewerClass -ne 'planner' -or $plannerRequest.populationCount -lt 32 -or $plannerRequest.PSObject.Properties.Name -match 'result|ticket|hazard') { throw 'Installed BORINGness planner handoff contract is invalid.' }
     dotnet hygiene rules disable docs.summary.language.german.review | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
     $qualityOnly = dotnet hygiene check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 5 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'comments.intent.review')) { throw 'Disabling the installed German rule changed or removed other semantic-review rules.' }
+
+    # Prove the complete lifecycle terminal outcome from a clean, committed main-branch consumer.
+    $completeConsumer = Join-Path $tierRoot 'complete-consumer'
+    New-Item -ItemType Directory -Force $completeConsumer | Out-Null
+    $previousSkipUpdate = $env:DOTNET_HYGIENE_SKIP_UPDATE
+    $env:DOTNET_HYGIENE_SKIP_UPDATE = '1'
+    Push-Location $completeConsumer
+    try {
+        git init -q -b main
+        if ($LASTEXITCODE -ne 0) { throw 'Tier-4 complete consumer git init failed.' }
+        git config user.email hygiene-complete@example.invalid
+        git config user.name 'Hygiene Complete Fixture'
+        Set-Content -LiteralPath Empty.csproj -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+        dotnet restore .\Empty.csproj | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Tier-4 complete consumer restore failed.' }
+        $pendingBaseline = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $pendingBaseline.status -ne 'approval-required') { throw 'Clean consumer bootstrap did not require explicit approval.' }
+        dotnet hygiene baseline accept --approver 'Isolated completion fixture approver' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Clean consumer baseline approval failed.' }
+        $completeReport = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $completeReport.status -ne 'complete' -or $completeReport.lifecycle -ne 'gate' -or [string]::IsNullOrWhiteSpace($completeReport.gate) -or [string]::IsNullOrWhiteSpace($completeReport.runId)) { throw 'Clean installed consumer did not return a truthful complete gate report.' }
+        Set-Content -LiteralPath .hygiene\profile.json -NoNewline -Value '{"schemaVersion":1,"profile":"dotnet-11","version":1}'
+        $profileDrift = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $profileDrift.status -ne 'approval-required' -or $profileDrift.lifecycle -ne 'profile-update' -or @($profileDrift.changedPaths).Count -eq 0) { throw 'Autonomous profile drift did not prepare a materially changed approval-required baseline.' }
+        $profileDriftPending = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $profileDriftPending.status -ne 'approval-required') { throw 'A materially changed profile baseline was reported complete before external approval.' }
+    }
+    finally {
+        Pop-Location
+        if ($null -eq $previousSkipUpdate) { Remove-Item Env:\DOTNET_HYGIENE_SKIP_UPDATE -ErrorAction SilentlyContinue } else { $env:DOTNET_HYGIENE_SKIP_UPDATE = $previousSkipUpdate }
+    }
 }
 finally {
     Pop-Location

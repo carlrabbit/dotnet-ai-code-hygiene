@@ -87,8 +87,19 @@ internal static class Program
         expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
         var handoffHandle = new Argument<string>("batch-handle"); var handoffFile = new Option<string?>("--file");
         var handoff = new Command("handoff", "Create a durable, transport-neutral frontier-review request.");
-        handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile);
-        handoff.SetAction(parse => Run(() => { string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile)); Console.WriteLine($"Review handoff written: {path}"); return 0; }));
+        handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile); handoff.Options.Add(output);
+        handoff.SetAction(parse => Run(() =>
+        {
+            string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile));
+            SemanticReviewRequest request = JsonSerializer.Deserialize<SemanticReviewRequest>(File.ReadAllText(path), Json)
+                ?? throw new ProductException("Review handoff could not be read back for its completion report.");
+            var report = new { schemaVersion = 1, status = "escalation-required", lifecycle = "review-handoff", handoffPath = Path.GetRelativePath(new HygieneEngine().Root, path).Replace('\\', '/'), reviewerClass = request.ReviewerClass, rule = request.Rule.Id, batchHandle = request.Source.BatchHandle, itemCount = request.Items.Count, action = "The selected review work has been handed off for the designated reviewer judgment; keep it outstanding until the decision returns and rerun dotnet hygiene." };
+            string handoffOutput = parse.GetValue(output) ?? "text";
+            if (handoffOutput == "json") { Console.WriteLine(JsonSerializer.Serialize(report, Json)); }
+            else if (handoffOutput == "text") { Console.WriteLine("Status: escalation-required"); Console.WriteLine(report.action); Console.WriteLine($"Review handoff written: {path}"); }
+            else { throw new ArgumentException("--output must be text or json."); }
+            return 0;
+        }));
         review.Subcommands.Add(accept); review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
         return root;
     }
@@ -790,7 +801,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch>, dotnet hygiene review accept <batch> <item>... . format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded; --yolo-all belongs to M0019.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>... . Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded; --yolo-all belongs to M0019.
         Each enabled semantic-review rule selects independently, up to five items; a batch may be 0/N or 0/0. The agent must inspect every fixed question before explicit per-rule acceptance. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
         Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle status to know whether the gate is complete, approval-required, escalation-required, or incomplete. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency. Review state is under .hygiene/.state; the CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;

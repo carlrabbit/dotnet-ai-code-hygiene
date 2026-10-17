@@ -49,6 +49,8 @@ The entrypoint detects and reconciles profile drift automatically. It discovers 
 
 The completion report distinguishes generated findings, remediations, reviewed/accepted/reopened/escalated/outstanding subjects, validation results, source/version identity and outstanding approvals. It must remain truthful when the agent cannot finish. Repeated runs should be idempotent after successful remediation; acceptance is explicit and source-bound.
 
+`dotnet hygiene review handoff <batch> --output json` is the explicit escalation action for negative or uncertain selected work. Its terminal report is `escalation-required`, names the designated reviewer and durable handoff path, and leaves the review items unaccepted and outstanding.
+
 ## Explicitly deferred to M0019
 
 `dotnet hygiene --yolo-all` is **not** an M0018 feature. M0019 will define agent authorization/attestation and abort-on-no-authorization, exhaustive per-rule eligible population regardless of ordinary sampling caps, processing of previously accepted subjects, bounded/resumable chunks and true exhaustive coverage reporting. M0018 must not partially implement YOLO by conflating it with `--review-all` or creating unbounded single-prompt output. Design normal output so a later exhaustive mode can use it without introducing a universal rules DSL/pipeline.

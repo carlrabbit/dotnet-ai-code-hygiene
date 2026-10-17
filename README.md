@@ -37,7 +37,7 @@ The six semantic-review rules keep independent, bounded gate-local selection. A 
 
 ## Manual Inspection and Debugging
 
-The normal workflow needs no subcommand knowledge. These nonmutating diagnostics are available when investigating a result:
+The normal workflow needs no subcommand knowledge. Use these commands for nonmutating diagnostics and review handoffs:
 
 ```powershell
 dotnet hygiene check src/Example.cs
@@ -47,12 +47,12 @@ dotnet hygiene check --review-all --output json
 dotnet hygiene rules --output json
 dotnet hygiene explain <finding-handle>
 dotnet hygiene review expand <batch-handle>
-dotnet hygiene review handoff <batch-handle>
+dotnet hygiene review handoff <batch-handle> --output json
 dotnet hygiene format --check
 dotnet hygiene normalize --check
 ```
 
-Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
+Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
 
 ## Updating to a New Release
 
