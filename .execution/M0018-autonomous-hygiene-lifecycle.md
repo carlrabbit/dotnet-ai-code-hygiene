@@ -8,60 +8,60 @@ Planning-seeded for Agentic Project Guides 0.9.1. The milestone and referenced o
 
 | ID | Type | Obligation | Work package(s) | Implementation evidence | Validation evidence | Status |
 |---|---|---|---|---|---|---|
-| AC-01 | acceptance | Ship the .NET tool with the canonical `dotnet-hygiene` shim so `dotnet hygiene` works from an isolated installed package; remove the legacy bare `hygiene` public command without aliases, and expose correct version/help. | | | | todo |
-| AC-02 | acceptance | The no-argument `dotnet hygiene` entrypoint emits and drives an agent-executable, state-aware lifecycle without requiring the caller to know bootstrap, update, rule batches or acceptance commands; the CLI never calls an AI model/provider. | | | | todo |
-| AC-03 | acceptance | Automatically recognize a missing/uninitialized profile and initiate full-repository bootstrap; recognize current versus outdated/invalid profile state and produce the appropriate update or safe incompatibility action without silently replacing arbitrary user files. | | | | todo |
-| AC-04 | acceptance | Bootstrap covers all eligible supported SDK-style C# projects across the repository, including repositories with multiple solutions and projects not included in a preferred solution; honor generated/unsupported source exclusions and preserve unrelated data. | | | | todo |
-| AC-05 | acceptance | Before adopting the hygiene policy, run a nonmutating assessment of existing effective project formatting and report actual pre-hygiene drift; do not claim to infer whether `dotnet format` historically ran. | | | | todo |
-| AC-06 | acceptance | After adopting the profile, apply all enabled authoritative deterministic formatting/normalization to eligible repository sources; restrict dotnet-format-based code fixes to hygiene-owned policies/explicit diagnostic allowlists, never generic analyzer fixes, and enforce repeat-run idempotence. | | | | todo |
-| AC-07 | acceptance | Hygiene-owned EditorConfig and MSBuild policy is reconciled without clobbering unrelated sections; distinguish the post-hygiene effective policy from the prior project formatting baseline, and report changed paths and attribution limits truthfully. | | | | todo |
-| AC-08 | acceptance | Bootstrap and material policy migrations produce a reviewable baseline report with exact tool/profile/rule versions, changed paths, pre/post format observations, remaining conflicts and validation results; baseline status remains approval-required until explicitly accepted by an authorized external approver. | | | | todo |
-| AC-09 | acceptance | Repository-wide mutation is safe: plan/validate changes, preserve preexisting staged/unstaged/untracked work, avoid destructive reset, and ensure failures, cancellations and rejection cannot silently discard user data or claim a partially applied baseline complete. | | | | todo |
-| AC-10 | acceptance | For an initialized repository, infer a gate using explicit/trusted context before unambiguous local feature-branch merge-base or actual worktree changes; ambiguous or missing comparison context yields actionable agent instructions, never an accidental zero-review bare check or invented remote. | | | | todo |
-| AC-11 | acceptance | Ordinary gates perform authoritative deterministic remediation and preserve the existing M0016 six-rule independent bounded gate-local semantic-review selection contracts without adding cross-rule selection coupling or a global budget. | | | | todo |
-| AC-12 | acceptance | Generate a selected-only, consolidated, grouped agent work order with the exact original rule, questions, escalation policy, batch/item handles, current source identity/context and deduplicated files; grouping does not merge independent rule judgments or acceptances. | | | | todo |
-| AC-13 | acceptance | The agent workflow explicitly directs inspection, contextual remediation, positive-only acceptance, escalation for negative/uncertain items, stale-ticket revalidation, reruns after modifications and no false clean-state claims. | | | | todo |
-| AC-14 | acceptance | Publish truthful terminal outcomes complete, approval-required, escalation-required and incomplete, with structured/text reporting and coherent stdout/stderr/exit semantics that distinguish command execution success from gate completion. | | | | todo |
-| AC-15 | acceptance | Retain practical nonmutating manual diagnostics for paths, `--base`, `--changed`, `--review-all`, findings, rules, explain and review lifecycle in the redesigned `dotnet hygiene` hierarchy; keep `--review-all` bounded and do not implement `--yolo-all` in M0018. | | | | todo |
-| AC-16 | acceptance | When a configured trusted package source/channel is available, detect and perform or direct safe out-of-process tool upgrades, restart/revalidate the installed tool, reconcile supported profile state and request approval of materially changed policy; unavailable feed/offline/incompatible states are reported accurately without unauthorized host/CI changes. | | | | todo |
-| AC-17 | acceptance | The pre-1.0 contract has no backward-compatibility requirements for legacy command names, CLI shapes, JSON schemas, persisted review/profile/sampling formats or internal APIs; obsolete state fails safely or is replaced only through explicitly safe policy, with no silent loss of repository data. | | | | todo |
-| AC-18 | acceptance | Normal operation needs no project-specific AGENTS.md insertion, no separate agent skill, no model-provider integration, no generalized rule DSL, and no generic plugin/pipeline architecture; use the existing independent rule modules and shared project facts. | | | | todo |
-| AC-19 | acceptance | A freshly built version 0.10.0 tool package installed into an isolated Windows 11/.NET 11 consumer executes the `dotnet hygiene` command and proves bootstrap, pre/post restricted formatting, normal gates, manual diagnostics, lifecycle reports and trusted-source update behavior rather than relying on an old shim or development binary. | | | | todo |
-| AC-20 | acceptance | Software validation demonstrates CLI orchestration, safe rewrites, rule selection, work-order fidelity, identity/revalidation and report semantics, without assigning gold-label subjective judgments or claiming that sampling certifies population quality. | | | | todo |
-| DOC-01 | documentation | Replace the README onboarding structure with First Bootstrap, Run on Gates, Manual Inspection and Debugging, and Updating to a New Release, plus correctly labeled deferred YOLO usage and real copy-pasteable `dotnet hygiene` examples tested against the installed artifact. | | | | todo |
-| DOC-02 | documentation | Update operative engineering, profile, rewrite, semantic review, agent-help, package/distribution and milestone index authority to reflect actual M0018 behavior and record the explicit pre-1.0 no-compatibility policy; leave completed historical milestone evidence intact. | | | | todo |
-| REV-01 | human review | Prepare `.review/REV-M0018-COMPLETION.md` for blocking project-owner/delegated-approver review of the autonomous workflow, baseline approval boundary, mutation safety, genuine installed-tool provenance, evidence-case closure and scope fidelity; do not invent approval. | | | | todo |
+| AC-01 | acceptance | Ship the .NET tool with the canonical `dotnet-hygiene` shim so `dotnet hygiene` works from an isolated installed package; remove the legacy bare `hygiene` public command without aliases, and expose correct version/help. | | | | pass |
+| AC-02 | acceptance | The no-argument `dotnet hygiene` entrypoint emits and drives an agent-executable, state-aware lifecycle without requiring the caller to know bootstrap, update, rule batches or acceptance commands; the CLI never calls an AI model/provider. | | | | partial |
+| AC-03 | acceptance | Automatically recognize a missing/uninitialized profile and initiate full-repository bootstrap; recognize current versus outdated/invalid profile state and produce the appropriate update or safe incompatibility action without silently replacing arbitrary user files. | | | | partial |
+| AC-04 | acceptance | Bootstrap covers all eligible supported SDK-style C# projects across the repository, including repositories with multiple solutions and projects not included in a preferred solution; honor generated/unsupported source exclusions and preserve unrelated data. | | | | partial |
+| AC-05 | acceptance | Before adopting the hygiene policy, run a nonmutating assessment of existing effective project formatting and report actual pre-hygiene drift; do not claim to infer whether `dotnet format` historically ran. | | | | pass |
+| AC-06 | acceptance | After adopting the profile, apply all enabled authoritative deterministic formatting/normalization to eligible repository sources; restrict dotnet-format-based code fixes to hygiene-owned policies/explicit diagnostic allowlists, never generic analyzer fixes, and enforce repeat-run idempotence. | | | | partial |
+| AC-07 | acceptance | Hygiene-owned EditorConfig and MSBuild policy is reconciled without clobbering unrelated sections; distinguish the post-hygiene effective policy from the prior project formatting baseline, and report changed paths and attribution limits truthfully. | | | | partial |
+| AC-08 | acceptance | Bootstrap and material policy migrations produce a reviewable baseline report with exact tool/profile/rule versions, changed paths, pre/post format observations, remaining conflicts and validation results; baseline status remains approval-required until explicitly accepted by an authorized external approver. | | | | partial |
+| AC-09 | acceptance | Repository-wide mutation is safe: plan/validate changes, preserve preexisting staged/unstaged/untracked work, avoid destructive reset, and ensure failures, cancellations and rejection cannot silently discard user data or claim a partially applied baseline complete. | | | | partial |
+| AC-10 | acceptance | For an initialized repository, infer a gate using explicit/trusted context before unambiguous local feature-branch merge-base or actual worktree changes; ambiguous or missing comparison context yields actionable agent instructions, never an accidental zero-review bare check or invented remote. | | | | pass |
+| AC-11 | acceptance | Ordinary gates perform authoritative deterministic remediation and preserve the existing M0016 six-rule independent bounded gate-local semantic-review selection contracts without adding cross-rule selection coupling or a global budget. | | | | pass |
+| AC-12 | acceptance | Generate a selected-only, consolidated, grouped agent work order with the exact original rule, questions, escalation policy, batch/item handles, current source identity/context and deduplicated files; grouping does not merge independent rule judgments or acceptances. | | | | partial |
+| AC-13 | acceptance | The agent workflow explicitly directs inspection, contextual remediation, positive-only acceptance, escalation for negative/uncertain items, stale-ticket revalidation, reruns after modifications and no false clean-state claims. | | | | pass |
+| AC-14 | acceptance | Publish truthful terminal outcomes complete, approval-required, escalation-required and incomplete, with structured/text reporting and coherent stdout/stderr/exit semantics that distinguish command execution success from gate completion. | | | | partial |
+| AC-15 | acceptance | Retain practical nonmutating manual diagnostics for paths, `--base`, `--changed`, `--review-all`, findings, rules, explain and review lifecycle in the redesigned `dotnet hygiene` hierarchy; keep `--review-all` bounded and do not implement `--yolo-all` in M0018. | | | | pass |
+| AC-16 | acceptance | When a configured trusted package source/channel is available, detect and perform or direct safe out-of-process tool upgrades, restart/revalidate the installed tool, reconcile supported profile state and request approval of materially changed policy; unavailable feed/offline/incompatible states are reported accurately without unauthorized host/CI changes. | | | | partial |
+| AC-17 | acceptance | The pre-1.0 contract has no backward-compatibility requirements for legacy command names, CLI shapes, JSON schemas, persisted review/profile/sampling formats or internal APIs; obsolete state fails safely or is replaced only through explicitly safe policy, with no silent loss of repository data. | | | | pass |
+| AC-18 | acceptance | Normal operation needs no project-specific AGENTS.md insertion, no separate agent skill, no model-provider integration, no generalized rule DSL, and no generic plugin/pipeline architecture; use the existing independent rule modules and shared project facts. | | | | pass |
+| AC-19 | acceptance | A freshly built version 0.10.0 tool package installed into an isolated Windows 11/.NET 11 consumer executes the `dotnet hygiene` command and proves bootstrap, pre/post restricted formatting, normal gates, manual diagnostics, lifecycle reports and trusted-source update behavior rather than relying on an old shim or development binary. | | | | partial |
+| AC-20 | acceptance | Software validation demonstrates CLI orchestration, safe rewrites, rule selection, work-order fidelity, identity/revalidation and report semantics, without assigning gold-label subjective judgments or claiming that sampling certifies population quality. | | | | pass |
+| DOC-01 | documentation | Replace the README onboarding structure with First Bootstrap, Run on Gates, Manual Inspection and Debugging, and Updating to a New Release, plus correctly labeled deferred YOLO usage and real copy-pasteable `dotnet hygiene` examples tested against the installed artifact. | | | | pass |
+| DOC-02 | documentation | Update operative engineering, profile, rewrite, semantic review, agent-help, package/distribution and milestone index authority to reflect actual M0018 behavior and record the explicit pre-1.0 no-compatibility policy; leave completed historical milestone evidence intact. | | | | pass |
+| REV-01 | human review | Prepare `.review/REV-M0018-COMPLETION.md` for blocking project-owner/delegated-approver review of the autonomous workflow, baseline approval boundary, mutation safety, genuine installed-tool provenance, evidence-case closure and scope fidelity; do not invent approval. | | | | prepared; review pending |
 
 ## Evidence Case Registry
 
 | ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
 |---|---|---|---|---|---|
-| EC-01a | AC-01 | Fresh isolated installed `dotnet hygiene` command resolves current artifact and `--version`/help accurately | VAL-05 | | todo |
-| EC-01b | AC-01 | Legacy bare `hygiene` is not distributed as supported shim; no fallback alias | VAL-05 | | todo |
-| EC-03a | AC-03 | Missing profile bootstraps and supported drift reconciles | VAL-01 | | todo |
-| EC-03b | AC-03 | Malformed/unsupported profile or conflicting managed artifacts do not silently overwrite user data | VAL-01 | | todo |
-| EC-04a | AC-04 | Multiple solutions and orphaned eligible SDK projects are covered | VAL-01; VAL-03 | | todo |
-| EC-04b | AC-04 | Generated and unsupported files stay excluded without suppressing eligible sources | VAL-01; VAL-03 | | todo |
-| EC-05a | AC-05 | Original effective formatting assessment runs without source edits | VAL-01; VAL-03 | | todo |
-| EC-06a | AC-06 | Hygiene-approved whitespace/layout and selected style fixes applied repository-wide | VAL-01; VAL-03 | | todo |
-| EC-06b | AC-06 | Non-allowlisted analyzer fixes never run and second pass is a no-op | VAL-01; VAL-03 | | todo |
-| EC-08a | AC-08 | Bootstrap report remains pending before approver decision; externally approved baseline becomes active | VAL-01; VAL-05 | | todo |
-| EC-08b | AC-08 | Rejected/materially changed baseline is not reported complete | VAL-01; VAL-05 | | todo |
-| EC-09a | AC-09 | Existing dirty/staged/untracked input is preserved under successful setup | VAL-01 | | todo |
-| EC-09b | AC-09 | Fault/cancel/conflict does not leave corrupt or falsely accepted baseline | VAL-01 | | todo |
-| EC-10a | AC-10 | Unambiguous feature branch with committed changes selects PR-base gate | VAL-02 | | todo |
-| EC-10b | AC-10 | Actual worktree change selects worktree gate when no branch comparison applies | VAL-02 | | todo |
-| EC-10c | AC-10 | Missing/ambiguous upstream/base yields actionable incomplete request and no empty success | VAL-02 | | todo |
-| EC-12a | AC-12 | Same-file different-rule subjects share supplied context but retain both exact original identities and questions | VAL-01 | | todo |
-| EC-12b | AC-12 | Separate-source subjects and zero-work rules preserve ordering/identity without phantom work | VAL-01 | | todo |
-| EC-13a | AC-13 | Successful explicit per-rule acceptance after judgment; repeated gate no refill | VAL-01 | | todo |
-| EC-13b | AC-13 | Edited source rejects stale acceptance; uncertain/negative work remains outstanding/escalated | VAL-01 | | todo |
-| EC-14a | AC-14 | Complete report names processed gate and exact verification evidence | VAL-02 | | todo |
-| EC-14b | AC-14 | Approval, escalation, validation failure and unresolved work remain distinct non-complete outcomes | VAL-02 | | todo |
-| EC-16a | AC-16 | Configured trusted feed updates using isolated packed versions and verifies new shim/profile behavior | VAL-05 | | todo |
-| EC-16b | AC-16 | Offline/unconfigured feed and incompatible binary/profile report honest next action; no unauthorized provisioning | VAL-05 | | todo |
-| EC-19a | AC-19 | Fresh 0.10.0 packaged tool installed and invoked in isolated consumer | VAL-05 | | todo |
-| EC-19b | AC-19 | Original configuration and post-hygiene formatting verified with actual formatter process and bounded diagnostics | VAL-03; VAL-05 | | todo |
+| EC-01a | AC-01 | Fresh isolated installed `dotnet hygiene` command resolves current artifact and `--version`/help accurately | VAL-05 | | pass |
+| EC-01b | AC-01 | Legacy bare `hygiene` is not distributed as supported shim; no fallback alias | VAL-05 | | pass |
+| EC-03a | AC-03 | Missing profile bootstraps and supported drift reconciles | VAL-01 | | partial |
+| EC-03b | AC-03 | Malformed/unsupported profile or conflicting managed artifacts do not silently overwrite user data | VAL-01 | | not demonstrated |
+| EC-04a | AC-04 | Multiple solutions and orphaned eligible SDK projects are covered | VAL-01; VAL-03 | | partial |
+| EC-04b | AC-04 | Generated and unsupported files stay excluded without suppressing eligible sources | VAL-01; VAL-03 | | partial |
+| EC-05a | AC-05 | Original effective formatting assessment runs without source edits | VAL-01; VAL-03 | | pass |
+| EC-06a | AC-06 | Hygiene-approved whitespace/layout and selected style fixes applied repository-wide | VAL-01; VAL-03 | | partial |
+| EC-06b | AC-06 | Non-allowlisted analyzer fixes never run and second pass is a no-op | VAL-01; VAL-03 | | partial |
+| EC-08a | AC-08 | Bootstrap report remains pending before approver decision; externally approved baseline becomes active | VAL-01; VAL-05 | | pass |
+| EC-08b | AC-08 | Rejected/materially changed baseline is not reported complete | VAL-01; VAL-05 | | partial |
+| EC-09a | AC-09 | Existing dirty/staged/untracked input is preserved under successful setup | VAL-01 | | partial |
+| EC-09b | AC-09 | Fault/cancel/conflict does not leave corrupt or falsely accepted baseline | VAL-01 | | partial |
+| EC-10a | AC-10 | Unambiguous feature branch with committed changes selects PR-base gate | VAL-02 | | pass |
+| EC-10b | AC-10 | Actual worktree change selects worktree gate when no branch comparison applies | VAL-02 | | pass |
+| EC-10c | AC-10 | Missing/ambiguous upstream/base yields actionable incomplete request and no empty success | VAL-02 | | pass |
+| EC-12a | AC-12 | Same-file different-rule subjects share supplied context but retain both exact original identities and questions | VAL-01 | | partial |
+| EC-12b | AC-12 | Separate-source subjects and zero-work rules preserve ordering/identity without phantom work | VAL-01 | | partial |
+| EC-13a | AC-13 | Successful explicit per-rule acceptance after judgment; repeated gate no refill | VAL-01 | | pass |
+| EC-13b | AC-13 | Edited source rejects stale acceptance; uncertain/negative work remains outstanding/escalated | VAL-01 | | pass |
+| EC-14a | AC-14 | Complete report names processed gate and exact verification evidence | VAL-02 | | partial |
+| EC-14b | AC-14 | Approval, escalation, validation failure and unresolved work remain distinct non-complete outcomes | VAL-02 | | partial |
+| EC-16a | AC-16 | Configured trusted feed updates using isolated packed versions and verifies new shim/profile behavior | VAL-05 | | partial |
+| EC-16b | AC-16 | Offline/unconfigured feed and incompatible binary/profile report honest next action; no unauthorized provisioning | VAL-05 | | not demonstrated |
+| EC-19a | AC-19 | Fresh 0.10.0 packaged tool installed and invoked in isolated consumer | VAL-05 | | pass |
+| EC-19b | AC-19 | Original configuration and post-hygiene formatting verified with actual formatter process and bounded diagnostics | VAL-03; VAL-05 | | partial |
 
 ## Work Packages
 
