@@ -5,3 +5,4 @@ TestResults/
 **/.hygiene/.state/
 **/bin/
 **/obj/
+.execution/validation/
