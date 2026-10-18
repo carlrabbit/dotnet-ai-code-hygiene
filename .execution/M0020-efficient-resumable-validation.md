@@ -22,7 +22,7 @@ Planning-seeded under Agentic Project Guides 0.9.1. The milestone is authoritati
 | AC-12 | acceptance | Maintain final functional equivalence: the complete validation requirement remains authoritative on the declared Windows 11/.NET 11 locus, all prior M0018 consumer scenarios remain represented by executed real boundaries, and observed passes alone are not substituted for independent obligation/case evidence. No new production hygiene behavior is introduced. | WP-02/04 | isolated validation scripts; unchanged product source | VAL-03/04: actual packaged tool passed complete installed-consumer lifecycle and self-host; full Core/CLI/readme/package gates passed on Windows 11/.NET 11. | pass |
 | DOC-01 | documentation | Document the complete user/agent-facing validation commands and completion semantics in project-local engineering authority, with honest timings and concrete examples that were executed from the repository. | WP-03 | `docs/ENGINEERING.md` | VAL-04: documented `-PlanJson`, focused shards, aggregate, `-Fresh`, `-Verify`, filters and timing interpretation; commands executed. | pass |
 | DOC-02 | documentation | Produce a concise non-authoritative guide-feedback note that identifies only actionable Agentic Project Guide improvements, distinguishes already-existing 0.9.1 features from missing guidance, and does not silently modify the separate guide repository. | WP-03 | `docs/milestones/M0020-GUIDE-FEEDBACK.md` | VAL-04: advisory note included; no external guide repository changed. | pass |
-| REV-01 | human review | Prepare `.review/REV-M0020-COMPLETION.md` with concrete stage/receipt/consumer/timing evidence and a pending independent human-or-authorized-delegate decision; do not self-approve. | WP-04 | `.review/REV-M0020-COMPLETION.md` | VAL-05 pending: review request prepared with concrete evidence; independent reviewer has not approved. | pending |
+| REV-01 | human review | Prepare `.review/REV-M0020-COMPLETION.md` with concrete stage/receipt/consumer/timing evidence and a pending independent human-or-authorized-delegate decision; do not self-approve. | WP-04 | `.review/REV-M0020-COMPLETION.md` | VAL-05: project owner approved M0020 completion evidence in this conversation on 2026-10-18; decision recorded in the review artifact. | pass |
 
 ## Evidence Case Registry
 
@@ -60,19 +60,19 @@ Planning-seeded under Agentic Project Guides 0.9.1. The milestone is authoritati
 | VAL-02 | Tier 1/2 — test timing and focused feedback; Run focused Core and CLI tests, capture supported timing output and demonstrate ordered repeated fixture runs | Windows 11 + .NET 11; real TUnit/MTP Core and CLI tests | AC-06, AC-07, AC-08; EC-06a, EC-07a, EC-08a | pass | Focused named Core+CLI tests passed; full suites 95+30 pass; MTP timing reports captured. |
 | VAL-03 | Tier 3/4 — isolated installed consumer and update stages; Run selected consumer/upgrade/rollback shards with fresh and previously verified immutable 0.9.0 fixture; inject late failure and rerun that stage | Windows 11 + .NET 11 + Git + NuGet, isolated local feeds; actual packaged tool | AC-02, AC-09, AC-12; EC-02a, EC-02b, EC-09a, EC-09b | pass | Full current package installed-consumer lifecycle passed on cold execution and retry; cache identity verified/reused; late failure isolated and recovered. |
 | VAL-04 | Tier 2/3/4 — final canonical cold and warm aggregate; Run cold/fresh complete canonical validation once; then unchanged warm aggregate and `-Verify`; modify one relevant source to demonstrate invalidation; `git diff --check` | Windows 11 + .NET 11 + PowerShell + Git; exact current repository state | AC-01–AC-12; EC-01a, EC-02a, EC-03a, EC-04a, EC-04b, EC-05a, EC-06a, EC-09b | pass | Fresh aggregate 1,028.93s; all seven receipts passed final aggregate verification. Warm aggregate reused 7/7; `-Verify` passed 7/7. Test assembly, documentation whitespace, and ignored-unrelated probes passed; `git diff --check` passed. |
-| VAL-05 | Tier 5 — blocking milestone review; Authorized reviewer checks validation equivalence, safety, measured cost and audit against exact acceptance/case registry | M0020 PR, milestone ledger and evidence | REV-01 | pending | Independent reviewer/delegate decision required; PR prepared, no self-approval. |
+| VAL-05 | Tier 5 — blocking milestone review; Authorized reviewer checks validation equivalence, safety, measured cost and audit against exact acceptance/case registry | M0020 PR, milestone ledger and evidence | REV-01 | pass | Project owner approved the milestone on 2026-10-18; approval is recorded in `.review/REV-M0020-COMPLETION.md`. PR #20 remains open and unmerged. |
 
 ## Resume Point
 
 Last completed work package: WP-04
 
-Current work package: none; automated work complete, independent review pending
+Current work package: complete; project owner approval recorded; PR remains open and unmerged
 
-Next concrete action: independent reviewer audits the PR, complete obligation/case evidence and records a decision
+Next concrete action: follow the repository's separate PR merge workflow if requested
 
 Known agent-resolvable gaps: none recorded during planning
 
-External blockers: independent human/delegate approval (VAL-05); no execution-locus blocker
+External blockers: none for M0020 milestone approval; PR #20 remains open
 
 ## Final Reconciliation
 
@@ -83,4 +83,4 @@ External blockers: independent human/delegate approval (VAL-05); no execution-lo
 - [x] Run required final current-input validation; verify stage receipts, output hashes and tested installed-tool identity.
 - [x] Record cold/warm duration and expensive-test observations, with meaningful comparison and caveats.
 - [x] Perform mandatory completion audit and persist compact case-specific evidence in milestone.
-- [x] Prepare independent review request; do not self-approve or equate automated green to milestone completion.
+- [x] Prepare the review record, obtain the project owner's approval, and record the decision separately from automated validation evidence.

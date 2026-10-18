@@ -2,11 +2,11 @@
 
 ## Decision
 
-**Status: PENDING INDEPENDENT REVIEW**
-Reviewer: not yet assigned
-Decision date: pending
+**Status: APPROVED**
+Reviewer: Project owner (approval conveyed in this conversation)
+Decision date: 2026-10-18
 
-The implementation author has not approved this milestone. Automated validation, a green receipt set, or this prepared request is not independent approval.
+The project owner approved the milestone after reviewing the recorded implementation, validation, and registry evidence. Automated validation and a green receipt set alone are not approval.
 
 ## Review scope
 
@@ -40,8 +40,8 @@ Correction evidence for the three review findings:
 
 The corrected cold `-Fresh` run executed all seven stages in 1,028.93 seconds of stage execution: solution 16.06s; Core 295.317s (95 passed); CLI 158.124s (30 passed); README/policy 0.002s; current package 2.071s; installed consumers 524.325s; self-host 33.031s. The no-argument warm aggregate reused all seven and verified all seven in about 38.2s wall time; `-Verify` accepted all seven in about 24.6s. These wall times include fingerprint and artifact hashing; reused stage elapsed fields are historical execution costs, not current-run time. No historical M0018 stopwatch baseline is available.
 
-The exact registry audit found 15 obligations and 14 independent evidence cases, with all implementation-owned evidence rows complete. VAL-05 / REV-01 remains pending.
+The exact registry audit found 15 obligations and 14 independent evidence cases, with all implementation-owned evidence rows complete. The project owner recorded approval for VAL-05 / REV-01 on 2026-10-18.
 
 ## Reviewer decision
 
-Pending. The authorized reviewer/delegate should record the identity, date, evidence reviewed, decision (`APPROVED` or `CHANGES REQUESTED`) and any findings here. Do not mark this milestone complete until that independent decision is recorded.
+**APPROVED** by the project owner on 2026-10-18 after review of the evidence documented above and in the execution ledger. This records the milestone decision; PR #20 remains open and unmerged.
