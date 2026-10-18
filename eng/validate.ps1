@@ -139,6 +139,17 @@ try {
 }
 finally { Pop-Location }
 Set-Content -LiteralPath (Join-Path $localConsumer 'NuGet.config') -Value (Get-Content -LiteralPath (Join-Path $localManifestRoot 'NuGet.config') -Raw)
+New-Item -ItemType Directory -Force (Join-Path $localConsumer '.config') | Out-Null
+$nestedManifestPath = Join-Path $localConsumer '.config\dotnet-tools.json'
+Push-Location $localConsumer
+try {
+    [IO.File]::WriteAllText($nestedManifestPath, '{"version":1,"isRoot":true,"tools":{}}', [Text.UTF8Encoding]::new($false))
+    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $nestedManifestPath --configfile (Join-Path $localConsumer 'NuGet.config') --version 0.10.0 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Nested local-manifest 0.10.0 consumer install failed.' }
+    $nestedJson = [IO.File]::ReadAllText($nestedManifestPath).Replace('"DotNetAiCodeHygiene.Tool"', '"DOTNETAICODEHYGIENE.TOOL"')
+    [IO.File]::WriteAllText($nestedManifestPath, $nestedJson)
+}
+finally { Pop-Location }
 Set-Content -LiteralPath (Join-Path $localConsumer 'Local.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
 Set-Content -LiteralPath (Join-Path $localConsumer 'Local.cs') -NoNewline -Value 'public class Local { }'
 dotnet restore (Join-Path $localConsumer 'Local.csproj') | Out-Null
@@ -152,6 +163,9 @@ try {
     $localExitCode = $LASTEXITCODE
     $localReport = ($localRaw -join "`n") | ConvertFrom-Json
     if ($localExitCode -ne 0 -or $localReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $localReport.releaseUpdate.previousVersion -ne '0.10.0' -or $localReport.releaseUpdate.installedVersion -ne '0.10.1') { throw "Ancestor local manifest did not update and restart its exact installation. Exit=$localExitCode Output=$($localRaw -join ' ') Report: $($localReport | ConvertTo-Json -Depth 16 -Compress)" }
+    $updatedNested = [IO.File]::ReadAllText($nestedManifestPath) | ConvertFrom-Json
+    $unchangedOuter = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+    if ($updatedNested.tools.PSObject.Properties['DOTNETAICODEHYGIENE.TOOL'].Value.version -ne '0.10.1' -or $unchangedOuter.tools.PSObject.Properties['dotnetaicodehygiene.tool'].Value.version -ne '0.10.0') { throw 'Nested local invocation did not update only the closest matching manifest scope.' }
     $competingVersion = & (Join-Path $toolPath 'dotnet-hygiene.exe') --version
     if ($LASTEXITCODE -ne 0 -or ($competingVersion -join '').Trim() -ne '0.10.0') { throw 'Local-manifest update changed a competing PATH tool-path installation.' }
 }
@@ -237,11 +251,11 @@ finally { Pop-Location; $env:PATH = $pathBeforeUpgrade; Remove-Item Env:\M0018_S
 
 Push-Location $autonomousConsumer
 try {
-    git init -q
+    git init -q -b main
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture git init failed.' }
     git config user.email hygiene-autonomous@example.invalid
     git config user.name 'Hygiene Autonomous Fixture'
-    Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Autonomous.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+    Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Autonomous.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup><ItemGroup><Compile Remove="Eligible/**/*.cs;Legacy/**/*.cs" /></ItemGroup></Project>'
 @'
 /// <summary>A sample type coordinates one operation.</summary>
 public class Sample {
@@ -257,11 +271,22 @@ public class Other {
     public void Run() { }
 }
 '@ | Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Other.cs')
+New-Item -ItemType Directory -Force (Join-Path $autonomousConsumer 'Eligible'), (Join-Path $autonomousConsumer 'Legacy') | Out-Null
+Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Eligible\Eligible.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Eligible\Eligible.cs') -NoNewline -Value 'public class Eligible{public int Value()=>1;}'
+Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Legacy\Legacy.csproj') -NoNewline -Value '<Project><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup><Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" /></Project>'
+$legacySource = 'public class Legacy{public int Value()=>1;}'
+Set-Content -LiteralPath (Join-Path $autonomousConsumer 'Legacy\Legacy.cs') -NoNewline -Value $legacySource
+    dotnet restore (Join-Path $autonomousConsumer 'Eligible\Eligible.csproj') | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Tier-4 eligible SDK project restore failed.' }
     dotnet restore (Join-Path $autonomousConsumer 'Autonomous.csproj') | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture restore failed.' }
-    git add Autonomous.csproj Sample.cs Other.cs
+    git add Autonomous.csproj Sample.cs Other.cs Eligible/Eligible.csproj Eligible/Eligible.cs Legacy/Legacy.csproj Legacy/Legacy.cs
     git commit -m 'autonomous fixture baseline' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous fixture baseline commit failed.' }
+    $autonomousBase = (git rev-parse HEAD).Trim()
+    git update-ref refs/remotes/origin/main $autonomousBase
+    git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
     Set-Content -LiteralPath staged.txt -NoNewline -Value 'staged value'
     git add staged.txt
     Set-Content -LiteralPath staged.txt -NoNewline -Value 'unstaged value'
@@ -277,6 +302,8 @@ public class Other {
     $autonomousBootstrap = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $autonomousBootstrap.status -ne 'approval-required' -or $autonomousBootstrap.lifecycle -ne 'bootstrap') { throw 'Installed no-argument dotnet hygiene did not bootstrap into an approval-required baseline.' }
     if ($autonomousBootstrap.preHygieneFormatting[0].status -ne 'drift' -or $autonomousBootstrap.changedPaths -notcontains 'Sample.cs') { throw 'Installed bootstrap did not assess original formatting or report the post-hygiene source change.' }
+    if (@($autonomousBootstrap.preHygieneFormatting | Where-Object project -like 'Legacy/*').Count -gt 0 -or (Get-Content -LiteralPath (Join-Path $autonomousConsumer 'Legacy\Legacy.cs') -Raw) -cne $legacySource) { throw 'Installed bootstrap assessed or changed the unsupported legacy project.' }
+    if ((Get-Content -LiteralPath (Join-Path $autonomousConsumer 'Eligible\Eligible.cs') -Raw) -match 'Eligible\{public') { throw 'Installed bootstrap failed to format the eligible nested SDK-style project.' }
     if (-not (Test-Path -LiteralPath $autonomousBootstrap.reportPath)) { throw 'Installed autonomous bootstrap did not persist its baseline report.' }
     $cachedPaths = @(git diff --cached --name-only)
     $worktreePaths = @(git diff --name-only)
@@ -495,6 +522,9 @@ public class ReviewedAdditional
         git add -A
         git commit -m 'complete consumer baseline fixture' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Tier-4 complete consumer commit failed.' }
+        $completeBase = (git rev-parse HEAD).Trim()
+        git update-ref refs/remotes/origin/main $completeBase
+        git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
         dotnet hygiene baseline accept --approver 'Isolated completion fixture approver' --report-sha256 $pendingBaseline.reportSha256 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Clean consumer baseline approval failed.' }
         $completeReport = dotnet hygiene --output json | ConvertFrom-Json

@@ -85,12 +85,18 @@ public sealed class CliProcessTests
         string manifest = Path.Combine(root, "repo", ".config", "dotnet-tools.json");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
         await File.WriteAllTextAsync(manifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"dotnetaicodehygiene.tool\":{\"version\":\"0.10.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
+        string nestedManifest = Path.Combine(nested, ".config", "dotnet-tools.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(nestedManifest)!);
+        await File.WriteAllTextAsync(nestedManifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"DOTNETAICODEHYGIENE.TOOL\":{\"version\":\"0.10.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
         await File.WriteAllTextAsync(resolverEntry, "[{\"Version\":\"0.10.0\",\"PathToExecutable\":\"" + assembly.Replace("\\", "\\\\") + "\"}]");
         try
         {
             ToolInstallationScope local = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.10.0", dotnet, assembly, cliHome);
-            await Assert.That(local.ManifestPath).IsEqualTo(manifest);
+            await Assert.That(local.ManifestPath).IsEqualTo(nestedManifest);
             await Assert.That(local.ToolPath).IsNull();
+
+            ToolInstallationScope ancestor = ToolInstallationScope.Resolve(Path.Combine(root, "repo"), "DotNetAiCodeHygiene.Tool", "0.10.0", dotnet, assembly, cliHome);
+            await Assert.That(ancestor.ManifestPath).IsEqualTo(manifest);
 
             ToolInstallationScope other = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.10.0", competingShim, assembly, cliHome);
             await Assert.That(other.ManifestPath).IsNull();
@@ -115,6 +121,8 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(source, "/// <summary>A useful fixture.</summary>\npublic class Fixture { public int Value => 1; }\n");
             await PrepareAcceptedBaselineAsync(root);
             await CommitAllAsync(root, "accepted baseline");
+            string initialMainCommit = await GitTextAsync(root, "rev-parse", "HEAD");
+            await RunGitRawAsync(root, "update-ref", "refs/remotes/origin/main", initialMainCommit);
 
             await File.WriteAllTextAsync(source, "/// <summary>A useful fixture.</summary>\npublic class Fixture { public int Value => 2; }\n");
             ProcessResult ordinaryWorktree = await RunCliInAsync(root, "--output", "json");
@@ -155,6 +163,47 @@ public sealed class CliProcessTests
                 await Assert.That(report.RootElement.GetProperty("status").GetString()).IsEqualTo("incomplete");
                 await Assert.That(report.RootElement.GetProperty("gate").ValueKind).IsEqualTo(JsonValueKind.Null);
             }
+        }
+        finally { DeleteTree(root); }
+    }
+
+    [Test]
+    public async Task AutonomousGateTreatsDivergedMasterAsFeatureWhenOriginMainIsConfiguredDefault()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "hygiene-master-vs-origin-main-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "src"));
+        try
+        {
+            await InitGitAsync(root, "main");
+            string source = Path.Combine(root, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(source, "/// <summary>A useful fixture.</summary>\npublic class Fixture { public int Value => 1; }\n");
+            await PrepareAcceptedBaselineAsync(root);
+            await CommitAllAsync(root, "accepted baseline");
+            string defaultCommit = await GitTextAsync(root, "rev-parse", "HEAD");
+            await RunGitRawAsync(root, "update-ref", "refs/remotes/origin/main", defaultCommit);
+            await RunGitRawAsync(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+            await RunGitRawAsync(root, "checkout", "-b", "master");
+            await File.WriteAllTextAsync(source, "/// <summary>A useful fixture.</summary>\npublic class Fixture { public int Value => 2; }\n");
+            string committedFeatureSource = Path.Combine(root, "src", "CommittedFeature.cs");
+            await File.WriteAllTextAsync(committedFeatureSource, "public class CommittedFeature { }\n");
+            await CommitAllAsync(root, "committed master feature change");
+
+            ProcessResult cleanWorktree = await RunCliInAsync(root, "--output", "json");
+            using (JsonDocument report = JsonDocument.Parse(cleanWorktree.StandardOutput))
+            {
+                await Assert.That(report.RootElement.GetProperty("gate").GetString()).IsEqualTo("base:origin/main");
+            }
+            using (JsonDocument snapshot = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, ".hygiene", ".state", "latest-run.json"))))
+            { await Assert.That(snapshot.RootElement.GetProperty("targetPaths").EnumerateArray().Any(item => item.GetString() == "src/CommittedFeature.cs")).IsTrue(); }
+
+            await File.WriteAllTextAsync(source, "/// <summary>A useful fixture.</summary>\npublic class Fixture { public int Value => 3; }\n");
+            ProcessResult dirtyWorktree = await RunCliInAsync(root, "--output", "json");
+            using (JsonDocument report = JsonDocument.Parse(dirtyWorktree.StandardOutput))
+            {
+                await Assert.That(report.RootElement.GetProperty("gate").GetString()).IsEqualTo("base:origin/main");
+            }
+            using (JsonDocument snapshot = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, ".hygiene", ".state", "latest-run.json"))))
+            { await Assert.That(snapshot.RootElement.GetProperty("targetPaths").EnumerateArray().Any(item => item.GetString() == "src/CommittedFeature.cs")).IsTrue(); }
         }
         finally { DeleteTree(root); }
     }

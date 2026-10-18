@@ -128,6 +128,7 @@ internal static class Program
     {
         const string packageId = "DotNetAiCodeHygiene.Tool";
         string root = new HygieneEngine().Root;
+        string invocationDirectory = Environment.CurrentDirectory;
         string currentVersion = ToolVersion;
         string tempRoot = Path.Combine(Path.GetTempPath(), "dotnet-hygiene-update-" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(tempRoot, "stage");
@@ -167,7 +168,7 @@ internal static class Program
             }
 
             string dotnetHome = Environment.GetEnvironmentVariable("DOTNET_CLI_HOME") ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            ToolInstallationScope scope = ToolInstallationScope.Resolve(root, packageId, current.ToString(), Environment.ProcessPath, typeof(Program).Assembly.Location, dotnetHome);
+            ToolInstallationScope scope = ToolInstallationScope.Resolve(invocationDirectory, packageId, current.ToString(), Environment.ProcessPath, typeof(Program).Assembly.Location, dotnetHome);
             if (!scope.IsResolved)
             {
                 releaseUpdateState = new { status = "update-available", currentVersion, latestStableVersion = candidate.ToString(), action = "A stable update is available, but the installation scope could not be identified safely. Run dotnet tool update DotNetAiCodeHygiene.Tool using the same scope and NuGet configuration used for installation, then restart and rerun dotnet hygiene." };
@@ -176,10 +177,10 @@ internal static class Program
 
             string requestPath = Path.Combine(tempRoot, "update-request.json");
             string helperPath = Path.Combine(tempRoot, "update-after-exit.ps1");
-            var request = new { root, tempRoot, packageId, version = candidate.ToString(), manifest = scope.ManifestPath, installPath = scope.ToolPath, shim = scope.ShimPath, parentProcessId = Environment.ProcessId, previousVersion = current.ToString() };
+            var request = new { root, invocationDirectory, tempRoot, packageId, version = candidate.ToString(), manifest = scope.ManifestPath, installPath = scope.ToolPath, shim = scope.ShimPath, parentProcessId = Environment.ProcessId, previousVersion = current.ToString() };
             File.WriteAllText(requestPath, JsonSerializer.Serialize(request, Json), new System.Text.UTF8Encoding(false));
             File.WriteAllText(helperPath, UpdateHelperScript, new System.Text.UTF8Encoding(false));
-            var helper = new ProcessStartInfo("powershell.exe") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
+            var helper = new ProcessStartInfo("powershell.exe") { WorkingDirectory = invocationDirectory, UseShellExecute = false, CreateNoWindow = true };
             helper.ArgumentList.Add("-NoProfile"); helper.ArgumentList.Add("-NonInteractive"); helper.ArgumentList.Add("-File"); helper.ArgumentList.Add(helperPath); helper.ArgumentList.Add(requestPath);
             using (Process? background = Process.Start(helper))
             {
@@ -215,7 +216,7 @@ $updateCode = $LASTEXITCODE
 $updateInfo = @{ status = 'update-failed'; previousVersion = $request.previousVersion; latestStableVersion = $request.version; detail = $updateOutput; action = 'Resolve the configured feed or installation-scope issue, then rerun dotnet hygiene.' }
 if ($updateCode -eq 0) {
   $env:DOTNET_HYGIENE_SKIP_UPDATE = '1'
-  if ($request.manifest) { $childOutput = (& dotnet hygiene --output json 2>&1 | Out-String).Trim() }
+  if ($request.manifest) { Set-Location -LiteralPath $request.invocationDirectory; $childOutput = (& dotnet hygiene --output json 2>&1 | Out-String).Trim() }
   else { $childOutput = (& $request.shim --output json 2>&1 | Out-String).Trim() }
   $childCode = $LASTEXITCODE
   try {
@@ -473,7 +474,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         string defaultBranch = defaultBase.StartsWith("origin/", StringComparison.Ordinal) ? defaultBase["origin/".Length..] : "";
         CheckResult check;
         string gate;
-        bool defaultBranchCurrent = (branch.Length > 0 && branch == defaultBranch) || branch is "main" or "master";
+        bool defaultBranchCurrent = branch.Length > 0 && branch == defaultBranch;
         bool hasValidFeatureBase = !defaultBranchCurrent && defaultBase.Length > 0 && GitExit(engine.Root, "merge-base", defaultBase, "HEAD") == 0;
         if (!defaultBranchCurrent && !hasValidFeatureBase)
         {
@@ -491,7 +492,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             gate = "worktree";
             check = engine.Check([], true);
         }
-        else if (branch == defaultBranch || branch is "main" or "master")
+        else if (defaultBranchCurrent)
         {
             gate = "closed";
             check = engine.Check([], false);
@@ -666,6 +667,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
 
     private static string[] EnumerateProjects(string root) => Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
         .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj" or ".git"))
+        .Where(SdkProjectDetection.IsSdkStyle)
         .Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
     private static string[] EnumerateSources(string root) => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
@@ -898,12 +900,13 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         {
             return symbolic;
         }
-        string[] candidates = ["origin/main", "origin/master", "main", "master"];
+        string[] candidates = ["origin/main", "origin/master"];
         var available = candidates.Select(reference => (Reference: reference, Commit: GitLine(root, "rev-parse", "--verify", reference + "^{commit}")))
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Commit)).ToArray();
-        string[] commits = available.Select(candidate => candidate.Commit).Distinct(StringComparer.Ordinal).ToArray();
-        if (commits.Length != 1) { return ""; }
-        return available[0].Reference;
+        var remote = available.Where(candidate => candidate.Reference.StartsWith("origin/", StringComparison.Ordinal)).ToArray();
+        if (remote.Length == 1) { return remote[0].Reference; }
+        if (remote.Length > 1) { return ""; }
+        return "";
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunProcess(string executable, string workingDirectory, params string[] args) => RunProcess(executable, workingDirectory, null, args);
