@@ -3,13 +3,13 @@ $script:ReceiptRoot = Join-Path $script:ValidationRoot '.execution\validation'
 $script:ReceiptVersion = 1
 
 $script:ValidationStages = @(
-    [pscustomobject]@{ Id = 'solution'; Command = '[cold] dotnet clean .\DotNetAiCodeHygiene.slnx; dotnet restore .\DotNetAiCodeHygiene.slnx; dotnet build .\DotNetAiCodeHygiene.slnx --configuration Release --no-restore'; DependsOn = @(); Inputs = @('global.json','.editorconfig','Directory.Build.props','DotNetAiCodeHygiene.slnx','src/**','tests/**'); Outputs = @('src/**/bin/Release/**/*.dll') },
+    [pscustomobject]@{ Id = 'solution'; Command = '[cold] dotnet clean .\DotNetAiCodeHygiene.slnx; dotnet restore .\DotNetAiCodeHygiene.slnx; dotnet build .\DotNetAiCodeHygiene.slnx --configuration Release --no-restore'; DependsOn = @(); Inputs = @('global.json','.editorconfig','Directory.Build.props','DotNetAiCodeHygiene.slnx','src/**','tests/**'); Outputs = @('src/**/bin/Release/**/*.dll','tests/**/bin/Release/**/*') },
     [pscustomobject]@{ Id = 'core-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Core.Tests\DotNetAiCodeHygiene.Core.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Core.Tests/**','src/DotNetAiCodeHygiene.Core/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Core.Tests-*-report.html') },
     [pscustomobject]@{ Id = 'cli-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Cli.Tests\DotNetAiCodeHygiene.Cli.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Cli.Tests/**','src/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Cli.Tests-*-report.html') },
     [pscustomobject]@{ Id = 'readme-policy'; Command = 'Check README lifecycle headings and required installed-tool examples'; DependsOn = @(); Inputs = @('README.md'); Outputs = @() },
     [pscustomobject]@{ Id = 'pack-current'; Command = 'dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**'); Outputs = @('artifacts/packages/DotNetAiCodeHygiene.Tool.0.10.0.nupkg') },
     [pscustomobject]@{ Id = 'installed-consumers'; Command = '& .\eng\validate-installed-consumers.ps1'; DependsOn = @('pack-current'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**','eng/validate-installed-consumers.ps1'); Outputs = @('.execution/validation/consumer-provenance.json') },
-    [pscustomobject]@{ Id = 'self-host'; Command = '& .\eng\validate-self-host.ps1'; DependsOn = @('solution'); Inputs = @('src/**','eng/validate-self-host.ps1'); Outputs = @() }
+    [pscustomobject]@{ Id = 'self-host'; Command = '& .\eng\validate-self-host.ps1'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','.gitignore','AGENTS.md','Directory.Build.props','Directory.Packages.props','DotNetAiCodeHygiene.slnx','README.md','.hygiene/**','docs/**','src/**','tests/**','eng/validate-self-host.ps1'); Outputs = @() }
 )
 
 function Get-StageReceiptPath([string] $Id) { Join-Path $script:ReceiptRoot ($Id + '.json') }
@@ -21,7 +21,7 @@ function Get-StageFiles($Stage) {
             $prefix = $pattern.Split('/')[0]
             $base = Join-Path $script:ValidationRoot $prefix
             if (Test-Path -LiteralPath $base) {
-                Get-ChildItem -LiteralPath $base -File -Recurse | Where-Object { $_.FullName -notmatch '[\\/](bin|obj|TestResults|artifacts)[\\/]' } | ForEach-Object { [void]$found.Add($_.FullName) }
+                Get-ChildItem -LiteralPath $base -File -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/](bin|obj|TestResults|artifacts)[\\/]' -and $_.FullName -notmatch '[\\/]\.hygiene[\\/]\.state[\\/]' } | ForEach-Object { [void]$found.Add($_.FullName) }
             }
         }
         else {
@@ -33,13 +33,35 @@ function Get-StageFiles($Stage) {
 }
 
 function Get-InputDigest($Stage) {
-    $items = foreach ($file in Get-StageFiles $Stage) {
+    $items = @(
+    foreach ($file in Get-StageFiles $Stage) {
         $relative = [IO.Path]::GetRelativePath($script:ValidationRoot, $file).Replace('\','/')
         $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
         "$relative`0$hash"
-    }
+    })
+    if ($Stage.Id -eq 'self-host') { $items += "`$git-diff`0$(Get-RepositoryDeltaDigest)" }
     $bytes = [Text.Encoding]::UTF8.GetBytes(($items -join "`n"))
     [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+}
+
+function Get-RepositoryDeltaDigest {
+    $base = (& git merge-base HEAD origin/main 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $base) { throw 'Could not identify origin/main merge base for repository working-tree validation.' }
+    $delta = (& git diff --binary --no-ext-diff $base -- 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not fingerprint the repository change set.' }
+    $parts = [System.Collections.Generic.List[string]]::new()
+    $parts.Add("base`0$base")
+    $parts.Add("diff`0$delta")
+    $untracked = @(& git ls-files --others --exclude-standard)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate untracked repository inputs.' }
+    foreach ($relative in $untracked | Sort-Object -Unique) {
+        $path = Join-Path $script:ValidationRoot $relative
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            $parts.Add("untracked`0$($relative.Replace('\','/'))`0$hash")
+        }
+    }
+    [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(($parts -join "`n")))).ToLowerInvariant()
 }
 
 function Get-ToolIdentity {
@@ -59,6 +81,14 @@ function Get-OutputInventory($Stage) {
             $base = Join-Path $script:ValidationRoot $prefix
             if (Test-Path -LiteralPath $base) {
                 Get-ChildItem -LiteralPath $base -File -Recurse -Filter '*.dll' | Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' -and $_.FullName -notmatch '[\\/]publish[\\/]' } | ForEach-Object {
+                    $rows.Add([pscustomobject]@{ path = [IO.Path]::GetRelativePath($script:ValidationRoot, $_.FullName).Replace('\','/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() })
+                }
+            }
+        }
+        elseif ($pattern -eq 'tests/**/bin/Release/**/*') {
+            $base = Join-Path $script:ValidationRoot 'tests'
+            if (Test-Path -LiteralPath $base) {
+                Get-ChildItem -LiteralPath $base -File -Recurse -Force | Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' -and $_.FullName -notmatch '[\\/]publish[\\/]' -and $_.Extension -in @('.dll','.exe','.pdb','.json') } | ForEach-Object {
                     $rows.Add([pscustomobject]@{ path = [IO.Path]::GetRelativePath($script:ValidationRoot, $_.FullName).Replace('\','/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() })
                 }
             }
@@ -156,7 +186,7 @@ function Invoke-StageCommand($Stage, [string] $Filter) {
             Write-Output ("Current package SHA-256: " + (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash)
         }
         'installed-consumers' { & .\eng\validate-installed-consumers.ps1; if ($LASTEXITCODE -ne 0) { throw "Installed-consumer validation failed with exit code $LASTEXITCODE." } }
-        'self-host' { & .\eng\validate-self-host.ps1; if ($LASTEXITCODE -ne 0) { throw "Self-host validation failed with exit code $LASTEXITCODE." }; git diff --check; if ($LASTEXITCODE -ne 0) { throw 'Repository diff whitespace check failed.' } }
+        'self-host' { & .\eng\validate-self-host.ps1; if ($LASTEXITCODE -ne 0) { throw "Self-host validation failed with exit code $LASTEXITCODE." } }
         default { throw "Unknown validation stage '$($Stage.Id)'." }
     }
 }
@@ -184,6 +214,15 @@ function Write-StageReceipt($Stage, [DateTimeOffset] $Started, [double] $Elapsed
     Write-Output ("PASS {0}: {1:N2}s (fresh); receipt {2}" -f $Stage.Id,$ElapsedSeconds,$path)
 }
 
+function Assert-CompleteValidation {
+    $invalid = @($script:ValidationStages | Where-Object { -not (Test-StageReceipt $_) } | ForEach-Object Id)
+    if ($invalid.Count) { throw ('Validation evidence is incomplete or stale: ' + ($invalid -join ', ')) }
+    foreach ($stage in $script:ValidationStages) {
+        $receipt = Get-Content -LiteralPath (Get-StageReceiptPath $stage.Id) -Raw | ConvertFrom-Json
+        [pscustomobject]@{ id=$stage.Id; status='reused'; elapsedSeconds=$receipt.elapsedSeconds; receipt=(Get-StageReceiptPath $stage.Id) }
+    }
+}
+
 function Invoke-ValidationStages {
     param([switch] $PlanJson,[string] $Shard,[switch] $Verify,[switch] $Fresh,[string] $TestFilter)
     Set-Location $script:ValidationRoot
@@ -199,9 +238,7 @@ function Invoke-ValidationStages {
     try {
         if ($Fresh) { Get-ChildItem -LiteralPath $script:ReceiptRoot -Filter '*.json' -File | Remove-Item -Force }
         if ($Verify) {
-            $invalid = @($script:ValidationStages | Where-Object { -not (Test-StageReceipt $_) } | ForEach-Object Id)
-            if ($invalid.Count) { throw ('Validation evidence is incomplete or stale: ' + ($invalid -join ', ')) }
-            $rows = foreach ($stage in $script:ValidationStages) { $r=Get-Content -LiteralPath (Get-StageReceiptPath $stage.Id) -Raw | ConvertFrom-Json; [pscustomobject]@{id=$stage.Id;status='reused';elapsedSeconds=$r.elapsedSeconds;receipt=(Get-StageReceiptPath $stage.Id)} }
+            $rows = @(Assert-CompleteValidation)
             [pscustomobject]@{status='verified';stages=$rows;executed=0;reused=$rows.Count} | ConvertTo-Json -Depth 8
             return
         }
@@ -224,9 +261,10 @@ function Invoke-ValidationStages {
             try { Invoke-StageCommand $stage ''; $timer.Stop(); Write-StageReceipt $stage $started $timer.Elapsed.TotalSeconds '' $before; $runs.Add([pscustomobject]@{id=$stage.Id;execution='fresh';seconds=$timer.Elapsed.TotalSeconds}) }
             catch { $timer.Stop(); Remove-Item -LiteralPath (Get-StageReceiptPath $stage.Id) -Force -ErrorAction SilentlyContinue; Write-Output ("FAIL {0}: {1:N2}s; no valid receipt retained." -f $stage.Id,$timer.Elapsed.TotalSeconds); throw }
         }
+        $finalReceipts = @(Assert-CompleteValidation)
         $total=($runs | Measure-Object -Property seconds -Sum).Sum
         $slowest=$runs | Sort-Object seconds -Descending | Select-Object -First 3
-        Write-Output ("Aggregate complete: {0:N2}s of stage execution; fresh={1}, reused={2}. Slowest: {3}" -f $total,(@($runs | Where-Object execution -eq 'fresh').Count),(@($runs | Where-Object execution -eq 'reused').Count),(($slowest | ForEach-Object { '{0} {1:N2}s {2}' -f $_.id,$_.seconds,$_.execution }) -join '; '))
+        Write-Output ("Aggregate verified complete: {0:N2}s of stage execution; fresh={1}, reused={2}, verified={3}. Slowest: {4}" -f $total,(@($runs | Where-Object execution -eq 'fresh').Count),(@($runs | Where-Object execution -eq 'reused').Count),$finalReceipts.Count,(($slowest | ForEach-Object { '{0} {1:N2}s {2}' -f $_.id,$_.seconds,$_.execution }) -join '; '))
     }
     finally { if ($null -ne $lock) { $lock.Dispose() } }
 }
