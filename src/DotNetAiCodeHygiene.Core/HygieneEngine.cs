@@ -246,7 +246,7 @@ public sealed class HygieneEngine
             .ToArray();
         string batchId = "B-" + batchNumber;
         var batch = new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", reviewerClass, ordered.Length, sample.Length, questions,
-            new ReviewEscalation(escalationCondition, "hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);
+            new ReviewEscalation(escalationCondition, "dotnet hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);
         var tickets = selectedSubjects.Select(s => new ReviewTicketAssociation(batchId, ids[s.Identity], s.SubjectTicket, s.PopulationTicket, s.GateTicket)).ToArray();
         return new(batch, tickets);
     }

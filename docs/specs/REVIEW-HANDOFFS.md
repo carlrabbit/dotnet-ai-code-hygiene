@@ -21,7 +21,7 @@ A handoff is an explicit engineering/review work product. It is not an engine-ma
 ## Command
 
 ```text
-hygiene review handoff <batch-handle> [--file <path>]
+dotnet hygiene review handoff <batch-handle> [--file <path>]
 ```
 
 The command:

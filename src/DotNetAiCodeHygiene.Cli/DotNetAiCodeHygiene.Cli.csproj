@@ -3,12 +3,12 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>DotNetAiCodeHygiene.Cli</AssemblyName>
     <RootNamespace>DotNetAiCodeHygiene.Cli</RootNamespace>
-    <Version>0.9.0</Version>
+    <Version>0.10.0</Version>
     <InformationalVersion>$(Version)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageId>DotNetAiCodeHygiene.Tool</PackageId>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>hygiene</ToolCommandName>
+    <ToolCommandName>dotnet-hygiene</ToolCommandName>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
     <Description>Windows-first AI-assisted code hygiene command-line tool.</Description>
   </PropertyGroup>

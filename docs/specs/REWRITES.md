@@ -5,13 +5,13 @@
 `format` and `normalize` use the same repository and target-selection concepts as `check`:
 
 ```text
-hygiene format
-hygiene format --changed
-hygiene format <file|directory> [...]
+dotnet hygiene format
+dotnet hygiene format --changed
+dotnet hygiene format <file|directory> [...]
 
-hygiene normalize
-hygiene normalize --changed
-hygiene normalize <file|directory> [...]
+dotnet hygiene normalize
+dotnet hygiene normalize --changed
+dotnet hygiene normalize <file|directory> [...]
 ```
 
 Explicit paths and `--changed` are mutually exclusive. Repository discovery, relative paths, exclusions, SDK-style project membership, changed-file semantics, outside-repository rejection, and overlap de-duplication align with `check`.
@@ -41,17 +41,19 @@ No selected source file is replaced before plan construction and required valida
 
 ## Formatting
 
-`hygiene format` selects enabled `format-remediate` rules from the canonical rule catalogue. The initial `format.csharp.roslyn` rule owns Roslyn formatting against actual loaded document/project context and applicable project/editor configuration available to Roslyn. It may change whitespace/trivia presentation but must not intentionally perform semantic simplification, structural modernization, naming changes, or normalization policy rewrites.
+`dotnet hygiene format` selects enabled `format-remediate` rules from the canonical rule catalogue. The autonomous lifecycle also invokes `dotnet-format` whitespace formatting and restricts style fixes to enabled hygiene-owned IDE0011/IDE0040 diagnostic IDs. It never runs generic analyzer fixes. The initial `format.csharp.roslyn` rule owns Roslyn formatting against actual loaded document/project context and applicable project/editor configuration available to Roslyn. It may change whitespace/trivia presentation but must not intentionally perform semantic simplification, structural modernization, naming changes, or normalization policy rewrites.
 
 Formatting is idempotent and does not require a clean semantic compilation when Roslyn can load and parse the selected source sufficiently.
 
 ## Normalization
 
-`hygiene normalize` selects enabled `normalize-remediate` rules from the canonical rule catalogue, then applies enabled format rules to changed documents. It is deterministic, project-aware, and semantics-preserving.
+`dotnet hygiene normalize` selects enabled `normalize-remediate` rules from the canonical rule catalogue, then applies enabled format rules to changed documents. It is deterministic, project-aware, and semantics-preserving.
 
 Relevant loaded projects must compile without compiler errors before transformation. Rewritten relevant project context must also compile without compiler errors before commit. Changed normalized documents are formatted before final comparison/commit.
 
 Normalization is idempotent.
+
+The autonomous bootstrap approval snapshot covers relevant source and configuration bytes. Before approval, changing those bytes invalidates the pending baseline report; after acceptance, ordinary source changes remain eligible for routine gates and only a material policy snapshot change requires another baseline approval.
 
 ## Initial normalization catalogue
 

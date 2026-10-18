@@ -151,3 +151,12 @@ One consolidated milestone: reframe the existing control-flow visual-block signa
 
 Primary milestone: `docs/milestones/M0017-semantic-hygiene-rule-expansion.md`.
 Planning-seeded ledger: `.execution/M0017-semantic-hygiene-rule-expansion.md`.
+
+## M0018 — Autonomous Hygiene Lifecycle
+**State:** complete; approved 2026-10-18 (PR #19 remains open)
+**Mode:** AI-executed, human-reviewed
+
+Makes `dotnet hygiene` the no-argument autonomous entrypoint for bootstrap, report/snapshot-bound baseline approval, authoritative deterministic formatting, fail-closed gate detection, selected-only grouped semantic-review work, and truthful lifecycle reporting. The exact installed 0.10.0 package, ancestor local-manifest update scope, approval boundary, and manual diagnostics are covered by the Windows/.NET 11 validator. The project owner/authorized delegate approval is recorded in `.review/REV-M0018-COMPLETION.md`; PR #19 remains open and unmerged. `--yolo-all` is deferred to M0019.
+
+Primary milestone: `docs/milestones/M0018-autonomous-hygiene-lifecycle.md`.
+Execution ledger: `.execution/M0018-autonomous-hygiene-lifecycle.md`.

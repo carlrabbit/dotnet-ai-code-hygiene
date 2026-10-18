@@ -37,6 +37,13 @@ public sealed class ProfileManager
     public ProfileResult Bootstrap(string output = "text") => Apply("bootstrap", false);
     public ProfileResult Update(string output = "text") => Apply("update", true);
 
+    /// <summary>Validates profile and toggle state without changing repository files.</summary>
+    public void ValidateForUpdate()
+    {
+        RequireSupportedForUpdate();
+        _ = ReadDisabledRules();
+    }
+
     internal void ReconcileRuleToggle(string configContent, IReadOnlyCollection<string> disabledRuleIds, string? expectedConfig, Action? beforeCommit)
     {
         string configPath = P(".hygiene/config.json"), editorPath = P(".editorconfig");
@@ -53,7 +60,7 @@ public sealed class ProfileManager
         string path = P(".hygiene/profile.json");
         if (!File.Exists(path))
         {
-            throw new ProductException("Supported hygiene profile is missing; run hygiene bootstrap.");
+            throw new ProductException("Supported hygiene profile is missing; run dotnet hygiene bootstrap.");
         }
 
         try
@@ -64,12 +71,12 @@ public sealed class ProfileManager
             if (names.Length != 3 || !names.ToHashSet(StringComparer.Ordinal).SetEquals(["schemaVersion", "profile", "version"]) ||
                 e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() != 2)
             {
-                throw new ProductException("Unsupported hygiene profile; run hygiene update when a migration is available, or resolve the profile state manually.");
+                throw new ProductException("Unsupported hygiene profile; run dotnet hygiene update when a migration is available, or resolve the profile state manually.");
             }
         }
         catch (ProductException) { throw; }
         catch (Exception e) when (e is JsonException or IOException or KeyNotFoundException or InvalidOperationException)
-        { throw new ProductException("Invalid .hygiene/profile.json; run hygiene bootstrap after resolving the malformed profile state."); }
+        { throw new ProductException("Invalid .hygiene/profile.json; run dotnet hygiene bootstrap after resolving the malformed profile state."); }
     }
 
     public IReadOnlyList<ProfileFinding> Analyze()
@@ -325,7 +332,8 @@ public sealed class ProfileManager
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         start.ArgumentList.Add("msbuild"); start.ArgumentList.Add(project); start.ArgumentList.Add("-property:Configuration=" + configuration); start.ArgumentList.Add(properties); start.ArgumentList.Add(items);
         using Process process = Process.Start(start) ?? throw new ProductException("Could not start MSBuild evaluation.");
-        string stdout = process.StandardOutput.ReadToEnd(); string stderr = process.StandardError.ReadToEnd(); process.WaitForExit();
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(); Task<string> stderrTask = process.StandardError.ReadToEndAsync(); process.WaitForExit();
+        Task.WaitAll(stdoutTask, stderrTask); string stdout = stdoutTask.Result; string stderr = stderrTask.Result;
         if (process.ExitCode != 0)
         {
             throw new ProductException("MSBuild evaluation failed: " + stderr);
@@ -476,7 +484,7 @@ public sealed class ProfileManager
         string path = P(".hygiene/profile.json");
         if (!File.Exists(path))
         {
-            throw new ProductException("Supported hygiene profile is missing; run hygiene bootstrap.");
+            throw new ProductException("Supported hygiene profile is missing; run dotnet hygiene bootstrap.");
         }
         try
         {
@@ -486,12 +494,12 @@ public sealed class ProfileManager
             if (names.Length != 3 || !names.ToHashSet(StringComparer.Ordinal).SetEquals(["schemaVersion", "profile", "version"]) ||
                 e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() is not (1 or 2))
             {
-                throw new ProductException("Unsupported hygiene profile; run hygiene update when a migration is available, or resolve the profile state manually.");
+                throw new ProductException("Unsupported hygiene profile; run dotnet hygiene update when a migration is available, or resolve the profile state manually.");
             }
         }
         catch (ProductException) { throw; }
         catch (Exception e) when (e is JsonException or IOException or KeyNotFoundException or InvalidOperationException)
-        { throw new ProductException("Invalid .hygiene/profile.json; run hygiene bootstrap after resolving the malformed profile state."); }
+        { throw new ProductException("Invalid .hygiene/profile.json; run dotnet hygiene bootstrap after resolving the malformed profile state."); }
     }
 
     private string[] ReadDisabledRules()
