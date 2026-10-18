@@ -1,11 +1,14 @@
 # M0018 Completion Review Request
 
-**Decision:** pending — no approval is recorded.  
-**Requested reviewer:** project owner or explicitly delegated approver.  
+**Decision:** approved.
+**Reviewer:** Current task user (personal name is not exposed in this task context).
+**Authority basis:** Direct approval from the task user, acting as the project owner or authorized delegate for this review.
+**Date:** 2026-10-18.
+**Reviewed implementation:** PR #19, branch `implementation/m0018-autonomous-hygiene-lifecycle`, commit `9dcbfac25ffc0f12b11495fefce9bf8ef7747fb6`.
 **Implementation branch:** implementation/m0018-autonomous-hygiene-lifecycle.
 **Pull request:** https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/19
 
-This file is a review request, not evidence of reviewer consent. Do not mark M0018 complete until all implementation/evidence gaps are closed, the registry is reconciled, and an authorized reviewer records a decision.
+The task user explicitly approved the reviewed implementation and evidence on 2026-10-18. The approval is recorded without inferring a personal name or adding an authentication mechanism. The independent approval gate is satisfied; the pull request remains open and unmerged.
 
 ## Review scope
 
@@ -28,7 +31,9 @@ The final review findings were corrected directly on the existing PR branch. Rea
 
 The amended registry preserves exact wording and parent relationships for all 23 obligation IDs and 31 evidence-case IDs. A final comparison confirmed exact IDs/text/parents and populated evidence/status cells. Every row has work-package, implementation and validation evidence, with each case tied to a named scenario. Earlier baseline-approval and lifecycle findings remain directly tested and unchanged.
 
-The implementation and software evidence are ready for independent review. M0018 is **AWAITING HUMAN REVIEW**. The only remaining milestone gate is the project-owner or explicitly delegated approver decision; no approval is recorded here.
+The implementation and software evidence were reviewed and approved by the project owner or authorized delegate identified above. No follow-up was requested. M0018 is **COMPLETE**; PR #19 remains open for the repository's normal merge process.
 ## Reviewer decision
 
-Record the reviewer identity, authority/delegation basis, date, decision (`approved` or `rejected`), and any required follow-up here only after the reviewer has independently examined the final implementation and evidence. Until then, leave the decision pending.
+| Reviewer | Authority basis | Date | Decision | Follow-up |
+|---|---|---|---|---|
+| Current task user (personal name not exposed in task context) | Direct approval from the task user, acting as project owner or authorized delegate | 2026-10-18 | approved | None requested |
