@@ -18,7 +18,11 @@ Review the baseline report and source diff before accepting it. Bootstrap preser
 ```powershell
 dotnet hygiene --output json
 dotnet hygiene bootstrap --output json  # manual bootstrap/diagnostics
+$baseline = dotnet hygiene --output json | ConvertFrom-Json
+dotnet hygiene baseline accept --approver '<authorized identity>' --report-sha256 $baseline.reportSha256
 ```
+
+Baseline acceptance names the SHA-256 of the exact report reviewed. The tool refuses acceptance if the report or its relevant source/configuration/policy snapshot changes before approval. After acceptance, ordinary source edits remain allowed; a material policy change needs a new approval. A profile marker by itself never authorizes normal gate execution.
 
 ## Run on Gates
 
@@ -56,7 +60,7 @@ Use `review handoff` for negative or uncertain items that need the rule's design
 
 ## Updating to a New Release
 
-On each autonomous run, the entrypoint checks configured NuGet sources for a newer stable package using an isolated temporary tool installation. If it finds one and can identify the current local-manifest or tool-path scope, it starts a separate updater, exits to release its loaded files, then the updater updates the package, restarts the installed command, and returns its revalidation report. The running executable is never replaced in process. If no stable package can be resolved, the compatible installed version continues and the lifecycle report says release discovery was unavailable. Unknown installation scopes receive an update instruction rather than an inferred global update.
+On each autonomous run, the entrypoint checks configured NuGet sources for a newer stable package using an isolated temporary tool installation. If it finds one and can identify the invoking local-manifest or apphost installation scope, it starts a separate updater, exits to release its loaded files, then the updater updates only that installation, restarts the installed command, and returns its revalidation report. Local manifest lookup searches ancestor directories and matches package IDs without case sensitivity. The updater never picks a different same-named PATH tool. The running executable is never replaced in process. If no stable package can be resolved, the compatible installed version continues and the lifecycle report says release discovery was unavailable. Unknown installation scopes receive an update instruction rather than an inferred global update.
 
 You can also update explicitly from the same trusted package source:
 

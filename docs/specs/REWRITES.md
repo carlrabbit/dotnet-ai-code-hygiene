@@ -53,6 +53,8 @@ Relevant loaded projects must compile without compiler errors before transformat
 
 Normalization is idempotent.
 
+The autonomous bootstrap approval snapshot covers relevant source and configuration bytes. Before approval, changing those bytes invalidates the pending baseline report; after acceptance, ordinary source changes remain eligible for routine gates and only a material policy snapshot change requires another baseline approval.
+
 ## Initial normalization catalogue
 
 M0004 intentionally limits normalization to Roslyn-backed simplification where semantic services establish equivalence:

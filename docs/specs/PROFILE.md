@@ -33,6 +33,12 @@ This hygiene profile is product policy. It is unrelated to `.guide-profile.json`
 
 The tool does not support arbitrary profile selection or custom profile parameters.
 
+## Baseline approval is separate from the profile marker
+
+`.hygiene/profile.json` identifies the supported profile; it does not record project approval. Normal autonomous gates require a valid `.hygiene/.state/baseline-approval.json` acceptance. A missing, malformed, pending, or stale approval record must not enter gate execution, including when `dotnet hygiene bootstrap` created the profile marker.
+
+Pending acceptance is bound to the report SHA-256 and a reproducible snapshot of relevant source files, managed configuration/effective-policy inputs, and tool/rule versions. The approver assertion uses `dotnet hygiene baseline accept --approver <identity> --report-sha256 <sha256>`. A source or report change invalidates pending acceptance. Accepted baseline state permits ordinary source changes; material policy changes prepare a new approval-required report.
+
 ## Prerequisite
 
 The autonomous `dotnet hygiene` entrypoint bootstraps when the profile marker is missing and reconciles supported profile drift. Manual `dotnet hygiene check` requires a current supported profile marker. A missing marker returns product exit `3` with guidance to run:

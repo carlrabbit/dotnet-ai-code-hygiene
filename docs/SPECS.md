@@ -143,6 +143,8 @@ M0018 product/package version is:
 0.10.0
 ```
 
+The package exposes the canonical `dotnet hygiene` namespace through `ToolCommandName=dotnet-hygiene`; the legacy bare `hygiene` command is not supported. Automatic release updates must resolve the invoking tool installation safely, including ancestor local-tool manifests, and must not select another installation found on `PATH`. Baseline approval is an external caller assertion bound to the inspected report hash and current repository/policy snapshot; a profile marker alone is not approval.
+
 Installed-tool Tier-4 validation remains required because M0016 changes public rule versions and adds `check --base` and `check --review-all`.
 
 ## Exit semantics

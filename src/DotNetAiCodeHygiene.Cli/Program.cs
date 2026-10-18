@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using System.Security.Cryptography;
 using DotNetAiCodeHygiene.Core;
 
 namespace DotNetAiCodeHygiene.Cli;
@@ -29,15 +30,20 @@ internal static class Program
         var baseline = new Command("baseline", "Review the project bootstrap baseline decision.");
         var acceptBaseline = new Command("accept", "Record an external baseline approval.");
         var approver = new Option<string>("--approver") { Description = "Name or identity of the authorized external approver." };
-        acceptBaseline.Options.Add(approver);
-        acceptBaseline.SetAction(parse => Run(() => AcceptBaseline(parse.GetValue(approver) ?? "", parse.GetValue(output) ?? "text")));
+        var reportHash = new Option<string>("--report-sha256") { Description = "SHA-256 of the exact baseline report reviewed by the authorized approver." };
+        var baselineOutput = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
+        acceptBaseline.Options.Add(approver); acceptBaseline.Options.Add(reportHash); acceptBaseline.Options.Add(baselineOutput);
+        acceptBaseline.SetAction(parse => Run(() => AcceptBaseline(parse.GetValue(approver) ?? "", parse.GetValue(reportHash) ?? "", parse.GetValue(baselineOutput) ?? "text")));
         baseline.Subcommands.Add(acceptBaseline);
         root.Subcommands.Add(baseline);
         foreach (string name in new[] { "bootstrap", "update" })
         {
             var profile = new Command(name, name == "bootstrap" ? "Install the supported dotnet-11 hygiene profile." : "Reconcile the installed hygiene profile.");
-            profile.Options.Add(output);
-            profile.SetAction(parse => Run(() => RenderProfile(name == "bootstrap" ? new HygieneEngine().Bootstrap(parse.GetValue(output) ?? "text") : new HygieneEngine().UpdateProfile(parse.GetValue(output) ?? "text"), parse.GetValue(output) ?? "text")));
+            var profileOutput = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
+            profile.Options.Add(profileOutput);
+            profile.SetAction(parse => Run(() => name == "bootstrap"
+                ? RunAutonomousLifecycle(parse.GetValue(profileOutput) ?? "text", explicitBootstrap: true)
+                : RenderProfile(new HygieneEngine().UpdateProfile(parse.GetValue(profileOutput) ?? "text"), parse.GetValue(profileOutput) ?? "text")));
             root.Subcommands.Add(profile);
         }
         foreach (string name in new[] { "format", "normalize" })
@@ -160,19 +166,9 @@ internal static class Program
                 return new(0, null, "The installed tool is current.");
             }
 
-            string? manifest = FindLocalToolManifest(root, packageId);
-            string stagedShim = Path.Combine(stage, OperatingSystem.IsWindows() ? "dotnet-hygiene.exe" : "dotnet-hygiene");
-            string? shim = FindOnPath(stagedShim);
-            string? installPath = null;
-            if (manifest is not null)
-            {
-                installPath = null;
-            }
-            else if (shim is not null)
-            {
-                installPath = Path.GetDirectoryName(shim)!;
-            }
-            else
+            string dotnetHome = Environment.GetEnvironmentVariable("DOTNET_CLI_HOME") ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            ToolInstallationScope scope = ToolInstallationScope.Resolve(root, packageId, current.ToString(), Environment.ProcessPath, typeof(Program).Assembly.Location, dotnetHome);
+            if (!scope.IsResolved)
             {
                 releaseUpdateState = new { status = "update-available", currentVersion, latestStableVersion = candidate.ToString(), action = "A stable update is available, but the installation scope could not be identified safely. Run dotnet tool update DotNetAiCodeHygiene.Tool using the same scope and NuGet configuration used for installation, then restart and rerun dotnet hygiene." };
                 return new(0, null, "A release is available, but the tool could not identify its install scope; follow the update instruction.");
@@ -180,7 +176,7 @@ internal static class Program
 
             string requestPath = Path.Combine(tempRoot, "update-request.json");
             string helperPath = Path.Combine(tempRoot, "update-after-exit.ps1");
-            var request = new { root, tempRoot, packageId, version = candidate.ToString(), manifest, installPath, shim, parentProcessId = Environment.ProcessId, previousVersion = current.ToString() };
+            var request = new { root, tempRoot, packageId, version = candidate.ToString(), manifest = scope.ManifestPath, installPath = scope.ToolPath, shim = scope.ShimPath, parentProcessId = Environment.ProcessId, previousVersion = current.ToString() };
             File.WriteAllText(requestPath, JsonSerializer.Serialize(request, Json), new System.Text.UTF8Encoding(false));
             File.WriteAllText(helperPath, UpdateHelperScript, new System.Text.UTF8Encoding(false));
             var helper = new ProcessStartInfo("powershell.exe") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
@@ -235,29 +231,6 @@ if ($updateCode -eq 0) {
 }
 Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
-
-    private static string? FindOnPath(string expectedShim)
-    {
-        string shimName = Path.GetFileName(expectedShim);
-        foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            string candidate = Path.Combine(directory.Trim('"'), shimName);
-            if (File.Exists(candidate)) { return Path.GetFullPath(candidate); }
-        }
-        return null;
-    }
-
-    private static string? FindLocalToolManifest(string root, string packageId)
-    {
-        string path = Path.Combine(root, ".config", "dotnet-tools.json");
-        if (!File.Exists(path)) { return null; }
-        try
-        {
-            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
-            return doc.RootElement.GetProperty("tools").TryGetProperty(packageId, out _) ? path : null;
-        }
-        catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException) { return null; }
-    }
 
     private sealed class AutonomousMutationTransaction : IDisposable
     {
@@ -335,11 +308,11 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         return RunAutonomousLifecycle(output);
     }
 
-    private static int RunAutonomousLifecycle(string output)
+    private static int RunAutonomousLifecycle(string output, bool explicitBootstrap = false)
     {
         var engine = new HygieneEngine();
         using var transaction = new AutonomousMutationTransaction(engine.Root);
-        try { return RunAutonomousLifecycleCore(output, engine, transaction); }
+        try { return RunAutonomousLifecycleCore(output, engine, transaction, explicitBootstrap); }
         catch (Exception error)
         {
             IReadOnlyList<string> conflicts = transaction.Rollback();
@@ -348,7 +321,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         }
     }
 
-    private static int RunAutonomousLifecycleCore(string output, HygieneEngine engine, AutonomousMutationTransaction transaction)
+    private static int RunAutonomousLifecycleCore(string output, HygieneEngine engine, AutonomousMutationTransaction transaction, bool explicitBootstrap)
     {
         string marker = Path.Combine(engine.Root, ".hygiene", "profile.json");
         if (!File.Exists(marker))
@@ -388,23 +361,58 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                 preHygieneFormatting = preFormat,
                 postHygieneFormatting = new { policy = "dotnet-format whitespace and explicit IDE0011/IDE0040 style allowlist", style = restrictedStyle, selectedRuleIds = normalized.SelectedRuleIds.Concat(formatted.SelectedRuleIds), changedPaths = normalized.ChangedPaths.Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal), idempotenceCheck = "available by rerunning dotnet hygiene" },
                 remainingProfileFindings = profile.Findings,
-                reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/')
+                reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'),
+                reportSha256 = FileSha256(reportPath)
             };
             WriteLifecycle(report, output, "Baseline prepared; an authorized external approver must review and explicitly accept it before this repository is treated as initialized.");
             return 0;
         }
 
-        string approvalStatePath = Path.Combine(engine.Root, ".hygiene", ".state", "baseline-approval.json");
-        if (File.Exists(approvalStatePath))
+        try { new ProfileManager(engine.Root).ValidateForUpdate(); }
+        catch (ProductException error)
         {
-            using JsonDocument approvalState = JsonDocument.Parse(File.ReadAllText(approvalStatePath));
-            if (approvalState.RootElement.GetProperty("status").GetString() != "accepted")
+            var incompatible = new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Resolve the unsupported or malformed hygiene profile without discarding repository data, then rerun dotnet hygiene.", compatibilityError = error.Message };
+            WriteLifecycle(incompatible, output, "The installed tool cannot safely reconcile this profile state.");
+            return 0;
+        }
+
+        string approvalStatePath = Path.Combine(engine.Root, ".hygiene", ".state", "baseline-approval.json");
+        if (!File.Exists(approvalStatePath))
+        {
+            if (explicitBootstrap) { return PrepareExistingBaseline(output, engine, transaction, "bootstrap-adoption"); }
+            var unadopted = new { schemaVersion = 1, status = "incomplete", lifecycle = "baseline", action = "A profile marker exists without a valid accepted baseline record. Review the existing policy and use dotnet hygiene bootstrap to prepare a report-bound baseline; do not run normal gates until it is accepted." };
+            WriteLifecycle(unadopted, output, "The profile marker does not establish baseline approval.");
+            return 0;
+        }
+
+        using JsonDocument approvalState = JsonDocument.Parse(File.ReadAllText(approvalStatePath));
+        JsonElement approval = approvalState.RootElement;
+        string approvalStatus = GetString(approval, "status") ?? "incomplete";
+        string? acceptedPolicySnapshot = null;
+        if (approvalStatus == "accepted")
+        {
+            acceptedPolicySnapshot = GetString(approval, "policySnapshotSha256");
+            if (!AcceptedBaselineRecordIsValid(engine.Root, approval))
             {
-                string pendingStatus = approvalState.RootElement.GetProperty("status").GetString() ?? "incomplete";
-                var approvalRequired = new { schemaVersion = 1, status = pendingStatus, lifecycle = "baseline", action = pendingStatus == "incomplete" ? "Resolve failed baseline validation, then rerun dotnet hygiene." : "Review the baseline report, then record the authorized external decision with dotnet hygiene baseline accept --approver <identity>.", reportPath = approvalState.RootElement.GetProperty("reportPath").GetString() };
-                WriteLifecycle(approvalRequired, output, pendingStatus == "incomplete" ? "Baseline validation is incomplete." : "The repository baseline still requires explicit authorized external approval.");
+                if (explicitBootstrap) { return PrepareExistingBaseline(output, engine, transaction, "bootstrap-adoption"); }
+                WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle = "baseline", action = "The accepted baseline record is missing its policy snapshot. Reconcile the profile and prepare a new explicitly approved baseline." }, output, "The accepted baseline record is incomplete.");
                 return 0;
             }
+        }
+        else
+        {
+            if (explicitBootstrap && approvalStatus != "approval-required") { return PrepareExistingBaseline(output, engine, transaction, "bootstrap-refresh"); }
+            if (approvalStatus == "approval-required" && !PendingBaselineIsCurrent(engine.Root, approval, out string staleReason))
+            {
+                if (explicitBootstrap) { return PrepareExistingBaseline(output, engine, transaction, "bootstrap-refresh"); }
+                var stale = new { schemaVersion = 1, status = "incomplete", lifecycle = "baseline", action = "The pending baseline report or repository snapshot changed before approval. Run dotnet hygiene bootstrap to prepare a fresh report, then have the approver inspect that report." , reason = staleReason };
+                WriteLifecycle(stale, output, "Pending baseline approval was invalidated because its report or snapshot is stale.");
+                return 0;
+            }
+            string pendingStatus = approvalStatus == "approval-required" ? "approval-required" : "incomplete";
+            var approvalRequired = new { schemaVersion = 1, status = pendingStatus, lifecycle = "baseline", action = pendingStatus == "incomplete" ? "Resolve failed baseline validation, then rerun dotnet hygiene bootstrap." : "Review the exact baseline report and record the authorized external decision with dotnet hygiene baseline accept --approver <identity> --report-sha256 <sha256>.", reportPath = GetString(approval, "reportPath"), reportSha256 = GetString(approval, "reportSha256"), baselineSnapshotSha256 = GetString(approval, "baselineSnapshotSha256") };
+            WriteLifecycle(approvalRequired, output, pendingStatus == "incomplete" ? "Baseline validation is incomplete." : "The repository baseline still requires explicit authorized external approval.");
+            return 0;
         }
         FormatObservation[] priorFormatting = AssessExistingFormat(engine.Root);
         if (priorFormatting.Any(item => item.Status == "assessment-unavailable"))
@@ -421,7 +429,8 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             return 0;
         }
         transaction.Checkpoint();
-        if (reconciliation.ChangedPaths.Count > 0)
+        bool materialPolicyChange = !string.Equals(acceptedPolicySnapshot, PolicySnapshotSha256(engine.Root), StringComparison.OrdinalIgnoreCase);
+        if (reconciliation.ChangedPaths.Count > 0 || materialPolicyChange)
         {
             FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
             transaction.Checkpoint();
@@ -439,7 +448,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             string updateStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, priorFormatting, reconciliation, restrictedStyle, normalized, formatted, updateStatus);
             transaction.Checkpoint();
-            var updateReport = new { schemaVersion = 1, status = updateStatus, lifecycle = "profile-update", toolVersion = ToolVersion, changedPaths = reconciliation.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = priorFormatting, restrictedStyle, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/') };
+            var updateReport = new { schemaVersion = 1, status = updateStatus, lifecycle = "profile-update", toolVersion = ToolVersion, changedPaths = reconciliation.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = priorFormatting, restrictedStyle, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'), reportSha256 = FileSha256(reportPath) };
             WriteLifecycle(updateReport, output, updateStatus == "incomplete" ? "Profile update validation is incomplete." : "Profile policy changed. Review the new baseline and obtain explicit authorized external approval before proceeding.");
             return 0;
         }
@@ -464,7 +473,15 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         string defaultBranch = defaultBase.StartsWith("origin/", StringComparison.Ordinal) ? defaultBase["origin/".Length..] : "";
         CheckResult check;
         string gate;
-        if (!string.IsNullOrWhiteSpace(branch) && branch != defaultBranch && defaultBase.Length > 0 && GitExit(engine.Root, "merge-base", defaultBase, "HEAD") == 0)
+        bool defaultBranchCurrent = (branch.Length > 0 && branch == defaultBranch) || branch is "main" or "master";
+        bool hasValidFeatureBase = !defaultBranchCurrent && defaultBase.Length > 0 && GitExit(engine.Root, "merge-base", defaultBase, "HEAD") == 0;
+        if (!defaultBranchCurrent && !hasValidFeatureBase)
+        {
+            var incomplete = new { schemaVersion = 1, status = "incomplete", lifecycle = "gate", action = "Identify an existing trusted comparison base for this feature branch (for example, dotnet hygiene check --base <trusted-ref>). Committed feature changes may be unreviewed; worktree-only inspection is unsafe and no remote or branch was inferred.", gate = (string?)null };
+            WriteLifecycle(incomplete, output, "Cannot establish a complete comparison gate for this feature branch.");
+            return 0;
+        }
+        if (hasValidFeatureBase)
         {
             gate = "base:" + defaultBase;
             check = engine.Check([], false, baseRef: defaultBase);
@@ -512,9 +529,38 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         return 0;
     }
 
-    private static int AcceptBaseline(string approver, string output)
+    private static int PrepareExistingBaseline(string output, HygieneEngine engine, AutonomousMutationTransaction transaction, string lifecycle)
+    {
+        FormatObservation[] preFormat = AssessExistingFormat(engine.Root);
+        if (preFormat.Any(item => item.Status == "assessment-unavailable"))
+        {
+            WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle, action = "Restore SDK project dependencies or provide the formatter required for baseline assessment, then rerun dotnet hygiene bootstrap.", preHygieneFormatting = preFormat }, output, "Baseline preparation stopped before mutation because formatting assessment was unavailable.");
+            return 0;
+        }
+        ProfileResult profile = engine.UpdateProfile();
+        transaction.Checkpoint();
+        FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
+        transaction.Checkpoint();
+        if (restrictedStyle.Any(item => item.Status == "failed"))
+        {
+            IReadOnlyList<string> conflicts = transaction.Rollback();
+            WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle, action = "Resolve formatter failures and rerun dotnet hygiene bootstrap; baseline changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyle }, output, "Baseline preparation failed during restricted formatting.");
+            return 0;
+        }
+        RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+        transaction.Checkpoint();
+        RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
+        transaction.Checkpoint();
+        string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, "approval-required");
+        transaction.Checkpoint();
+        WriteLifecycle(new { schemaVersion = 1, status = "approval-required", lifecycle, toolVersion = ToolVersion, changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = preFormat, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'), reportSha256 = FileSha256(reportPath) }, output, "Review the prepared baseline report and explicitly accept it before normal gate execution.");
+        return 0;
+    }
+
+    private static int AcceptBaseline(string approver, string reportSha256, string output)
     {
         if (string.IsNullOrWhiteSpace(approver)) { throw new ArgumentException("--approver must identify the authorized external approver."); }
+        if (string.IsNullOrWhiteSpace(reportSha256) || reportSha256.Length != 64 || !reportSha256.All(Uri.IsHexDigit)) { throw new ArgumentException("--report-sha256 must identify the exact 64-character SHA-256 of the reviewed baseline report."); }
         var engine = new HygieneEngine();
         engine.RequireProfile();
         string statePath = Path.Combine(engine.Root, ".hygiene", ".state", "baseline-approval.json");
@@ -522,11 +568,18 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         using JsonDocument current = JsonDocument.Parse(File.ReadAllText(statePath));
         if (current.RootElement.GetProperty("status").GetString() == "accepted") { throw new ProductException("The baseline has already been accepted."); }
         if (current.RootElement.GetProperty("status").GetString() != "approval-required") { throw new ProductException("The baseline has failed validation and cannot be accepted."); }
-        var state = new { schemaVersion = 1, status = "accepted", acceptedAtUtc = DateTimeOffset.UtcNow, approver, reportPath = current.RootElement.GetProperty("reportPath").GetString(), authorization = "caller assertion that the named approver was authorized and approved the inspected baseline" };
+        if (!PendingBaselineIsCurrent(engine.Root, current.RootElement, out string staleReason))
+        {
+            throw new ProductException($"Pending baseline cannot be accepted because it is stale: {staleReason} Run dotnet hygiene bootstrap to prepare a new report.");
+        }
+        string expectedReportHash = GetString(current.RootElement, "reportSha256")!;
+        if (!string.Equals(expectedReportHash, reportSha256, StringComparison.OrdinalIgnoreCase)) { throw new ProductException("The supplied report hash does not match the exact pending report. Review the current report and retry with its reported SHA-256."); }
+        string policySnapshot = GetString(current.RootElement, "policySnapshotSha256")!;
+        var state = new { schemaVersion = 1, status = "accepted", acceptedAtUtc = DateTimeOffset.UtcNow, approver, reportPath = current.RootElement.GetProperty("reportPath").GetString(), reportSha256 = expectedReportHash, baselineSnapshotSha256 = GetString(current.RootElement, "baselineSnapshotSha256"), policySnapshotSha256 = policySnapshot, authorization = "caller assertion that the named approver was authorized and approved the exact report identified by reportSha256" };
         string temp = statePath + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(state, Json), new System.Text.UTF8Encoding(false));
         File.Move(temp, statePath, true);
-        var response = new { schemaVersion = 1, status = "accepted", approver, reportPath = state.reportPath };
+        var response = new { schemaVersion = 1, status = "accepted", approver, reportPath = state.reportPath, reportSha256 = expectedReportHash };
         WriteLifecycle(response, output, $"Baseline acceptance recorded for {approver}.");
         return 0;
     }
@@ -636,6 +689,8 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         string directory = Path.Combine(root, ".hygiene", "reports");
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, "baseline-" + DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssfffZ") + ".json");
+        string policySnapshot = PolicySnapshotSha256(root);
+        string baselineSnapshot = BaselineSnapshotSha256(root, policySnapshot);
         var report = new
         {
             schemaVersion = 1,
@@ -644,6 +699,8 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             tool = new { package = "DotNetAiCodeHygiene.Tool", version = ToolVersion },
             profile = new { id = "dotnet-11", version = 2 },
             ruleVersions = HygieneEngine.Rules.Select(rule => new { rule.Id, rule.Version }),
+            baselineSnapshotSha256 = baselineSnapshot,
+            policySnapshotSha256 = policySnapshot,
             changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal),
             preHygieneFormatting = preFormat,
             postHygieneFormatting = new { policy = "dotnet-format whitespace and allowlisted style diagnostics", style = restrictedStyle, selectedRuleIds = normalized.SelectedRuleIds.Concat(formatted.SelectedRuleIds), changedPaths = restrictedStyle.SelectMany(item => item.ChangedPaths).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal) },
@@ -652,10 +709,120 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             approval = new { required = true, accepted = false, instruction = status == "incomplete" ? "Resolve all validation failures; this baseline cannot be accepted." : "An authorized external approver must inspect the baseline and explicitly record acceptance." }
         };
         File.WriteAllText(path, JsonSerializer.Serialize(report, Json), new System.Text.UTF8Encoding(false));
+        string reportSha256 = FileSha256(path);
         string approvalState = Path.Combine(root, ".hygiene", ".state", "baseline-approval.json");
         Directory.CreateDirectory(Path.GetDirectoryName(approvalState)!);
-        File.WriteAllText(approvalState, JsonSerializer.Serialize(new { schemaVersion = 1, status, reportPath = Path.GetRelativePath(root, path).Replace('\\', '/') }, Json), new System.Text.UTF8Encoding(false));
+        File.WriteAllText(approvalState, JsonSerializer.Serialize(new { schemaVersion = 1, status, reportPath = Path.GetRelativePath(root, path).Replace('\\', '/'), reportSha256, baselineSnapshotSha256 = baselineSnapshot, policySnapshotSha256 = policySnapshot }, Json), new System.Text.UTF8Encoding(false));
         return path;
+    }
+
+    private static bool PendingBaselineIsCurrent(string root, JsonElement approval, out string reason)
+    {
+        reason = "unknown stale baseline state";
+        string? relative = GetString(approval, "reportPath");
+        string? reportSha = GetString(approval, "reportSha256");
+        string? baselineSha = GetString(approval, "baselineSnapshotSha256");
+        string? policySha = GetString(approval, "policySnapshotSha256");
+        if (string.IsNullOrWhiteSpace(relative) || string.IsNullOrWhiteSpace(reportSha) || string.IsNullOrWhiteSpace(baselineSha) || string.IsNullOrWhiteSpace(policySha))
+        { reason = "the pending approval record is missing its report or snapshot identity"; return false; }
+        string reportPath = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        string rootPrefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!reportPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(reportPath))
+        { reason = "the pending report is missing or outside the repository"; return false; }
+        if (!string.Equals(FileSha256(reportPath), reportSha, StringComparison.OrdinalIgnoreCase))
+        { reason = "the pending report bytes changed"; return false; }
+        try
+        {
+            using JsonDocument report = JsonDocument.Parse(File.ReadAllText(reportPath));
+            if (GetString(report.RootElement, "status") != "approval-required"
+                || !string.Equals(GetString(report.RootElement, "baselineSnapshotSha256"), baselineSha, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(GetString(report.RootElement, "policySnapshotSha256"), policySha, StringComparison.OrdinalIgnoreCase))
+            { reason = "the pending report does not describe the approval record"; return false; }
+        }
+        catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
+        { reason = "the pending report cannot be read or parsed"; return false; }
+        string currentPolicy = PolicySnapshotSha256(root);
+        if (!string.Equals(currentPolicy, policySha, StringComparison.OrdinalIgnoreCase))
+        { reason = "managed configuration, effective policy inputs, or tool/rule versions changed"; return false; }
+        if (!string.Equals(BaselineSnapshotSha256(root, currentPolicy), baselineSha, StringComparison.OrdinalIgnoreCase))
+        { reason = "source or configuration bytes changed after the report was prepared"; return false; }
+        reason = "the report and relevant repository snapshot are current";
+        return true;
+    }
+
+    private static bool AcceptedBaselineRecordIsValid(string root, JsonElement approval)
+    {
+        if (GetString(approval, "schemaVersion") != "1"
+            || string.IsNullOrWhiteSpace(GetString(approval, "approver"))
+            || string.IsNullOrWhiteSpace(GetString(approval, "policySnapshotSha256"))
+            || string.IsNullOrWhiteSpace(GetString(approval, "baselineSnapshotSha256"))) { return false; }
+        string? relative = GetString(approval, "reportPath");
+        string? reportSha = GetString(approval, "reportSha256");
+        if (string.IsNullOrWhiteSpace(relative) || string.IsNullOrWhiteSpace(reportSha)) { return false; }
+        string reportPath = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        string rootPrefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!reportPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(reportPath)
+            || !string.Equals(FileSha256(reportPath), reportSha, StringComparison.OrdinalIgnoreCase)) { return false; }
+        try
+        {
+            using JsonDocument report = JsonDocument.Parse(File.ReadAllText(reportPath));
+            return GetString(report.RootElement, "status") == "approval-required"
+                && string.Equals(GetString(report.RootElement, "baselineSnapshotSha256"), GetString(approval, "baselineSnapshotSha256"), StringComparison.OrdinalIgnoreCase)
+                && string.Equals(GetString(report.RootElement, "policySnapshotSha256"), GetString(approval, "policySnapshotSha256"), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException) { return false; }
+    }
+
+    private static string PolicySnapshotSha256(string root) => RepositorySnapshotSha256(root, includeSources: false);
+
+    private static string BaselineSnapshotSha256(string root, string policySnapshot) => HashText(RepositorySnapshotSha256(root, includeSources: true) + "\n" + policySnapshot);
+
+    private static string RepositorySnapshotSha256(string root, bool includeSources)
+    {
+        var selected = new List<string>();
+        foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
+            string[] segments = relative.Split('/');
+            if (segments.Any(segment => segment is ".git" or "bin" or "obj" or "artifacts")) { continue; }
+            if (segments.Length >= 2 && segments[0] == ".hygiene" && segments[1] is "reports" or ".state") { continue; }
+            string name = segments[^1];
+            bool source = includeSources && name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+            bool policy = name.Equals(".editorconfig", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".props", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".targets", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("global.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("NuGet.config", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("packages.lock.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("dotnet-tools.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("profile.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("config.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+                || name.Equals(".slnx", StringComparison.OrdinalIgnoreCase);
+            if (source || policy) { selected.Add(path); }
+        }
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        void Add(string text) => hash.AppendData(System.Text.Encoding.UTF8.GetBytes(text));
+        Add("versions=" + VersionContractSha256(ToolVersion, HygieneEngine.Rules.Select(rule => (rule.Id, rule.Version))) + "\n");
+        foreach (string path in selected.OrderBy(path => Path.GetRelativePath(root, path), StringComparer.Ordinal))
+        {
+            Add(Path.GetRelativePath(root, path).Replace('\\', '/') + "\0");
+            hash.AppendData(File.ReadAllBytes(path));
+            Add("\0");
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static string FileSha256(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    private static string HashText(string text) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+
+    internal static string VersionContractSha256(string toolVersion, IEnumerable<(string RuleId, int Version)> ruleVersions)
+    {
+        var contract = new System.Text.StringBuilder().Append("tool=").Append(toolVersion).Append('\n');
+        foreach ((string ruleId, int version) in ruleVersions.OrderBy(rule => rule.RuleId, StringComparer.Ordinal))
+        { contract.Append("rule=").Append(ruleId).Append(':').Append(version).Append('\n'); }
+        return HashText(contract.ToString());
     }
 
     private static void WriteLifecycle<T>(T report, string output, string text)
@@ -680,6 +847,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             if (GetString(root, "gate") is string gate) { Console.WriteLine($"Gate: {gate}"); }
             if (GetString(root, "action") is string action) { Console.WriteLine($"Next action: {action}"); }
             if (GetString(root, "reportPath") is string path) { Console.WriteLine($"Baseline report: {path}"); }
+            if (GetString(root, "reportSha256") is string reportSha256) { Console.WriteLine($"Baseline report SHA-256: {reportSha256}"); }
             if (root.TryGetProperty("changedPaths", out JsonElement changed) && changed.ValueKind == JsonValueKind.Array)
             {
                 foreach (JsonElement changedPath in changed.EnumerateArray()) { Console.WriteLine($"Changed: {changedPath.GetString()}"); }
@@ -730,10 +898,12 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         {
             return symbolic;
         }
-        bool main = GitExit(root, "show-ref", "--verify", "--quiet", "refs/remotes/origin/main") == 0;
-        bool master = GitExit(root, "show-ref", "--verify", "--quiet", "refs/remotes/origin/master") == 0;
-        if (main == master) { return ""; }
-        return main ? "origin/main" : "origin/master";
+        string[] candidates = ["origin/main", "origin/master", "main", "master"];
+        var available = candidates.Select(reference => (Reference: reference, Commit: GitLine(root, "rev-parse", "--verify", reference + "^{commit}")))
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Commit)).ToArray();
+        string[] commits = available.Select(candidate => candidate.Commit).Distinct(StringComparer.Ordinal).ToArray();
+        if (commits.Length != 1) { return ""; }
+        return available[0].Reference;
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunProcess(string executable, string workingDirectory, params string[] args) => RunProcess(executable, workingDirectory, null, args);

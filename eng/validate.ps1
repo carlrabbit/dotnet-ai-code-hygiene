@@ -11,6 +11,14 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCO
 dotnet test .\DotNetAiCodeHygiene.slnx --configuration Release --no-build
 if ($LASTEXITCODE -ne 0) { throw "dotnet test failed with exit code $LASTEXITCODE." }
 
+$readmeText = Get-Content -LiteralPath .\README.md -Raw
+foreach ($requiredHeading in @('## First Bootstrap', '## Run on Gates', '## Manual Inspection and Debugging', '## Updating to a New Release')) {
+    if (-not $readmeText.Contains($requiredHeading)) { throw "README is missing required lifecycle section '$requiredHeading'." }
+}
+foreach ($requiredExample in @('dotnet hygiene --version', 'dotnet hygiene check --base origin/main', 'dotnet hygiene review handoff', 'dotnet hygiene baseline accept --approver', '--report-sha256')) {
+    if (-not $readmeText.Contains($requiredExample)) { throw "README is missing tested lifecycle example '$requiredExample'." }
+}
+
 dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
 
@@ -49,10 +57,25 @@ if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LAS
 $hygiene = Join-Path $toolPath 'dotnet-hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { throw 'Tier-4 installed hygiene command was not created.' }
 $pathBeforeUpgrade = $env:PATH
-$priorPackage = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.9.0.nupkg
-Copy-Item -LiteralPath $priorPackage.FullName -Destination $feed
+$priorPackage = Join-Path $feed 'DotNetAiCodeHygiene.Tool.0.9.0.nupkg'
+$priorSource = Join-Path $tierRoot 'previous-version-source'
+$priorFixtureCommit = '2e17b293be78480dcad9817f43c9bcc079a81ea8'
+git cat-file -e "$priorFixtureCommit`^{commit}"
+if ($LASTEXITCODE -ne 0) { throw "Deterministic previous-version fixture commit $priorFixtureCommit is unavailable; EC-19c cannot pass." }
+git worktree add --detach $priorSource $priorFixtureCommit | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the deterministic previous-version source fixture.' }
+try {
+    $priorProject = Join-Path $priorSource 'src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj'
+    $priorProjectText = Get-Content -LiteralPath $priorProject -Raw
+    if ($priorProjectText -notmatch '<Version>0\.9\.0</Version>' -or $priorProjectText -notmatch '<ToolCommandName>hygiene</ToolCommandName>') { throw 'Pinned previous-version source no longer declares the expected 0.9.0 legacy-tool fixture.' }
+    dotnet pack $priorProject --configuration Release --output $feed | Out-Null
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $priorPackage)) { throw 'Deterministic 0.9.0 package fixture could not be built; EC-19c is not established.' }
+}
+finally { git worktree remove --force $priorSource | Out-Null }
 dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $upgradeToolPath --configfile $nugetConfig --version 0.9.0
 if ($LASTEXITCODE -ne 0) { throw 'Tier-4 previous-version tool install failed.' }
+$priorInstalled = dotnet tool list --tool-path $upgradeToolPath --format json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or @($priorInstalled.data | Where-Object { $_.packageId -ieq 'DotNetAiCodeHygiene.Tool' -and $_.version -eq '0.9.0' }).Count -ne 1) { throw 'Previous-version fixture install did not resolve the verified 0.9.0 package.' }
 dotnet tool update DotNetAiCodeHygiene.Tool --tool-path $upgradeToolPath --configfile $nugetConfig --version 0.10.0
 if ($LASTEXITCODE -ne 0) { throw 'Tier-4 trusted local-feed tool update failed.' }
 $updatedShim = Join-Path $upgradeToolPath 'dotnet-hygiene.exe'
@@ -96,6 +119,43 @@ try {
     if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.10.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
 }
 finally { Pop-Location; $env:PATH = $pathBeforeUpgrade }
+
+# A parent local-tool manifest with a lowercase package key must update itself,
+# while a competing PATH tool-path install remains untouched.
+$localManifestRoot = Join-Path $tierRoot 'local-manifest-root'; $localConsumer = Join-Path $localManifestRoot 'nested\consumer'; $localCache = Join-Path $tierRoot 'local-package-cache'; $localCliHome = Join-Path $tierRoot 'local-cli-home'
+New-Item -ItemType Directory -Force (Join-Path $localManifestRoot '.config'), $localConsumer, $localCache, $localCliHome | Out-Null
+Copy-Item -LiteralPath $releaseNugetConfig -Destination (Join-Path $localManifestRoot 'NuGet.config')
+$previousCliHome = $env:DOTNET_CLI_HOME
+$env:DOTNET_CLI_HOME = $localCliHome
+$env:NUGET_PACKAGES = $localCache
+$manifestPath = Join-Path $localManifestRoot '.config\dotnet-tools.json'
+Push-Location $localManifestRoot
+try {
+    [IO.File]::WriteAllText($manifestPath, '{"version":1,"isRoot":true,"tools":{}}', [Text.UTF8Encoding]::new($false))
+    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $manifestPath --configfile (Join-Path $localManifestRoot 'NuGet.config') --version 0.10.0 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Local-manifest 0.10.0 consumer install failed.' }
+    $manifestJson = [IO.File]::ReadAllText($manifestPath).Replace('"DotNetAiCodeHygiene.Tool"', '"dotnetaicodehygiene.tool"')
+    [IO.File]::WriteAllText($manifestPath, $manifestJson)
+}
+finally { Pop-Location }
+Set-Content -LiteralPath (Join-Path $localConsumer 'NuGet.config') -Value (Get-Content -LiteralPath (Join-Path $localManifestRoot 'NuGet.config') -Raw)
+Set-Content -LiteralPath (Join-Path $localConsumer 'Local.csproj') -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+Set-Content -LiteralPath (Join-Path $localConsumer 'Local.cs') -NoNewline -Value 'public class Local { }'
+dotnet restore (Join-Path $localConsumer 'Local.csproj') | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Local-manifest consumer restore failed.' }
+$env:PATH = $toolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
+Push-Location $localConsumer
+try {
+    git init -q -b main
+    if ($LASTEXITCODE -ne 0) { throw 'Local-manifest consumer git init failed.' }
+    $localRaw = dotnet hygiene --output json
+    $localExitCode = $LASTEXITCODE
+    $localReport = ($localRaw -join "`n") | ConvertFrom-Json
+    if ($localExitCode -ne 0 -or $localReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $localReport.releaseUpdate.previousVersion -ne '0.10.0' -or $localReport.releaseUpdate.installedVersion -ne '0.10.1') { throw "Ancestor local manifest did not update and restart its exact installation. Exit=$localExitCode Output=$($localRaw -join ' ') Report: $($localReport | ConvertTo-Json -Depth 16 -Compress)" }
+    $competingVersion = & (Join-Path $toolPath 'dotnet-hygiene.exe') --version
+    if ($LASTEXITCODE -ne 0 -or ($competingVersion -join '').Trim() -ne '0.10.0') { throw 'Local-manifest update changed a competing PATH tool-path installation.' }
+}
+finally { Pop-Location; $env:PATH = $pathBeforeUpgrade; $env:NUGET_PACKAGES = $releaseCache; if ($null -eq $previousCliHome) { Remove-Item Env:\DOTNET_CLI_HOME -ErrorAction SilentlyContinue } else { $env:DOTNET_CLI_HOME = $previousCliHome } }
 
 # Unavailable/offline sources must be reported while the compatible binary
 # continues; incompatible profile state must remain untouched and actionable.
@@ -223,7 +283,7 @@ public class Other {
     if ($LASTEXITCODE -ne 0 -or $cachedPaths -notcontains 'staged.txt' -or $cachedPaths -contains 'Sample.cs' -or $worktreePaths -notcontains 'staged.txt' -or $worktreePaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath staged.txt -Raw) -cne 'unstaged value' -or (Get-Content -LiteralPath user-untracked.txt -Raw) -cne 'preserve this untracked user file' -or (Get-Content -LiteralPath Sample.cs -Raw) -notmatch 'retained') { throw 'Successful bootstrap failed to preserve staged, unstaged, and untracked user work.' }
     $stillPending = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $stillPending.status -ne 'approval-required') { throw 'Installed autonomous entrypoint bypassed its explicit baseline approval boundary.' }
-    dotnet hygiene baseline accept --approver 'Isolated Tier-4 fixture approver' | Out-Null
+    dotnet hygiene baseline accept --approver 'Isolated Tier-4 fixture approver' --report-sha256 $autonomousBootstrap.reportSha256 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed baseline approval command failed for the isolated authorized fixture.' }
     $autonomousGate = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $autonomousGate.lifecycle -ne 'gate' -or @($autonomousGate.workOrder).Count -eq 0) { throw 'Installed autonomous gate omitted its selected grouped semantic work order.' }
@@ -253,7 +313,7 @@ try {
     dotnet hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = dotnet hygiene bootstrap --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $bootstrap.findingCount -ne 0) { throw 'Installed bootstrap failed or left profile findings.' }
+    if ($LASTEXITCODE -ne 0 -or $bootstrap.status -ne 'approval-required' -or $bootstrap.lifecycle -ne 'bootstrap' -or @($bootstrap.remainingProfileFindings).Count -ne 0 -or [string]::IsNullOrWhiteSpace($bootstrap.reportSha256)) { throw "Installed bootstrap did not prepare a clean report-bound approval request. Output: $($bootstrap | ConvertTo-Json -Depth 12 -Compress)" }
     dotnet hygiene rules disable style.braces.required | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed braces rule could not be disabled.' }
     $editorAfterDisable = Get-Content -Raw .editorconfig
@@ -265,6 +325,9 @@ try {
     if ($LASTEXITCODE -ne 0 -or $disabledFormat.changedCount -ne 0 -or $disabledFormat.selectedRuleIds.Count -ne 0) { throw 'Disabled format rule still participated in format.' }
     dotnet hygiene rules enable format.csharp.roslyn | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed format rule could not be enabled.' }
+    # Bootstrap now performs authoritative formatting itself; inject a fresh
+    # unformatted source state to verify the manual diagnostic command too.
+    Set-Content -NoNewline -Path Sample.cs -Value 'public class Sample{private int value;public int Value(){return this.value;}}'
     $formatBefore = Get-Content -Raw Sample.cs
     $formatCheck = dotnet hygiene format --check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $formatCheck.changedCount -lt 1 -or ($formatCheck.selectedRuleIds -join ',') -ne 'format.csharp.roslyn') { throw 'Installed hygiene format --check did not report pending changes and selected rule.' }
@@ -414,14 +477,31 @@ public class ReviewedAdditional
         git config user.email hygiene-complete@example.invalid
         git config user.name 'Hygiene Complete Fixture'
         Set-Content -LiteralPath Empty.csproj -NoNewline -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+        Set-Content -LiteralPath Empty.cs -NoNewline -Value 'public class Empty { public int Value => 1; }'
         dotnet restore .\Empty.csproj | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Tier-4 complete consumer restore failed.' }
         $pendingBaseline = dotnet hygiene --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $pendingBaseline.status -ne 'approval-required') { throw 'Clean consumer bootstrap did not require explicit approval.' }
-        dotnet hygiene baseline accept --approver 'Isolated completion fixture approver' | Out-Null
+        Set-Content -LiteralPath Empty.cs -NoNewline -Value 'public class Empty { public int Value => 2; }'
+        dotnet hygiene baseline accept --approver 'Isolated completion fixture approver' --report-sha256 $pendingBaseline.reportSha256 | Out-Null
+        if ($LASTEXITCODE -eq 0) { throw 'Installed tool accepted a pending baseline after relevant source bytes changed.' }
+        $pendingBaseline = dotnet hygiene bootstrap --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $pendingBaseline.status -ne 'approval-required') { throw 'Explicit bootstrap did not refresh stale installed-consumer baseline evidence.' }
+        Remove-Item -LiteralPath .hygiene\.state\baseline-approval.json
+        $markerOnly = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $markerOnly.status -ne 'incomplete' -or $markerOnly.lifecycle -ne 'baseline') { throw 'A marker without an accepted baseline record entered the installed-consumer gate.' }
+        $pendingBaseline = dotnet hygiene bootstrap --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $pendingBaseline.status -ne 'approval-required') { throw 'Installed explicit bootstrap did not restore a report-bound approval record.' }
+        git add -A
+        git commit -m 'complete consumer baseline fixture' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Tier-4 complete consumer commit failed.' }
+        dotnet hygiene baseline accept --approver 'Isolated completion fixture approver' --report-sha256 $pendingBaseline.reportSha256 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Clean consumer baseline approval failed.' }
         $completeReport = dotnet hygiene --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $completeReport.status -ne 'complete' -or $completeReport.lifecycle -ne 'gate' -or [string]::IsNullOrWhiteSpace($completeReport.gate) -or [string]::IsNullOrWhiteSpace($completeReport.runId)) { throw 'Clean installed consumer did not return a truthful complete gate report.' }
+        Set-Content -LiteralPath Empty.cs -NoNewline -Value 'public class Empty { public int Value => 3; }'
+        $ordinaryEdit = dotnet hygiene --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $ordinaryEdit.lifecycle -ne 'gate') { throw 'Accepted baseline incorrectly froze ordinary source edits.' }
         Set-Content -LiteralPath .hygiene\profile.json -NoNewline -Value '{"schemaVersion":1,"profile":"dotnet-11","version":1}'
         $profileDrift = dotnet hygiene --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $profileDrift.status -ne 'approval-required' -or $profileDrift.lifecycle -ne 'profile-update' -or @($profileDrift.changedPaths).Count -eq 0) { throw 'Autonomous profile drift did not prepare a materially changed approval-required baseline.' }

@@ -37,6 +37,13 @@ public sealed class ProfileManager
     public ProfileResult Bootstrap(string output = "text") => Apply("bootstrap", false);
     public ProfileResult Update(string output = "text") => Apply("update", true);
 
+    /// <summary>Validates profile and toggle state without changing repository files.</summary>
+    public void ValidateForUpdate()
+    {
+        RequireSupportedForUpdate();
+        _ = ReadDisabledRules();
+    }
+
     internal void ReconcileRuleToggle(string configContent, IReadOnlyCollection<string> disabledRuleIds, string? expectedConfig, Action? beforeCommit)
     {
         string configPath = P(".hygiene/config.json"), editorPath = P(".editorconfig");
