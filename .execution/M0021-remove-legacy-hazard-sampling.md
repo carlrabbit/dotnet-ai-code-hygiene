@@ -20,7 +20,7 @@ Planning seeded under Agentic Project Guides 0.9.1. Milestone is authoritative. 
 | AC-10 | acceptance | Demonstrate the active Core and CLI review regression paths at the declared Windows 11/.NET 11 locus; use affected validation shards and current receipts rather than requiring unrelated historical suites to rerun without input invalidation. | WP-02 | Ran affected current Core and CLI review regression cases on Windows/.NET 11; focused filters only, not full test-stage receipts. | Focused Core and CLI commands/results are listed under VAL-02/VAL-03; complete core-tests/cli-tests receipts are not claimed. | complete |
 | AC-11 | acceptance | Exercise the current locally packed `dotnet hygiene` artifact through an isolated installed-tool consumer for a representative current check/review command, with actual package/shim provenance; other historical update/migration matrices need not be freshly repeated solely because dead internal sampling code was removed. | WP-03 | Fresh current package installed to isolated tool path and invoked in disposable consumer repository. | VAL-04 records package hash, isolated shim, and actual current check/review command results. | complete |
 | DOC-01 | documentation | Update operative sampling, semantic-review and engineering documentation to describe exclusively current gate-local selection and delete legacy state-preservation promises; retain historical research, milestone records and their evidence untouched. | WP-03 | Corrected active sampling, semantic-review, architecture, and engineering guidance; historical research/records were not edited. | Manual source review plus `git diff --check`; no complete canonical validation claim. | complete |
-| REV-01 | human review | Prepare `.review/REV-M0021-COMPLETION.md` for independent project-owner/delegate completion review; do not assert approval or merge before review. | WP-03 | Prepared completion packet for independent project owner/delegate review. | Packet explicitly says approval pending; PR URL recorded after push. | awaiting-review |
+| REV-01 | human review | Prepare `.review/REV-M0021-COMPLETION.md` for independent project-owner/delegate completion review; do not assert approval or merge before review. | WP-03 | Completion packet records direct implementation approval by the current task user on 2026-10-19. | Approval covers merged implementation PR #21; recorded in `.review/REV-M0021-COMPLETION.md`. | complete |
 
 ## Evidence Case Registry
 
@@ -51,15 +51,15 @@ Planning seeded under Agentic Project Guides 0.9.1. Milestone is authoritative. 
 | VAL-03 | Tier 1/3; `eng/validate.ps1 -Shard cli-tests` or focused CLI filter; explicit check of active rule and review flows | CLI integration and current product behavior; Local Windows 11 / .NET 11, Git | AC-08, AC-10, EC-08a | complete (focused) | Focused filter `CliProcessTests/ReviewAcceptReportsOnlyCurrentNormalSampleItems` passed; exact installed check/review is VAL-04. No complete cli-tests receipt claimed. |
 | VAL-04 | Tier 4 (representative); `eng/validate.ps1 -Shard pack-current` plus an isolated install of that exact nupkg and representative current command invocation; use existing consumer script only when it offers suitably scoped checking | Exact current packed/installed tool; Isolated local Windows 11 / .NET 11, NuGet tool path | EC-11a | complete | Fresh `pack-current` produced package SHA-256 `9fba2a2e42e6976719a583bcca0d86aeefe9ff994ce31d6390ce5a6643ede41a`. Installed that nupkg into isolated tool path; shim `C:\Users\carlt\AppData\Local\Temp\m0021-installed-consumer-8b00df70cf834e92ad3049cdf6193098\tools\dotnet-hygiene.exe` SHA-256 `aaea6b325bfc45023b8891628d07499a919d8e2b5803b359d8c75984c4adc0a9`. Invoked `dotnet hygiene bootstrap --output json`, `check --review-all --output json`, `review expand`, and explicit `review accept`; check materialized one docs-summary review item and acceptance persisted one item. |
 | VAL-05 | Tier 0/2; Review operative docs, removed compatibility claims and preserved research; `git diff --check`; current receipt verification for any claimed reused stages | Documentation and current evidence reconciliation; Local repository / Windows PowerShell | AC-06, DOC-01, EC-06a | complete | Operative docs reviewed; source/history boundaries checked; `git diff --check` passed. Full self-host/aggregate validation not claimed. |
-| VAL-06 | Tier 5; Submit review packet and await independent decision | Independent M0021 review; PR / project owner or delegate | REV-01 | pending | PR #21: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/21. Independent project owner/delegate decision remains pending; no self-approval or merge. |
+| VAL-06 | Tier 5; Submit review packet and await independent decision | Independent M0021 review; PR / project owner or delegate | REV-01 | complete | Current task user approved the implementation on 2026-10-19; decision is recorded in `.review/REV-M0021-COMPLETION.md`. Implementation PR #21 is merged. |
 
 ## Resume Point
 
 Last completed work package: WP-01, WP-02, and WP-03.
 Current work package: none.
-Next concrete action: independent completion review of the pushed PR.
+Next concrete action: none; implementation PR #21 is merged and approval is recorded.
 Known agent-resolvable gaps: none.
-External blocker: independent project owner/delegate approval remains pending.
+External blocker: none.
 
 ## Final Reconciliation
 
@@ -70,4 +70,4 @@ External blocker: independent project owner/delegate approval remains pending.
 - [x] Check preservation of active gate-local and atomic review behavior.
 - [x] Confirm declared validation locus, artifact provenance and fresh/stale receipt semantics.
 - [x] Complete mandatory audit and durable milestone completion evidence.
-- [x] Prepare `.review/REV-M0021-COMPLETION.md`; independent approval remains pending.
+- [x] Record the approved independent completion decision in `.review/REV-M0021-COMPLETION.md`.
