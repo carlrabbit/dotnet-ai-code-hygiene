@@ -162,7 +162,17 @@ public sealed class HygieneEngine
     public CheckResult Check(string[] paths, bool changed, bool applyIgnores = true, bool includeDisabled = false, bool publishLatest = true, string? baseRef = null, bool reviewAll = false) =>
         CheckCore(paths, changed, applyIgnores, includeDisabled, publishLatest, baseRef: baseRef, reviewAll: reviewAll);
 
-    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false, Action<string>? gateIdentitySink = null)
+    /// <summary>Runs the complete enabled rule population without publishing normal review state.</summary>
+    internal (CheckResult Result, int SourceDocuments, int Projects) CheckExhaustiveAuditSnapshot()
+    {
+        int documents = 0;
+        int projects = 0;
+        CheckResult result = CheckCore([], false, false, false, false, reviewAll: true, exhaustiveAudit: true,
+            auditScopeSink: (documentCount, projectCount) => { documents = documentCount; projects = projectCount; });
+        return (result, documents, projects);
+    }
+
+    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false, Action<string>? gateIdentitySink = null, bool exhaustiveAudit = false, Action<int, int>? auditScopeSink = null)
     {
         RequireProfile();
         using var session = new RepositorySession(root);
@@ -186,8 +196,9 @@ public sealed class HygieneEngine
         string[] disabled = includeDisabled ? [] : Disabled;
         IgnoreDecision[] decisions = ReadDecisions().Decisions;
         Document[] reportingDocuments = projectsByTarget.Values.Select(value => value.Document).DistinctBy(document => document.Id).ToArray();
+        auditScopeSink?.Invoke(reportingDocuments.Length, session.Projects.Count);
         var ruleContext = new RuleContext(session, reportingDocuments,
-            new GateSelectionContext(gateId, mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines));
+            new GateSelectionContext(gateId, exhaustiveAudit ? "exhaustive" : mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines), exhaustiveAudit);
         IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
         string completeGateIdentity = GateLocalReviewStore.GateIdentity(gateId, inspectionMode, resolvedBase, head,
             targets.Select(session.Relative), executions.Where(execution => RuleCatalog.SemanticReviewModules.Any(module => module.Descriptor.Id == execution.Descriptor.Id))
@@ -198,7 +209,7 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions);
+        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions, createTickets: !exhaustiveAudit);
         ticketSink?.AddRange(review.Tickets);
         ReviewBatch[] batches = review.Batches;
         var result = new CheckResult(1, run, active, ignored, batches);
@@ -213,7 +224,7 @@ public sealed class HygieneEngine
         return result;
     }
 
-    internal static ReviewBatchMaterialization BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, IReadOnlyList<ReviewSubject> selectedSubjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition, string escalatedReviewerClass, string reviewerClass)
+    internal static ReviewBatchMaterialization BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, IReadOnlyList<ReviewSubject> selectedSubjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition, string escalatedReviewerClass, string reviewerClass, bool createTickets = true)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
@@ -230,7 +241,7 @@ public sealed class HygieneEngine
         string batchId = "B-" + batchNumber;
         var batch = new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", reviewerClass, ordered.Length, sample.Length, questions,
             new ReviewEscalation(escalationCondition, "dotnet hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);
-        var tickets = selectedSubjects.Select(s => new ReviewTicketAssociation(batchId, ids[s.Identity], s.GateTicket ?? throw new ProductException("A selected review subject has no current gate ticket."))).ToArray();
+        var tickets = createTickets ? selectedSubjects.Select(s => new ReviewTicketAssociation(batchId, ids[s.Identity], s.GateTicket ?? throw new ProductException("A selected review subject has no current gate ticket."))).ToArray() : [];
         return new(batch, tickets);
     }
 

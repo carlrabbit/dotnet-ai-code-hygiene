@@ -18,7 +18,7 @@ internal sealed record SemanticReviewMaterialization(ReviewBatch[] Batches, Revi
 
 internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRuleModule> modules)
 {
-    internal SemanticReviewMaterialization BuildBatches(string run, IReadOnlyList<RuleModuleExecution> executions)
+    internal SemanticReviewMaterialization BuildBatches(string run, IReadOnlyList<RuleModuleExecution> executions, bool createTickets = true)
     {
         var byId = executions.ToDictionary(execution => execution.Descriptor.Id, StringComparer.Ordinal);
         ReviewBatchMaterialization[] built = modules.Where(module => byId.ContainsKey(module.Descriptor.Id))
@@ -28,7 +28,7 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
                 return HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
                     result.ReviewSubjects, result.SelectedReviewSubjects ?? [],
                     result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
-                    module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass);
+                    module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass, createTickets);
             }).ToArray();
         return new(built.Select(x => x.Batch).ToArray(), built.SelectMany(x => x.Tickets).ToArray());
     }

@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.10.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.11.0.nupkg
 # Tier 4: install the exact package just packed into an isolated consumer tool path.
-$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.10.0.nupkg
+$package = Get-ChildItem .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.11.0.nupkg
 $tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-tier4-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'; $toolPath = Join-Path $tierRoot 'tools'; $upgradeToolPath = Join-Path $tierRoot 'upgrade-tools'; $consumer = Join-Path $tierRoot 'consumer'; $autonomousConsumer = Join-Path $tierRoot 'autonomous'; $nugetCache = Join-Path $tierRoot 'nuget-cache'
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -31,7 +31,7 @@ $previousPath = $env:PATH
 $env:PATH = $toolPath + [IO.Path]::PathSeparator + $env:PATH
 $previousNugetPackages = $env:NUGET_PACKAGES
 $env:NUGET_PACKAGES = $nugetCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.10.0
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.11.0
 if ($LASTEXITCODE -ne 0) { throw "Tier-4 tool install failed with exit code $LASTEXITCODE." }
 $hygiene = Join-Path $toolPath 'dotnet-hygiene.exe'
 if (-not (Test-Path -LiteralPath $hygiene)) { throw 'Tier-4 installed hygiene command was not created.' }
@@ -95,29 +95,29 @@ else {
 }
 $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
 $provenanceTemp = $provenancePath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
-[pscustomobject]@{ schemaVersion=1; currentPackage='DotNetAiCodeHygiene.Tool.0.10.0'; currentPackageSha256=$currentPackageSha256; currentPackagePath=[IO.Path]::GetRelativePath((Resolve-Path (Join-Path $PSScriptRoot '..')).Path,$package.FullName).Replace('\','/'); installedCommand='dotnet-hygiene'; installedVersion='0.10.0'; installedShimSha256=$installedShimSha256; previousFixtureCommit=$priorFixtureCommit; previousFixtureTree=$priorTree; previousFixtureSdk=$sdkIdentity; previousFixtureDisposition=$fixtureDisposition; previousFixtureSha256=$fixturePackageSha256; previousFixtureKey=$fixtureKey; recordedUtc=[DateTimeOffset]::UtcNow.ToString('o') } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenanceTemp -Encoding utf8
+[pscustomobject]@{ schemaVersion=1; currentPackage='DotNetAiCodeHygiene.Tool.0.11.0'; currentPackageSha256=$currentPackageSha256; currentPackagePath=[IO.Path]::GetRelativePath((Resolve-Path (Join-Path $PSScriptRoot '..')).Path,$package.FullName).Replace('\','/'); installedCommand='dotnet-hygiene'; installedVersion='0.11.0'; installedShimSha256=$installedShimSha256; previousFixtureCommit=$priorFixtureCommit; previousFixtureTree=$priorTree; previousFixtureSdk=$sdkIdentity; previousFixtureDisposition=$fixtureDisposition; previousFixtureSha256=$fixturePackageSha256; previousFixtureKey=$fixtureKey; recordedUtc=[DateTimeOffset]::UtcNow.ToString('o') } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenanceTemp -Encoding utf8
 Move-Item -LiteralPath $provenanceTemp -Destination $provenancePath -Force
 dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $upgradeToolPath --configfile $nugetConfig --version 0.9.0
 if ($LASTEXITCODE -ne 0) { throw 'Tier-4 previous-version tool install failed.' }
 $priorInstalled = dotnet tool list --tool-path $upgradeToolPath --format json | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0 -or @($priorInstalled.data | Where-Object { $_.packageId -ieq 'DotNetAiCodeHygiene.Tool' -and $_.version -eq '0.9.0' }).Count -ne 1) { throw 'Previous-version fixture install did not resolve the verified 0.9.0 package.' }
-dotnet tool update DotNetAiCodeHygiene.Tool --tool-path $upgradeToolPath --configfile $nugetConfig --version 0.10.0
+dotnet tool update DotNetAiCodeHygiene.Tool --tool-path $upgradeToolPath --configfile $nugetConfig --version 0.11.0
 if ($LASTEXITCODE -ne 0) { throw 'Tier-4 trusted local-feed tool update failed.' }
 $updatedShim = Join-Path $upgradeToolPath 'dotnet-hygiene.exe'
 if (-not (Test-Path -LiteralPath $updatedShim) -or (Test-Path -LiteralPath (Join-Path $upgradeToolPath 'hygiene.exe'))) { throw 'Tier-4 update did not replace the legacy shim with the canonical dotnet-hygiene shim.' }
 $env:PATH = $upgradeToolPath + [IO.Path]::PathSeparator + $env:PATH
 $updatedVersion = dotnet hygiene --version
-if ($LASTEXITCODE -ne 0 -or ($updatedVersion -join '').Trim() -ne '0.10.0') { throw 'Tier-4 updated dotnet hygiene command did not restart and report version 0.10.0.' }
+if ($LASTEXITCODE -ne 0 -or ($updatedVersion -join '').Trim() -ne '0.11.0') { throw 'Tier-4 updated dotnet hygiene command did not restart and report version 0.11.0.' }
 $env:PATH = $pathBeforeUpgrade
 
-# A newer stable fixture proves autonomous discovery. Keep the required 0.10.0
-# consumer above exact; 0.10.1 exists only in this disposable feed.
+# A newer stable fixture proves autonomous discovery. Keep the required 0.11.0
+# consumer above exact; 0.11.1 exists only in this disposable feed.
  $releaseFeed = Join-Path $tierRoot 'release-feed'
 New-Item -ItemType Directory -Force $releaseFeed | Out-Null
 Copy-Item -LiteralPath $package.FullName -Destination $releaseFeed
 $releaseBuildOutput = (Join-Path $tierRoot 'release-build-output') + [IO.Path]::DirectorySeparatorChar
-dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-restore --output $releaseFeed "-p:Version=0.10.1" "-p:BaseOutputPath=$releaseBuildOutput"
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $releaseFeed 'DotNetAiCodeHygiene.Tool.0.10.1.nupkg'))) { throw 'Tier-4 release-update fixture package failed to pack.' }
+dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-restore --output $releaseFeed "-p:Version=0.11.1" "-p:BaseOutputPath=$releaseBuildOutput"
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $releaseFeed 'DotNetAiCodeHygiene.Tool.0.11.1.nupkg'))) { throw 'Tier-4 release-update fixture package failed to pack.' }
 $releaseToolPath = Join-Path $tierRoot 'release-tools'; $releaseConsumer = Join-Path $tierRoot 'release-consumer'; $releaseCache = Join-Path $tierRoot 'release-cache'; $releaseNugetConfig = Join-Path $tierRoot 'release-consumer\NuGet.config'
 New-Item -ItemType Directory -Force $releaseToolPath, $releaseConsumer | Out-Null
 $releaseConfigText = @"
@@ -126,8 +126,8 @@ $releaseConfigText = @"
 "@
 Set-Content -LiteralPath $releaseNugetConfig -Value $releaseConfigText -Encoding utf8
 $env:NUGET_PACKAGES = $releaseCache
-dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $releaseToolPath --configfile $releaseNugetConfig --version 0.10.0
-if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous-upgrade fixture failed to install exact 0.10.0.' }
+dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $releaseToolPath --configfile $releaseNugetConfig --version 0.11.0
+if ($LASTEXITCODE -ne 0) { throw 'Tier-4 autonomous-upgrade fixture failed to install exact 0.11.0.' }
 $releaseShim = Join-Path $releaseToolPath 'dotnet-hygiene.exe'
 Push-Location $releaseConsumer
 try {
@@ -139,10 +139,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Tier-4 release fixture restore failed.' }
     $env:PATH = $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
     $releaseReport = dotnet hygiene --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $releaseReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $releaseReport.releaseUpdate.previousVersion -ne '0.10.0' -or $releaseReport.releaseUpdate.installedVersion -ne '0.10.1' -or $releaseReport.releaseUpdate.revalidatedStatus -ne 'approval-required') { throw 'Autonomous trusted-feed update did not restart and revalidate the installed command.' }
+    if ($LASTEXITCODE -ne 0 -or $releaseReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $releaseReport.releaseUpdate.previousVersion -ne '0.11.0' -or $releaseReport.releaseUpdate.installedVersion -ne '0.11.1' -or $releaseReport.releaseUpdate.revalidatedStatus -ne 'approval-required') { throw 'Autonomous trusted-feed update did not restart and revalidate the installed command.' }
     if ((Get-Content -LiteralPath Release.cs -Raw) -notmatch 'using System\.Collections\.Generic;') { throw 'Autonomous style formatting applied non-allowlisted IDE0005 and removed an unused import.' }
     $releaseVersion = dotnet hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.10.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
+    if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.11.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
 }
 finally { Pop-Location; $env:PATH = $pathBeforeUpgrade }
 
@@ -158,8 +158,8 @@ $manifestPath = Join-Path $localManifestRoot '.config\dotnet-tools.json'
 Push-Location $localManifestRoot
 try {
     [IO.File]::WriteAllText($manifestPath, '{"version":1,"isRoot":true,"tools":{}}', [Text.UTF8Encoding]::new($false))
-    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $manifestPath --configfile (Join-Path $localManifestRoot 'NuGet.config') --version 0.10.0 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Local-manifest 0.10.0 consumer install failed.' }
+    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $manifestPath --configfile (Join-Path $localManifestRoot 'NuGet.config') --version 0.11.0 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Local-manifest 0.11.0 consumer install failed.' }
     $manifestJson = [IO.File]::ReadAllText($manifestPath).Replace('"DotNetAiCodeHygiene.Tool"', '"dotnetaicodehygiene.tool"')
     [IO.File]::WriteAllText($manifestPath, $manifestJson)
 }
@@ -170,8 +170,8 @@ $nestedManifestPath = Join-Path $localConsumer '.config\dotnet-tools.json'
 Push-Location $localConsumer
 try {
     [IO.File]::WriteAllText($nestedManifestPath, '{"version":1,"isRoot":true,"tools":{}}', [Text.UTF8Encoding]::new($false))
-    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $nestedManifestPath --configfile (Join-Path $localConsumer 'NuGet.config') --version 0.10.0 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Nested local-manifest 0.10.0 consumer install failed.' }
+    dotnet tool install DotNetAiCodeHygiene.Tool --local --tool-manifest $nestedManifestPath --configfile (Join-Path $localConsumer 'NuGet.config') --version 0.11.0 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Nested local-manifest 0.11.0 consumer install failed.' }
     $nestedJson = [IO.File]::ReadAllText($nestedManifestPath).Replace('"DotNetAiCodeHygiene.Tool"', '"DOTNETAICODEHYGIENE.TOOL"')
     [IO.File]::WriteAllText($nestedManifestPath, $nestedJson)
 }
@@ -188,12 +188,12 @@ try {
     $localRaw = dotnet hygiene --output json
     $localExitCode = $LASTEXITCODE
     $localReport = ($localRaw -join "`n") | ConvertFrom-Json
-    if ($localExitCode -ne 0 -or $localReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $localReport.releaseUpdate.previousVersion -ne '0.10.0' -or $localReport.releaseUpdate.installedVersion -ne '0.10.1') { throw "Ancestor local manifest did not update and restart its exact installation. Exit=$localExitCode Output=$($localRaw -join ' ') Report: $($localReport | ConvertTo-Json -Depth 16 -Compress)" }
+    if ($localExitCode -ne 0 -or $localReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $localReport.releaseUpdate.previousVersion -ne '0.11.0' -or $localReport.releaseUpdate.installedVersion -ne '0.11.1') { throw "Ancestor local manifest did not update and restart its exact installation. Exit=$localExitCode Output=$($localRaw -join ' ') Report: $($localReport | ConvertTo-Json -Depth 16 -Compress)" }
     $updatedNested = [IO.File]::ReadAllText($nestedManifestPath) | ConvertFrom-Json
     $unchangedOuter = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
-    if ($updatedNested.tools.PSObject.Properties['DOTNETAICODEHYGIENE.TOOL'].Value.version -ne '0.10.1' -or $unchangedOuter.tools.PSObject.Properties['dotnetaicodehygiene.tool'].Value.version -ne '0.10.0') { throw 'Nested local invocation did not update only the closest matching manifest scope.' }
+    if ($updatedNested.tools.PSObject.Properties['DOTNETAICODEHYGIENE.TOOL'].Value.version -ne '0.11.1' -or $unchangedOuter.tools.PSObject.Properties['dotnetaicodehygiene.tool'].Value.version -ne '0.11.0') { throw 'Nested local invocation did not update only the closest matching manifest scope.' }
     $competingVersion = & (Join-Path $toolPath 'dotnet-hygiene.exe') --version
-    if ($LASTEXITCODE -ne 0 -or ($competingVersion -join '').Trim() -ne '0.10.0') { throw 'Local-manifest update changed a competing PATH tool-path installation.' }
+    if ($LASTEXITCODE -ne 0 -or ($competingVersion -join '').Trim() -ne '0.11.0') { throw 'Local-manifest update changed a competing PATH tool-path installation.' }
 }
 finally { Pop-Location; $env:PATH = $pathBeforeUpgrade; $env:NUGET_PACKAGES = $releaseCache; if ($null -eq $previousCliHome) { Remove-Item Env:\DOTNET_CLI_HOME -ErrorAction SilentlyContinue } else { $env:DOTNET_CLI_HOME = $previousCliHome } }
 
@@ -362,7 +362,7 @@ try {
     dotnet hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = dotnet hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.10\.0') { throw 'Installed hygiene version does not match 0.10.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.10\.0') { throw 'Installed hygiene version does not match 0.11.0.' }
     dotnet hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = dotnet hygiene bootstrap --output json | ConvertFrom-Json

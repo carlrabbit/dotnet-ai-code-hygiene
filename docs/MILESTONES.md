@@ -160,3 +160,12 @@ Makes `dotnet hygiene` the no-argument autonomous entrypoint for bootstrap, repo
 
 Primary milestone: `docs/milestones/M0018-autonomous-hygiene-lifecycle.md`.
 Execution ledger: `.execution/M0018-autonomous-hygiene-lifecycle.md`.
+
+## M0019 — Exhaustive Read-Only Hygiene Audit
+**State:** implementation in progress
+**Mode:** AI-executed, human-reviewed
+
+Adds an explicitly authorized full-repository hygiene audit (dotnet hygiene --yolo-all) that evaluates all enabled rule populations without bounded normal semantic sampling and produces a read-only problem/uncertainty report. Neither remediation nor dependency tracking is part of M0019. Planning is based on main after M0022, and M0020's validation infrastructure is retained.
+
+Primary milestone: docs/milestones/M0019-exhaustive-read-only-hygiene-audit.md.
+Planning-seeded ledger: .execution/M0019-exhaustive-read-only-hygiene-audit.md.

@@ -114,3 +114,21 @@ Namespaced profile-generated artifacts live under:
 Existing local latest-run state remains under `.hygiene/.state/` and Git-ignored.
 
 Review handoff artifacts remain `.hygiene/reviews/` and are not profile state.
+
+## Exhaustive read-only audit
+
+`dotnet hygiene --yolo-all` is separate from the autonomous correction lifecycle and bounded `check --review-all`. Without `--attest-explicit-task`, it reports `authorization-required` and starts no scan; `--deny-explicit-task` reports `authorization-denied`. An affirmative flag is a calling-agent assertion, not user authentication. A valid initialized supported profile and valid accepted baseline are required; missing, pending, stale, or malformed baseline state stops the audit without preparing or approving a baseline. The audit does not bootstrap/update profile or tool state, run formatting/normalization, change source, Git/index, ignored decisions, normal latest-run/gate-review state, or request remediation.
+
+An authorized audit diagnoses all enabled deterministic rules over the complete eligible repository population. Existing ignore records annotate but do not suppress deterministic findings. Enabled semantic rules enumerate all eligible rule/subject pairs, regardless of normal sampling limits or accepted-review history. Semantic outcomes come only from external caller judgment: `acceptable`, `problem`, or `uncertain`; problem/uncertain require rationale. The CLI never calls an AI provider or writes normal review acceptance.
+
+The report-local protocol is:
+
+```text
+dotnet hygiene --yolo-all
+dotnet hygiene --yolo-all --attest-explicit-task [--report-dir <local-path>]
+dotnet hygiene audit next --run <audit-dir>
+dotnet hygiene audit record --run <audit-dir> --file <judgments.json>
+dotnet hygiene audit finish --run <audit-dir>
+```
+
+The default artifact directory is `.hygiene/audits/<audit-id>/`. Each run has one finite inventory and report-local judgment records; work orders are bounded and embed source context. Completed valid judgments remain available after interruption. The audit does not watch source changes, invalidate judgments, or rescan. Reports distinguish `report-complete` from quality and `incomplete` from authorization/prerequisite failures; they report per-rule semantic coverage, deterministic findings, disabled rules and zero-work rules. Source text can be present in reports/work orders, so the caller must choose and protect the local destination appropriately.

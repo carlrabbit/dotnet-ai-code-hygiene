@@ -21,18 +21,19 @@ internal sealed record RuleModuleExecution(Rule Descriptor, RuleModuleResult Res
 /// <summary>Lazy services available to production rule modules for this command.</summary>
 internal sealed record GateSelectionContext(string GateId, string Mode, IReadOnlySet<string> ChangedPaths, IReadOnlyDictionary<string, HashSet<int>> ChangedLines);
 
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, GateSelectionContext? gate = null)
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, GateSelectionContext? gate = null, bool exhaustiveAudit = false)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
     private readonly Lazy<GateLocalReviewStore> gateReviewStore = new(() => new GateLocalReviewStore(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
 
     internal RepositorySession Session { get; } = session;
+    internal bool ExhaustiveAudit { get; } = exhaustiveAudit;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
     internal GateSelectionContext Gate { get; } = gate ?? new GateSelectionContext("", "closed", new HashSet<string>(StringComparer.Ordinal), new Dictionary<string, HashSet<int>>(StringComparer.Ordinal));
     internal GateLocalReviewStore GateReviewStore => gateReviewStore.Value;
     internal bool HasChangedLine(string path, int first, int last) => Gate.ChangedLines.TryGetValue(path, out HashSet<int>? lines) && lines.Any(line => line >= first && line <= last);
     internal IReadOnlyList<ReviewSubject> SelectGate(Rule rule, IReadOnlyList<ReviewSubject> population) =>
-        GateReviewStore.Select(Gate.GateId, rule, population, Gate.ChangedPaths, Gate.Mode);
+        ExhaustiveAudit ? population : GateReviewStore.Select(Gate.GateId, rule, population, Gate.ChangedPaths, Gate.Mode);
     internal string RelativePath(Document document) => document.FilePath is string path ? Session.Relative(path) : document.Name;
     internal string ProjectIdentity(Document document) => ProjectIdentity(document.Project);
     internal string ProjectIdentity(Project project) => project.FilePath is string path ? Session.Relative(path) : project.Name;

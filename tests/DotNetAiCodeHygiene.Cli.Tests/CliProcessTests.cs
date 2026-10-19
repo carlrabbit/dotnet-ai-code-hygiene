@@ -64,7 +64,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.10.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.11.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -84,26 +84,26 @@ public sealed class CliProcessTests
         Directory.CreateDirectory(Path.GetDirectoryName(competingShim)!);
         string manifest = Path.Combine(root, "repo", ".config", "dotnet-tools.json");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
-        await File.WriteAllTextAsync(manifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"dotnetaicodehygiene.tool\":{\"version\":\"0.10.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
+        await File.WriteAllTextAsync(manifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"dotnetaicodehygiene.tool\":{\"version\":\"0.11.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
         string nestedManifest = Path.Combine(nested, ".config", "dotnet-tools.json");
         Directory.CreateDirectory(Path.GetDirectoryName(nestedManifest)!);
-        await File.WriteAllTextAsync(nestedManifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"DOTNETAICODEHYGIENE.TOOL\":{\"version\":\"0.10.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
-        await File.WriteAllTextAsync(resolverEntry, "[{\"Version\":\"0.10.0\",\"PathToExecutable\":\"" + assembly.Replace("\\", "\\\\") + "\"}]");
+        await File.WriteAllTextAsync(nestedManifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"DOTNETAICODEHYGIENE.TOOL\":{\"version\":\"0.11.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
+        await File.WriteAllTextAsync(resolverEntry, "[{\"Version\":\"0.11.0\",\"PathToExecutable\":\"" + assembly.Replace("\\", "\\\\") + "\"}]");
         try
         {
-            ToolInstallationScope local = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.10.0", dotnet, assembly, cliHome);
+            ToolInstallationScope local = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, cliHome);
             await Assert.That(local.ManifestPath).IsEqualTo(nestedManifest);
             await Assert.That(local.ToolPath).IsNull();
 
-            ToolInstallationScope ancestor = ToolInstallationScope.Resolve(Path.Combine(root, "repo"), "DotNetAiCodeHygiene.Tool", "0.10.0", dotnet, assembly, cliHome);
+            ToolInstallationScope ancestor = ToolInstallationScope.Resolve(Path.Combine(root, "repo"), "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, cliHome);
             await Assert.That(ancestor.ManifestPath).IsEqualTo(manifest);
 
-            ToolInstallationScope other = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.10.0", competingShim, assembly, cliHome);
+            ToolInstallationScope other = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", competingShim, assembly, cliHome);
             await Assert.That(other.ManifestPath).IsNull();
             await Assert.That(other.ToolPath).IsEqualTo(Path.GetDirectoryName(competingShim));
             await Assert.That(other.ShimPath).IsEqualTo(competingShim);
 
-            ToolInstallationScope unproven = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.10.0", dotnet, assembly, Path.Combine(root, "other-cli-home"));
+            ToolInstallationScope unproven = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, Path.Combine(root, "other-cli-home"));
             await Assert.That(unproven.IsResolved).IsFalse();
         }
         finally { DeleteTree(root); }
@@ -275,9 +275,9 @@ public sealed class CliProcessTests
     public async Task BaselineVersionContractChangesWhenToolOrRuleVersionChanges()
     {
         (string RuleId, int Version)[] rules = [("format.csharp.roslyn", 1), ("docs.summary.quality.review", 6)];
-        string current = Program.VersionContractSha256("0.10.0", rules);
+        string current = Program.VersionContractSha256("0.11.0", rules);
         string changedTool = Program.VersionContractSha256("0.10.1", rules);
-        string changedRule = Program.VersionContractSha256("0.10.0", [("format.csharp.roslyn", 2), ("docs.summary.quality.review", 6)]);
+        string changedRule = Program.VersionContractSha256("0.11.0", [("format.csharp.roslyn", 2), ("docs.summary.quality.review", 6)]);
 
         await Assert.That(changedTool).IsNotEqualTo(current);
         await Assert.That(changedRule).IsNotEqualTo(current);
@@ -855,6 +855,193 @@ public sealed class CliProcessTests
             await Assert.That(outside.ExitCode).IsEqualTo(3);
         }
         finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ExhaustiveAuditRequiresAttestationResumesJudgmentsAndPreservesNormalState()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-yolo-cli-" + Guid.NewGuid().ToString("N"));
+        string report = Path.Combine(Path.GetTempPath(), "hygiene-yolo-report-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await InitGitAsync(repo, "main");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(sourcePath, "/// <summary>Returns a stable value for callers.</summary>\n// Explain the public value contract.\npublic class Fixture { public int ReadValue() => 1; }\n");
+            Directory.CreateDirectory(Path.Combine(repo, ".hygiene"));
+            await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "profile.json"), "{\"schemaVersion\":1,\"profile\":\"dotnet-11\",\"version\":2}");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "config.json"), "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.language.german.review\"]}");
+            await PrepareAcceptedBaselineAsync(repo);
+            await File.AppendAllTextAsync(sourcePath, "\npublic sealed class UndocumentedApi{public int Value=>3;}\n");
+            await CommitAllAsync(repo, "accepted audit fixture baseline");
+            await File.AppendAllTextAsync(sourcePath, "\n");
+            ProcessResult normalCheck = await RunCliInAsync(repo, "check", "--output", "json");
+            using JsonDocument normalJson = JsonDocument.Parse(normalCheck.StandardOutput);
+            string ignoredHandle = normalJson.RootElement.GetProperty("findings").EnumerateArray()
+                .Single(finding => finding.GetProperty("ruleId").GetString() == "docs.summary.required" && finding.GetProperty("path").GetString() == "src/Fixture.cs" && finding.GetProperty("symbol").GetString() == "UndocumentedApi")
+                .GetProperty("handle").GetString()!;
+            ProcessResult ignore = await RunCliInAsync(repo, "ignore", ignoredHandle, "--reason", "Explicit audit fixture ignore.");
+            await Assert.That(ignore.ExitCode).IsEqualTo(0);
+            Directory.CreateDirectory(Path.Combine(repo, ".hygiene", ".state"));
+            string latestPath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
+            string reviewsPath = Path.Combine(repo, ".hygiene", ".state", "gate-reviews.json");
+            await File.WriteAllTextAsync(latestPath, "latest sentinel");
+            await File.WriteAllTextAsync(reviewsPath, "accepted-observation sentinel");
+            string[] protectedPaths = [sourcePath, Path.Combine(repo, "src", "Fixture.csproj"), Path.Combine(repo, ".hygiene", "profile.json"), Path.Combine(repo, ".hygiene", "config.json"), Path.Combine(repo, ".hygiene", "decisions.json"), Path.Combine(repo, ".hygiene", ".state", "baseline-approval.json"), latestPath, reviewsPath, Path.Combine(repo, ".hygiene", "profile", "Hygiene.props"), Path.Combine(repo, ".editorconfig"), Path.Combine(repo, "Directory.Build.props"), Path.Combine(repo, ".git", "index")];
+            string[] before = await Task.WhenAll(protectedPaths.Select(async path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(path)))));
+
+            ProcessResult prompt = await RunCliInAsync(repo, "--yolo-all", "--output", "json");
+            await Assert.That(prompt.ExitCode).IsEqualTo(3);
+            using JsonDocument promptJson = JsonDocument.Parse(prompt.StandardOutput);
+            await Assert.That(promptJson.RootElement.GetProperty("status").GetString()).IsEqualTo("authorization-required");
+            await Assert.That(promptJson.RootElement.GetProperty("scanStarted").GetBoolean()).IsFalse();
+            await Assert.That(Directory.Exists(report)).IsFalse();
+            ProcessResult denied = await RunCliInAsync(repo, "--yolo-all", "--deny-explicit-task", "--report-dir", report, "--output", "json");
+            await Assert.That(denied.ExitCode).IsEqualTo(3);
+            await Assert.That(Directory.Exists(report)).IsFalse();
+            string occupied = Path.Combine(repo, "occupied-audit-dir");
+            Directory.CreateDirectory(occupied);
+            string unrelated = Path.Combine(occupied, "keep.txt");
+            await File.WriteAllTextAsync(unrelated, "unrelated output sentinel");
+            ProcessResult collision = await RunCliInAsync(repo, "--yolo-all", "--attest-explicit-task", "--report-dir", occupied);
+            await Assert.That(collision.ExitCode).IsEqualTo(3);
+            await Assert.That(await File.ReadAllTextAsync(unrelated)).IsEqualTo("unrelated output sentinel");
+
+            ProcessResult start = await RunCliInAsync(repo, "--yolo-all", "--attest-explicit-task", "--report-dir", report, "--output", "json");
+            await Assert.That(start.ExitCode).IsEqualTo(0);
+            using JsonDocument startJson = JsonDocument.Parse(start.StandardOutput);
+            await Assert.That(startJson.RootElement.GetProperty("status").GetString()).IsEqualTo("collecting");
+            ProcessResult firstWork = await RunCliInAsync(repo, "audit", "next", "--run", report);
+            await Assert.That(firstWork.ExitCode).IsEqualTo(0);
+            using JsonDocument firstJson = JsonDocument.Parse(firstWork.StandardOutput);
+            JsonElement firstItems = firstJson.RootElement.GetProperty("items");
+            await Assert.That(firstItems.GetArrayLength()).IsGreaterThan(1);
+
+            string auditId = startJson.RootElement.GetProperty("auditDirectory").GetString() is not null
+                ? JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "manifest.json"))).RootElement.GetProperty("auditId").GetString()!
+                : throw new InvalidOperationException("Audit ID was absent.");
+            JsonElement firstItem = firstItems[0];
+            string firstObligation = firstItem.GetProperty("obligationId").GetString()!;
+            string judgmentsPath = Path.Combine(repo, "judgments.json");
+            var invalidSubmissions = new object[]
+            {
+                new { auditId, judgments = new[] { new { obligationId = firstObligation, outcome = "problem", rationale = (string?)null } } },
+                new { auditId, judgments = new[] { new { obligationId = "unknown/rule-item", outcome = "acceptable", rationale = (string?)null } } },
+                new { auditId = "A-OTHER-RUN", judgments = new[] { new { obligationId = firstObligation, outcome = "acceptable", rationale = (string?)null } } },
+                new { auditId, judgments = new[] { new { obligationId = firstObligation, outcome = "acceptable", rationale = (string?)null }, new { obligationId = firstObligation, outcome = "uncertain", rationale = (string?)"duplicate" } } }
+            };
+            foreach (object invalidSubmission in invalidSubmissions)
+            {
+                await File.WriteAllTextAsync(judgmentsPath, JsonSerializer.Serialize(invalidSubmission));
+                ProcessResult rejected = await RunCliInAsync(repo, "audit", "record", "--run", report, "--file", judgmentsPath);
+                await Assert.That(rejected.ExitCode).IsEqualTo(3);
+            }
+            await File.WriteAllTextAsync(judgmentsPath, "{");
+            ProcessResult malformed = await RunCliInAsync(repo, "audit", "record", "--run", report, "--file", judgmentsPath);
+            await Assert.That(malformed.ExitCode).IsEqualTo(3);
+            ProcessResult stillPending = await RunCliInAsync(repo, "audit", "next", "--run", report);
+            using (JsonDocument pendingJson = JsonDocument.Parse(stillPending.StandardOutput))
+            {
+                await Assert.That(pendingJson.RootElement.GetProperty("items")[0].GetProperty("obligationId").GetString()).IsEqualTo(firstObligation);
+            }
+            var firstJudgments = new { auditId, judgments = new[] { new { obligationId = firstObligation, outcome = "acceptable", rationale = (string?)null } } };
+            await File.WriteAllTextAsync(judgmentsPath, JsonSerializer.Serialize(firstJudgments));
+            ProcessResult recordOne = await RunCliInAsync(repo, "audit", "record", "--run", report, "--file", judgmentsPath);
+            await Assert.That(recordOne.ExitCode).IsEqualTo(0);
+            ProcessResult resumed = await RunCliInAsync(repo, "audit", "next", "--run", report);
+            using JsonDocument resumedJson = JsonDocument.Parse(resumed.StandardOutput);
+            await Assert.That(resumedJson.RootElement.GetProperty("remaining").GetInt32()).IsGreaterThan(0);
+            await Assert.That(resumedJson.RootElement.GetProperty("items").GetArrayLength()).IsLessThanOrEqualTo(20);
+            await Assert.That(resumedJson.RootElement.GetProperty("items").EnumerateArray().Any(item => item.GetProperty("obligationId").GetString() == firstObligation)).IsFalse();
+            ProcessResult partialFinish = await RunCliInAsync(repo, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(partialFinish.ExitCode).IsEqualTo(5);
+            using JsonDocument partialFinishJson = JsonDocument.Parse(partialFinish.StandardOutput);
+            await Assert.That(partialFinishJson.RootElement.GetProperty("status").GetString()).IsEqualTo("incomplete");
+            using (JsonDocument partialReport = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "report.json"))))
+            {
+                await Assert.That(partialReport.RootElement.GetProperty("coverage").GetProperty("unassessed").GetInt32()).IsGreaterThan(0);
+            }
+
+            var remaining = resumedJson.RootElement.GetProperty("items").EnumerateArray().Select((item, index) => new
+            {
+                obligationId = item.GetProperty("obligationId").GetString(),
+                outcome = index % 2 == 0 ? "problem" : "uncertain",
+                rationale = index % 2 == 0 ? "Fixture evidence indicates a concrete issue." : "The available context does not establish this contract."
+            }).ToArray();
+            await File.WriteAllTextAsync(judgmentsPath, JsonSerializer.Serialize(new { auditId, judgments = remaining }));
+            ProcessResult recordRest = await RunCliInAsync(repo, "audit", "record", "--run", report, "--file", judgmentsPath);
+            await Assert.That(recordRest.ExitCode).IsEqualTo(0);
+            ProcessResult finish = await RunCliInAsync(repo, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(finish.ExitCode).IsEqualTo(0);
+            using JsonDocument finishJson = JsonDocument.Parse(finish.StandardOutput);
+            await Assert.That(finishJson.RootElement.GetProperty("status").GetString()).IsEqualTo("report-complete");
+            using JsonDocument reportJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "report.json")));
+            JsonElement coverage = reportJson.RootElement.GetProperty("coverage");
+            await Assert.That(coverage.GetProperty("eligible").GetInt32()).IsEqualTo(coverage.GetProperty("assessed").GetInt32());
+            await Assert.That(coverage.GetProperty("problem").GetInt32() + coverage.GetProperty("uncertain").GetInt32()).IsGreaterThan(0);
+            await Assert.That(reportJson.RootElement.GetProperty("source").GetProperty("dirtyAtStart").GetString()).IsEqualTo("dirty");
+            await Assert.That(reportJson.RootElement.GetProperty("findings").EnumerateArray().Any(finding => finding.GetProperty("wasIgnored").GetBoolean() && finding.GetProperty("finding").GetProperty("ruleId").GetString() == "docs.summary.required")).IsTrue();
+            await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Single(proposal => proposal.GetProperty("command").GetString() == "format").GetProperty("changedPaths").EnumerateArray().Any(path => path.GetString() == "src/Fixture.cs")).IsTrue();
+            await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Any(proposal => proposal.GetProperty("command").GetString() == "normalize")).IsTrue();
+            JsonElement reportRules = reportJson.RootElement.GetProperty("rules");
+            await Assert.That(reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.summary.language.german.review").GetProperty("enabled").GetBoolean()).IsFalse();
+            await Assert.That(reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "tests.quality.review").GetProperty("eligible").GetInt32()).IsEqualTo(0);
+            foreach (JsonElement ruleFact in reportRules.EnumerateArray().Where(rule => rule.GetProperty("checkUnit").GetString() == "semantic rule/subject obligations"))
+            {
+                int outcomeCount = ruleFact.GetProperty("acceptable").GetInt32() + ruleFact.GetProperty("problem").GetInt32() + ruleFact.GetProperty("uncertain").GetInt32() + ruleFact.GetProperty("unassessed").GetInt32();
+                await Assert.That(ruleFact.GetProperty("eligible").GetInt32()).IsEqualTo(outcomeCount);
+            }
+            await Assert.That(await File.ReadAllTextAsync(Path.Combine(report, "report.md"))).Contains("Limitations");
+            string firstStoredBatch = Directory.GetFiles(Path.Combine(report, "judgments"), "*.json").Order(StringComparer.Ordinal).First();
+            using (JsonDocument storedBatch = JsonDocument.Parse(await File.ReadAllTextAsync(firstStoredBatch)))
+            {
+                int removedCount = storedBatch.RootElement.GetProperty("judgments").GetArrayLength();
+                File.Delete(firstStoredBatch);
+                ProcessResult missingJudgment = await RunCliInAsync(repo, "audit", "finish", "--run", report, "--output", "json");
+                await Assert.That(missingJudgment.ExitCode).IsEqualTo(5);
+                using JsonDocument missingReport = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "report.json")));
+                await Assert.That(missingReport.RootElement.GetProperty("status").GetString()).IsEqualTo("incomplete");
+                await Assert.That(missingReport.RootElement.GetProperty("coverage").GetProperty("assessed").GetInt32()).IsEqualTo(coverage.GetProperty("assessed").GetInt32() - removedCount);
+            }
+            string inventoryPath = Path.Combine(report, "inventory.json");
+            await File.AppendAllTextAsync(inventoryPath, " ");
+            ProcessResult corruptFinish = await RunCliInAsync(repo, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(corruptFinish.ExitCode).IsEqualTo(3);
+            string[] after = await Task.WhenAll(protectedPaths.Select(async path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(path)))));
+            await Assert.That(string.Join(",", after)).IsEqualTo(string.Join(",", before));
+            ProcessResult defaultStart = await RunCliInAsync(repo, "--yolo-all", "--attest-explicit-task", "--output", "json");
+            await Assert.That(defaultStart.ExitCode).IsEqualTo(0);
+            using JsonDocument defaultStartJson = JsonDocument.Parse(defaultStart.StandardOutput);
+            string defaultDirectory = defaultStartJson.RootElement.GetProperty("auditDirectory").GetString()!;
+            await Assert.That(Path.GetFullPath(defaultDirectory).StartsWith(Path.GetFullPath(Path.Combine(repo, ".hygiene", "audits")), StringComparison.OrdinalIgnoreCase)).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(defaultDirectory, "inventory.json"))).IsTrue();
+        }
+        finally
+        {
+            DeleteTree(repo);
+            DeleteTree(report);
+        }
+    }
+
+    [Test]
+    public async Task ExhaustiveAuditStopsWithoutAcceptedBaselineAndLeavesDestinationAbsent()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-yolo-prereq-" + Guid.NewGuid().ToString("N"));
+        string report = Path.Combine(Path.GetTempPath(), "hygiene-yolo-prereq-report-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await InitGitAsync(repo, "main");
+            ProcessResult result = await RunCliInAsync(repo, "--yolo-all", "--attest-explicit-task", "--report-dir", report, "--output", "json");
+            await Assert.That(result.ExitCode).IsEqualTo(3);
+            using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
+            await Assert.That(json.RootElement.GetProperty("status").GetString()).IsEqualTo("prerequisite-required");
+            await Assert.That(json.RootElement.GetProperty("scanStarted").GetBoolean()).IsFalse();
+            await Assert.That(Directory.Exists(report)).IsFalse();
+            await Assert.That(Directory.Exists(Path.Combine(repo, ".hygiene"))).IsFalse();
+        }
+        finally { DeleteTree(repo); DeleteTree(report); }
     }
 
     private static async Task<ProcessResult> RunCliAsync(params string[] arguments)

@@ -26,7 +26,47 @@ internal static class Program
         var root = new RootCommand("Deterministic .NET hygiene, formatting, and normalization tools.");
         var output = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
         root.Options.Add(output);
-        root.SetAction(parse => Run(() => RunAutonomous(parse.GetValue(output) ?? "text")));
+        var yoloAll = new Option<bool>("--yolo-all") { Description = "Start an explicitly authorized exhaustive read-only audit." };
+        var attestAudit = new Option<bool>("--attest-explicit-task") { Description = "Assert that the user explicitly tasked the calling agent with this exhaustive audit." };
+        var denyAudit = new Option<bool>("--deny-explicit-task") { Description = "Decline the exhaustive audit authorization question without scanning." };
+        var auditDirectory = new Option<string?>("--report-dir") { Description = "Local destination for this audit report." };
+        root.Options.Add(yoloAll); root.Options.Add(attestAudit); root.Options.Add(denyAudit); root.Options.Add(auditDirectory);
+        root.SetAction(parse => Run(() => parse.GetValue(yoloAll)
+            ? RunYolo(parse.GetValue(attestAudit), parse.GetValue(denyAudit), parse.GetValue(auditDirectory), parse.GetValue(output) ?? "text")
+            : parse.GetValue(attestAudit) || parse.GetValue(denyAudit) || parse.GetValue(auditDirectory) is not null
+                ? throw new ArgumentException("--attest-explicit-task, --deny-explicit-task, and --report-dir require --yolo-all.")
+                : RunAutonomous(parse.GetValue(output) ?? "text")));
+        var audit = new Command("audit", "Continue report-only collection for an exhaustive read-only audit.");
+        var auditRun = new Option<string>("--run") { Required = true, Description = "Audit report directory created by --yolo-all." };
+        var auditNext = new Command("next", "Emit the next bounded semantic assessment work order."); auditNext.Options.Add(auditRun); auditNext.Options.Add(output);
+        auditNext.SetAction(parse => Run(() =>
+        {
+            AuditNextWork work = new ReadOnlyAuditEngine().Next(parse.GetValue(auditRun)!);
+            Console.WriteLine(JsonSerializer.Serialize(work, Json)); return 0;
+        }));
+        var auditFile = new Option<string>("--file") { Required = true, Description = "JSON file containing caller-produced semantic judgments." };
+        var auditRecord = new Command("record", "Validate and record semantic judgments for this audit only."); auditRecord.Options.Add(auditRun); auditRecord.Options.Add(auditFile); auditRecord.Options.Add(output);
+        auditRecord.SetAction(parse => Run(() =>
+        {
+            int count = new ReadOnlyAuditEngine().Record(parse.GetValue(auditRun)!, parse.GetValue(auditFile)!);
+            Console.WriteLine(parse.GetValue(output) == "json" ? JsonSerializer.Serialize(new { status = "recorded", judgmentCount = count }, Json) : $"Recorded {count} audit judgments."); return 0;
+        }));
+        var auditFinish = new Command("finish", "Write or refresh the audit JSON and Markdown reports."); auditFinish.Options.Add(auditRun); auditFinish.Options.Add(output);
+        auditFinish.SetAction(parse => Run(() =>
+        {
+            string status = new ReadOnlyAuditEngine().Finish(parse.GetValue(auditRun)!);
+            if (parse.GetValue(output) == "json")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new { status, run = parse.GetValue(auditRun), reportJson = Path.Combine(parse.GetValue(auditRun)!, "report.json"), reportMarkdown = Path.Combine(parse.GetValue(auditRun)!, "report.md") }, Json));
+            }
+            else
+            {
+                Console.WriteLine($"Audit report status: {status}{Environment.NewLine}Report: {Path.Combine(parse.GetValue(auditRun)!, "report.md")}");
+            }
+
+            return status == "report-complete" ? 0 : 5;
+        }));
+        audit.Subcommands.Add(auditNext); audit.Subcommands.Add(auditRecord); audit.Subcommands.Add(auditFinish); root.Subcommands.Add(audit);
         var baseline = new Command("baseline", "Review the project bootstrap baseline decision.");
         var acceptBaseline = new Command("accept", "Record an external baseline approval.");
         var approver = new Option<string>("--approver") { Description = "Name or identity of the authorized external approver." };
@@ -116,6 +156,105 @@ internal static class Program
         catch (ProductException e) { Console.Error.WriteLine(e.Message); return 3; }
         catch (EnvironmentException e) { Console.Error.WriteLine(e.Message); return 4; }
         catch (Exception e) { Console.Error.WriteLine(e.Message); return 1; }
+    }
+    private static int RunYolo(bool attest, bool deny, string? reportDirectory, string output)
+    {
+        if (output is not ("text" or "json"))
+        {
+            throw new ArgumentException("--output must be text or json.");
+        }
+
+        if (attest && deny)
+        {
+            throw new ArgumentException("Use either --attest-explicit-task or --deny-explicit-task, not both.");
+        }
+
+        if (deny)
+        {
+            if (output == "json")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new { status = "authorization-denied", scanStarted = false }, Json));
+            }
+            else
+            {
+                Console.WriteLine("Authorization declined. No audit scan was started.");
+            }
+
+            return 3;
+        }
+        if (!attest)
+        {
+            const string question = "Were you explicitly tasked by the user to perform the exhaustive read-only audit?";
+            if (output == "json")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new { status = "authorization-required", scanStarted = false, question }, Json));
+            }
+            else
+            {
+                Console.WriteLine(question + Environment.NewLine + "If yes, rerun with --yolo-all --attest-explicit-task. If no, stop here.");
+            }
+
+            return 3;
+        }
+        string repositoryRoot = new HygieneEngine().Root;
+        string baselinePath = Path.Combine(repositoryRoot, ".hygiene", ".state", "baseline-approval.json");
+        if (!File.Exists(baselinePath))
+        {
+            const string reason = "A valid accepted baseline is required. The audit will not bootstrap or create baseline approval.";
+            if (output == "json")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new { status = "prerequisite-required", scanStarted = false, reason }, Json));
+            }
+            else
+            {
+                Console.WriteLine(reason);
+            }
+
+            return 3;
+        }
+        try
+        {
+            using JsonDocument approval = JsonDocument.Parse(File.ReadAllText(baselinePath));
+            if (GetString(approval.RootElement, "status") != "accepted" || !AcceptedBaselineRecordIsValid(repositoryRoot, approval.RootElement))
+            {
+                const string reason = "The hygiene baseline is not a valid accepted baseline. Resolve it through the normal explicit bootstrap and approval workflow before auditing.";
+                if (output == "json")
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new { status = "prerequisite-required", scanStarted = false, reason }, Json));
+                }
+                else
+                {
+                    Console.WriteLine(reason);
+                }
+
+                return 3;
+            }
+        }
+        catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
+        {
+            const string reason = "The baseline approval record is malformed or unreadable; the audit did not start.";
+            if (output == "json")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new { status = "prerequisite-failed", scanStarted = false, reason }, Json));
+            }
+            else
+            {
+                Console.WriteLine(reason);
+            }
+
+            return 3;
+        }
+        string run = new ReadOnlyAuditEngine().Start(reportDirectory, ToolVersion);
+        if (output == "json")
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { status = "collecting", auditDirectory = run, authorization = "affirmative caller assertion; identity is not authenticated", next = $"dotnet hygiene audit next --run \"{run}\"" }, Json));
+        }
+        else
+        {
+            Console.WriteLine($"Read-only audit inventory created: {run}{Environment.NewLine}Continue with: dotnet hygiene audit next --run \"{run}\"");
+        }
+
+        return 0;
     }
     private sealed record FormatObservation(string Project, string Status, string Output, IReadOnlyList<string> ChangedPaths);
     private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation);
@@ -974,9 +1113,10 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>... . Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded; --yolo-all belongs to M0019.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>... . Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded.
+        Exhaustive audit: dotnet hygiene --yolo-all first asks whether the user explicitly tasked the calling agent. Proceed only with --attest-explicit-task; otherwise stop or pass --deny-explicit-task. A valid supported profile and accepted baseline are required; the audit will not create either. Continue with dotnet hygiene audit next --run <audit-dir>, record only external acceptable/problem/uncertain judgments with dotnet hygiene audit record --run <audit-dir> --file <judgments.json>, then create report.json and report.md with dotnet hygiene audit finish --run <audit-dir>. Problem/uncertain judgments require rationale. The audit is report-only: no source changes, formatting, normalization, normal acceptance, handoff, bootstrap, tool update, or provider call. Reports disclose that source changes during collection are not tracked. Source context stays in the chosen local audit directory.
         Each enabled semantic-review rule selects independently, up to five items; a batch may be 0/N or 0/0. The agent must inspect every fixed question before explicit per-rule acceptance. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
-        Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle status to know whether the gate is complete, approval-required, escalation-required, or incomplete. Exit 2 means invalid invocation, 3 unusable input/state/safety precondition, 4 missing required dependency. Review state is under .hygiene/.state; the CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
+        Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle or audit status. An incomplete audit report returns exit 5; exit 2 means invalid invocation, 3 authorization or unusable input/state/safety prerequisite, 4 missing required dependency. Normal review state is under .hygiene/.state; audit checkpoints are separate under .hygiene/audits. The CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
     {

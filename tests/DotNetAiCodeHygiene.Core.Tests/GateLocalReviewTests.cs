@@ -358,6 +358,108 @@ public sealed class GateLocalReviewTests
         finally { RemoveFixture(repository); }
     }
 
+    [Test]
+    public async Task ExhaustiveAuditBypassesNormalSampleAndAcceptedObservationWithoutPublishingNormalState()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-audit-population-" + Guid.NewGuid().ToString("N"));
+        string sourcePath = Path.Combine(repository, "Api.cs");
+        string source = string.Join("\n", Enumerable.Range(0, 8).Select(i => $"/// <summary>Provides a stable caller-facing purpose for API {i}.</summary>\npublic sealed class Api{i} {{ // rationale for API {i}\n    public int Value => {i};\n}}"));
+        await InitializeGitReviewRepository(repository, sourcePath, source);
+        try
+        {
+            HygieneEngine engine = new(repository);
+            ReviewBatch normal = engine.Check([], false, reviewAll: true).ReviewBatches.Single(batch => batch.RuleId == SummaryQualityReviewRuleModule.RuleId);
+            await Assert.That(normal.PopulationCount).IsEqualTo(8);
+            await Assert.That(normal.SampleCount).IsLessThanOrEqualTo(5);
+            _ = engine.AcceptReview(normal.Handle, [normal.Items[0].Id]);
+            string latestPath = Path.Combine(repository, ".hygiene", ".state", "latest-run.json");
+            string gatePath = Path.Combine(repository, ".hygiene", ".state", "gate-reviews.json");
+            byte[] latestBefore = await File.ReadAllBytesAsync(latestPath);
+            byte[] gateBefore = await File.ReadAllBytesAsync(gatePath);
+            byte[] sourceBefore = await File.ReadAllBytesAsync(sourcePath);
+
+            (CheckResult audit, _, _) = engine.CheckExhaustiveAuditSnapshot();
+            ReviewBatch auditQuality = audit.ReviewBatches.Single(batch => batch.RuleId == SummaryQualityReviewRuleModule.RuleId);
+            await Assert.That(auditQuality.PopulationCount).IsEqualTo(8);
+            await Assert.That(auditQuality.SampleCount).IsEqualTo(8);
+            await Assert.That(auditQuality.Items.Count(item => item.Id == normal.Items[0].Id)).IsEqualTo(1);
+            await Assert.That(audit.ReviewBatches.Single(batch => batch.RuleId == TestQualityReviewRuleModule.RuleId).PopulationCount).IsEqualTo(0);
+            await Assert.That(audit.ReviewBatches.Count).IsEqualTo(6);
+            await Assert.That((await File.ReadAllBytesAsync(latestPath)).AsSpan().SequenceEqual(latestBefore)).IsTrue();
+            await Assert.That((await File.ReadAllBytesAsync(gatePath)).AsSpan().SequenceEqual(gateBefore)).IsTrue();
+            await Assert.That((await File.ReadAllBytesAsync(sourcePath)).AsSpan().SequenceEqual(sourceBefore)).IsTrue();
+        }
+        finally { RemoveFixture(repository); }
+    }
+
+    [Test]
+    public async Task ExhaustiveReviewMaterializationKeepsMoreThanFiftyThousandObligations()
+    {
+        const int populationSize = 50_001;
+        ReviewSubject[] subjects = Enumerable.Range(0, populationSize).Select(index => new ReviewSubject(
+            "project\0Api.cs\0T:Api" + index,
+            "content-" + index,
+            new ReviewItem("", "Api.cs", index + 1, 1, "Api" + index, "Summary", "Api"))).ToArray();
+        Rule rule = new(SummaryQualityReviewRuleModule.RuleId, 6, "review-batch", "review-batch", "", true);
+        ReviewBatchMaterialization materialized = HygieneEngine.BuildReviewBatch("A-SYNTHETIC", rule, 1, subjects, subjects,
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Api.cs"] = "public sealed class Api { }" },
+            [new ReviewQuestion("Q1", "Inspect the contract.")], "No automatic escalation.", "frontier", "implementer", createTickets: false);
+
+        await Assert.That(materialized.Batch.PopulationCount).IsEqualTo(populationSize);
+        await Assert.That(materialized.Batch.SampleCount).IsEqualTo(populationSize);
+        await Assert.That(materialized.Batch.Items.Count).IsEqualTo(populationSize);
+        await Assert.That(materialized.Tickets.Count).IsEqualTo(0);
+        await Assert.That(materialized.Batch.Items[populationSize - 1].Id).IsEqualTo("RI-" + populationSize);
+
+        AuditSemanticObligation[] obligations = materialized.Batch.Items.Select(item => new AuditSemanticObligation(
+            rule.Id + "/" + item.Id, rule.Id, rule.Version, item.Id, [], item, item.Path)).ToArray();
+        var recorded = new HashSet<string>(StringComparer.Ordinal);
+        int workOrders = 0;
+        while (true)
+        {
+            IReadOnlyList<AuditSemanticObligation> page = ReadOnlyAuditEngine.SelectNextObligations(obligations, recorded);
+            if (page.Count == 0) { break; }
+            if (page.Count > ReadOnlyAuditEngine.WorkBatchSize) { throw new InvalidOperationException("Synthetic audit work exceeded its batch bound."); }
+            foreach (AuditSemanticObligation obligation in page)
+            {
+                if (!recorded.Add(obligation.ObligationId)) { throw new InvalidOperationException("Synthetic audit work duplicated an obligation."); }
+            }
+            workOrders++;
+        }
+
+        await Assert.That(recorded.Count).IsEqualTo(populationSize);
+        await Assert.That(workOrders).IsEqualTo((populationSize + ReadOnlyAuditEngine.WorkBatchSize - 1) / ReadOnlyAuditEngine.WorkBatchSize);
+    }
+
+    [Test]
+    public async Task ExhaustivePopulationIncludesMultipleProjectsAndExcludesGeneratedSubjects()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-audit-project-population-" + Guid.NewGuid().ToString("N"));
+        string primarySource = Path.Combine(repository, "Api.cs");
+        await InitializeGitReviewRepository(repository, primarySource, "/// <summary>Provides the primary public contract.</summary>\npublic sealed class PrimaryApi { public int Value => 1; }");
+        try
+        {
+            string secondProject = Path.Combine(repository, "Other");
+            Directory.CreateDirectory(secondProject);
+            await File.WriteAllTextAsync(Path.Combine(secondProject, "Other.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(secondProject, "Other.cs"), "/// <summary>Provides a second project contract.</summary>\npublic sealed class OtherApi { public int Value => 2; }");
+            await File.WriteAllTextAsync(Path.Combine(secondProject, "Auto.g.cs"), "// <auto-generated/>\npublic sealed class GeneratedApi { }");
+
+            (CheckResult audit, int sourceDocuments, int projects) = new HygieneEngine(repository).CheckExhaustiveAuditSnapshot();
+            ReviewItem[] allSubjects = audit.ReviewBatches.SelectMany(batch => batch.PopulationItems ?? batch.Items).ToArray();
+            bool independentRubrics = audit.ReviewBatches
+                .SelectMany(batch => (batch.PopulationItems ?? batch.Items).Select(item => (batch.RuleId, item.Path, item.Symbol)))
+                .GroupBy(subject => subject.Path + "\0" + subject.Symbol, StringComparer.Ordinal)
+                .Any(group => group.Select(subject => subject.RuleId).Distinct(StringComparer.Ordinal).Count() > 1);
+            await Assert.That(projects).IsEqualTo(2);
+            await Assert.That(sourceDocuments).IsEqualTo(2);
+            await Assert.That(allSubjects.Any(item => item.Path.EndsWith("Other.cs", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(allSubjects.Any(item => item.Symbol.Contains("GeneratedApi", StringComparison.Ordinal))).IsFalse();
+            await Assert.That(independentRubrics).IsTrue();
+        }
+        finally { RemoveFixture(repository); }
+    }
+
     private static async Task<string> Git(string cwd, params string[] args)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = cwd, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
