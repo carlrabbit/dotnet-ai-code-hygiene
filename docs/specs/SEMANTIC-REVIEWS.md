@@ -26,7 +26,7 @@ On ordinary source-change gates, changed subject content ranks first. Up to one 
 
 ## Acceptance, expansion, and handoff
 
-`dotnet hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist separately from legacy hazard/age state.
+`dotnet hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist in `.hygiene/.state/gate-reviews.json`.
 
 Acceptance revalidates the current gate, base, full eligible population and each private ticket before an atomic write. Any missing, duplicate, stale, nonselected, incompatible, or previously accepted item rejects the complete request. Repeating a gate cannot replenish its fixed sample after partial acceptance. Accepted unchanged fingerprints are suppressed; changed content can become eligible again.
 
@@ -49,7 +49,7 @@ The rules retain independent populations, state identity, toggles, and batches. 
 
 ## `architecture.boringness.review`
 
-Version 3, batch B-3, reviews source-backed class, struct, record, and interface declarations, including nested and partial declarations. Enums, delegates, and generated source are excluded. Candidate identity is project-qualified and source-backed. Current accepted-review state stores the selected subject identity and fingerprint, never source text; legacy aggregate sampling records are not imported.
+Version 3, batch B-3, reviews source-backed class, struct, record, and interface declarations, including nested and partial declarations. Enums, delegates, and generated source are excluded. Candidate identity is project-qualified and source-backed. Current accepted-review state stores the selected subject identity and fingerprint, never source text.
 
 Its normal reviewer is `implementer` and escalated reviewer is `planner`. The fixed questions are:
 
@@ -102,4 +102,4 @@ B-5 tests.quality.review
 B-6 comments.intent.review
 ```
 
-Rule enable/disable remains whole-rule participation. Disabled rules emit no batch; enabled rules preserve their independent rule contract. Historical M0009–M0015 evidence and `.hygiene/.state/sampling.json` remain intact as legacy records and are not imported as semantic judgments. The CLI continues to perform no model/provider invocation.
+Rule enable/disable remains whole-rule participation. Disabled rules emit no batch; enabled rules preserve their independent rule contract. The CLI continues to perform no model/provider invocation.

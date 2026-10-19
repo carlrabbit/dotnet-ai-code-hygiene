@@ -5,62 +5,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using DotNetAiCodeHygiene.Core;
-using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
 
 public sealed class LifecycleTests
 {
-    [Test]
-    public async Task M0012LinkedSourcesAreDeduplicatedAndMultiTargetProjectsShareActivityIdentity()
-    {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-activity-linked-targets-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(repo);
-        try
-        {
-            string projectPath = Path.Combine(repo, "App.csproj");
-            string linkedPath = Path.Combine(repo, "Shared.cs");
-            using var workspace = new AdhocWorkspace();
-            ProjectId firstId = ProjectId.CreateNewId("net11.0");
-            DocumentInfo Linked(ProjectId id, string name) => DocumentInfo.Create(DocumentId.CreateNewId(id), name, filePath: linkedPath,
-                loader: TextLoader.From(TextAndVersion.Create(SourceText.From("public sealed class Shared { }"), VersionStamp.Create())));
-            Project first = workspace.AddProject(ProjectInfo.Create(firstId, VersionStamp.Create(), "App-net11", "App", LanguageNames.CSharp,
-                filePath: projectPath, documents: [Linked(firstId, "Shared.cs"), Linked(firstId, "Shared.Link.cs")]));
-            ProjectId secondId = ProjectId.CreateNewId("net11.0-windows");
-            Project second = workspace.AddProject(ProjectInfo.Create(secondId, VersionStamp.Create(), "App-net11-windows", "App", LanguageNames.CSharp,
-                filePath: projectPath, documents: [Linked(secondId, "Shared.cs")]));
-            using var session = new RepositorySession(repo);
-            var context = new RuleContext(session, [first.Documents.First()]);
-
-            await Assert.That(context.ProjectIdentity(first)).IsEqualTo(context.ProjectIdentity(second));
-            await Assert.That(context.TryReadEligibleProjectSources(first, out Dictionary<string, string> firstSources)).IsTrue();
-            await Assert.That(firstSources.Count).IsEqualTo(1);
-            await Assert.That(ProjectActivity.Create(context.ProjectIdentity(first), firstSources).EligibleLoc).IsEqualTo(1);
-        }
-        finally { DeleteTree(repo); }
-    }
-
-    [Test]
-    public async Task ProductionSemanticReviewsLeaveLegacyHazardAndActivityStateUntouched()
-    {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-m0016-legacy-state-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(repo, "src"));
-        try
-        {
-            await Git(repo, "init", "-q");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>A useful description for this API.</summary>\npublic class Fixture { }");
-            Directory.CreateDirectory(Path.Combine(repo, ".hygiene", ".state"));
-            string legacyPath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
-            await File.WriteAllTextAsync(legacyPath, "legacy sampling and age evidence");
-            CheckResult result = new HygieneEngine(repo).Check(["src/Fixture.cs"], false);
-            await Assert.That(result.ReviewBatches.Single(x => x.RuleId == SummaryQualityReviewRuleModule.RuleId).SampleCount).IsEqualTo(1);
-            await Assert.That(await File.ReadAllTextAsync(legacyPath)).IsEqualTo("legacy sampling and age evidence");
-            await Assert.That(File.Exists(Path.Combine(repo, ".hygiene", ".state", "gate-reviews.json"))).IsFalse();
-        }
-        finally { DeleteTree(repo); }
-    }
-
     [Test]
     public async Task BoringnessRubricEscalatesOnlyAtTheFixedThreshold()
     {
@@ -105,7 +54,6 @@ public sealed class LifecycleTests
             await Assert.That(symbols.Count(symbol => symbol.Contains("Repeated", StringComparison.Ordinal))).IsEqualTo(2);
             await Assert.That(symbols.Any(symbol => symbol.Contains("Handler", StringComparison.Ordinal))).IsFalse();
             await Assert.That(symbols.Any(symbol => symbol.Contains("State", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(File.Exists(Path.Combine(repo, ".hygiene", ".state", "sampling.json"))).IsFalse();
         }
         finally { DeleteTree(repo); }
     }
@@ -686,42 +634,7 @@ public sealed class LifecycleTests
     }
 
     [Test]
-    public async Task ExpandIgnoreValidationAndIgnoreListingDiscardSamplingMutations()
-    {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-sampling-revalidation-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(repo, "src"));
-        try
-        {
-            await Git(repo, "init", "-q");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>A useful summary for this public type.</summary>\npublic class Reviewed { }\npublic class MissingSummary { }");
-            var mutator = new SamplingCursorRule();
-            var modules = RuleCatalog.Modules.Append(mutator).ToArray();
-            var engine = new HygieneEngine(repo, null, modules);
-            CheckResult first = engine.Check([], false);
-            ReviewBatch batch = first.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
-            Finding finding = first.Findings.Single(f => f.RuleId == "docs.summary.required");
-            string statePath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
-            string baseline = await File.ReadAllTextAsync(statePath);
-            await Assert.That(mutator.Evaluations).IsEqualTo(1);
-
-            _ = engine.ExpandReview(batch.Handle);
-            await Assert.That(mutator.Evaluations).IsEqualTo(2);
-            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
-
-            _ = engine.Ignore(finding.Id, "reviewed");
-            await Assert.That(mutator.Evaluations).IsEqualTo(3);
-            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
-
-            _ = engine.ListIgnores([]);
-            await Assert.That(mutator.Evaluations).IsEqualTo(4);
-            await Assert.That(await File.ReadAllTextAsync(statePath)).IsEqualTo(baseline);
-        }
-        finally { DeleteTree(repo); }
-    }
-
-    [Test]
-    public async Task CheckPublicationFailurePreservesLatestRunAndLegacySamplingState()
+    public async Task CheckPublicationFailurePreservesPreviousLatestRunAtomically()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-check-gate-state-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "src"));
@@ -731,9 +644,6 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
             await File.WriteAllTextAsync(sourcePath, "/// <summary>A useful description for the original API.</summary>\npublic class Reviewed { }\n");
-            Directory.CreateDirectory(Path.Combine(repo, ".hygiene", ".state"));
-            string samplingPath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
-            await File.WriteAllTextAsync(samplingPath, "legacy sampling state");
             CheckResult successful = new HygieneEngine(repo).Check([], false);
             string stateDirectory = Path.Combine(repo, ".hygiene", ".state");
             string latestPath = Path.Combine(stateDirectory, "latest-run.json");
@@ -745,7 +655,6 @@ public sealed class LifecycleTests
             catch (IOException) { failed = true; }
             await Assert.That(failed).IsTrue();
             await Assert.That(await File.ReadAllBytesAsync(latestPath)).IsEquivalentTo(previousLatest);
-            await Assert.That(await File.ReadAllTextAsync(samplingPath)).IsEqualTo("legacy sampling state");
             string[] leftovers = Directory.GetFiles(stateDirectory).Where(path => path.EndsWith(".tmp", StringComparison.Ordinal) || path.EndsWith(".rollback", StringComparison.Ordinal)).ToArray();
             await Assert.That(leftovers).IsEmpty();
         }
@@ -765,9 +674,6 @@ public sealed class LifecycleTests
             {
                 await File.WriteAllTextAsync(Path.Combine(repo, "src", $"Fixture{i}.cs"), $"/// <summary>A useful domain description for API subject {i}.</summary>\npublic class Subject{i} {{ }}");
             }
-            Directory.CreateDirectory(Path.Combine(repo, ".hygiene", ".state"));
-            string legacyPath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
-            await File.WriteAllTextAsync(legacyPath, "legacy hazard/age evidence");
             var engine = new HygieneEngine(repo);
             CheckResult initialResult = engine.Check([], false, reviewAll: true);
             ReviewBatch quality = initialResult.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
@@ -785,7 +691,6 @@ public sealed class LifecycleTests
             try { _ = engine.AcceptReview(repeated.Handle, [repeated.Items[0].Id, "RI-999"]); } catch (ProductException) { invalidRejected = true; }
             await Assert.That(invalidRejected).IsTrue();
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
-            await Assert.That(await File.ReadAllTextAsync(legacyPath)).IsEqualTo("legacy hazard/age evidence");
 
             ReviewAcceptance accepted = engine.AcceptReview(repeated.Handle, [repeated.Items[0].Id]);
             await Assert.That(accepted.AcceptedCount).IsEqualTo(1);
@@ -814,21 +719,6 @@ public sealed class LifecycleTests
             await Assert.That(await File.ReadAllTextAsync(gateStatePath)).IsEqualTo(afterAccept);
         }
         finally { DeleteTree(repo); }
-    }
-
-    private sealed class SamplingCursorRule : IRuleModule
-    {
-        private long cursor;
-        internal int Evaluations { get; private set; }
-        public Rule Descriptor { get; } = new("test.sampling.cursor", 1, "finding", "finding", "Test-only sampling persistence seam.");
-
-        public RuleModuleResult Evaluate(RuleContext context)
-        {
-            Evaluations++;
-            cursor += 1_000;
-            context.Sampling.PopulationSampler(Descriptor.Id, Descriptor.Version).AccrueElapsed("test-unit", cursor, 1);
-            return RuleModuleResult.Empty;
-        }
     }
 
     [Test]

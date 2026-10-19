@@ -50,7 +50,7 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
-Gate-local semantic selection is a separate lazy `RuleContext` service. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. A separate small store records only explicit accepted observations. Legacy hazard/activity state remains untouched and is not read by production semantic-review rules.
+Gate-local semantic selection is a separate lazy `RuleContext` service. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. `GateLocalReviewStore` records only explicit accepted observations.
 
 ## Reporting scope versus readable context
 
@@ -235,7 +235,7 @@ No selected source file is committed before complete planning and required valid
 
 The six semantic-review rules use deterministic, finite gate-local selection with a fixed ceiling of five subjects per rule. Changed subjects rank ahead of at most one context subject from a touched source document; unrelated background candidates require explicit `--review-all`. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
 
-Selection is potentially biased selective inspection, not a calibrated defect-rate estimate or a population-quality certificate. Tickets bind the gate, rule/algorithm versions, eligible population, subject identity, and content fingerprint. Only explicit review acceptance persists an observation. Legacy hazard, elapsed-age, activity-age, and aggregate state remain separate from current gate-local state and are not production inputs.
+Selection is potentially biased selective inspection, not a calibrated defect-rate estimate or a population-quality certificate. Tickets bind the gate, rule/algorithm versions, eligible population, subject identity, and content fingerprint. Only explicit review acceptance persists an observation.
 
 ## Profile ownership
 

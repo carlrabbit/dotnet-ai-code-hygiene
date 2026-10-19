@@ -1,10 +1,9 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
-internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, SubjectTicket? SubjectTicket = null, PopulationTicket? PopulationTicket = null, GateTicket? GateTicket = null, bool DirectChange = false);
+internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, GateTicket? GateTicket = null, bool DirectChange = false);
 
 internal sealed record RuleModuleResult(
     IReadOnlyList<Finding> Findings,
@@ -19,21 +18,13 @@ internal sealed record RuleModuleResult(
 
 internal sealed record RuleModuleExecution(Rule Descriptor, RuleModuleResult Result);
 
-internal enum SamplingExecutionBoundary
-{
-    Commit,
-    Discard
-}
-
 /// <summary>Lazy services available to production rule modules for this command.</summary>
 internal sealed record GateSelectionContext(string GateId, string Mode, IReadOnlySet<string> ChangedPaths, IReadOnlyDictionary<string, HashSet<int>> ChangedLines);
 
-internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, SamplingExecutionBoundary samplingBoundary = SamplingExecutionBoundary.Commit, Action? beforeSamplingCommit = null, GateSelectionContext? gate = null)
+internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Document> reportingDocuments, GateSelectionContext? gate = null)
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
-    private readonly Lazy<SamplingSession> sampling = new(() => new SamplingSession(session.Root, beforeSamplingCommit), LazyThreadSafetyMode.ExecutionAndPublication);
     private readonly Lazy<GateLocalReviewStore> gateReviewStore = new(() => new GateLocalReviewStore(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
-    private readonly Dictionary<string, double> activityAges = new(StringComparer.Ordinal);
 
     internal RepositorySession Session { get; } = session;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
@@ -45,37 +36,6 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal string RelativePath(Document document) => document.FilePath is string path ? Session.Relative(path) : document.Name;
     internal string ProjectIdentity(Document document) => ProjectIdentity(document.Project);
     internal string ProjectIdentity(Project project) => project.FilePath is string path ? Session.Relative(path) : project.Name;
-    internal double ProjectActivityAge(Document document)
-    {
-        string identity = ProjectIdentity(document);
-        if (activityAges.TryGetValue(identity, out double known)) { return known; }
-        bool complete = TryReadEligibleProjectSources(document.Project, out Dictionary<string, string> sources);
-        double age = Sampling.ObserveProjectActivity(identity, sources, complete);
-        activityAges.Add(identity, age);
-        return age;
-    }
-    internal bool TryReadEligibleProjectSources(Project project, out Dictionary<string, string> sources)
-    {
-        sources = new(StringComparer.Ordinal);
-        foreach (IGrouping<string, Document> group in project.Documents
-            .Where(x => x.FilePath is not null && IsSourcePathEligible(x.FilePath))
-            .GroupBy(x => Path.GetFullPath(x.FilePath!), StringComparer.OrdinalIgnoreCase))
-        {
-            try
-            {
-                string text = Text(group.First()).ToString();
-                if (!HasGeneratedHeader(text)) { sources.Add(Session.Relative(group.Key), text); }
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
-            {
-                // A failed read makes the source transition incomplete. Keep its
-                // previous baseline and total rather than inferring a deletion.
-                sources.Clear();
-                return false;
-            }
-        }
-        return true;
-    }
     internal static bool IsEligibleSourceDocument(Document document)
     {
         if (document.FilePath is not string path || !IsSourcePathEligible(path)) { return false; }
@@ -105,17 +65,6 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal Dictionary<string, int> OccurrenceCounts(string ruleId, Document document) =>
         occurrenceCounts.GetValueOrDefault((ruleId, document.Id)) ?? (occurrenceCounts[(ruleId, document.Id)] = new(StringComparer.Ordinal));
     internal ProfileManager ProfileManager => Session.GetFact("profile-manager", () => new ProfileManager(Session.Root));
-    internal SamplingSession Sampling => sampling.Value;
-    internal bool HasSampling => sampling.IsValueCreated;
-    internal void CompleteSampling()
-    {
-        if (samplingBoundary == SamplingExecutionBoundary.Commit && sampling.IsValueCreated) { sampling.Value.Commit(); }
-    }
-    internal PreparedSamplingCommit? PrepareSamplingCommit()
-    {
-        if (samplingBoundary != SamplingExecutionBoundary.Commit || !sampling.IsValueCreated) { return null; }
-        return sampling.Value.PrepareCommit();
-    }
 }
 
 internal interface IRuleModule

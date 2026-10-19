@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using DotNetAiCodeHygiene.Core.Sampling;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -13,7 +12,7 @@ internal interface ISemanticReviewRuleModule : IRuleModule
     public string EscalatedReviewerClass { get; }
 }
 
-internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, SubjectTicket? SubjectTicket, PopulationTicket? PopulationTicket, GateTicket? GateTicket = null);
+internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, GateTicket GateTicket);
 internal sealed record ReviewBatchMaterialization(ReviewBatch Batch, IReadOnlyList<ReviewTicketAssociation> Tickets);
 internal sealed record SemanticReviewMaterialization(ReviewBatch[] Batches, ReviewTicketAssociation[] Tickets);
 
