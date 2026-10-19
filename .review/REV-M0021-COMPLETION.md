@@ -6,6 +6,8 @@
 
 This packet does not record approval. Do not merge until the independent reviewer records a decision.
 
+Pull request: [#21](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/21).
+
 ## Review scope
 
 Review the M0021 implementation against the exact obligations and evidence cases in `docs/milestones/M0021-remove-legacy-hazard-sampling.md` and `.execution/M0021-remove-legacy-hazard-sampling.md`.
