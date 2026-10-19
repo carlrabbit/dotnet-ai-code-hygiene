@@ -123,7 +123,7 @@ Reread milestone, verify exact obligation/case IDs and wording against ledger, t
 
 ## Completion Evidence
 
-Implementation evidence and gates below are reconciled against the planning-seeded ledger. VAL-01–VAL-05 have current evidence; VAL-06 remains pending independent review. The package defines four evidence cases, while the execution request said five; this discrepancy is preserved for reviewer resolution rather than creating a planner-owned case.
+Implementation evidence and gates below are reconciled against the planning-seeded ledger. VAL-01–VAL-05 have current evidence and VAL-06 has independent project-owner approval recorded in `.review/REV-M0022-COMPLETION.md`. The package defines four evidence cases, while the execution request said five; this discrepancy is disclosed rather than creating a planner-owned case.
 
 | Obligation/evidence case | Evidence | Gate | Result |
 |---|---|---|---|
@@ -142,7 +142,7 @@ Implementation evidence and gates below are reconciled against the planning-seed
 | EC-07a | Current-package and consumer-stage dependency/output provenance requires refresh when the candidate changes. | VAL-03 | done |
 | EC-07b | Immutable old-version fixture reuse remains identity/hash checked with reconstruction for missing or changed cache. | VAL-03 | done |
 | DOC-01 | Changes limited to directly contradicted authority, supplied M0022 planning artifacts and required pending review packet. | VAL-05 | done |
-| REV-01 | Independent review packet prepared; approval pending and PR remains unmerged. | VAL-06 | pending |
+| REV-01 | Independent review packet prepared and approved by the project owner; PR remains open and unmerged. | VAL-06 | done |
 
 ## Escalation Boundary
 
