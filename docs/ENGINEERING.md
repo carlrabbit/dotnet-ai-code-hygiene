@@ -160,15 +160,20 @@ Tier 4 must invoke the installed `hygiene` command and exercise representative b
 
 ## Validation workflow
 
-`./eng/validate.ps1` is the canonical completion command. It executes the required validation stages in order and reuses only stages whose source inputs, command, toolchain, outputs, and prerequisite receipts still match. Successful stage receipts are written atomically under `.execution/validation/`; these are disposable run evidence, not milestone approval or a substitute for the execution ledger. A failed stage loses its prior receipt before running and cannot leave a valid pass receipt. An exclusive lock prohibits overlapping stage or aggregate execution.
+Validation has four distinct uses; the required evidence comes from the active milestone, not from a single default depth:
 
-Discover the current stage IDs and exact commands with:
+- **Development feedback** is a quick, affected check used to guide the current change. A focused test filter or shard proves only the cases it ran and does not create a complete-suite receipt.
+- **Investigative execution** includes historical simulations, profiling and experiments. Run these only when the investigation calls for them; they are not ordinary regression tests or milestone gates unless the milestone explicitly declares them.
+- **Milestone acceptance** runs each gate declared by the ready milestone and records current, criterion-specific evidence. Completion requires those declared gates, not every historical suite or consumer scenario. If a milestone explicitly requires a full suite or installed-consumer validation, that gate remains mandatory. Reconcile every obligation and evidence case in its ledger; do not infer full-suite validation from focused checks.
+- **Full release qualification** remains the comprehensive M0020 path at `./eng/validate.ps1`. Use it when release qualification or the active milestone requires it. Its long duration is acceptable; the implementation reuses only evidence whose recorded provenance still proves it current.
+
+For the canonical M0020 release qualification, discover stable stage IDs and commands with:
 
 ```powershell
 ./eng/validate.ps1 -PlanJson
 ```
 
-Run a bounded stage by ID. A shard requires current receipts for its listed prerequisites and does not run unrelated stages:
+The seven stages are solution build, Core tests, CLI tests, README policy, current package, installed consumers and self-host validation. Run a bounded stage by ID. A shard requires current receipts for its prerequisites and does not run unrelated stages:
 
 ```powershell
 ./eng/validate.ps1 -Shard solution
@@ -177,33 +182,32 @@ Run a bounded stage by ID. A shard requires current receipts for its listed prer
 ./eng/validate.ps1 -Shard installed-consumers
 ```
 
-Core and CLI stages call the actual TUnit/Microsoft.Testing.Platform project and print its slowest tests. Select an affected group with the MTP tree filter, for example:
+Core and CLI stages call the actual TUnit/Microsoft.Testing.Platform project and print their slowest tests. Select a focused group with the MTP tree filter, for example:
 
 ```powershell
 ./eng/validate.ps1 -Shard cli-tests -TestFilter '/*/*/CliProcessTests/VersionUsesProductVersionOnStandardOutput'
 ```
 
-A filtered test run is reported as focused feedback and never creates a complete-suite receipt. It therefore cannot satisfy the aggregate verifier. After a focused repair, run the unfiltered affected test stage to restore complete evidence.
+A filtered run is development feedback only and never creates a complete-suite receipt. The no-argument command runs missing or invalidated stages, reuses only current independent stage receipts, and reports aggregate success only after the full receipt verifier accepts every stage. `-Verify` checks the complete evidence set without executing tests. `-Fresh` invalidates all stage receipts, reruns the full qualification and reconstructs the pinned prior-version package fixture.
 
-Use the unchanged default command after a change to execute only missing or invalidated stages and verify the complete current receipt set. Aggregate success is printed only after the same full receipt verifier used by `-Verify` accepts every stage. Use `-Verify` for the fast evidence-only check; it never executes tests. Use `-Fresh` for a cold reproducibility pass: it invalidates every stage receipt, reruns every stage, and forces reconstruction of the pinned prior-version package fixture. The current package is always freshly produced for the current build before installed-consumer checks.
+Receipts fingerprint the active .NET SDK and Git versions, PowerShell/OS identity, each stage's relevant inputs and command, current prerequisite receipt identities, and declared output hashes. The solution receipt includes production assemblies and every test project's compiled runtime artifacts; Core and CLI stages run with `--no-build`, so changing or removing those artifacts invalidates build evidence and dependent receipts. Source, project, test, build configuration, validation-script, toolchain and package changes invalidate stages that depend on them. Documentation changes invalidate self-host evidence through its merge-base change-set fingerprint, including tracked changes and non-ignored untracked inputs, without needlessly invalidating unrelated test stages. Current package output and installed-consumer evidence are coupled by the pack-stage output hash: a stale current binary or package cannot validate the consumer boundary.
 
-Receipts fingerprint the active .NET SDK and Git versions, PowerShell/OS identity, each stage's relevant inputs and command, current prerequisite receipt identities, and declared output hashes. The solution receipt includes production assemblies and every test project's compiled runtime artifacts (test assemblies, dependency assemblies, and runtime manifests); Core and CLI stages run with `--no-build`, so changing or removing those artifacts invalidates the build evidence and its dependent receipts. Source, project, test, build configuration, validation-script, toolchain, and package changes invalidate stages that depend on them. Documentation changes do not invalidate the Core/CLI test stages, but they invalidate the repository self-host stage because its check covers the repository change set and runs `git diff --check` against the merge base with `origin/main`. The self-host fingerprint includes the same Git delta and non-ignored untracked inputs; generated `.hygiene/.state` data is excluded. Ignored build and report artifacts do not broaden the diff-check fingerprint. Current package output and the installed-consumer receipt are coupled through the pack-stage output hash, so an old current binary or package cannot validate the consumer boundary.
+The pinned 0.9.0 previous-version package is immutable test input. Its optional cache is outside the repository and is keyed by pinned commit/tree, exact SDK version, package ID and version; a sidecar records and rechecks its SHA-256. Reuse requires this identity and content verification. Missing, malformed or changed cache evidence triggers clean worktree reconstruction. The current release-candidate package is freshly produced when relevant inputs change; its dependent installed-consumer evidence must be refreshed. `-Fresh` bypasses fixture-cache reads, reconstructs the fixture and refreshes the cache. Consumer repositories, feeds, package installs and caches remain isolated per consumer stage.
 
-After a cold or warm baseline has produced current receipts, exercise final-boundary and test-output provenance regressions with:
+The M0013 and M0015 research entrypoints under `eng/` are investigative tools, not part of the ordinary Core/CLI test projects or the canonical M0020 stage list. Do not run historical simulations as default regression or release validation; preserve the independent research records and execute a simulation only when an active task asks for it.
+
+Existing Windows 11/.NET 11, Git and PowerShell tools, dependency restores and disposable isolated project/tool paths may be used for authorized repository work. This execution authority does not grant permission to provision persistent host software, change CI/workflows, or modify remote infrastructure.
+
+Each receipt reports actual stage wall time and whether evidence was freshly executed or reused. Cached elapsed time is historical execution cost, not time spent in the current command. Test stages report slowest cases where supported; concurrently executed case durations can overlap and must not be summed as suite wall time.
+
+After a cold or warm baseline has produced current receipts, the M0020 final-boundary and test-output provenance regressions can be exercised with:
 
 ```powershell
 ./eng/test-validation-final-verification.ps1
 ./eng/test-validation-test-outputs.ps1
 ```
 
-These scripts take the validation lock, require a complete current receipt set, temporarily corrupt and restore one receipt or compiled test assembly, and verify both rejection and recovery. They do not leave altered evidence behind.
-
-The 0.9.0 previous-version package is immutable test input. Its optional cache is outside the repository under the user's local application data and is keyed by the pinned commit/tree, exact SDK version, package ID, and version. A sidecar records and rechecks the package SHA-256. A missing, malformed, or changed cache entry triggers clean worktree reconstruction; `-Fresh` bypasses the cache read, reconstructs the package, then refreshes the cache for a later warm run. Temporary consumer repositories, feeds, package installs, and caches are independent for each consumer stage.
-
-Each receipt reports actual stage wall time and whether that evidence was freshly executed or reused. The solution, Core tests, CLI tests, README/policy checks, package, installed consumers, and self-host checks have separate timing records. The two test projects expose the ten slowest test cases through MTP where supported. MTP may execute tests concurrently, so individual test durations can overlap and should not be summed as suite wall time. Cached elapsed time is historical execution cost, not time spent in the current command. Inspect receipts or the aggregate summary for fresh/reused counts and the slowest stages.
-
-`-Fresh` is the complete release/completion evidence path; focused shards are the normal correction loop. After a failed stage, fix the issue, rerun that stage, then allow the canonical aggregate to rerun any newly invalidated dependent stages. Only a complete canonical run or a fast verification of the entire current successful receipt set establishes automated repository validation. Neither establishes milestone completion without criterion-specific evidence and required independent review.
-
+These scripts require a complete current receipt set, temporarily corrupt and restore evidence under the validation lock, and verify rejection and recovery without leaving altered evidence behind. They are M0020 validator checks, not automatically required for every milestone. M0020's full release qualification remains available and authoritative whenever release readiness or a milestone requires that evidence; milestone-scoped acceptance does not silently replace, weaken, or universally rerun it.
 ## Regression expectations
 
 Architecture/refactoring work must preserve:
