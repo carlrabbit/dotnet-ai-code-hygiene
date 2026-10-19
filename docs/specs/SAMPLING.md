@@ -2,7 +2,7 @@
 
 ## Production model
 
-The six semantic-review rules use finite, gate-local, risk-stratified selection. A gate is one explicit `dotnet hygiene check` opportunity over a repository, mode, resolved comparison base when present, current `HEAD` and worktree, reporting paths, rule version, and the rule's complete eligible population. Selection is deterministic for those inputs and has no wall-clock, repository-seed, elapsed-age, activity-age, accumulated-hazard, probability-threshold, or process-random input.
+The six semantic-review rules use finite, gate-local, risk-stratified selection. A gate is one explicit `dotnet hygiene check` opportunity over a repository, mode, resolved comparison base when present, current `HEAD` and worktree, reporting paths, rule version, and the rule's complete eligible population. Selection is deterministic for those inputs and uses no wall-clock or process-random input.
 
 The selector ranks without replacement using SHA-256-derived stable keys over the gate, rule and algorithm versions, project-qualified subject identity, and full subject content fingerprint. Repository enumeration order does not affect ranking. A rule's selected items are already ranked; the host does not rank them a second time.
 
@@ -26,6 +26,5 @@ Accepted observations are stored as versioned JSON in `.hygiene/.state/gate-revi
 
 Each rule owns its eligibility, questions, escalation class and condition. The shared mechanism owns only gate context, stable ranking, a five-item ceiling, private tickets, and accepted-observation persistence. Batches B-1 through B-3 remain unchanged; M0017 appends `readability.type-responsibility.review`/B-4, `tests.quality.review`/B-5, and `comments.intent.review`/B-6, each at v1. Mechanical rules remain exhaustive.
 
-The existing `.hygiene/.state/sampling.json` and M0009–M0015 research records are legacy evidence. Production semantic-review rules do not read, update, reinterpret, or delete legacy hazard, age, activity, or aggregate-event state. Old sampling tickets cannot satisfy gate-local acceptance.
 
 The CLI performs no model/provider invocation. Expansion and handoff still revalidate and expose the complete eligible population for their stored reporting scope; a zero normal batch does not erase the population used for escalation.

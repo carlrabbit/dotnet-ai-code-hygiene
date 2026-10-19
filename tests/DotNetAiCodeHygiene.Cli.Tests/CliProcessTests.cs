@@ -578,9 +578,6 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string source = string.Join("\n", Enumerable.Range(0, 32).Select(i => $"/// <summary>A useful API description for item {i}.</summary>\npublic class Subject{i} {{ }}"));
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
-            Directory.CreateDirectory(Path.Combine(repo, ".hygiene", ".state"));
-            string samplingPath = Path.Combine(repo, ".hygiene", ".state", "sampling.json");
-            await File.WriteAllTextAsync(samplingPath, "legacy sampling state");
             ProcessResult check = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
             await Assert.That(check.ExitCode).IsEqualTo(0);
             using JsonDocument checkedOutput = JsonDocument.Parse(check.StandardOutput);
@@ -589,11 +586,9 @@ public sealed class CliProcessTests
             await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsEqualTo(5);
             string handle = quality.GetProperty("handle").GetString()!;
             string itemId = quality.GetProperty("items")[0].GetProperty("id").GetString()!;
-            string beforeMixed = await File.ReadAllTextAsync(samplingPath);
             ProcessResult mixed = await RunCliInAsync(repo, "review", "accept", handle, itemId, "--all");
             await Assert.That(mixed.ExitCode).IsEqualTo(2);
             await Assert.That(mixed.StandardError).Contains("Use either item IDs or --all");
-            await Assert.That(await File.ReadAllTextAsync(samplingPath)).IsEqualTo(beforeMixed);
 
             ProcessResult accepted = await RunCliInAsync(repo, "review", "accept", handle, itemId, "--output", "json");
             await Assert.That(accepted.ExitCode).IsEqualTo(0);
@@ -606,7 +601,6 @@ public sealed class CliProcessTests
                 await Assert.That(result.GetProperty("acceptedCount").GetInt32()).IsEqualTo(1);
                 await Assert.That(result.GetProperty("acceptedItemIds")[0].GetString()).IsEqualTo(itemId);
                 await Assert.That(accepted.StandardOutput.Contains("ticket", StringComparison.OrdinalIgnoreCase)).IsFalse();
-                await Assert.That(accepted.StandardOutput.Contains("hazard", StringComparison.OrdinalIgnoreCase)).IsFalse();
             }
             ProcessResult duplicate = await RunCliInAsync(repo, "review", "accept", handle, itemId);
             await Assert.That(duplicate.ExitCode).IsEqualTo(3);
@@ -620,7 +614,6 @@ public sealed class CliProcessTests
             await Assert.That(acceptAll.ExitCode).IsEqualTo(0);
             using JsonDocument allResult = JsonDocument.Parse(acceptAll.StandardOutput);
             await Assert.That(allResult.RootElement.GetProperty("acceptedCount").GetInt32()).IsEqualTo(nextQuality.GetProperty("sampleCount").GetInt32());
-            await Assert.That(await File.ReadAllTextAsync(samplingPath)).IsEqualTo("legacy sampling state");
         }
         finally { DeleteTree(repo); }
     }

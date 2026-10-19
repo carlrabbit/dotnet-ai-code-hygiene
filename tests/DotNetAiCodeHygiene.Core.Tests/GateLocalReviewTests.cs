@@ -270,9 +270,6 @@ public sealed class GateLocalReviewTests
             string unrelated = string.Join("\n", Enumerable.Range(1, 7).Select(i => $"/// <summary>Provides useful behavior for API {i}.</summary>\npublic sealed class Api{i} {{ public int Value => {i}; }}"));
             await File.WriteAllTextAsync(Path.Combine(repository, "Other.cs"), unrelated);
             _ = new ProfileManager(repository).Bootstrap();
-            Directory.CreateDirectory(Path.Combine(repository, ".hygiene", ".state"));
-            string legacyPath = Path.Combine(repository, ".hygiene", ".state", "sampling.json");
-            await File.WriteAllTextAsync(legacyPath, "legacy hazard data retained verbatim");
             await Git(repository, "add", "-A");
             await Git(repository, "commit", "-m", "baseline");
             string baseCommit = (await Git(repository, "rev-parse", "HEAD")).Trim();
@@ -308,7 +305,6 @@ public sealed class GateLocalReviewTests
             await File.WriteAllTextAsync(Path.Combine(repository, "README.md"), "documentation-only change");
             CheckResult docsOnly = new HygieneEngine(repository).Check([], false, baseRef: docsBase);
             await Assert.That(docsOnly.ReviewBatches.All(x => x.SampleCount == 0)).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(legacyPath)).IsEqualTo("legacy hazard data retained verbatim");
         }
         finally { RemoveFixture(repository); }
     }
