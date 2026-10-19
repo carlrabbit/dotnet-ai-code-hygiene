@@ -24,6 +24,6 @@ The supplied milestone, package execution instructions and planning-seeded ledge
 ## Reviewer decision
 
 - Decision: **PENDING**
-- Reviewer: 
-- Date: 
-- Findings / required follow-up: 
+- Reviewer:
+- Date:
+- Findings / required follow-up:
