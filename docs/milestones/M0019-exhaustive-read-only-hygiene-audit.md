@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Lifecycle state | awaiting-human-review |
+| Lifecycle state | complete — user approval recorded 2026-10-20; reviewer identity and independence not separately authenticated |
 | Mode | ai-executed-human-reviewed |
 | Guide system | Agentic Project Guides 0.9.3; base + cli-tool |
 | Baseline implementation model | GPT-5.6 Luna (existing `.guide-profile.json` setting) |
@@ -181,7 +181,7 @@ Acceptance depth and execution location are distinct. Per Guide 0.9.3 and merged
 
 ## Human Review
 
-Human review is **required and blocking** only for M0019. Canonical review artifact: `.review/REV-M0019-COMPLETION.md`. Authorized project owner or explicitly delegated approver reviews the actual report-only behavior, exhaustive coverage semantics, safety evidence, current installed-tool consumer, ledger reconciliation and scope. Implementer prepares the packet with `Decision: pending`; no self-approval or invented project approval. If the repository has no documented M0019 review-check command, do not invent one. Historical approvals for M0018/M0020/M0021/M0022 are not reopened.
+Human review was **required and blocking** only for M0019; the user explicitly recorded approval on 2026-10-20 after the correction pass. Reviewer identity and independence were not separately authenticated in the packet. Canonical review artifact: `.review/REV-M0019-COMPLETION.md`. Authorized project owner or explicitly delegated approver reviews the actual report-only behavior, exhaustive coverage semantics, safety evidence, current installed-tool consumer, ledger reconciliation and scope. Implementer prepares the packet with `Decision: pending`; no self-approval or invented project approval. If the repository has no documented M0019 review-check command, do not invent one. Historical approvals for M0018/M0020/M0021/M0022 are not reopened.
 
 ## Documentation Policy
 
@@ -204,7 +204,7 @@ Current M0020/M0022-proportionate evidence: cold `solution` stage passed with 0 
 
 VAL-04 installed-consumer provenance: freshly packed `DotNetAiCodeHygiene.Tool.0.11.0` SHA-256 `6D2DB12994458F9D3BFDF7FF2C96E22CB3B6941E6DAAC4D957B260E666B10477`; isolated generated `dotnet-hygiene.exe` SHA-256 `8B167E9C21E80EE74BF25045EC46CCAC298DC22C5CE0240B16BA228AC44AC81E`. The installed `dotnet hygiene` shim required explicit attestation, declined the no-attestation and denial cases without creating an audit, produced an incomplete report after one recorded judgment, resumed with no repetition, and finished `report-complete` at 7/7 semantic obligations with dirty-at-start disclosed. Eight protected source/project/Git-index/profile/config/baseline/normal-state files remained byte-identical. Disposable consumer evidence remains under the system temp directory recorded in `.execution/M0019-exhaustive-read-only-hygiene-audit.md`.
 
-The audit records one finite inventory with HEAD, start time, dirty-at-start state, and the explicit mixed-time/no-rescan limitation. No source edits, normal acceptance changes, formatter/normalizer writes, bootstrap/profile update, tool update, AI-provider call, or repair request is part of its execution. Human review is the remaining blocking gate; no semantic quality claims or approval are inferred from mechanical fixtures.
+The audit records one finite inventory with HEAD, start time, dirty-at-start state, and the explicit mixed-time/no-rescan limitation. No source edits, normal acceptance changes, formatter/normalizer writes, bootstrap/profile update, tool update, AI-provider call, or repair request is part of its execution. The user approved after review; the approval record does not independently authenticate reviewer identity. No semantic quality claims or approval are inferred from mechanical fixtures.
 
 ## Escalation Boundary
 

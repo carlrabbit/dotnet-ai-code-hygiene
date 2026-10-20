@@ -4,7 +4,7 @@
 
 **Execution evidence:** `.execution/M0019-exhaustive-read-only-hygiene-audit.md`
 
-**Status:** Review requested; no approval recorded.
+**Status:** Human approval recorded 2026-10-20.
 
 ## Requested review
 
@@ -29,7 +29,7 @@ Fresh focused validation on the correction includes Core `AuditDeterministicCove
 
 The corrected package was freshly packed and installed into a disposable local-feed consumer. Package SHA-256: `154658a8046a328f030d20da12ebe25be20f38cc87e5adc9dfaa936b1852a89b`. Installed `dotnet-hygiene.exe` shim SHA-256: `8b167e9c21e80ee74bf25045ec46ccac298dc22c5ce0240b16ba228ac44ac81e`. Through the installed 0.11.0 `dotnet hygiene` command, repo C created the audit and repo D ran `next`, `record`, `finish`, resumed `next`, recorded a concrete uncertainty rationale and finished the report. Schema-2 JSON and Markdown retained repo C identity and inventory; the final report reconciled eligible=2, assessed=2, unassessed=0, uncertain=1, and deterministic findings=2. The per-rule deterministic total matched the report total; `docs.summary.required` showed approximate=1, measured=null, eligible=null, findings=2. Eight protected source/project/Git-index/profile/projection/approval file hashes stayed unchanged, three absent configuration/latest-run/gate-review files remained absent, and repo C's Git status remained clean. Consumer evidence is retained at `C:\Users\carlt\AppData\Local\Temp\M0019-correction-installed-9c204c47f87f40c49932ef21d17ace38\audit-report-schema2`.
 
-Remaining limitations: deterministic applicability counts are estimates of supported population size, not measured per-rule invocation totals; audit inventory is finite and source changes during collection are not tracked; semantic judgments remain external; full Core/CLI suites and the historical cold release matrix were not run because they are not declared M0019 correction gates. Independent approval remains pending.
+Remaining limitations: deterministic applicability counts are estimates of supported population size, not measured per-rule invocation totals; audit inventory is finite and source changes during collection are not tracked; semantic judgments remain external; full Core/CLI suites and the historical cold release matrix were not run because they are not declared M0019 correction gates.
 
 ## Consumer provenance
 
@@ -42,9 +42,10 @@ Remaining limitations: deterministic applicability counts are estimates of suppo
 
 ## Reviewer and decision
 
-- Reviewer role: project owner or explicitly delegated independent reviewer.
-- Reviewer identity: pending assignment.
-- Decision: pending.
-- Corrections: pending.
+- Reviewer role: human approver responding to the M0019 review request in this conversation.
+- Reviewer identity: not separately supplied or independently verified in this record.
+- Decision: **approved by the user on 2026-10-20**, following the correction pass for reviewed commit `fcbebe9`.
+- Corrections: the two review findings are addressed and their fresh criterion-specific evidence is recorded in the execution ledger and above.
+- Scope note: this records the user's explicit approval; it does not claim an externally authenticated identity or independent verification beyond that approval.
 
-No approval is inferred from implementation, validation, or creation of this request. **Milestone status: awaiting human review.**
+This approval is a direct human decision, not inferred from implementation or validation. No merge or self-approval occurred. **Milestone status: complete, with reviewer identity not independently verified.**
