@@ -2,10 +2,10 @@
 
 `DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The current package version is `0.10.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
 
-The `0.10.0` package is validated from a local feed; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
+The `0.11.0` package is validated from a local feed; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.10.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.11.0
 dotnet hygiene --version
 ```
 
@@ -58,6 +58,21 @@ dotnet hygiene normalize --check
 
 Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
 
+## Exhaustive read-only audit
+
+`dotnet hygiene --yolo-all` is a separate full audit. The first call asks whether the calling agent was explicitly tasked by the user. If yes, rerun with `--attest-explicit-task`; if no, stop or pass `--deny-explicit-task`. Without affirmative attestation, the scan does not start. The assertion is recorded but not authenticated.
+
+An authorized audit requires a valid initialized profile and accepted baseline; it never creates or refreshes either. It evaluates every enabled deterministic rule without applying changes and enumerates every eligible semantic rule/subject pair, including previously accepted or normally ignored items. It does not bootstrap or update the profile/tool, format or normalize code, change normal review state, ask for fixes, or call an AI provider. The external agent supplies `acceptable`, `problem`, or `uncertain` judgments; the last two require rationale.
+
+The tool creates a local audit directory under `.hygiene/audits/` by default. `dotnet hygiene audit next --run <audit-dir>` returns bounded work with source context. Record agent judgments using `dotnet hygiene audit record --run <audit-dir> --file <judgments.json>`, then create `report.json` and `report.md` with `dotnet hygiene audit finish --run <audit-dir>`. Work and valid judgments remain in that audit directory so collection can resume. Reports disclose that source changes during collection are not tracked and that the inventory is not an atomic repository snapshot. Source text is embedded in audit work; choose a local destination appropriate for that content.
+
+```powershell
+dotnet hygiene --yolo-all --attest-explicit-task
+dotnet hygiene audit next --run <audit-dir>
+dotnet hygiene audit record --run <audit-dir> --file <judgments.json>
+dotnet hygiene audit finish --run <audit-dir>
+```
+
 ## Updating to a New Release
 
 On each autonomous run, the entrypoint checks configured NuGet sources for a newer stable package using an isolated temporary tool installation. If it finds one and can identify the invoking local-manifest or apphost installation scope, it starts a separate updater, exits to release its loaded files, then the updater updates only that installation, restarts the installed command, and returns its revalidation report. Local manifest lookup searches ancestor directories and matches package IDs without case sensitivity. The updater never picks a different same-named PATH tool. The running executable is never replaced in process. If no stable package can be resolved, the compatible installed version continues and the lifecycle report says release discovery was unavailable. Unknown installation scopes receive an update instruction rather than an inferred global update.
@@ -65,7 +80,7 @@ On each autonomous run, the entrypoint checks configured NuGet sources for a new
 You can also update explicitly from the same trusted package source:
 
 ```powershell
-dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.10.0
+dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.11.0
 dotnet hygiene --version
 dotnet hygiene
 ```
@@ -74,4 +89,4 @@ For a tool installed with `--tool-path`, run `dotnet tool update --tool-path <to
 
 ## Deferred Work
 
-`dotnet hygiene --yolo-all` is deferred to M0019 and is not available in 0.10.0. `--review-all` is a bounded inspection request, not exhaustive authorization. No hosted CI/workflow, provider integration, or public package publication is part of this release.
+`--review-all` remains a bounded inspection request, not exhaustive authorization. No hosted CI/workflow, provider integration, or public package publication is part of this release.

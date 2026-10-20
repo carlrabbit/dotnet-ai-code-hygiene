@@ -7,7 +7,7 @@ $script:ValidationStages = @(
     [pscustomobject]@{ Id = 'core-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Core.Tests\DotNetAiCodeHygiene.Core.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Core.Tests/**','src/DotNetAiCodeHygiene.Core/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Core.Tests-*-report.html') },
     [pscustomobject]@{ Id = 'cli-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Cli.Tests\DotNetAiCodeHygiene.Cli.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Cli.Tests/**','src/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Cli.Tests-*-report.html') },
     [pscustomobject]@{ Id = 'readme-policy'; Command = 'Check README lifecycle headings and required installed-tool examples'; DependsOn = @(); Inputs = @('README.md'); Outputs = @() },
-    [pscustomobject]@{ Id = 'pack-current'; Command = 'dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**'); Outputs = @('artifacts/packages/DotNetAiCodeHygiene.Tool.0.10.0.nupkg') },
+    [pscustomobject]@{ Id = 'pack-current'; Command = 'dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**'); Outputs = @('artifacts/packages/DotNetAiCodeHygiene.Tool.0.11.0.nupkg') },
     [pscustomobject]@{ Id = 'installed-consumers'; Command = '& .\eng\validate-installed-consumers.ps1'; DependsOn = @('pack-current'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**','eng/validate-installed-consumers.ps1'); Outputs = @('.execution/validation/consumer-provenance.json') },
     [pscustomobject]@{ Id = 'self-host'; Command = '& .\eng\validate-self-host.ps1'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','.gitignore','AGENTS.md','Directory.Build.props','Directory.Packages.props','DotNetAiCodeHygiene.slnx','README.md','.hygiene/**','docs/**','src/**','tests/**','eng/validate-self-host.ps1'); Outputs = @() }
 )
@@ -176,13 +176,13 @@ function Invoke-StageCommand($Stage, [string] $Filter) {
         }
         'readme-policy' {
             $readmeText = Get-Content -LiteralPath .\README.md -Raw
-            foreach ($heading in @('## First Bootstrap','## Run on Gates','## Manual Inspection and Debugging','## Updating to a New Release')) { if (-not $readmeText.Contains($heading)) { throw "README is missing required lifecycle section '$heading'." } }
-            foreach ($example in @('dotnet hygiene --version','dotnet hygiene check --base origin/main','dotnet hygiene review handoff','dotnet hygiene baseline accept --approver','--report-sha256')) { if (-not $readmeText.Contains($example)) { throw "README is missing required lifecycle example '$example'." } }
+            foreach ($heading in @('## First Bootstrap','## Run on Gates','## Manual Inspection and Debugging','## Exhaustive read-only audit','## Updating to a New Release')) { if (-not $readmeText.Contains($heading)) { throw "README is missing required lifecycle section '$heading'." } }
+            foreach ($example in @('dotnet hygiene --version','dotnet hygiene check --base origin/main','dotnet hygiene review handoff','dotnet hygiene baseline accept --approver','--report-sha256','--yolo-all --attest-explicit-task','dotnet hygiene audit next --run','dotnet hygiene audit record --run','dotnet hygiene audit finish --run')) { if (-not $readmeText.Contains($example)) { throw "README is missing required lifecycle example '$example'." } }
         }
         'pack-current' {
             dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build
             if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed with exit code $LASTEXITCODE." }
-            $package = Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.10.0.nupkg
+            $package = Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.11.0.nupkg
             Write-Output ("Current package SHA-256: " + (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash)
         }
         'installed-consumers' { & .\eng\validate-installed-consumers.ps1; if ($LASTEXITCODE -ne 0) { throw "Installed-consumer validation failed with exit code $LASTEXITCODE." } }
