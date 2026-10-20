@@ -460,6 +460,36 @@ public sealed class GateLocalReviewTests
         finally { RemoveFixture(repository); }
     }
 
+    [Test]
+    public async Task AuditDeterministicCoverageSeparatesFindingsApproximationAndDisabledZeroPopulation()
+    {
+        Rule configurable = new("sample.deterministic", 1, "finding", "finding", "fixture rule", true);
+        AuditRuleFact withFindings = ReadOnlyAuditEngine.CreateRuleFact(configurable, enabled: true, supportedSourceDocuments: 3, projects: 2, deterministicFindings: 2);
+        AuditRuleFact withoutFindings = ReadOnlyAuditEngine.CreateRuleFact(configurable, enabled: true, supportedSourceDocuments: 3, projects: 2, deterministicFindings: 0);
+        AuditRuleFact zeroPopulation = ReadOnlyAuditEngine.CreateRuleFact(configurable, enabled: true, supportedSourceDocuments: 0, projects: 0, deterministicFindings: 0);
+        AuditRuleFact disabled = ReadOnlyAuditEngine.CreateRuleFact(configurable, enabled: false, supportedSourceDocuments: 3, projects: 2, deterministicFindings: 0);
+        AuditRuleFact mandatory = ReadOnlyAuditEngine.CreateRuleFact(new Rule("sample.mandatory", 1, "finding", "finding", "fixture mandatory rule", false), enabled: true, supportedSourceDocuments: 3, projects: 2, deterministicFindings: 1);
+        AuditRuleFact projectScoped = ReadOnlyAuditEngine.CreateRuleFact(new Rule("profile.sample", 1, "finding", "finding", "fixture project rule", false), enabled: true, supportedSourceDocuments: 9, projects: 2, deterministicFindings: 0);
+
+        await Assert.That(withFindings.EvaluationKind).IsEqualTo("deterministic-evaluation");
+        await Assert.That(withFindings.ApproximateApplicableCount).IsEqualTo(3);
+        await Assert.That(withFindings.MeasuredEvaluations).IsNull();
+        await Assert.That(withFindings.Eligible).IsNull();
+        await Assert.That(withFindings.DeterministicFindings).IsEqualTo(2);
+        await Assert.That(withoutFindings.DeterministicFindings).IsEqualTo(0);
+        await Assert.That(zeroPopulation.ApproximateApplicableCount).IsEqualTo(0);
+        await Assert.That(zeroPopulation.DeterministicFindings).IsEqualTo(0);
+        await Assert.That(disabled.Enabled).IsFalse();
+        await Assert.That(disabled.Participation).IsEqualTo("disabled");
+        await Assert.That(disabled.ApproximateApplicableCount).IsNull();
+        await Assert.That(disabled.DeterministicFindings).IsNull();
+        await Assert.That(mandatory.Enabled).IsTrue();
+        await Assert.That(mandatory.Participation).IsEqualTo("mandatory");
+        await Assert.That(projectScoped.CheckUnit).IsEqualTo("supported SDK projects");
+        await Assert.That(projectScoped.ApproximateApplicableCount).IsEqualTo(2);
+        await Assert.That(projectScoped.Participation).IsEqualTo("mandatory");
+    }
+
     private static async Task<string> Git(string cwd, params string[] args)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = cwd, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };

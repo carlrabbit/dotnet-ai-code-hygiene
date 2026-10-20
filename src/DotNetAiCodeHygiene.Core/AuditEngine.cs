@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace DotNetAiCodeHygiene.Core;
 
-public sealed record AuditRuleFact(string Id, int Version, bool Enabled, string Participation, string CheckUnit, int ApplicableChecks, int Eligible, int Acceptable, int Problem, int Uncertain, int Unassessed, int DeterministicFindings);
+public sealed record AuditRuleFact(string Id, int Version, bool Enabled, string Participation, string EvaluationKind, string CheckUnit, int? MeasuredEvaluations, int? ApproximateApplicableCount, int? Eligible, int? Acceptable, int? Problem, int? Uncertain, int? Unassessed, int? DeterministicFindings);
 public sealed record AuditJudgmentInput(string ObligationId, string Outcome, string? Rationale = null);
 public sealed record AuditJudgmentFile(string AuditId, IReadOnlyList<AuditJudgmentInput> Judgments);
 public sealed record AuditNextWork(string AuditId, bool Complete, int Remaining, IReadOnlyList<AuditWorkItem> Items);
@@ -15,10 +15,10 @@ public sealed record AuditSemanticObligation(string ObligationId, string RuleId,
 public sealed record AuditFinding(string RuleId, int RuleVersion, Finding Finding, bool WasIgnored);
 public sealed record AuditRewriteProposal(string Command, IReadOnlyList<string> RuleIds, IReadOnlyList<string> ChangedPaths, int TargetCount, int UnchangedCount);
 
-internal sealed record AuditManifest(int SchemaVersion, string AuditId, string Status, DateTimeOffset StartedAt, string SourceHead, string SourceDirtyState, string ToolVersion, string Authorization, string InventorySha256);
+internal sealed record AuditManifest(int SchemaVersion, string AuditId, string Status, DateTimeOffset StartedAt, string SourceRoot, string SourceHead, string SourceDirtyState, string ToolVersion, string Authorization, string InventorySha256);
 internal sealed record AuditSource(string Path, string Content);
 internal sealed record AuditSourceExclusions(int GeneratedFiles, int UnsupportedOrUnprojectedFiles);
-internal sealed record AuditInventory(int SchemaVersion, string AuditId, IReadOnlyList<AuditRuleFact> Rules, IReadOnlyList<AuditSemanticObligation> Obligations, IReadOnlyList<AuditFinding> Findings, IReadOnlyList<AuditRewriteProposal> RewriteProposals, IReadOnlyList<AuditSource> Sources, AuditSourceExclusions SourceExclusions, string SnapshotLimitation);
+internal sealed record AuditInventory(int SchemaVersion, string AuditId, string SourceRoot, IReadOnlyList<AuditRuleFact> Rules, IReadOnlyList<AuditSemanticObligation> Obligations, IReadOnlyList<AuditFinding> Findings, IReadOnlyList<AuditRewriteProposal> RewriteProposals, IReadOnlyList<AuditSource> Sources, AuditSourceExclusions SourceExclusions, string SnapshotLimitation);
 internal sealed record StoredAuditJudgment(string ObligationId, string RuleId, string Outcome, string? Rationale, DateTimeOffset RecordedAt);
 internal sealed record AuditJudgmentBatch(int SchemaVersion, string AuditId, IReadOnlyList<StoredAuditJudgment> Judgments);
 
@@ -59,13 +59,14 @@ public sealed class ReadOnlyAuditEngine
         (IReadOnlyList<AuditRuleFact> ruleFacts, IReadOnlyList<AuditSemanticObligation> obligations, IReadOnlyList<AuditFinding> findings, IReadOnlyList<AuditSource> sources) = BuildInventory(auditId, check, sourceDocuments, projects);
         AuditRewriteProposal[] rewriteProposals = [ObserveRewrite("format"), ObserveRewrite("normalize")];
         AuditSourceExclusions exclusions = MeasureSourceExclusions(sourceDocuments);
-        var inventory = new AuditInventory(1, auditId, ruleFacts, obligations, findings, rewriteProposals, sources, exclusions,
+        string sourceRoot = CanonicalRoot(root);
+        var inventory = new AuditInventory(2, auditId, sourceRoot, ruleFacts, obligations, findings, rewriteProposals, sources, exclusions,
             "The audit captures one finite observed inventory. Source changes during collection are not tracked; findings may span a mixed time interval and no atomic repository snapshot is claimed.");
         string inventoryJson = JsonSerializer.Serialize(inventory, Json);
         string inventoryHash = Hash(inventoryJson);
         var informationalVersion = typeof(ReadOnlyAuditEngine).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().Select(attribute => attribute.InformationalVersion.Split('+')[0]).FirstOrDefault();
-        var manifest = new AuditManifest(1, auditId, "collecting", startedAt, head, dirtyState, toolVersion ?? informationalVersion ?? typeof(ReadOnlyAuditEngine).Assembly.GetName().Version?.ToString() ?? "unknown", "affirmative caller assertion: --attest-explicit-task (identity is not authenticated)", inventoryHash);
+        var manifest = new AuditManifest(2, auditId, "collecting", startedAt, sourceRoot, head, dirtyState, toolVersion ?? informationalVersion ?? typeof(ReadOnlyAuditEngine).Assembly.GetName().Version?.ToString() ?? "unknown", "affirmative caller assertion: --attest-explicit-task (identity is not authenticated)", inventoryHash);
         if (Directory.Exists(destination) || File.Exists(destination))
         {
             throw new ProductException($"Audit destination already exists: {destination}");
@@ -178,23 +179,32 @@ public sealed class ReadOnlyAuditEngine
         {
             StoredAuditJudgment[] forRule = inventory.Obligations.Where(x => x.RuleId == rule.Id).Select(x => judgments.GetValueOrDefault(x.ObligationId)).Where(x => x is not null).Cast<StoredAuditJudgment>().ToArray();
             int eligible = inventory.Obligations.Count(x => x.RuleId == rule.Id);
-            bool semantic = rule.CheckUnit == "semantic rule/subject obligations";
-            return rule with { ApplicableChecks = semantic ? eligible : rule.ApplicableChecks, Eligible = eligible, Acceptable = forRule.Count(x => x.Outcome == "acceptable"), Problem = forRule.Count(x => x.Outcome == "problem"), Uncertain = forRule.Count(x => x.Outcome == "uncertain"), Unassessed = eligible - forRule.Length };
+            if (!rule.Enabled)
+            {
+                return rule;
+            }
+
+            if (rule.EvaluationKind == "semantic-assessment")
+            {
+                return rule with { MeasuredEvaluations = eligible, Eligible = eligible, Acceptable = forRule.Count(x => x.Outcome == "acceptable"), Problem = forRule.Count(x => x.Outcome == "problem"), Uncertain = forRule.Count(x => x.Outcome == "uncertain"), Unassessed = eligible - forRule.Length };
+            }
+
+            return rule;
         }).ToArray();
-        int unassessed = rules.Sum(x => x.Unassessed);
+        int unassessed = rules.Sum(x => x.Unassessed ?? 0);
         string status = unassessed == 0 ? "report-complete" : "incomplete";
         var report = new
         {
-            schemaVersion = 1,
+            schemaVersion = 2,
             auditId = manifest.AuditId,
             status,
             startedAt = manifest.StartedAt,
             finishedAt = DateTimeOffset.UtcNow,
-            source = new { root, head = manifest.SourceHead, dirtyAtStart = manifest.SourceDirtyState, snapshotLimitation = inventory.SnapshotLimitation },
+            source = new { root = manifest.SourceRoot, head = manifest.SourceHead, dirtyAtStart = manifest.SourceDirtyState, snapshotLimitation = inventory.SnapshotLimitation },
             sourceExclusions = inventory.SourceExclusions,
             tool = manifest.ToolVersion,
             authorization = manifest.Authorization,
-            coverage = new { eligible = inventory.Obligations.Count, assessed = judgments.Count, acceptable = judgments.Values.Count(x => x.Outcome == "acceptable"), problem = judgments.Values.Count(x => x.Outcome == "problem"), uncertain = judgments.Values.Count(x => x.Outcome == "uncertain"), unassessed },
+            coverage = new { eligible = inventory.Obligations.Count, assessed = judgments.Count, acceptable = judgments.Values.Count(x => x.Outcome == "acceptable"), problem = judgments.Values.Count(x => x.Outcome == "problem"), uncertain = judgments.Values.Count(x => x.Outcome == "uncertain"), unassessed, deterministicFindings = inventory.Findings.Count },
             rules,
             findings = inventory.Findings,
             rewriteProposals = inventory.RewriteProposals,
@@ -210,9 +220,7 @@ public sealed class ReadOnlyAuditEngine
     private (IReadOnlyList<AuditRuleFact>, IReadOnlyList<AuditSemanticObligation>, IReadOnlyList<AuditFinding>, IReadOnlyList<AuditSource>) BuildInventory(string auditId, CheckResult check, int sourceDocuments, int projects)
     {
         IReadOnlyList<(Rule Rule, bool Enabled)> states = hygiene.ListRules();
-        var facts = states.Select(state => new AuditRuleFact(state.Rule.Id, state.Rule.Version, state.Enabled, state.Enabled ? "enabled" : "disabled",
-            state.Rule.OutputKind == "review-batch" ? "semantic rule/subject obligations" : state.Rule.Id.StartsWith("profile.", StringComparison.Ordinal) ? "supported SDK project evaluations" : "supported source documents",
-            state.Rule.OutputKind == "review-batch" ? 0 : state.Rule.Id.StartsWith("profile.", StringComparison.Ordinal) ? projects : sourceDocuments, 0, 0, 0, 0, 0,
+        var facts = states.Select(state => CreateRuleFact(state.Rule, state.Enabled, sourceDocuments, projects,
             check.Findings.Count(x => x.RuleId == state.Rule.Id))).ToArray();
         var obligations = new List<AuditSemanticObligation>();
         var sources = new Dictionary<string, AuditSource>(StringComparer.Ordinal);
@@ -231,6 +239,21 @@ public sealed class ReadOnlyAuditEngine
         IgnoreDecision[] decisions = ReadIgnoreDecisions();
         var findings = check.Findings.Select(f => new AuditFinding(f.RuleId, f.RuleVersion, f, decisions.Any(d => Same(d, f)))).ToArray();
         return (facts, obligations, findings, sources.Values.OrderBy(x => x.Path, StringComparer.Ordinal).ToArray());
+    }
+
+    internal static AuditRuleFact CreateRuleFact(Rule rule, bool enabled, int supportedSourceDocuments, int projects, int deterministicFindings)
+    {
+        bool semantic = rule.OutputKind == "review-batch";
+        bool profile = rule.Id.StartsWith("profile.", StringComparison.Ordinal);
+        string unit = semantic ? "semantic rule/subject obligations" : profile ? "supported SDK projects" : "supported source documents";
+        string participation = !rule.Configurable ? "mandatory" : enabled ? "enabled" : "disabled";
+        return new AuditRuleFact(rule.Id, rule.Version, enabled, participation,
+            !enabled ? "disabled" : semantic ? "semantic-assessment" : "deterministic-evaluation", unit,
+            enabled && semantic ? 0 : null,
+            enabled && !semantic ? profile ? projects : supportedSourceDocuments : null,
+            enabled && semantic ? 0 : null, enabled && semantic ? 0 : null, enabled && semantic ? 0 : null,
+            enabled && semantic ? 0 : null, enabled && semantic ? 0 : null,
+            enabled && !semantic ? deterministicFindings : null);
     }
 
     private AuditRewriteProposal ObserveRewrite(string command)
@@ -277,10 +300,10 @@ public sealed class ReadOnlyAuditEngine
     private static string Markdown(string auditDirectory, AuditManifest manifest, AuditInventory inventory, IReadOnlyList<AuditRuleFact> rules, IReadOnlyDictionary<string, StoredAuditJudgment> judgments, string status, int unassessed)
     {
         var b = new StringBuilder();
-        b.AppendLine("# Read-only hygiene audit").AppendLine().AppendLine($"- Status: **{status}**").AppendLine($"- Audit: `{manifest.AuditId}`").AppendLine($"- Source HEAD: `{manifest.SourceHead}`").AppendLine($"- Source working tree at start: `{manifest.SourceDirtyState}`").AppendLine($"- Authorization: {manifest.Authorization}").AppendLine($"- Semantic obligations remaining: {unassessed}").AppendLine().AppendLine("## Rule coverage").AppendLine().AppendLine("| Rule | Participation | Check unit | Applicable checks | Eligible semantic subjects | Acceptable | Problem | Uncertain | Unassessed | Findings |").AppendLine("|---|---|---|---:|---:|---:|---:|---:|---:|---:|");
+        b.AppendLine("# Read-only hygiene audit").AppendLine().AppendLine($"- Status: **{status}**").AppendLine($"- Audit: `{manifest.AuditId}`").AppendLine($"- Source repository: `{manifest.SourceRoot}`").AppendLine($"- Source HEAD: `{manifest.SourceHead}`").AppendLine($"- Source working tree at start: `{manifest.SourceDirtyState}`").AppendLine($"- Authorization: {manifest.Authorization}").AppendLine($"- Semantic obligations remaining: {unassessed}").AppendLine().AppendLine("## Rule coverage").AppendLine().AppendLine("Deterministic applicability counts are approximate population sizes; they are not measured rule invocation or subject-evaluation totals. Semantic evaluation counts are exact rule/subject obligations.").AppendLine().AppendLine("| Rule | Participation | Evaluation | Check unit | Measured evaluations | Approximate applicable count | Eligible semantic obligations | Acceptable | Problem | Uncertain | Unassessed | Deterministic findings |").AppendLine("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|");
         foreach (AuditRuleFact rule in rules)
         {
-            b.AppendLine($"| `{rule.Id}` v{rule.Version} | {rule.Participation} | {rule.CheckUnit} | {rule.ApplicableChecks} | {rule.Eligible} | {rule.Acceptable} | {rule.Problem} | {rule.Uncertain} | {rule.Unassessed} | {rule.DeterministicFindings} |");
+            b.AppendLine($"| `{rule.Id}` v{rule.Version} | {rule.Participation} | {rule.EvaluationKind} | {rule.CheckUnit} | {Format(rule.MeasuredEvaluations)} | {Format(rule.ApproximateApplicableCount)} | {Format(rule.Eligible)} | {Format(rule.Acceptable)} | {Format(rule.Problem)} | {Format(rule.Uncertain)} | {Format(rule.Unassessed)} | {Format(rule.DeterministicFindings)} |");
         }
 
         b.AppendLine().AppendLine("## Deterministic findings").AppendLine();
@@ -325,7 +348,7 @@ public sealed class ReadOnlyAuditEngine
         AuditManifest manifest = Read<AuditManifest>(Path.Combine(path, "manifest.json"));
         AuditInventory inventory = Read<AuditInventory>(Path.Combine(path, "inventory.json"));
         string inventoryBytes = File.ReadAllText(Path.Combine(path, "inventory.json"));
-        if (manifest.SchemaVersion != 1 || inventory.SchemaVersion != 1 || manifest.AuditId != inventory.AuditId || Hash(inventoryBytes) != manifest.InventorySha256)
+        if (manifest.SchemaVersion != 2 || inventory.SchemaVersion != 2 || manifest.AuditId != inventory.AuditId || !IsCanonicalRoot(manifest.SourceRoot) || !IsCanonicalRoot(inventory.SourceRoot) || !PathEquals(manifest.SourceRoot, inventory.SourceRoot) || Hash(inventoryBytes) != manifest.InventorySha256)
         {
             throw new ProductException("Audit artifacts are inconsistent or corrupted; no report can be certified.");
         }
@@ -363,6 +386,25 @@ public sealed class ReadOnlyAuditEngine
 
         return (manifest, inventory, judgments);
     }
+
+    private static string Format(int? value) => value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+
+    private static string CanonicalRoot(string value)
+    {
+        string full = Path.GetFullPath(value);
+        string rootPath = Path.GetPathRoot(full) ?? string.Empty;
+        return full.Length > rootPath.Length ? full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) : full;
+    }
+
+    private static bool IsCanonicalRoot(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value)) { return false; }
+        try { return string.Equals(value, CanonicalRoot(value), PathComparison); }
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException or PathTooLongException) { return false; }
+    }
+
+    private static bool PathEquals(string left, string right) => string.Equals(left, right, PathComparison);
+    private static StringComparison PathComparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     private static T Read<T>(string path)
     {

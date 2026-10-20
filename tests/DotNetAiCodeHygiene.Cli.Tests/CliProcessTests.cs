@@ -871,7 +871,7 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(sourcePath, "/// <summary>Returns a stable value for callers.</summary>\n// Explain the public value contract.\npublic class Fixture { public int ReadValue() => 1; }\n");
             Directory.CreateDirectory(Path.Combine(repo, ".hygiene"));
             await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "profile.json"), "{\"schemaVersion\":1,\"profile\":\"dotnet-11\",\"version\":2}");
-            await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "config.json"), "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.language.german.review\"]}");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "config.json"), "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.language.german.review\",\"docs.text.sentence\"]}");
             await PrepareAcceptedBaselineAsync(repo);
             await File.AppendAllTextAsync(sourcePath, "\npublic sealed class UndocumentedApi{public int Value=>3;}\n");
             await CommitAllAsync(repo, "accepted audit fixture baseline");
@@ -977,6 +977,7 @@ public sealed class CliProcessTests
             using JsonDocument finishJson = JsonDocument.Parse(finish.StandardOutput);
             await Assert.That(finishJson.RootElement.GetProperty("status").GetString()).IsEqualTo("report-complete");
             using JsonDocument reportJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "report.json")));
+            await Assert.That(reportJson.RootElement.GetProperty("schemaVersion").GetInt32()).IsEqualTo(2);
             JsonElement coverage = reportJson.RootElement.GetProperty("coverage");
             await Assert.That(coverage.GetProperty("eligible").GetInt32()).IsEqualTo(coverage.GetProperty("assessed").GetInt32());
             await Assert.That(coverage.GetProperty("problem").GetInt32() + coverage.GetProperty("uncertain").GetInt32()).IsGreaterThan(0);
@@ -985,13 +986,36 @@ public sealed class CliProcessTests
             await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Single(proposal => proposal.GetProperty("command").GetString() == "format").GetProperty("changedPaths").EnumerateArray().Any(path => path.GetString() == "src/Fixture.cs")).IsTrue();
             await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Any(proposal => proposal.GetProperty("command").GetString() == "normalize")).IsTrue();
             JsonElement reportRules = reportJson.RootElement.GetProperty("rules");
-            await Assert.That(reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.summary.language.german.review").GetProperty("enabled").GetBoolean()).IsFalse();
-            await Assert.That(reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "tests.quality.review").GetProperty("eligible").GetInt32()).IsEqualTo(0);
-            foreach (JsonElement ruleFact in reportRules.EnumerateArray().Where(rule => rule.GetProperty("checkUnit").GetString() == "semantic rule/subject obligations"))
+            int ruleFindingTotal = reportRules.EnumerateArray().Where(rule => rule.GetProperty("evaluationKind").GetString() == "deterministic-evaluation").Sum(rule => rule.GetProperty("deterministicFindings").GetInt32());
+            await Assert.That(ruleFindingTotal).IsEqualTo(coverage.GetProperty("deterministicFindings").GetInt32());
+            JsonElement disabled = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.summary.language.german.review");
+            await Assert.That(disabled.GetProperty("enabled").GetBoolean()).IsFalse();
+            await Assert.That(disabled.GetProperty("evaluationKind").GetString()).IsEqualTo("disabled");
+            await Assert.That(disabled.GetProperty("approximateApplicableCount").ValueKind).IsEqualTo(JsonValueKind.Null);
+            JsonElement disabledDeterministic = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.text.sentence");
+            await Assert.That(disabledDeterministic.GetProperty("enabled").GetBoolean()).IsFalse();
+            await Assert.That(disabledDeterministic.GetProperty("evaluationKind").GetString()).IsEqualTo("disabled");
+            await Assert.That(disabledDeterministic.GetProperty("deterministicFindings").ValueKind).IsEqualTo(JsonValueKind.Null);
+            await Assert.That(disabledDeterministic.GetProperty("approximateApplicableCount").ValueKind).IsEqualTo(JsonValueKind.Null);
+            JsonElement zeroSemantic = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "tests.quality.review");
+            await Assert.That(zeroSemantic.GetProperty("eligible").GetInt32()).IsEqualTo(0);
+            await Assert.That(zeroSemantic.GetProperty("measuredEvaluations").GetInt32()).IsEqualTo(0);
+            JsonElement mandatory = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "profile.dotnet.analysis.required");
+            await Assert.That(mandatory.GetProperty("participation").GetString()).IsEqualTo("mandatory");
+            JsonElement deterministicFindingRule = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.summary.required");
+            await Assert.That(deterministicFindingRule.GetProperty("deterministicFindings").GetInt32()).IsGreaterThan(0);
+            await Assert.That(deterministicFindingRule.GetProperty("eligible").ValueKind).IsEqualTo(JsonValueKind.Null);
+            await Assert.That(deterministicFindingRule.GetProperty("measuredEvaluations").ValueKind).IsEqualTo(JsonValueKind.Null);
+            await Assert.That(deterministicFindingRule.GetProperty("approximateApplicableCount").GetInt32()).IsGreaterThan(0);
+            JsonElement deterministicNoFindings = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.xml.consistent");
+            await Assert.That(deterministicNoFindings.GetProperty("deterministicFindings").GetInt32()).IsEqualTo(0);
+            await Assert.That(deterministicNoFindings.GetProperty("evaluationKind").GetString()).IsEqualTo("deterministic-evaluation");
+            foreach (JsonElement ruleFact in reportRules.EnumerateArray().Where(rule => rule.GetProperty("evaluationKind").GetString() == "semantic-assessment"))
             {
                 int outcomeCount = ruleFact.GetProperty("acceptable").GetInt32() + ruleFact.GetProperty("problem").GetInt32() + ruleFact.GetProperty("uncertain").GetInt32() + ruleFact.GetProperty("unassessed").GetInt32();
                 await Assert.That(ruleFact.GetProperty("eligible").GetInt32()).IsEqualTo(outcomeCount);
             }
+            await Assert.That(await File.ReadAllTextAsync(Path.Combine(report, "report.md"))).Contains("approximate population sizes");
             await Assert.That(await File.ReadAllTextAsync(Path.Combine(report, "report.md"))).Contains("Limitations");
             string firstStoredBatch = Directory.GetFiles(Path.Combine(report, "judgments"), "*.json").Order(StringComparer.Ordinal).First();
             using (JsonDocument storedBatch = JsonDocument.Parse(await File.ReadAllTextAsync(firstStoredBatch)))
@@ -1042,6 +1066,89 @@ public sealed class CliProcessTests
             await Assert.That(Directory.Exists(Path.Combine(repo, ".hygiene"))).IsFalse();
         }
         finally { DeleteTree(repo); DeleteTree(report); }
+    }
+
+    [Test]
+    public async Task ExhaustiveAuditResumeUsesRecordedRepositoryIdentityAcrossRepositories()
+    {
+        string repoA = Path.Combine(Path.GetTempPath(), "hygiene-yolo-source-" + Guid.NewGuid().ToString("N"));
+        string repoB = Path.Combine(Path.GetTempPath(), "hygiene-yolo-resume-" + Guid.NewGuid().ToString("N"));
+        string report = Path.Combine(Path.GetTempPath(), "hygiene-yolo-cross-repo-report-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repoA, "src"));
+        Directory.CreateDirectory(repoB);
+        try
+        {
+            await InitGitAsync(repoA, "main");
+            await File.WriteAllTextAsync(Path.Combine(repoA, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repoA, "src", "Fixture.cs"), "/// <summary>Provides a stable caller-facing fixture.</summary>\npublic sealed class Fixture { public int Value => 1; }\n");
+            Directory.CreateDirectory(Path.Combine(repoA, ".hygiene"));
+            await File.WriteAllTextAsync(Path.Combine(repoA, ".hygiene", "profile.json"), "{\"schemaVersion\":1,\"profile\":\"dotnet-11\",\"version\":2}");
+            await File.WriteAllTextAsync(Path.Combine(repoA, ".hygiene", "config.json"), "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.language.german.review\"]}");
+            await PrepareAcceptedBaselineAsync(repoA);
+            await CommitAllAsync(repoA, "cross repository audit fixture");
+            await InitGitAsync(repoB, "main");
+
+            ProcessResult start = await RunCliInAsync(repoA, "--yolo-all", "--attest-explicit-task", "--report-dir", report, "--output", "json");
+            await Assert.That(start.ExitCode).IsEqualTo(0);
+            using (JsonDocument manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "manifest.json"))))
+            {
+                await Assert.That(manifest.RootElement.GetProperty("sourceRoot").GetString()).IsEqualTo(Path.GetFullPath(repoA).TrimEnd(Path.DirectorySeparatorChar));
+            }
+            using (JsonDocument inventory = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "inventory.json"))))
+            {
+                await Assert.That(inventory.RootElement.GetProperty("sourceRoot").GetString()).IsEqualTo(Path.GetFullPath(repoA).TrimEnd(Path.DirectorySeparatorChar));
+                await Assert.That(inventory.RootElement.GetProperty("sources").EnumerateArray().All(source => source.GetProperty("path").GetString() == "src/Fixture.cs")).IsTrue();
+            }
+
+            ProcessResult next = await RunCliInAsync(repoB, "audit", "next", "--run", report);
+            await Assert.That(next.ExitCode).IsEqualTo(0);
+            using JsonDocument nextJson = JsonDocument.Parse(next.StandardOutput);
+            JsonElement item = nextJson.RootElement.GetProperty("items")[0];
+            await Assert.That(item.GetProperty("sourcePath").GetString()).IsEqualTo("src/Fixture.cs");
+            string judgmentPath = Path.Combine(repoB, "judgments.json");
+            await File.WriteAllTextAsync(judgmentPath, JsonSerializer.Serialize(new { auditId = nextJson.RootElement.GetProperty("auditId").GetString(), judgments = new[] { new { obligationId = item.GetProperty("obligationId").GetString(), outcome = "acceptable", rationale = (string?)null } } }));
+            ProcessResult record = await RunCliInAsync(repoB, "audit", "record", "--run", report, "--file", judgmentPath);
+            await Assert.That(record.ExitCode).IsEqualTo(0);
+            ProcessResult finish = await RunCliInAsync(repoB, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(finish.ExitCode).IsEqualTo(5);
+            using (JsonDocument reportJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(report, "report.json"))))
+            {
+                await Assert.That(reportJson.RootElement.GetProperty("source").GetProperty("root").GetString()).IsEqualTo(Path.GetFullPath(repoA).TrimEnd(Path.DirectorySeparatorChar));
+                await Assert.That(reportJson.RootElement.GetProperty("source").GetProperty("root").GetString()).IsNotEqualTo(Path.GetFullPath(repoB).TrimEnd(Path.DirectorySeparatorChar));
+                JsonElement deterministic = reportJson.RootElement.GetProperty("rules").EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "docs.xml.consistent");
+                await Assert.That(deterministic.GetProperty("evaluationKind").GetString()).IsEqualTo("deterministic-evaluation");
+                await Assert.That(deterministic.GetProperty("deterministicFindings").GetInt32()).IsEqualTo(0);
+                await Assert.That(deterministic.GetProperty("approximateApplicableCount").GetInt32()).IsEqualTo(1);
+            }
+            string markdown = await File.ReadAllTextAsync(Path.Combine(report, "report.md"));
+            await Assert.That(markdown).Contains($"Source repository: `{Path.GetFullPath(repoA).TrimEnd(Path.DirectorySeparatorChar)}`");
+            await Assert.That(markdown).DoesNotContain(Path.GetFullPath(repoB).TrimEnd(Path.DirectorySeparatorChar));
+
+            string manifestPath = Path.Combine(report, "manifest.json");
+            string validManifest = await File.ReadAllTextAsync(manifestPath);
+            Dictionary<string, object?> malformedRoot = JsonSerializer.Deserialize<Dictionary<string, object?>>(validManifest)!;
+            malformedRoot["sourceRoot"] = "relative/repository";
+            await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(malformedRoot));
+            ProcessResult malformedIdentity = await RunCliInAsync(repoB, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(malformedIdentity.ExitCode).IsEqualTo(3);
+            Dictionary<string, object?> incompatibleRoot = JsonSerializer.Deserialize<Dictionary<string, object?>>(validManifest)!;
+            incompatibleRoot["sourceRoot"] = Path.GetFullPath(repoB).TrimEnd(Path.DirectorySeparatorChar);
+            await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(incompatibleRoot));
+            ProcessResult incompatibleIdentity = await RunCliInAsync(repoB, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(incompatibleIdentity.ExitCode).IsEqualTo(3);
+            await File.WriteAllTextAsync(manifestPath, validManifest);
+            Dictionary<string, object?> missingRoot = JsonSerializer.Deserialize<Dictionary<string, object?>>(validManifest)!;
+            missingRoot.Remove("sourceRoot");
+            await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(missingRoot));
+            ProcessResult missingIdentity = await RunCliInAsync(repoB, "audit", "finish", "--run", report, "--output", "json");
+            await Assert.That(missingIdentity.ExitCode).IsEqualTo(3);
+        }
+        finally
+        {
+            DeleteTree(repoA);
+            DeleteTree(repoB);
+            DeleteTree(report);
+        }
     }
 
     private static async Task<ProcessResult> RunCliAsync(params string[] arguments)
