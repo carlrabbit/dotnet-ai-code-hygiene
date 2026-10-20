@@ -60,7 +60,10 @@ The autonomous bootstrap approval snapshot covers relevant source and configurat
 M0004 intentionally limits normalization to Roslyn-backed simplification where semantic services establish equivalence:
 
 1. `style.qualification.this.unnecessary` removes only explicit `this.` qualification proven redundant by Roslyn;
-2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence.
+2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence;
+3. `style.object-creation.target-typed` converts `new T(...)` only for local, field, or property initializers whose explicit declared type is exactly the Roslyn-bound creation type. It requires effective C# 9 or later and leaves return expressions, inferred declarations, and commented/directive-bearing type syntax unchanged.
+
+The target-typed creation rule is an explicit readability-oriented exception to judgmental modernization: it applies only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 
 These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 

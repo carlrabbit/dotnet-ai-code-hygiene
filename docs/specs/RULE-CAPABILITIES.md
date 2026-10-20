@@ -276,13 +276,27 @@ naming changes
 
 It emits no normal `check` finding in M0010.
 
+### `style.object-creation.target-typed` v1
+
+Purpose: use target-typed object creation only when the same explicit type is immediately visible on a local, field, or property initializer.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule requires C# 9 or later in the loaded project's effective parse options and verifies that Roslyn binds the explicit creation to the declared target type. Contextual expressions such as returns, `var` declarations, comments or directives embedded in the removed type syntax, and unsupported language versions are left unchanged. Compiler validation of the full rewrite plan remains required before commit.
+
+It emits no normal `check` finding.
+
 ## Default compatibility target
 
 With all new M0010 configurable rules enabled:
 
 - generated braces/accessibility EditorConfig policy is effectively equivalent to profile v1;
 - `hygiene format` retains the existing Roslyn formatter behavior;
-- `hygiene normalize` retains the existing supported simplification + formatting behavior, now attributed to explicit rules;
+- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation and enabled required-braces remediation added by M0023;
 - existing documentation/readability/review rules retain their diagnostic contracts and versions.
 
 A deliberate disable changes only the disabled rule's owned capabilities.
@@ -297,17 +311,18 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 5.  format.csharp.roslyn                      v1
 6.  style.qualification.this.unnecessary      v1
 7.  style.qualification.redundant              v1
-8.  docs.summary.required                     v2
-9.  docs.xml.consistent                       v1
-10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v6
-12. docs.summary.language.german.review       v4
-13. readability.long-line.review              v1
-14. readability.control-flow.visual-block     v2
-15. architecture.boringness.review            v3
-16. readability.type-responsibility.review    v1
-17. tests.quality.review                      v1
-18. comments.intent.review                    v1
+8.  style.object-creation.target-typed         v1
+9.  docs.summary.required                     v2
+10. docs.xml.consistent                       v1
+11. docs.text.sentence                        v1
+12. docs.summary.quality.review               v6
+13. docs.summary.language.german.review       v4
+14. readability.long-line.review              v1
+15. readability.control-flow.visual-block     v2
+16. architecture.boringness.review            v3
+17. readability.type-responsibility.review    v1
+18. tests.quality.review                      v1
+19. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.

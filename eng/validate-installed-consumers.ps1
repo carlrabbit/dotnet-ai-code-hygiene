@@ -362,7 +362,7 @@ try {
     dotnet hygiene --version
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene --version failed.' }
     $version = dotnet hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($version -join '') -notmatch '0\.10\.0') { throw 'Installed hygiene version does not match 0.11.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($version -join '').Trim() -ne '0.11.0') { throw 'Installed hygiene version does not match 0.11.0.' }
     dotnet hygiene help --agent | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed hygiene help --agent failed.' }
     $bootstrap = dotnet hygiene bootstrap --output json | ConvertFrom-Json
@@ -418,7 +418,11 @@ try {
     if ($LASTEXITCODE -ne 0 -or $updateAgain.findingCount -ne 0 -or $updateAgain.changedPaths.Count -ne 0) { throw 'Installed update was not idempotent after migration.' }
     $rules = dotnet hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
-    if ($rules.rules.Count -ne 18 -or -not (($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format)) { throw 'Installed rule capabilities are incomplete.' }
+    $capabilitiesValid = $rules.rules.Count -eq 19 `
+        -and ($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format `
+        -and ($rules.rules | Where-Object id -eq 'style.braces.required').capabilities.normalize `
+        -and ($rules.rules | Where-Object id -eq 'style.object-creation.target-typed').capabilities.normalize
+    if (-not $capabilitiesValid) { throw 'Installed rule capabilities are incomplete.' }
     if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
     if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }
     $newRuleIds = @('readability.type-responsibility.review', 'tests.quality.review', 'comments.intent.review')

@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(18);
+        await Assert.That(ids.Length).IsEqualTo(19);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -154,6 +154,33 @@ public sealed class M0010CapabilityTests
             await Assert.That(normalize.ChangedCount).IsEqualTo(0);
             await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
             await Assert.That(engine.Rewrite("format", [], false, true).ChangedCount).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task RequiredBracesRuleAddsBlocksOnlyWhenEnabledAndIsIdempotent()
+    {
+        const string initial = "public class App{public void Run(){if(true)System.Console.WriteLine(1);}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-required-braces", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            hygiene.SetRule("style.braces.required", false);
+            var rewrite = new RewriteEngine(repo);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.braces.required", true);
+            RewriteResult plan = rewrite.Rewrite("normalize", [], false, checkOnly: true);
+            await Assert.That(plan.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("if (true)");
+            await Assert.That(normalized).Contains("if (true) {");
+            await Assert.That(normalized).Contains("WriteLine(1); }");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: false).ChangedCount).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
     }
