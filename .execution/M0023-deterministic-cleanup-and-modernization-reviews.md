@@ -94,4 +94,3 @@ WP-3: implement the analyzer-backed modernization populations and review transpo
 - AC-16 and VAL-06 remain pending an authorized independent human decision. `.review/REV-M0023-COMPLETION.md` is a pending request, not approval.
 
 **Outcome: blocked / incomplete implementation; human review pending.** PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/25 (open draft). No milestone completion is claimed. The nine modernization families, shared max-five budget, occurrence-level decision workflow, and related audit behavior remain unimplemented.
-

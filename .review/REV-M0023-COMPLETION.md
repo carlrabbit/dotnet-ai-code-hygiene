@@ -47,4 +47,3 @@ These results do not establish full M0023 acceptance.
 - Reviewer: authorized project owner/delegate (not yet recorded)
 - Date: —
 - Findings / required follow-up: —
-
