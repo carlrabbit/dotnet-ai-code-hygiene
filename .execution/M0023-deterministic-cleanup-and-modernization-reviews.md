@@ -82,7 +82,7 @@ WP-3: implement the analyzer-backed modernization populations and review transpo
 - `./eng/validate.ps1 -Shard readme-policy`: current receipt reused successfully. `-Shard pack-current`: passed for `DotNetAiCodeHygiene.Tool.0.11.0`, SHA-256 `D73EAC6654168068F781EAA9A8EC6EE5CFB9CE388EAEFAD09223861F94C0D724`.
 - `-Shard self-host` passed before the final Core edit; its receipt is not current against the latest solution receipt.
 - The installed-consumer validator's exact version and catalogue-count pins were stale and were corrected. The latest consumer run reached the autonomous fixture, then failed because the pending baseline snapshot was stale before fixture approval. No VAL-04 or EC-15a receipt exists.
-- `./eng/validate.ps1 -Verify` reports the missing current `installed-consumers` receipt. `git diff --check` passed before final documentation/ledger edits and must be rerun.
+- `./eng/validate.ps1 -Verify` reports stale/missing `core-tests`, `cli-tests`, `pack-current`, `installed-consumers`, and `self-host` receipts after the final source/documentation edits. `git diff --check` passed before final documentation/ledger edits and must be rerun.
 
 ## AC/EC reconciliation
 
@@ -93,4 +93,5 @@ WP-3: implement the analyzer-backed modernization populations and review transpo
 - AC-15, VAL-04, and EC-15a are blocked by the consumer fixture failure and missing receipt. VAL-05 is blocked because `-Verify` rejects that missing receipt.
 - AC-16 and VAL-06 remain pending an authorized independent human decision. `.review/REV-M0023-COMPLETION.md` is a pending request, not approval.
 
-**Outcome: blocked / incomplete implementation; human review pending.** No milestone completion is claimed. The nine modernization families, shared max-five budget, occurrence-level decision workflow, and related audit behavior remain unimplemented.
+**Outcome: blocked / incomplete implementation; human review pending.** PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/25 (open draft). No milestone completion is claimed. The nine modernization families, shared max-five budget, occurrence-level decision workflow, and related audit behavior remain unimplemented.
+

@@ -10,7 +10,7 @@ Review the exact M0023 milestone and ledger, the branch diff, current validation
 
 ## Branch and implementation evidence
 
-- Branch: `codex/m0023-deterministic-cleanup`, based on fetched `origin/main` at `3cf38b8`.
+- Branch: `codex/m0023-deterministic-cleanup`, based on fetched `origin/main` at `3cf38b8`. Draft PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/25.
 - Added `style.braces.required` source normalization to the existing Roslyn rewrite runner; the rule remains its own diagnostic/EditorConfig owner and whole-rule toggle.
 - Added `style.object-creation.target-typed` for directly typed local, field, and property initializers. It skips unsupported language versions, `var`, method returns, and type syntax carrying comments/directives; complete project compilation is validated by the existing transactional engine.
 - Preserved the existing six semantic-review modules and their individual selection behavior; no modernization review module or shared modernization budget has been implemented.
@@ -28,7 +28,7 @@ Review the exact M0023 milestone and ledger, the branch diff, current validation
 - `./eng/validate.ps1 -Shard self-host`: passed before the last receipt-invalidating code edit; rerun required for a current receipt.
 - `git diff --check`: passed before the final ledger/review documentation edits.
 - `./eng/validate.ps1 -Shard installed-consumers`: no valid receipt. Earlier attempts exposed and corrected the validator's stale package version and rule-count pins; the latest run then failed because the autonomous fixture's pending baseline snapshot was stale before approval.
-- `./eng/validate.ps1 -Verify`: fails because `installed-consumers` has no current passing receipt.
+- `./eng/validate.ps1 -Verify`: reports stale/missing `core-tests`, `cli-tests`, `pack-current`, `installed-consumers`, and `self-host` receipts after the final source/documentation edits.
 
 These results do not establish full M0023 acceptance.
 
@@ -47,3 +47,4 @@ These results do not establish full M0023 acceptance.
 - Reviewer: authorized project owner/delegate (not yet recorded)
 - Date: —
 - Findings / required follow-up: —
+
