@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(24);
+        await Assert.That(ids.Length).IsEqualTo(27);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -375,6 +375,87 @@ public sealed class M0010CapabilityTests
             string alphabetical = await File.ReadAllTextAsync(source);
             await Assert.That(alphabetical.IndexOf("using Alpha;", StringComparison.Ordinal)
                 < alphabetical.IndexOf("using System.IO;", StringComparison.Ordinal)).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NullForgivingNormalizationRequiresNotNullFlowAndPreservesComments()
+    {
+        const string initial = "#nullable enable\nclass App { string Value = \"ready\"; string? Maybe; string Read() { if (Maybe is not null) { string? commented = Maybe /* keep */ !; return Maybe!; } return Value!; } }";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-null-forgiving", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.null-forgiving.redundant", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.null-forgiving.redundant");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.null-forgiving.redundant", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("return Maybe;");
+            await Assert.That(normalized).Contains("return Value;");
+            await Assert.That(normalized).Contains("Maybe /* keep */ !");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task BlankLineNormalizationTrimsOnlyFileEdgesAndExcessRunsOutsideCommentsAndLiterals()
+    {
+        const string initial = "\r\nclass App {\r\n\r\n\r\n\r\n    // section\r\n\r\n\r\n    string Value = \"\"\"\r\n    first\r\n\r\n    last\r\n    \"\"\";\r\n}\r\n\r\n\r\n";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-blank-lines", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.whitespace.blank-lines", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.whitespace.blank-lines");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.whitespace.blank-lines", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized.StartsWith("internal class App", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized.EndsWith("}\r\n", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized).Contains("first\r\n\r\n    last");
+            await Assert.That(normalized).Contains("    // section\r\n\r\n\r\n    private string Value");
+            await Assert.That(normalized).DoesNotContain("\r\n\r\n\r\n\r\n");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ParenthesesNormalizationRemovesOnlySimpleBoundIdenticalForms()
+    {
+        const string initial = "class App { int Value = 1; void Run() { int simple = (Value); int literal = (42); int grouped = (Value + 1); int commented = (/* keep */Value); } }";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-parentheses", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.parentheses.redundant", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.parentheses.redundant");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.parentheses.redundant", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("int simple = Value;");
+            await Assert.That(normalized).Contains("int literal = 42;");
+            await Assert.That(normalized).Contains("int grouped = (Value + 1);");
+            await Assert.That(normalized).Contains("(/* keep */Value)");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
     }

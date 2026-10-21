@@ -290,6 +290,48 @@ The rule requires C# 9 or later in the loaded project's effective parse options 
 
 It emits no normal `check` finding.
 
+### `style.whitespace.blank-lines` v1
+
+Purpose: remove file-edge blank lines and reduce runs of more than two ordinary blank lines to two.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Runs overlapping multiline string/interpolated-string tokens, comments, documentation trivia, directives, or disabled text are retained. Interior runs of one or two blank lines remain unchanged to preserve visual grouping. Existing line endings are retained, and the rule does not wrap or reindent code.
+
+It emits no normal `check` finding.
+
+### `style.null-forgiving.redundant` v1
+
+Purpose: remove a null-forgiving operator only when nullable flow analysis proves the operand was already not-null at that source position.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule uses the operand's Roslyn nullable flow state before the suppression operator. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained. It does not infer safety from the result type of the suppression expression.
+
+It emits no normal `check` finding.
+
+### `style.parentheses.redundant` v1
+
+Purpose: remove parentheses only around an uncomplicated primary expression when Roslyn confirms that the inner and outer expressions have identical type, converted type, and symbol binding.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule considers identifiers, literals, `this`, and `base`. Compound expressions remain grouped, and comments, directives, or disabled text inside or around a candidate are retained. It does not guess about precedence or change a semantic review decision.
+
+It emits no normal `check` finding.
+
 ### `style.usings.organize` v1
 
 Purpose: deterministically order adjacent plain namespace imports while retaining import semantics and trivia.
@@ -387,17 +429,20 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 11. style.interpolation.redundant              v1
 12. style.names.inferred                     v1
 13. style.usings.organize                     v1
-14. docs.summary.required                     v2
-15. docs.xml.consistent                       v1
-16. docs.text.sentence                        v1
-17. docs.summary.quality.review               v6
-18. docs.summary.language.german.review       v4
-19. readability.long-line.review              v1
-20. readability.control-flow.visual-block     v2
-21. architecture.boringness.review            v3
-22. readability.type-responsibility.review    v1
-23. tests.quality.review                      v1
-24. comments.intent.review                    v1
+14. style.null-forgiving.redundant            v1
+15. style.whitespace.blank-lines              v1
+16. style.parentheses.redundant               v1
+17. docs.summary.required                     v2
+18. docs.xml.consistent                       v1
+19. docs.text.sentence                        v1
+20. docs.summary.quality.review               v6
+21. docs.summary.language.german.review       v4
+22. readability.long-line.review              v1
+23. readability.control-flow.visual-block     v2
+24. architecture.boringness.review            v3
+25. readability.type-responsibility.review    v1
+26. tests.quality.review                      v1
+27. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.

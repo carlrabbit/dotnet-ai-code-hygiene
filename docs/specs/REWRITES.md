@@ -68,6 +68,9 @@ M0004 intentionally limits normalization to Roslyn-backed simplification where s
 7. `style.interpolation.redundant` replaces only constant interpolated strings with no interpolation holes, retaining the Roslyn constant value and skipping multiline, raw-string, and comment/directive-bearing expressions.
 8. `style.names.inferred` removes tuple/anonymous-object names only when a simple identifier expression infers the exact same ordinal name; mismatches and comment/directive-bearing names remain.
 9. `style.usings.organize` orders contiguous uncomplicated namespace imports by name and honors `dotnet_sort_system_directives_first` (default true). It leaves aliases, `static`/`global` imports, comments, directives, and conditional regions in place as group boundaries and never removes imports.
+10. `style.null-forgiving.redundant` removes `!` only when Roslyn's nullable flow state for the operand is already not-null. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained.
+11. `style.whitespace.blank-lines` trims file-edge blank lines and reduces runs of more than two ordinary blank lines to two. It skips runs touching multiline strings, comments, documentation trivia, directives, or disabled text, and preserves one- or two-line interior grouping.
+12. `style.parentheses.redundant` removes parentheses only around an identifier, literal, `this`, or `base` expression when Roslyn confirms identical type, converted type, and symbol binding. Compound grouping and comment/directive-bearing candidates remain unchanged.
 
 Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 
