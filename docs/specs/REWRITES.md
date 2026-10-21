@@ -71,6 +71,7 @@ M0004 intentionally limits normalization to Roslyn-backed simplification where s
 10. `style.null-forgiving.redundant` removes `!` only when Roslyn's nullable flow state for the operand is already not-null. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained.
 11. `style.whitespace.blank-lines` trims file-edge blank lines and reduces runs of more than two ordinary blank lines to two. It skips runs touching multiline strings, comments, documentation trivia, directives, or disabled text, and preserves one- or two-line interior grouping.
 12. `style.parentheses.redundant` removes parentheses only around an identifier, literal, `this`, or `base` expression when Roslyn confirms identical type, converted type, and symbol binding. Compound grouping and comment/directive-bearing candidates remain unchanged.
+13. `style.modifiers.organize` orders declaration modifiers by the effective `csharp_preferred_modifier_order` option (IDE0036), using Roslyn's conventional C# order when the option is absent. Modifier lists containing unsupported modifiers or comments/directives remain unchanged.
 
 Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 

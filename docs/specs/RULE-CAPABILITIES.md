@@ -346,6 +346,20 @@ Adjacent imports without aliases or static/global modifiers are sorted with ordi
 
 It emits no normal `check` finding.
 
+### `style.modifiers.organize` v1
+
+Purpose: order declaration modifiers by the effective `csharp_preferred_modifier_order` value used by Roslyn IDE0036.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+When the option is absent, the rule uses Roslyn's conventional C# modifier order. Declarations containing a modifier absent from the effective order, or comments, directives, or disabled text in modifier trivia, remain unchanged. The rewrite moves only modifier tokens; it does not change declarations or member order.
+
+It emits no normal `check` finding.
+
 ### `style.default.literal` v1
 
 Purpose: replace `default(T)` with `default` only for an explicitly typed local, field, or property initializer whose declared symbol type exactly matches the default expression type.
@@ -429,20 +443,21 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 11. style.interpolation.redundant              v1
 12. style.names.inferred                     v1
 13. style.usings.organize                     v1
-14. style.null-forgiving.redundant            v1
-15. style.whitespace.blank-lines              v1
-16. style.parentheses.redundant               v1
-17. docs.summary.required                     v2
-18. docs.xml.consistent                       v1
-19. docs.text.sentence                        v1
-20. docs.summary.quality.review               v6
-21. docs.summary.language.german.review       v4
-22. readability.long-line.review              v1
-23. readability.control-flow.visual-block     v2
-24. architecture.boringness.review            v3
-25. readability.type-responsibility.review    v1
-26. tests.quality.review                      v1
-27. comments.intent.review                    v1
+14. style.modifiers.organize                  v1
+15. style.null-forgiving.redundant            v1
+16. style.whitespace.blank-lines              v1
+17. style.parentheses.redundant               v1
+18. docs.summary.required                     v2
+19. docs.xml.consistent                       v1
+20. docs.text.sentence                        v1
+21. docs.summary.quality.review               v6
+22. docs.summary.language.german.review       v4
+23. readability.long-line.review              v1
+24. readability.control-flow.visual-block     v2
+25. architecture.boringness.review            v3
+26. readability.type-responsibility.review    v1
+27. tests.quality.review                      v1
+28. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.

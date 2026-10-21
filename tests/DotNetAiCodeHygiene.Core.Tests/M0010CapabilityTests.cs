@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(27);
+        await Assert.That(ids.Length).IsEqualTo(28);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -455,6 +455,32 @@ public sealed class M0010CapabilityTests
             await Assert.That(normalized).Contains("int literal = 42;");
             await Assert.That(normalized).Contains("int grouped = (Value + 1);");
             await Assert.That(normalized).Contains("(/* keep */Value)");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ModifierNormalizationUsesEffectiveOrderAndLeavesCommentBoundaries()
+    {
+        const string initial = "public static class App { public /* keep */ static int Value; }";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-modifier-order", initial);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", ".editorconfig"), "root = true\n[*.cs]\ncsharp_preferred_modifier_order = static,public,private,protected,internal\n");
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.modifiers.organize", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.modifiers.organize");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.modifiers.organize", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("static public class App");
+            await Assert.That(normalized).Contains("public /* keep */ static int Value");
             await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
