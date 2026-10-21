@@ -42,7 +42,7 @@ public sealed class M0010CapabilityTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, ".editorconfig"), "root = true\n[*.cs]\ncsharp_prefer_braces = true\ndotnet_diagnostic.IDE0011.severity = error\n# consumer-owned preexisting content\n");
             string source = Path.Combine(repo, "src", "App.cs");
-            string originalSource = "public class App{public string Read(){return this.Value;}public string Value=>System.String.Empty; }";
+            string originalSource = "/// <summary>Sample.</summary>\npublic class App{public string Read(){return this.Value;}public string Value=>System.String.Empty; }";
             await File.WriteAllTextAsync(source, originalSource);
             ProfileManager profiles = new(repo);
             _ = profiles.Bootstrap();

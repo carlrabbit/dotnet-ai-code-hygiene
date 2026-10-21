@@ -422,10 +422,10 @@ try {
         -and ($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format `
         -and ($rules.rules | Where-Object id -eq 'style.braces.required').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.accessibility.explicit').capabilities.normalize `
-        -and ($rules.rules | Where-Object id -eq 'style.object-creation.target-typed').capabilities.normalize
-        -and ($rules.rules | Where-Object id -eq 'style.default.literal').capabilities.normalize
-        -and ($rules.rules | Where-Object id -eq 'style.cast.redundant').capabilities.normalize
-        -and ($rules.rules | Where-Object id -eq 'style.interpolation.redundant').capabilities.normalize
+        -and ($rules.rules | Where-Object id -eq 'style.object-creation.target-typed').capabilities.normalize `
+        -and ($rules.rules | Where-Object id -eq 'style.default.literal').capabilities.normalize `
+        -and ($rules.rules | Where-Object id -eq 'style.cast.redundant').capabilities.normalize `
+        -and ($rules.rules | Where-Object id -eq 'style.interpolation.redundant').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.names.inferred').capabilities.normalize
     if (-not $capabilitiesValid) { throw 'Installed rule capabilities are incomplete.' }
     if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
