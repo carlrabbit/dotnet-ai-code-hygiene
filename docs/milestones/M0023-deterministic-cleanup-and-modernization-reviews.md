@@ -89,6 +89,17 @@ A modernization rule's occurrence population is derived from compiler-aware cand
 9. **Audit compatibility:** include modernization obligations in the exhaustive *read-only* path if enabled, without model invocation or auto-fix; use bounded transport for agent judgments while preserving exhaustive report accounting. If M0019 is not merged at implementation start, make compatibility changes against the then-current intended audit contract without silently assuming its CLI already exists.
 10. **Scope of optional diagnostics:** IDE0047 and IDE0080 must be validated for unambiguous benefit; do not add unsafe default fixes merely to fill the candidate list. Any unsupported candidate must remain explicitly documented with test evidence and pending escalation, not silently approximated.
 
+## Validation cadence and acceptance boundary
+
+M0023 distinguishes implementation feedback from final acceptance under `docs/ENGINEERING.md` and guide 0.9.3:
+
+- **During implementation:** use the cheapest reliable affected Core/CLI tests, build checks and targeted fixtures per work package. Run an expensive consumer or aggregate stage early only for a documented cross-boundary diagnostic need, not as routine progress verification.
+- **When implementation obligations are complete:** reconcile all AC/EC coverage and run/verify VAL-01–VAL-05 against the finished candidate. For the seven-stage aggregate, inspect `./eng/validate.ps1 -PlanJson`, execute missing or stale required stages, and finish with `./eng/validate.ps1 -Verify`. Current fingerprint-valid receipts may be reused; neither a cold full rerun nor reuse of stale evidence is required or allowed by default.
+- **After later changes:** invalidate and refresh only affected stage evidence according to `docs/ENGINEERING.md`; where dependency coverage is uncertain, rerun conservatively. Fresh installed-consumer evidence must exercise the current packaged M0023 behavior, including modernization reporting, not merely an earlier partial implementation.
+- **Report separately:** suite execution/receipt freshness, actual AC/EC behavioral coverage, and milestone completion/readiness. A green aggregate on an intermediate snapshot is diagnostic evidence and does not satisfy missing behavior or permit a completion claim.
+
+VAL-05 is a **closure gate**, not a request to perform complete release qualification after each work package. Its presence does not prohibit justified early diagnostic runs.
+
 ## Required Authority
 
 - `AGENTS.md`, `docs/ENGINEERING.md`, `docs/ARCHITECTURE.md`, `docs/specs/HYGIENE.md`
