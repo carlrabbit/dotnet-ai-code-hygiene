@@ -418,7 +418,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $updateAgain.findingCount -ne 0 -or $updateAgain.changedPaths.Count -ne 0) { throw 'Installed update was not idempotent after migration.' }
     $rules = dotnet hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
-    $capabilitiesValid = $rules.rules.Count -eq 23 `
+    $capabilitiesValid = $rules.rules.Count -eq 24 `
         -and ($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format `
         -and ($rules.rules | Where-Object id -eq 'style.braces.required').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.accessibility.explicit').capabilities.normalize `
@@ -426,7 +426,8 @@ try {
         -and ($rules.rules | Where-Object id -eq 'style.default.literal').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.cast.redundant').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.interpolation.redundant').capabilities.normalize `
-        -and ($rules.rules | Where-Object id -eq 'style.names.inferred').capabilities.normalize
+        -and ($rules.rules | Where-Object id -eq 'style.names.inferred').capabilities.normalize `
+        -and ($rules.rules | Where-Object id -eq 'style.usings.organize').capabilities.normalize
     if (-not $capabilitiesValid) { throw 'Installed rule capabilities are incomplete.' }
     if (-not ($rules.rules | Where-Object id -eq 'docs.summary.quality.review')) { throw 'Installed rule catalog omitted summary quality review.' }
     if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }

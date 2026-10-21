@@ -725,7 +725,7 @@ public sealed class CliProcessTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
         JsonElement rules = json.RootElement.GetProperty("rules");
-        await Assert.That(rules.GetArrayLength()).IsEqualTo(23);
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(24);
         await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(4).ToArray())
             .IsEquivalentTo(new[] { "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
         JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
@@ -821,7 +821,7 @@ public sealed class CliProcessTests
             await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
             using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
             string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
-            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("style.braces.required,style.accessibility.explicit,style.qualification.this.unnecessary,style.qualification.redundant,style.object-creation.target-typed,style.default.literal,style.cast.redundant,style.interpolation.redundant,style.names.inferred,format.csharp.roslyn");
+            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("style.braces.required,style.accessibility.explicit,style.qualification.this.unnecessary,style.qualification.redundant,style.object-creation.target-typed,style.default.literal,style.cast.redundant,style.interpolation.redundant,style.names.inferred,style.usings.organize,format.csharp.roslyn");
             await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
             await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
             ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");

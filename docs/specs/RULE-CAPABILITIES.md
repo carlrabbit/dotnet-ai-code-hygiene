@@ -290,6 +290,20 @@ The rule requires C# 9 or later in the loaded project's effective parse options 
 
 It emits no normal `check` finding.
 
+### `style.usings.organize` v1
+
+Purpose: deterministically order adjacent plain namespace imports while retaining import semantics and trivia.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Adjacent imports without aliases or static/global modifiers are sorted with ordinal-ignore-case and ordinal name order. The `dotnet_sort_system_directives_first` analyzer-config option controls whether `System` namespaces precede other imports (default: true). Alias, static, global, comment-bearing, and directive-bearing imports break a sortable group. Conditional regions and comments remain attached to their original directives. Imports are never removed by this rule.
+
+It emits no normal `check` finding.
+
 ### `style.default.literal` v1
 
 Purpose: replace `default(T)` with `default` only for an explicitly typed local, field, or property initializer whose declared symbol type exactly matches the default expression type.
@@ -352,7 +366,7 @@ With all new M0010 configurable rules enabled:
 
 - generated braces/accessibility EditorConfig policy is effectively equivalent to profile v1;
 - `hygiene format` retains the existing Roslyn formatter behavior;
-- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation and enabled required-braces remediation added by M0023;
+- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation, required-braces remediation, and safe using organization added by M0023;
 - existing documentation/readability/review rules retain their diagnostic contracts and versions.
 
 A deliberate disable changes only the disabled rule's owned capabilities.
@@ -372,17 +386,18 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 10. style.cast.redundant                      v1
 11. style.interpolation.redundant              v1
 12. style.names.inferred                     v1
-13. docs.summary.required                     v2
-14. docs.xml.consistent                       v1
-15. docs.text.sentence                        v1
-16. docs.summary.quality.review               v6
-17. docs.summary.language.german.review       v4
-18. readability.long-line.review              v1
-19. readability.control-flow.visual-block     v2
-20. architecture.boringness.review            v3
-21. readability.type-responsibility.review    v1
-22. tests.quality.review                      v1
-23. comments.intent.review                    v1
+13. style.usings.organize                     v1
+14. docs.summary.required                     v2
+15. docs.xml.consistent                       v1
+16. docs.text.sentence                        v1
+17. docs.summary.quality.review               v6
+18. docs.summary.language.german.review       v4
+19. readability.long-line.review              v1
+20. readability.control-flow.visual-block     v2
+21. architecture.boringness.review            v3
+22. readability.type-responsibility.review    v1
+23. tests.quality.review                      v1
+24. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.

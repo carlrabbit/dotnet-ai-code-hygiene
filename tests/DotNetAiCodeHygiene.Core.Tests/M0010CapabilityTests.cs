@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(23);
+        await Assert.That(ids.Length).IsEqualTo(24);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -331,6 +331,50 @@ public sealed class M0010CapabilityTests
             await Assert.That(normalized).Contains("var inferred = new { Name };");
             await Assert.That(normalized).Contains("var explicitName = new { Other = Name };");
             await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task UsingOrganizationSortsOnlySimpleContiguousImportsAndPreservesOtherForms()
+    {
+        const string initial = "using Alpha;\nusing System.Threading.Tasks;\nusing System.IO;\nusing System.Collections.Generic;\nusing static System.Math;\nusing System.Text;\nusing System.Linq;\nusing AliasIO = System.IO;\nusing System; // keep attached\n#if FEATURE\nusing Conditional.Z;\nusing Conditional.A;\n#endif\nclass App { }\nnamespace Alpha { public class Example { } }";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-organize-usings", initial);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repo, ".editorconfig"), "root = true\n[*.cs]\ndotnet_sort_system_directives_first = true\n");
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.usings.organize", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.usings.organize");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.usings.organize", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized.IndexOf("using System.Collections.Generic;", StringComparison.Ordinal)
+                < normalized.IndexOf("using System.IO;", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized.IndexOf("using System.IO;", StringComparison.Ordinal)
+                < normalized.IndexOf("using System.Threading.Tasks;", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized.IndexOf("using System.Threading.Tasks;", StringComparison.Ordinal)
+                < normalized.IndexOf("using Alpha;", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized.IndexOf("using System.Linq;", StringComparison.Ordinal)
+                < normalized.IndexOf("using System.Text;", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(normalized).Contains("using static System.Math;");
+            await Assert.That(normalized).Contains("using AliasIO = System.IO;");
+            await Assert.That(normalized).Contains("using System; // keep attached");
+            await Assert.That(normalized.IndexOf("using Conditional.Z;", StringComparison.Ordinal)
+                < normalized.IndexOf("using Conditional.A;", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+
+            await File.WriteAllTextAsync(Path.Combine(repo, ".editorconfig"), "root = true\n[*.cs]\ndotnet_sort_system_directives_first = false\n");
+            await File.WriteAllTextAsync(source, initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string alphabetical = await File.ReadAllTextAsync(source);
+            await Assert.That(alphabetical.IndexOf("using Alpha;", StringComparison.Ordinal)
+                < alphabetical.IndexOf("using System.IO;", StringComparison.Ordinal)).IsTrue();
         }
         finally { DeleteTree(repo); }
     }

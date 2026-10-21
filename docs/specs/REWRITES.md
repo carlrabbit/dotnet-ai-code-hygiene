@@ -67,12 +67,13 @@ M0004 intentionally limits normalization to Roslyn-backed simplification where s
 6. `style.cast.redundant` removes a cast only when Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type. Comment/directive-bearing candidates are retained, and Roslyn's simplifier owns any required parentheses.
 7. `style.interpolation.redundant` replaces only constant interpolated strings with no interpolation holes, retaining the Roslyn constant value and skipping multiline, raw-string, and comment/directive-bearing expressions.
 8. `style.names.inferred` removes tuple/anonymous-object names only when a simple identifier expression infers the exact same ordinal name; mismatches and comment/directive-bearing names remain.
+9. `style.usings.organize` orders contiguous uncomplicated namespace imports by name and honors `dotnet_sort_system_directives_first` (default true). It leaves aliases, `static`/`global` imports, comments, directives, and conditional regions in place as group boundaries and never removes imports.
 
 Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 
 These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 
-Do not introduce transformations for `var` policy, expression-bodied members, namespace style, collection expressions, target-typed `new`, modifier/member ordering, naming, or broad modernization.
+Do not introduce transformations for `var` policy, expression-bodied members, collection expressions, target-typed `new`, naming, or broad modernization. Modifier ordering is a separate M0023 requirement and remains outstanding.
 
 ## Relationship to check
 
