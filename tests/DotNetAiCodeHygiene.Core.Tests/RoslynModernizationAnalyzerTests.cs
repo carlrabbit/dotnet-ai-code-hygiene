@@ -148,4 +148,33 @@ public sealed class RoslynModernizationAnalyzerTests
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }
+
+    [Test]
+    public async Task CollectionExpressionCandidatesGroupByFileAndIncludeConcretePreviews()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-collection-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int[] Run() { int[] values = new int[] { 1, 2 }; return values; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ndotnet_style_prefer_collection_expression = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<CollectionExpressionFileGroup> groups = CollectionExpressionCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            CollectionExpressionFileGroup group = groups.Single();
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().OriginalSyntax).Contains("new int[]");
+            await Assert.That(group.Occurrences.Single().Context).Contains("int[] Run()");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("[1, 2]");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
 }
