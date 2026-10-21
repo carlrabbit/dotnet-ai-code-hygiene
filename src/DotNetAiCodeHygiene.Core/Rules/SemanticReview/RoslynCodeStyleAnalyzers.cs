@@ -12,9 +12,9 @@ namespace DotNetAiCodeHygiene.Core;
 internal static class RoslynCodeStyleAnalyzers
 {
     private const string AssemblyName = "Microsoft.CodeAnalysis.CSharp.CodeStyle.dll";
-    private const string FixAssemblyName = "Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes.dll";
+    private static readonly ImmutableHashSet<string> SupportedFixDiagnostics = ["IDE0005", "IDE0007", "IDE0008"];
     private static readonly Lazy<ImmutableArray<DiagnosticAnalyzer>> AllAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
-    private static readonly Lazy<CodeFixProvider> UnusedImportsFixProvider = new(LoadUnusedImportsFixProvider, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly Lazy<ImmutableDictionary<string, CodeFixProvider>> CodeFixProviders = new(LoadCodeFixProviders, LazyThreadSafetyMode.ExecutionAndPublication);
 
     internal static ImmutableArray<DiagnosticAnalyzer> ForDiagnostics(params string[] diagnosticIds)
     {
@@ -28,6 +28,12 @@ internal static class RoslynCodeStyleAnalyzers
         }
         return analyzers;
     }
+
+    internal static ImmutableArray<Diagnostic> Analyze(
+        Compilation compilation,
+        AnalyzerOptions analyzerOptions,
+        params string[] diagnosticIds) => compilation.WithAnalyzers(ForDiagnostics(diagnosticIds), analyzerOptions)
+            .GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
 
     private static ImmutableArray<DiagnosticAnalyzer> LoadAnalyzers()
     {
@@ -45,32 +51,51 @@ internal static class RoslynCodeStyleAnalyzers
         return analyzers;
     }
 
-    internal static async Task<Document> ApplyUnusedImportsFixAsync(Document document, Diagnostic diagnostic, CancellationToken cancellationToken)
+    internal static async Task<RoslynCodeFixPreview?> PreviewCodeFixAsync(Document document, Diagnostic diagnostic, CancellationToken cancellationToken)
     {
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(document, diagnostic, (action, _) => actions.Add(action), cancellationToken);
-        await UnusedImportsFixProvider.Value.RegisterCodeFixesAsync(context).ConfigureAwait(false);
-        foreach (CodeAction action in actions)
+        if (!CodeFixProviders.Value.TryGetValue(diagnostic.Id, out CodeFixProvider? provider))
+        {
+            throw new ProductException($"The pinned Roslyn code-style package does not expose a code fix for diagnostic '{diagnostic.Id}'.");
+        }
+        await provider.RegisterCodeFixesAsync(context).ConfigureAwait(false);
+        foreach (CodeAction action in actions.OrderBy(action => action.Title, StringComparer.Ordinal))
         {
             ImmutableArray<CodeActionOperation> operations = await action.GetOperationsAsync(cancellationToken).ConfigureAwait(false);
             ApplyChangesOperation? change = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
-            if (change?.ChangedSolution.GetDocument(document.Id) is Document changed) { return changed; }
+            if (change?.ChangedSolution.GetDocument(document.Id) is Document changed)
+            {
+                string text = changed.GetTextAsync().GetAwaiter().GetResult().ToString();
+                return new RoslynCodeFixPreview(action.Title, changed, text);
+            }
         }
-        return document;
+        return null;
     }
 
-    private static CodeFixProvider LoadUnusedImportsFixProvider()
+    private static ImmutableDictionary<string, CodeFixProvider> LoadCodeFixProviders()
     {
         string folder = Path.Combine(AppContext.BaseDirectory, "RoslynAnalyzers");
-        string path = Path.Combine(folder, FixAssemblyName);
-        if (!File.Exists(path)) { throw new ProductException($"The Roslyn code-style fixer assembly is missing at '{path}'. Reinstall the hygiene tool package."); }
         var loader = new RuntimeAnalyzerAssemblyLoader(folder);
-        Type providerType = loader.LoadFromPath(path).GetTypes()
-            .SingleOrDefault(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(CodeFixProvider).IsAssignableFrom(type)
-                && type.Name == "CSharpRemoveUnnecessaryImportsCodeFixProvider")
-            ?? throw new ProductException($"Roslyn's pinned IDE0005 code fixer is not available in '{path}'.");
-        return (CodeFixProvider)(Activator.CreateInstance(providerType)
-            ?? throw new ProductException("Roslyn's IDE0005 code fixer could not be created."));
+        var providers = new Dictionary<string, CodeFixProvider>(StringComparer.Ordinal);
+        foreach (string assemblyName in new[] { "Microsoft.CodeAnalysis.CodeStyle.Fixes.dll", "Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes.dll" })
+        {
+            string path = Path.Combine(folder, assemblyName);
+            if (!File.Exists(path)) { throw new ProductException($"The Roslyn code-style fixer assembly is missing at '{path}'. Reinstall the hygiene tool package."); }
+            foreach (Type type in loader.LoadFromPath(path).GetTypes()
+                .Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(CodeFixProvider).IsAssignableFrom(type)))
+            {
+                CodeFixProvider? provider;
+                try { provider = Activator.CreateInstance(type) as CodeFixProvider; }
+                catch (Exception exception) when (exception is ArgumentException or TargetInvocationException or MissingMethodException) { continue; }
+                if (provider is null) { continue; }
+                foreach (string diagnosticId in provider.FixableDiagnosticIds.Where(SupportedFixDiagnostics.Contains))
+                {
+                    providers.TryAdd(diagnosticId, provider);
+                }
+            }
+        }
+        return providers.ToImmutableDictionary(StringComparer.Ordinal);
     }
 
     private sealed class RuntimeAnalyzerAssemblyLoader : IAnalyzerAssemblyLoader
@@ -94,3 +119,5 @@ internal static class RoslynCodeStyleAnalyzers
         }
     }
 }
+
+internal sealed record RoslynCodeFixPreview(string Title, Document ChangedDocument, string Text);

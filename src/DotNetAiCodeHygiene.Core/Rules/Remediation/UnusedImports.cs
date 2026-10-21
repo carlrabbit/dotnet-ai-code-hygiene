@@ -22,12 +22,11 @@ internal sealed class UnusedImportsRuleModule : IRuleModule, INormalizeRemediati
         if (!root.DescendantNodes().OfType<UsingDirectiveSyntax>().Any()) { return document; }
         if (root.DescendantNodes().OfType<UsingDirectiveSyntax>().Any(HasCommentOrDirectiveTrivia)) { return document; }
         SyntaxTree tree = document.GetSyntaxTreeAsync().GetAwaiter().GetResult()!;
-        ImmutableArray<DiagnosticAnalyzer> analyzers = RoslynCodeStyleAnalyzers.ForDiagnostics("IDE0005");
-        ImmutableArray<Diagnostic> diagnostics = compilation.WithAnalyzers(analyzers)
-            .GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
+        ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, document.Project.AnalyzerOptions, "IDE0005");
         Diagnostic? fixable = diagnostics.FirstOrDefault(diagnostic => diagnostic.Id == "RemoveUnnecessaryImportsFixable"
             && diagnostic.Location.SourceTree == tree);
-        return fixable is null ? document : RoslynCodeStyleAnalyzers.ApplyUnusedImportsFixAsync(document, fixable, CancellationToken.None).GetAwaiter().GetResult();
+        return fixable is null ? document
+            : RoslynCodeStyleAnalyzers.PreviewCodeFixAsync(document, fixable, CancellationToken.None).GetAwaiter().GetResult()?.ChangedDocument ?? document;
     }
 
     private static bool HasCommentOrDirectiveTrivia(UsingDirectiveSyntax directive) => directive.GetLeadingTrivia()
