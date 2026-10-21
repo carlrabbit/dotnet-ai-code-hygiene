@@ -264,4 +264,94 @@ public sealed class RoslynModernizationAnalyzerTests
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }
+
+    [Test]
+    public async Task PrimaryConstructorCandidatesGroupTheTypeAndIncludePartialContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-primary-constructor-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public partial class Sample { private readonly int value; public Sample(int value) { this.value = value; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.Part.cs"),
+                "public partial class Sample { public int Value => value; }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_prefer_primary_constructors = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<PrimaryConstructorTypeGroup> groups = PrimaryConstructorCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            PrimaryConstructorTypeGroup group = groups.Single();
+            await Assert.That(group.TypeName).IsEqualTo("Sample");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().Context).Contains("Value => value");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("Sample(int value)");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ReadonlyFieldCandidatesIncludeTypeAssignmentAndUseContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-readonly-field-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { private int value; public Sample(int value) { this.value = value; } public int Get() => this.value; }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ndotnet_style_readonly_field = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<ReadonlyFieldTypeGroup> groups = ReadonlyFieldCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            ReadonlyFieldTypeGroup group = groups.Single();
+            await Assert.That(group.TypeName).IsEqualTo("Sample");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().Context).Contains("this.value = value");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("readonly int value");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task InlineDeclarationCandidatesAreLimitedToIde0018AndKeepMethodContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-inline-declaration-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int Run(string text) { int parsed; if (int.TryParse(text, out parsed)) return parsed; return 0; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_inlined_variable_declaration = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<InlineDeclarationMemberGroup> groups = InlineDeclarationCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            InlineDeclarationMemberGroup group = groups.Single();
+            await Assert.That(group.Owner).Contains("Run(string)");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().OriginalSyntax).Contains("int parsed");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("out int parsed");
+            await Assert.That(group.Occurrences.Single().Question).Contains("not general variable merging");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
 }

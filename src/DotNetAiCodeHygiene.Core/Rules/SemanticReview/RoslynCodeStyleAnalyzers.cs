@@ -14,7 +14,7 @@ internal static class RoslynCodeStyleAnalyzers
     private const string AssemblyName = "Microsoft.CodeAnalysis.CSharp.CodeStyle.dll";
     private static readonly ImmutableHashSet<string> SupportedFixDiagnostics =
         ["IDE0005", "IDE0007", "IDE0008", "IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027",
-            "IDE0300", "IDE0301", "IDE0302", "IDE0303", "IDE0304", "IDE0305", "IDE0066", "IDE0045", "IDE0046", "IDE0017"];
+            "IDE0300", "IDE0301", "IDE0302", "IDE0303", "IDE0304", "IDE0305", "IDE0066", "IDE0045", "IDE0046", "IDE0017", "IDE0290", "IDE0044", "IDE0018"];
     private static readonly Lazy<ImmutableArray<DiagnosticAnalyzer>> AllAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
     private static readonly Lazy<ImmutableDictionary<string, CodeFixProvider>> CodeFixProviders = new(LoadCodeFixProviders, LazyThreadSafetyMode.ExecutionAndPublication);
 
