@@ -12,7 +12,8 @@ namespace DotNetAiCodeHygiene.Core;
 internal static class RoslynCodeStyleAnalyzers
 {
     private const string AssemblyName = "Microsoft.CodeAnalysis.CSharp.CodeStyle.dll";
-    private static readonly ImmutableHashSet<string> SupportedFixDiagnostics = ["IDE0005", "IDE0007", "IDE0008"];
+    private static readonly ImmutableHashSet<string> SupportedFixDiagnostics =
+        ["IDE0005", "IDE0007", "IDE0008", "IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027"];
     private static readonly Lazy<ImmutableArray<DiagnosticAnalyzer>> AllAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
     private static readonly Lazy<ImmutableDictionary<string, CodeFixProvider>> CodeFixProviders = new(LoadCodeFixProviders, LazyThreadSafetyMode.ExecutionAndPublication);
 

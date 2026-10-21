@@ -117,4 +117,35 @@ public sealed class RoslynModernizationAnalyzerTests
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }
+
+    [Test]
+    public async Task ExpressionBodyCandidatesGroupByTypeAndIncludeTypeContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-expression-body-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int First() { return 1; } public int Second() { return 2; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_expression_bodied_methods = when_on_single_line:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<ExpressionBodyTypeGroup> groups = ExpressionBodyCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            ExpressionBodyTypeGroup group = groups.Single();
+            await Assert.That(group.TypeName).IsEqualTo("Sample");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(2);
+            await Assert.That(group.Occurrences).Count().IsEqualTo(2);
+            await Assert.That(group.Occurrences.All(candidate => candidate.Context.Contains("class Sample", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(group.Occurrences.All(candidate => candidate.PreviewDocument.Contains("=>", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(group.Occurrences.Select(candidate => candidate.Id).Distinct(StringComparer.Ordinal).Count()).IsEqualTo(2);
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
 }
