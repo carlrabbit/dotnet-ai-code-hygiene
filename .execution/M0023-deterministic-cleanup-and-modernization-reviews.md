@@ -49,6 +49,12 @@ This is operational state, not milestone authority. Planning seeded lossless obl
 | EC-13a | AC-13 | pending | Explicit full audit reports all eligible obligations without source, state or profile mutation, unlike capped normal gate | — |
 | EC-15a | AC-15 | partial | Exact freshly built+installed tool performs end-to-end deterministic cleanup and modern review reporting in a fixture repository | Fresh exact package and installed-consumer gate passed for deterministic cleanup; modern-review reporting is not implemented, so this case remains partial. |
 
+## Validation execution policy (M0023)
+
+During unfinished work packages, use focused affected checks. VAL-05 is the acceptance-boundary aggregate: execute its missing/stale stages once the implementation and AC/EC evidence are ready for closure, unless a documented diagnostic need warrants an earlier stage or full plan. At closure, reuse only fingerprint-valid current receipts, verify the aggregate, and map results to the behavior actually exercised. Early green stages cannot prove unimplemented modernization behavior. After edits, refresh affected receipts; if dependency coverage is uncertain, rerun conservatively.
+
+Distinguish **stage execution** (pass/fail), **freshness** (valid/stale for current inputs), and **criterion coverage** (complete/partial/missing). Stage results alone do not change AC/EC statuses or claim milestone acceptance.
+
 ## Required validation gates
 
 | Gate | Target/depth | Execution locus | Required check | Maps to obligations/evidence | Status/evidence |
