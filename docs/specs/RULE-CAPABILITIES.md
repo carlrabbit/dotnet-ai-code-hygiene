@@ -332,6 +332,18 @@ The rule considers identifiers, literals, `this`, and `base`. Compound expressio
 
 It emits no normal `check` finding.
 
+### `style.usings.unused` v1
+
+Purpose: remove imports only when the pinned Roslyn IDE0005 analyzer and code fix report them unnecessary.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The tool bundles the matching Microsoft.CodeAnalysis.CSharp.CodeStyle 5.0.0 analyzer and fix assemblies. The Roslyn fix owns import selection and removal. A source file with a comment- or directive-bearing using directive is left unchanged so its trivia remains intact. Required imports and alias/global/conditional semantics are delegated to Roslyn's analyzer. It emits no normal `check` finding.
+
 ### `style.usings.organize` v1
 
 Purpose: deterministically order adjacent plain namespace imports while retaining import semantics and trivia.
@@ -422,7 +434,7 @@ With all new M0010 configurable rules enabled:
 
 - generated braces/accessibility EditorConfig policy is effectively equivalent to profile v1;
 - `hygiene format` retains the existing Roslyn formatter behavior;
-- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation, required-braces remediation, and safe using organization added by M0023;
+- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation, required-braces remediation, Roslyn-backed unused-import removal, and safe using organization added by M0023;
 - existing documentation/readability/review rules retain their diagnostic contracts and versions.
 
 A deliberate disable changes only the disabled rule's owned capabilities.
@@ -442,22 +454,23 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 10. style.cast.redundant                      v1
 11. style.interpolation.redundant              v1
 12. style.names.inferred                     v1
-13. style.usings.organize                     v1
-14. style.modifiers.organize                  v1
-15. style.null-forgiving.redundant            v1
-16. style.whitespace.blank-lines              v1
-17. style.parentheses.redundant               v1
-18. docs.summary.required                     v2
-19. docs.xml.consistent                       v1
-20. docs.text.sentence                        v1
-21. docs.summary.quality.review               v6
-22. docs.summary.language.german.review       v4
-23. readability.long-line.review              v1
-24. readability.control-flow.visual-block     v2
-25. architecture.boringness.review            v3
-26. readability.type-responsibility.review    v1
-27. tests.quality.review                      v1
-28. comments.intent.review                    v1
+13. style.usings.unused                       v1
+14. style.usings.organize                     v1
+15. style.modifiers.organize                  v1
+16. style.null-forgiving.redundant            v1
+17. style.whitespace.blank-lines              v1
+18. style.parentheses.redundant               v1
+19. docs.summary.required                     v2
+20. docs.xml.consistent                       v1
+21. docs.text.sentence                        v1
+22. docs.summary.quality.review               v6
+23. docs.summary.language.german.review       v4
+24. readability.long-line.review              v1
+25. readability.control-flow.visual-block     v2
+26. architecture.boringness.review            v3
+27. readability.type-responsibility.review    v1
+28. tests.quality.review                      v1
+29. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.

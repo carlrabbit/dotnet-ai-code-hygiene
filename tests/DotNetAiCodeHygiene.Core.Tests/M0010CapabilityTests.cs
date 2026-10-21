@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.unused", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(28);
+        await Assert.That(ids.Length).IsEqualTo(29);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -375,6 +375,40 @@ public sealed class M0010CapabilityTests
             string alphabetical = await File.ReadAllTextAsync(source);
             await Assert.That(alphabetical.IndexOf("using Alpha;", StringComparison.Ordinal)
                 < alphabetical.IndexOf("using System.IO;", StringComparison.Ordinal)).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task UnusedImportNormalizationUsesRoslynDiagnosticAndPreservesCommentedOrRequiredImports()
+    {
+        const string initial = "using System.Text;\nusing System;\nusing System.Collections;\nclass App { public DateTime Echo(DateTime value) => value; }\n";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-unused-imports", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.usings.unused", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.usings.unused");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.usings.unused", true);
+            RewriteResult check = rewrite.Rewrite("normalize", [], false, checkOnly: true);
+            await Assert.That(check.SelectedRuleIds).Contains("style.usings.unused");
+            await Assert.That(check.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).DoesNotContain("using System.Text;");
+            await Assert.That(normalized).Contains("using System;");
+            await Assert.That(normalized).DoesNotContain("using System.Collections;");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+
+            const string commented = "using System.Text; // retain attached explanation\npublic class App { }\n";
+            await File.WriteAllTextAsync(source, commented);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(commented);
         }
         finally { DeleteTree(repo); }
     }
