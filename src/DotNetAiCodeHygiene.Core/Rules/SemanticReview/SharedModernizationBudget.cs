@@ -9,6 +9,25 @@ internal static class SharedModernizationBudget
     internal const int MaximumPackages = 5;
     internal const int AlgorithmVersion = 1;
 
+    internal static IReadOnlyList<RuleModuleExecution> SelectExecutions(IReadOnlyList<RuleModuleExecution> executions, RuleContext context)
+    {
+        var modulesById = RuleCatalog.SemanticReviewModules.OfType<ISharedModernizationReviewRuleModule>()
+            .ToDictionary(module => module.Descriptor.Id, StringComparer.Ordinal);
+        var modernizations = executions.Where(execution => modulesById.ContainsKey(execution.Descriptor.Id)).ToArray();
+        if (modernizations.Length == 0) { return executions; }
+
+        IReadOnlyList<(Rule Rule, ReviewSubject Subject)> selected = context.ExhaustiveAudit
+            ? modernizations.SelectMany(execution => execution.Result.ReviewSubjects.Select(subject => (execution.Descriptor, subject))).ToArray()
+            : Select(context.Gate.GateId, context.Gate.Mode, context.Gate.ChangedPaths,
+                modernizations.Select(execution => (execution.Descriptor, execution.Result.ReviewSubjects)));
+        var selectedByRule = selected.GroupBy(candidate => candidate.Rule.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(candidate => candidate.Subject).ToArray(), StringComparer.Ordinal);
+
+        return executions.Select(execution => modulesById.ContainsKey(execution.Descriptor.Id)
+            ? execution with { Result = execution.Result with { SelectedReviewSubjects = selectedByRule.GetValueOrDefault(execution.Descriptor.Id) ?? [] } }
+            : execution).ToArray();
+    }
+
     internal static IReadOnlyList<(Rule Rule, ReviewSubject Subject)> Select(
         string gateId,
         string mode,

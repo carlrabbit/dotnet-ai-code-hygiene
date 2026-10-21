@@ -17,7 +17,18 @@ public sealed record Rule(string Id, int Version, string OutputKind, string Clas
     bool Diagnose = true, bool FormatRemediate = false, bool NormalizeRemediate = false, bool EditorConfigProject = false, bool ProfileRemediate = false);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
 public sealed record ReviewQuestion(string Id, string Text);
-public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
+public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<ReviewOccurrence>? Occurrences = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? OccurrencePopulationCount = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? OccurrencesRemainingCount = null);
+public sealed record ReviewOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column, string Owner,
+    string OriginalSyntax, string Context, string PreviewTitle, string Preview, string Question,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Decision = null);
+public sealed record ModernizationDecisionResult(string BatchHandle, string RuleId, string OccurrenceId, string Verdict);
 public sealed record ReviewEscalation(string Condition, string Command, string ReviewerClass);
 public sealed record ReviewSource(string Path, string Content);
 public sealed record ReviewAcceptance(string BatchHandle, string RuleId, IReadOnlyList<string> ItemIds)
@@ -110,6 +121,7 @@ public sealed class HygieneEngine
     private string ConfigPath => Path.Combine(hygiene, "config.json");
     private string DecisionsPath => Path.Combine(hygiene, "decisions.json");
     private string LatestPath => Path.Combine(hygiene, ".state", "latest-run.json");
+    private string ModernizationDecisionsPath => Path.Combine(hygiene, ".state", "modernization-decisions.json");
     private string[] Disabled
     {
         get
@@ -199,11 +211,13 @@ public sealed class HygieneEngine
         auditScopeSink?.Invoke(reportingDocuments.Length, session.Projects.Count);
         var ruleContext = new RuleContext(session, reportingDocuments,
             new GateSelectionContext(gateId, exhaustiveAudit ? "exhaustive" : mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines), exhaustiveAudit);
-        IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
+        IReadOnlyList<RuleModuleExecution> executions = SharedModernizationBudget.SelectExecutions(
+            ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal)), ruleContext);
         string completeGateIdentity = GateLocalReviewStore.GateIdentity(gateId, inspectionMode, resolvedBase, head,
             targets.Select(session.Relative), executions.Where(execution => RuleCatalog.SemanticReviewModules.Any(module => module.Descriptor.Id == execution.Descriptor.Id))
                 .Select(execution => (execution.Descriptor.Id, execution.Descriptor.Version, (IEnumerable<ReviewSubject>)execution.Result.ReviewSubjects)));
         gateIdentitySink?.Invoke(completeGateIdentity);
+        executions = ModernizationDecisionMechanics.Apply(executions, completeGateIdentity, ModernizationDecisionsPath);
         var candidates = executions.SelectMany(execution => execution.Result.Findings).ToList();
         var active = candidates.Where(c => !applyIgnores || !decisions.Any(d => Same(d, c))).OrderBy(c => Array.FindIndex(Rules, r => r.Id == c.RuleId)).ThenBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Line).ThenBy(c => c.Column).ThenBy(c => c.Fingerprint, StringComparer.Ordinal).ToArray();
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
@@ -265,6 +279,10 @@ public sealed class HygieneEngine
             batchId = parts[1];
         }
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (stored.RuleId.StartsWith("modernization.", StringComparison.Ordinal))
+        {
+            throw new ProductException("Modernization packages are already bounded by the shared review budget; judge each occurrence with review decide. The CLI does not expand or hand off these judgments.");
+        }
         CheckResult fresh;
         string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
         string? freshGateIdentity = null;
@@ -315,6 +333,10 @@ public sealed class HygieneEngine
         { throw new ProductException("Review batch is unavailable; run check again."); }
         string batchId = ResolveBatchId(handle, snapshot);
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (stored.RuleId.StartsWith("modernization.", StringComparison.Ordinal))
+        {
+            throw new ProductException("Modernization candidates require independent occurrence decisions; item-level review acceptance is not valid for this batch.");
+        }
         if (acceptAll) { itemIds = stored.Items.Select(item => item.Id).ToArray(); }
         if (itemIds.Length == 0 && !acceptAll) { throw new ArgumentException("Provide one or more sampled item IDs or use --all."); }
         if (itemIds.Distinct(StringComparer.Ordinal).Count() != itemIds.Length) { throw new ProductException("Review acceptance contains a duplicate item ID; rerun hygiene check."); }
@@ -355,6 +377,62 @@ public sealed class HygieneEngine
         if (!StringComparer.Ordinal.Equals(Snapshot(LatestPath), initialLatest)) { throw new ProductException("Latest review run changed concurrently; rerun hygiene check."); }
         gateReviews.Commit();
         return new(stored.Handle, stored.RuleId, itemIds);
+    }
+
+    public ModernizationDecisionResult RecordModernizationDecision(string handle, string occurrenceId, string verdict)
+    {
+        if (verdict is not ("desirable" or "retain" or "uncertain"))
+        {
+            throw new ArgumentException("Verdict must be desirable, retain, or uncertain.");
+        }
+        string? initialLatest = Snapshot(LatestPath);
+        RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
+        if (snapshot.SchemaVersion != 1 || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
+        {
+            throw new ProductException("Modernization review is unavailable; run hygiene check again.");
+        }
+        string batchId = ResolveBatchId(handle, snapshot);
+        ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(batch => batch.Id == batchId)
+            ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (!stored.RuleId.StartsWith("modernization.", StringComparison.Ordinal))
+        {
+            throw new ProductException("Occurrence verdicts are only valid for modernization review batches.");
+        }
+        ReviewOccurrence selected = stored.Items.SelectMany(item => item.Occurrences ?? [])
+            .SingleOrDefault(occurrence => occurrence.Id == occurrenceId)
+            ?? throw new ProductException($"Occurrence '{occurrenceId}' was not included in the current sampled work package.");
+
+        string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
+        var freshTickets = new List<ReviewTicketAssociation>();
+        string? freshGateIdentity = null;
+        CheckResult fresh;
+        try
+        {
+            fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false,
+                freshTickets, snapshot.BaseRef, snapshot.ReviewAll, identity => freshGateIdentity = identity);
+        }
+        catch (ProductException)
+        {
+            throw new ProductException("Modernization occurrence cannot be revalidated; rerun hygiene check.");
+        }
+        ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(batch => batch.RuleId == stored.RuleId)
+            ?? throw new ProductException("Modernization population changed; rerun hygiene check.");
+        ReviewOccurrence currentOccurrence = (current.PopulationItems ?? current.Items).SelectMany(item => item.Occurrences ?? [])
+            .SingleOrDefault(occurrence => occurrence.Id == occurrenceId)
+            ?? throw new ProductException("Modernization occurrence is stale or no longer eligible; rerun hygiene check.");
+        string fingerprint = ModernizationDecisionMechanics.Fingerprint(stored.RuleId, stored.RuleVersion, selected);
+        if (!StringComparer.Ordinal.Equals(fingerprint, ModernizationDecisionMechanics.Fingerprint(stored.RuleId, stored.RuleVersion, currentOccurrence)))
+        {
+            throw new ProductException("Modernization occurrence or its review context changed; rerun hygiene check.");
+        }
+        if (!StringComparer.Ordinal.Equals(Snapshot(LatestPath), initialLatest))
+        {
+            throw new ProductException("Latest review run changed concurrently; rerun hygiene check.");
+        }
+
+        ModernizationDecisionMechanics.Record(ModernizationDecisionsPath, freshGateIdentity!, stored.RuleId, stored.RuleVersion,
+            currentOccurrence.Id, fingerprint, verdict, (path, content, expected) => WriteAtomic(path, content, expected, verifyExpected: true));
+        return new(stored.Handle, stored.RuleId, occurrenceId, verdict);
     }
 
     private static string ResolveBatchId(string handle, RunSnapshot snapshot)

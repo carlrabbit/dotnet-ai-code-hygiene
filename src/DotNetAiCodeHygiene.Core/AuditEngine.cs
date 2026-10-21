@@ -228,8 +228,31 @@ public sealed class ReadOnlyAuditEngine
         {
             foreach (ReviewItem item in batch.PopulationItems ?? batch.Items)
             {
-                string obligationId = batch.RuleId + "/" + item.Id;
-                obligations.Add(new AuditSemanticObligation(obligationId, batch.RuleId, batch.RuleVersion, item.Id, batch.Questions, item, item.Path));
+                if (item.Occurrences is { Count: > 0 } occurrences)
+                {
+                    foreach (ReviewOccurrence occurrence in occurrences)
+                    {
+                        ReviewItem occurrenceSubject = item with
+                        {
+                            Id = occurrence.Id,
+                            Path = occurrence.Path,
+                            Line = occurrence.Line,
+                            Column = occurrence.Column,
+                            Symbol = occurrence.Owner,
+                            Summary = occurrence.Question,
+                            Declaration = occurrence.OriginalSyntax,
+                            Occurrences = [occurrence]
+                        };
+                        string occurrenceObligationId = batch.RuleId + "/" + occurrence.Id;
+                        obligations.Add(new AuditSemanticObligation(occurrenceObligationId, batch.RuleId, batch.RuleVersion,
+                            occurrence.Id, batch.Questions, occurrenceSubject, occurrence.Path));
+                    }
+                }
+                else
+                {
+                    string obligationId = batch.RuleId + "/" + item.Id;
+                    obligations.Add(new AuditSemanticObligation(obligationId, batch.RuleId, batch.RuleVersion, item.Id, batch.Questions, item, item.Path));
+                }
             }
             foreach (ReviewSource source in batch.SourceContents ?? [])
             {
@@ -245,7 +268,9 @@ public sealed class ReadOnlyAuditEngine
     {
         bool semantic = rule.OutputKind == "review-batch";
         bool profile = rule.Id.StartsWith("profile.", StringComparison.Ordinal);
-        string unit = semantic ? "semantic rule/subject obligations" : profile ? "supported SDK projects" : "supported source documents";
+        string unit = semantic ? rule.Id.StartsWith("modernization.", StringComparison.Ordinal)
+            ? "modernization occurrence obligations" : "semantic rule/subject obligations"
+            : profile ? "supported SDK projects" : "supported source documents";
         string participation = !rule.Configurable ? "mandatory" : enabled ? "enabled" : "disabled";
         return new AuditRuleFact(rule.Id, rule.Version, enabled, participation,
             !enabled ? "disabled" : semantic ? "semantic-assessment" : "deterministic-evaluation", unit,

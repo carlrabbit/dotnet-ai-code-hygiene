@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Text.Json;
 using DotNetAiCodeHygiene.Core;
 using Microsoft.CodeAnalysis;
 
@@ -159,7 +161,7 @@ public sealed class RoslynModernizationAnalyzerTests
             await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
                 "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
-                "public class Sample { public int[] Run() { int[] values = new int[] { 1, 2 }; return values; } }\n");
+                "public class Sample { public int[] Run() { int[] empty = System.Array.Empty<int>(); int[] values = new int[] { 1, 2 }; return values; } }\n");
             await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
                 "root = true\n[*.cs]\ndotnet_style_prefer_collection_expression = true:warning\n");
 
@@ -170,10 +172,13 @@ public sealed class RoslynModernizationAnalyzerTests
 
             await Assert.That(groups).Count().IsEqualTo(1);
             CollectionExpressionFileGroup group = groups.Single();
-            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
-            await Assert.That(group.Occurrences.Single().OriginalSyntax).Contains("new int[]");
-            await Assert.That(group.Occurrences.Single().Context).Contains("int[] Run()");
-            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("[1, 2]");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(2);
+            await Assert.That(group.Occurrences).Count().IsEqualTo(2);
+            await Assert.That(group.Occurrences.Any(candidate => candidate.OriginalSyntax.Contains("new int[]", StringComparison.Ordinal)
+                && candidate.Context.Contains("int[] Run()", StringComparison.Ordinal)
+                && candidate.PreviewDocument.Contains("[1, 2]", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(group.Occurrences.Any(candidate => candidate.DiagnosticId == "IDE0301"
+                && candidate.PreviewDocument.Contains("[]", StringComparison.Ordinal))).IsTrue();
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }
@@ -351,6 +356,207 @@ public sealed class RoslynModernizationAnalyzerTests
             await Assert.That(group.Occurrences.Single().OriginalSyntax).Contains("int parsed");
             await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("out int parsed");
             await Assert.That(group.Occurrences.Single().Question).Contains("not general variable merging");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task CheckPublishesOccurrenceBearingModernizationBatchesThroughSharedSelector()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-check-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int First() { return 1; } public int Map(int value) { int result; switch (value) { case 1: result = 10; break; default: result = 0; break; } return result; } public int Run() { var first = 1; var second = 2; return first + second; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\ncsharp_style_expression_bodied_methods = when_on_single_line:warning\ncsharp_style_prefer_switch_expression = true:warning\n");
+
+            using (var git = Process.Start(new ProcessStartInfo("git", "init -q") { WorkingDirectory = repository, UseShellExecute = false }))
+            {
+                await git!.WaitForExitAsync();
+                await Assert.That(git.ExitCode).IsEqualTo(0);
+            }
+
+            var engine = new HygieneEngine(repository);
+            engine.Bootstrap();
+            CheckResult result = engine.Check(["Sample.cs"], changed: false, applyIgnores: false, publishLatest: false);
+
+            ReviewBatch[] modernization = result.ReviewBatches.Where(batch => batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).ToArray();
+            ReviewBatch[] established = result.ReviewBatches.Where(batch => !batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).ToArray();
+            await Assert.That(modernization.Sum(batch => batch.SampleCount)).IsLessThanOrEqualTo(5);
+            await Assert.That(established.Length).IsEqualTo(6);
+            await Assert.That(established.All(batch => batch.SampleCount <= 5)).IsTrue();
+            string[] eligibleRuleIds = modernization.Where(batch => batch.PopulationCount > 0).Select(batch => batch.RuleId).ToArray();
+            await Assert.That(eligibleRuleIds.Length).IsGreaterThanOrEqualTo(2);
+            await Assert.That(eligibleRuleIds.Contains("modernization.var-style", StringComparer.Ordinal)).IsTrue();
+            await Assert.That(eligibleRuleIds.Contains("modernization.switch-expression", StringComparer.Ordinal)).IsTrue();
+            ReviewBatch varBatch = modernization.Single(batch => batch.RuleId == "modernization.var-style");
+            await Assert.That(varBatch.PopulationCount).IsEqualTo(1);
+            await Assert.That(varBatch.SampleCount).IsEqualTo(1);
+            await Assert.That(varBatch.Escalation.Command).Contains("review decide");
+            await Assert.That(varBatch.Items.Single().Occurrences).Count().IsEqualTo(2);
+            await Assert.That(varBatch.Items.Single().Occurrences!.All(occurrence => occurrence.Preview.Contains("int ", StringComparison.Ordinal))).IsTrue();
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ModernizationDecisionsAreOccurrenceScopedRevalidatedAndNeverItemAccepted()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-decisions-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            string sourcePath = Path.Combine(repository, "Sample.cs");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(sourcePath,
+                "public class Sample { public void Run() { var first = 1; var second = 2; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\n");
+            using (var git = Process.Start(new ProcessStartInfo("git", "init -q") { WorkingDirectory = repository, UseShellExecute = false }))
+            {
+                await git!.WaitForExitAsync();
+                await Assert.That(git.ExitCode).IsEqualTo(0);
+            }
+
+            var engine = new HygieneEngine(repository);
+            engine.Bootstrap();
+            CheckResult checkedResult = engine.Check(["Sample.cs"], changed: false, applyIgnores: false);
+            ReviewBatch batch = checkedResult.ReviewBatches.Single(item => item.RuleId == "modernization.var-style");
+            ReviewItem package = batch.Items.Single();
+            string firstId = package.Occurrences![0].Id;
+            string secondId = package.Occurrences[1].Id;
+            string originalSource = await File.ReadAllTextAsync(sourcePath);
+            _ = engine.RecordModernizationDecision(batch.Handle, firstId, "retain");
+            _ = engine.RecordModernizationDecision(batch.Handle, secondId, "uncertain");
+            await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(originalSource);
+            await Assert.That(() => engine.AcceptReview(batch.Handle, [package.Id])).Throws<ProductException>()
+                .WithMessageContaining("item-level review acceptance is not valid");
+            await Assert.That(() => engine.ExpandReview(batch.Handle)).Throws<ProductException>()
+                .WithMessageContaining("already bounded by the shared review budget");
+            await Assert.That(() => engine.CreateReviewHandoff(batch.Handle)).Throws<ProductException>()
+                .WithMessageContaining("does not expand or hand off these judgments");
+
+            CheckResult repeated = engine.Check(["Sample.cs"], changed: false, applyIgnores: false, publishLatest: false);
+            ReviewBatch repeatedBatch = repeated.ReviewBatches.Single(item => item.RuleId == "modernization.var-style");
+            ReviewOccurrence judged = repeatedBatch.Items.Single().Occurrences!.Single(occurrence => occurrence.Id == firstId);
+            await Assert.That(judged.Decision).IsEqualTo("retain");
+            await Assert.That(repeatedBatch.Items.Single().Occurrences!.Single(occurrence => occurrence.Id == secondId).Decision).IsEqualTo("uncertain");
+
+            await File.WriteAllTextAsync(sourcePath,
+                "public class Sample { public void Run() { var first = 1; var second = 2; System.Console.WriteLine(first); } }\n");
+            await Assert.That(() => engine.RecordModernizationDecision(batch.Handle, secondId, "desirable"))
+                .Throws<ProductException>().WithMessageContaining("changed");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task NormalPackagesReportOccurrenceRemainderWhileExhaustiveAuditInventoriesAll()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-occurrence-cap-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            string declarations = string.Join(" ", Enumerable.Range(0, 13).Select(index => $"var value{index} = {index};"));
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"), $"public class Sample {{ public void Run() {{ {declarations} }} }}\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\n");
+            using (var git = Process.Start(new ProcessStartInfo("git", "init -q") { WorkingDirectory = repository, UseShellExecute = false }))
+            {
+                await git!.WaitForExitAsync();
+                await Assert.That(git.ExitCode).IsEqualTo(0);
+            }
+
+            var engine = new HygieneEngine(repository);
+            engine.Bootstrap();
+            ReviewBatch normal = engine.Check(["Sample.cs"], changed: false, applyIgnores: false, publishLatest: false)
+                .ReviewBatches.Single(batch => batch.RuleId == "modernization.var-style");
+            ReviewItem selected = normal.Items.Single();
+            await Assert.That(selected.Occurrences).Count().IsEqualTo(12);
+            await Assert.That(selected.OccurrencePopulationCount).IsEqualTo(13);
+            await Assert.That(selected.OccurrencesRemainingCount).IsEqualTo(1);
+
+            (CheckResult audit, _, _) = engine.CheckExhaustiveAuditSnapshot();
+            ReviewItem audited = audit.ReviewBatches.Single(batch => batch.RuleId == "modernization.var-style").Items.Single();
+            await Assert.That(audited.Occurrences).Count().IsEqualTo(13);
+            await Assert.That(audited.OccurrencesRemainingCount).IsEqualTo(0);
+
+            string auditDirectory = new ReadOnlyAuditEngine(repository).Start(Path.Combine(repository, "audit-report"));
+            using JsonDocument inventory = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(auditDirectory, "inventory.json")));
+            JsonElement[] varObligations = inventory.RootElement.GetProperty("obligations").EnumerateArray()
+                .Where(obligation => obligation.GetProperty("ruleId").GetString() == "modernization.var-style").ToArray();
+            await Assert.That(varObligations.Length).IsEqualTo(13);
+            await Assert.That(varObligations.Select(obligation => obligation.GetProperty("subjectId").GetString()).Distinct(StringComparer.Ordinal).Count()).IsEqualTo(13);
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ExhaustiveAuditWorkIncludesSourceForEveryPartialTypeOccurrence()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-partial-audit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public partial class Sample { public int First() { return 1; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.Part.cs"),
+                "public partial class Sample { public int Second() { return 2; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_expression_bodied_methods = when_on_single_line:warning\n");
+            using (var git = Process.Start(new ProcessStartInfo("git", "init -q") { WorkingDirectory = repository, UseShellExecute = false }))
+            {
+                await git!.WaitForExitAsync();
+                await Assert.That(git.ExitCode).IsEqualTo(0);
+            }
+
+            new HygieneEngine(repository).Bootstrap();
+            var audit = new ReadOnlyAuditEngine(repository);
+            string reportDirectory = audit.Start(Path.Combine(repository, "audit-report"));
+            AuditNextWork work = audit.Next(reportDirectory);
+            AuditWorkItem[] occurrences = work.Items.Where(item => item.RuleId == "modernization.expression-body").ToArray();
+            await Assert.That(occurrences.Length).IsEqualTo(2);
+            await Assert.That(occurrences.Select(item => item.SourcePath).Distinct(StringComparer.Ordinal).Count()).IsEqualTo(2);
+            await Assert.That(occurrences.All(item => item.SourceContent.Contains("partial class Sample", StringComparison.Ordinal))).IsTrue();
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ModernizationFamiliesRespectDisabledAnalyzerPreferences()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-disabled-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Box { public int Value { get; set; } } public class Sample { private int value; public Sample(int value) { this.value = value; } public int First() { return 1; } public int[] Items() { var items = new int[] { 1, 2 }; return items; } public int Map(int input) { var result = 0; switch (input) { case 1: result = 10; break; default: result = 0; break; } return result; } public int Conditional(bool flag) { if (flag) return 1; else return 0; } public Box Initialize() { var box = new Box(); box.Value = 3; return box; } public int Inline(string text) { var parsed = 0; if (int.TryParse(text, out parsed)) return parsed; return 0; } public int Get() { return this.value; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_var_for_built_in_types = true:warning\ncsharp_style_var_when_type_is_apparent = true:warning\ncsharp_style_var_elsewhere = true:warning\ncsharp_style_expression_bodied_methods = never:warning\ndotnet_style_prefer_collection_expression = false:warning\ncsharp_style_prefer_primary_constructors = false:warning\ncsharp_style_prefer_switch_expression = false:warning\ndotnet_style_prefer_conditional_expression_over_assignment = false:warning\ndotnet_style_prefer_conditional_expression_over_return = false:warning\ndotnet_style_object_initializer = false:warning\ndotnet_style_readonly_field = false:warning\ncsharp_style_inlined_variable_declaration = false:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            Compilation compilation = session.GetCompilation(project);
+            await Assert.That(VarStyleCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(ExpressionBodyCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(CollectionExpressionCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(PrimaryConstructorCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(SwitchExpressionCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(ConditionalCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(ObjectInitializerCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(ReadonlyFieldCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
+            await Assert.That(InlineDeclarationCandidatePopulation.Build(project, compilation, CancellationToken.None)).Count().IsEqualTo(0);
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }

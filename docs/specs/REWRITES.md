@@ -78,7 +78,7 @@ Required accessibility, target-typed creation, default literals, redundant casts
 
 These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 
-Do not introduce transformations for `var` policy, expression-bodied members, collection expressions, target-typed `new`, naming, or broad modernization. Modifier ordering is a separate M0023 requirement and remains outstanding.
+M0023 keeps analyzer-backed proposals for `var` policy, expression-bodied members, collection expressions, primary constructors, switch expressions, conditional expressions, object initializers, readonly fields, and IDE0018 inline declarations as implementer judgments. The CLI records a verdict for each occurrence and never applies a modernization preview automatically. Target-typed `new` and inferred naming remain governed by their deterministic readability normalizers above.
 
 ## Relationship to check
 

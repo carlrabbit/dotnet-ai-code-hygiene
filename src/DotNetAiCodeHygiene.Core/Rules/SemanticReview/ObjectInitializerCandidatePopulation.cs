@@ -12,7 +12,7 @@ internal static class ObjectInitializerCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would moving these assignments into the object initializer clarify construction without obscuring evaluation order or side effects? Keep the existing sequence when it is clearer; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<ObjectInitializerMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<ObjectInitializerMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0017");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, SyntaxNode Candidate)> Candidates)>(StringComparer.Ordinal);
@@ -22,7 +22,7 @@ internal static class ObjectInitializerCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
             SyntaxNode? candidateNode = node.AncestorsAndSelf().FirstOrDefault(ancestor => ancestor is ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax);
@@ -66,7 +66,7 @@ internal static class ObjectInitializerCandidatePopulation
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
-            ObjectInitializerOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerMember).ToArray();
+            ObjectInitializerOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerMember).ToArray();
             string groupPath = Path.GetRelativePath(Path.GetDirectoryName(project.FilePath!)!, document.FilePath!);
             groups.Add(new ObjectInitializerMemberGroup(memberId, groupPath, owner, occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

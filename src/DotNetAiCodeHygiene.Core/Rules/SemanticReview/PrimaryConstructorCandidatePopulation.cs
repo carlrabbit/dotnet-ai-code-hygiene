@@ -12,7 +12,7 @@ internal static class PrimaryConstructorCandidatePopulation
     internal const int MaximumOccurrencesPerType = 12;
     internal const string Question = "Would moving constructor parameters to a primary constructor simplify this type without obscuring state, initialization order, or the public API? Keep the existing constructor when it communicates ownership better; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<PrimaryConstructorTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<PrimaryConstructorTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0290");
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
@@ -22,7 +22,7 @@ internal static class PrimaryConstructorCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             TypeDeclarationSyntax? type = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 .AncestorsAndSelf().OfType<TypeDeclarationSyntax>().FirstOrDefault();
@@ -61,7 +61,7 @@ internal static class PrimaryConstructorCandidatePopulation
                     symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
-            PrimaryConstructorOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerType).ToArray();
+            PrimaryConstructorOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerType).ToArray();
             groups.Add(new PrimaryConstructorTypeGroup(typeId, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
                 occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

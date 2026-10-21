@@ -16,6 +16,8 @@ decoupled
 
 The same artifact schema is used in both modes.
 
+M0023 modernization occurrences are not handed off through this command. Their bounded packages already carry the required candidate context, and the implementer records `desirable`, `retain`, or `uncertain` per occurrence. Package acceptance, unbounded expansion, and CLI handoff are rejected for those rules so judgment stays with the implementer and the shared package budget stays effective.
+
 A handoff is an explicit engineering/review work product. It is not an engine-managed acceptance record, semantic-review history database, or source of rule state.
 
 ## Command

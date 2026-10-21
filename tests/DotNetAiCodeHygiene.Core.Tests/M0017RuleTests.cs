@@ -49,11 +49,12 @@ public sealed class M0017RuleTests
                 .Where(subject => CommentBody(subject).Contains("Same owner and anchor.", StringComparison.Ordinal)).ToArray();
             await Assert.That(duplicateCommentAnchors.Length).IsEqualTo(2);
             await Assert.That(duplicateCommentAnchors[0].Identity == duplicateCommentAnchors[1].Identity).IsFalse();
-            await Assert.That(result.ReviewBatches.Select(batch => batch.RuleId).ToArray()).IsEquivalentTo(new[]
+            await Assert.That(result.ReviewBatches.Where(batch => !batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).Select(batch => batch.RuleId).ToArray()).IsEquivalentTo(new[]
             {
                 SummaryQualityReviewRuleModule.RuleId, SummaryGermanReviewRuleModule.RuleId, BoringnessReviewRuleModule.RuleId,
                 TypeResponsibilityReviewRuleModule.RuleId, TestQualityReviewRuleModule.RuleId, CommentIntentReviewRuleModule.RuleId
             });
+            await Assert.That(result.ReviewBatches.Count(batch => batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
             await Assert.That(TestQualityReviewRuleModule.RuleQuestions.Select(question => question.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3" });
             await Assert.That(CommentIntentReviewRuleModule.RuleQuestions.Select(question => question.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3" });
             _ = engine.AcceptReview(types.Handle, [types.Items[0].Id]);

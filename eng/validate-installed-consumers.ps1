@@ -140,7 +140,7 @@ try {
     $env:PATH = $releaseToolPath + [IO.Path]::PathSeparator + $pathBeforeUpgrade
     $releaseReport = dotnet hygiene --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $releaseReport.releaseUpdate.status -ne 'updated-and-revalidated' -or $releaseReport.releaseUpdate.previousVersion -ne '0.11.0' -or $releaseReport.releaseUpdate.installedVersion -ne '0.11.1' -or $releaseReport.releaseUpdate.revalidatedStatus -ne 'approval-required') { throw 'Autonomous trusted-feed update did not restart and revalidate the installed command.' }
-    if ((Get-Content -LiteralPath Release.cs -Raw) -notmatch 'using System\.Collections\.Generic;') { throw 'Autonomous style formatting applied non-allowlisted IDE0005 and removed an unused import.' }
+    if ((Get-Content -LiteralPath Release.cs -Raw) -match 'using System\.Collections\.Generic;') { throw 'Autonomous deterministic normalization did not remove the Roslyn-confirmed unused import.' }
     $releaseVersion = dotnet hygiene --version
     if ($LASTEXITCODE -ne 0 -or ($releaseVersion -join '').Trim() -ne '0.11.1') { throw 'Autonomous trusted-feed update did not replace the installed shim.' }
 }
@@ -406,7 +406,7 @@ try {
     $normalizeClean = dotnet hygiene normalize --check --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $normalizeClean.changedCount -ne 0) { throw 'Installed normalize was not idempotent.' }
     $profilePath = Join-Path $consumer '.hygiene/profile.json'
-    Set-Content -LiteralPath .editorconfig -Encoding utf8 -Value "root = true`n`n# consumer-owned text`n[*.md]`ntrim_trailing_whitespace = true`n`n<!-- hygiene profile:begin -->`n[*.cs]`ncsharp_prefer_braces = true`ndotnet_diagnostic.IDE0011.severity = error`ndotnet_style_require_accessibility_modifiers = always`ndotnet_diagnostic.IDE0040.severity = error`n<!-- hygiene profile:end -->"
+    Set-Content -LiteralPath .editorconfig -Encoding utf8 -Value "root = true`n`n# consumer-owned text`n[*.md]`ntrim_trailing_whitespace = true`n`n<!-- hygiene profile:begin -->`n[*.cs]`ncsharp_prefer_braces = true`ndotnet_diagnostic.IDE0011.severity = error`ndotnet_style_require_accessibility_modifiers = always`ndotnet_diagnostic.IDE0040.severity = error`ncsharp_style_var_for_built_in_types = false:warning`ncsharp_style_var_when_type_is_apparent = false:warning`ncsharp_style_var_elsewhere = false:warning`n<!-- hygiene profile:end -->"
     Set-Content -LiteralPath $profilePath -Encoding utf8 -Value "{`n  `"schemaVersion`": 1,`n  `"profile`": `"dotnet-11`",`n  `"version`": 1`n}"
     $update = dotnet hygiene update --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $update.findingCount -ne 0 -or $update.changedPaths.Count -eq 0) { throw 'Installed update did not migrate the v1 profile.' }
@@ -418,7 +418,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $updateAgain.findingCount -ne 0 -or $updateAgain.changedPaths.Count -ne 0) { throw 'Installed update was not idempotent after migration.' }
     $rules = dotnet hygiene rules --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or -not (($rules.rules | Where-Object id -eq 'profile.dotnet.analysis.required').configurable -eq $false)) { throw 'Installed mandatory profile rule is missing or configurable.' }
-    $capabilitiesValid = $rules.rules.Count -eq 28 `
+    $capabilitiesValid = $rules.rules.Count -eq 38 `
         -and ($rules.rules | Where-Object id -eq 'format.csharp.roslyn').capabilities.format `
         -and ($rules.rules | Where-Object id -eq 'style.braces.required').capabilities.normalize `
         -and ($rules.rules | Where-Object id -eq 'style.accessibility.explicit').capabilities.normalize `
@@ -437,10 +437,13 @@ try {
     if (-not ($rules.rules | Where-Object id -eq 'architecture.boringness.review')) { throw 'Installed rule catalog omitted BORINGness review.' }
     $newRuleIds = @('readability.type-responsibility.review', 'tests.quality.review', 'comments.intent.review')
     if (@($rules.rules | Where-Object { $_.id -in $newRuleIds }).Count -ne 3) { throw 'Installed rule catalog omitted an M0017 review rule.' }
+    $modernizationRuleIds = @('modernization.var-style', 'modernization.expression-body', 'modernization.collection-expression', 'modernization.primary-constructor', 'modernization.switch-expression', 'modernization.conditional', 'modernization.object-initializer', 'modernization.readonly-field', 'modernization.inline-declaration')
+    if (@($rules.rules | Where-Object { $_.id -in $modernizationRuleIds }).Count -ne 9) { throw 'Installed rule catalog omitted one or more M0023 modernization review rules.' }
     $visualRule = $rules.rules | Where-Object id -eq 'readability.control-flow.visual-block'
     if ($visualRule.version -ne 2 -or $visualRule.classification -ne 'review-candidate') { throw 'Installed visual-block rule did not expose its v2 candidate contract.' }
     $reviewSource = @('// Copyright 2026 Example. All rights reserved.', '// MIT License', '/// <summary>Sample API</summary>', 'public class Sample { public void Run() { int value = 1; if (value > 0) { System.Console.WriteLine(value); } } }') + @(0..31 | ForEach-Object { "/// <summary>A useful API description for sample $_.</summary>`npublic class Reviewed$_ { }" })
     Set-Content -NoNewline -Path Sample.cs -Value ($reviewSource -join "`n")
+    Set-Content -NoNewline -Path .editorconfig -Value "root = true`n[*.cs]`ncsharp_style_var_for_built_in_types = false:warning`ncsharp_style_var_when_type_is_apparent = false:warning`ncsharp_style_var_elsewhere = false:warning`n"
     dotnet hygiene format | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed formatter failed on the visual-block fixture.' }
     dotnet hygiene normalize | Out-Null
@@ -460,6 +463,7 @@ public class ReviewedAdditional
     // Keep this guard aligned with the request contract.
     public void Run()
     {
+        var modernizationCandidate = 1;
         var key = 1; // Keep the source statement and trailing review separate.
         // Avoid the guarded operation when the key is empty.
         if (key > 0) { System.Console.WriteLine(key); }
@@ -482,6 +486,16 @@ public class ReviewedAdditional
     $typeReview = $check.reviewBatches | Where-Object ruleId -eq 'readability.type-responsibility.review'
     $testReview = $check.reviewBatches | Where-Object ruleId -eq 'tests.quality.review'
     $commentReview = $check.reviewBatches | Where-Object ruleId -eq 'comments.intent.review'
+    $modernizationReview = $check.reviewBatches | Where-Object ruleId -eq 'modernization.var-style'
+    if (-not $modernizationReview -or $modernizationReview.sampleCount -lt 1 -or $modernizationReview.sampleCount -gt 5 -or $modernizationReview.items[0].occurrencePopulationCount -lt 1) { throw 'Installed PR-base check did not emit a bounded occurrence-bearing modernization review batch.' }
+    $modernizationOccurrence = $modernizationReview.items[0].occurrences[0]
+    if ([string]::IsNullOrWhiteSpace($modernizationOccurrence.id) -or [string]::IsNullOrWhiteSpace($modernizationOccurrence.preview)) { throw 'Installed modernization review omitted its occurrence identity or concrete preview.' }
+    $modernizationDecision = dotnet hygiene review decide $modernizationReview.handle $modernizationOccurrence.id --verdict retain --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $modernizationDecision.status -ne 'recorded' -or $modernizationDecision.verdict -ne 'retain' -or $modernizationDecision.occurrenceId -ne $modernizationOccurrence.id) { throw 'Installed occurrence-scoped modernization decision did not persist.' }
+    $modernizationItemAccept = dotnet hygiene review accept $modernizationReview.handle $modernizationReview.items[0].id --output json 2>&1
+    if ($LASTEXITCODE -ne 3 -or ($modernizationItemAccept -join ' ') -notmatch 'independent occurrence decisions') { throw 'Installed modernization item-level acceptance was not rejected.' }
+    $modernizationExpand = dotnet hygiene review expand $modernizationReview.handle --output json 2>&1
+    if ($LASTEXITCODE -ne 3 -or ($modernizationExpand -join ' ') -notmatch 'already bounded by the shared review budget') { throw 'Installed modernization batch expansion was not rejected.' }
     if ($typeReview.sampleCount -lt 1 -or $testReview.sampleCount -lt 1 -or $commentReview.sampleCount -lt 1) { throw 'Installed M0017 rules did not select changed type, test, and comment subjects.' }
     if (($testReview.questions.Count -ne 3) -or $testReview.items[0].summary -ne '') { throw 'Installed test-quality review did not retain its fixed questions and empty non-applicable summary.' }
     $newAccepted = dotnet hygiene review accept $testReview.handle $testReview.items[0].id --output json | ConvertFrom-Json
@@ -530,7 +544,7 @@ public class ReviewedAdditional
     dotnet hygiene rules disable docs.summary.language.german.review | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Installed German rule could not be disabled.' }
     $qualityOnly = dotnet hygiene check --output json | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 5 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'comments.intent.review')) { throw 'Disabling the installed German rule changed or removed other semantic-review rules.' }
+    if ($LASTEXITCODE -ne 0 -or $qualityOnly.reviewBatches.Count -ne 14 -or $qualityOnly.reviewBatches.ruleId -contains 'docs.summary.language.german.review' -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'docs.summary.quality.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'architecture.boringness.review') -or -not ($qualityOnly.reviewBatches | Where-Object ruleId -eq 'comments.intent.review') -or @($qualityOnly.reviewBatches | Where-Object { $_.ruleId -in $modernizationRuleIds }).Count -ne 9) { throw 'Disabling the installed German rule changed or removed other semantic-review rules or modernization families.' }
 
     # Prove the complete lifecycle terminal outcome from a clean, committed main-branch consumer.
     $completeConsumer = Join-Path $tierRoot 'complete-consumer'

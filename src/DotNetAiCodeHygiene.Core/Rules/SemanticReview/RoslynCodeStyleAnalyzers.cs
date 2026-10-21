@@ -12,9 +12,31 @@ namespace DotNetAiCodeHygiene.Core;
 internal static class RoslynCodeStyleAnalyzers
 {
     private const string AssemblyName = "Microsoft.CodeAnalysis.CSharp.CodeStyle.dll";
+    private const string CSharpFixAssembly = "Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes.dll";
     private static readonly ImmutableHashSet<string> SupportedFixDiagnostics =
-        ["IDE0005", "IDE0007", "IDE0008", "IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027",
+        ["IDE0005", "RemoveUnnecessaryImportsFixable", "IDE0007", "IDE0008", "IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027",
             "IDE0300", "IDE0301", "IDE0302", "IDE0303", "IDE0304", "IDE0305", "IDE0066", "IDE0045", "IDE0046", "IDE0017", "IDE0290", "IDE0044", "IDE0018"];
+    private static readonly (string Assembly, string Type)[] SupportedFixerTypes =
+    [
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.RemoveUnnecessaryImports.CSharpRemoveUnnecessaryImportsCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.TypeStyle.UseImplicitTypeCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.TypeStyle.UseExplicitTypeCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseExpressionBody.UseExpressionBodyCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForArrayCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForEmptyCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForBuilderCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForCreateCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForFluentCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForNewCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseCollectionExpression.CSharpUseCollectionExpressionForStackAllocCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UsePrimaryConstructor.CSharpUsePrimaryConstructorCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.ConvertSwitchStatementToExpression.ConvertSwitchStatementToExpressionCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseConditionalExpression.CSharpUseConditionalExpressionForAssignmentCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseConditionalExpression.CSharpUseConditionalExpressionForReturnCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.UseObjectInitializer.CSharpUseObjectInitializerCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.MakeFieldReadonly.CSharpMakeFieldReadonlyCodeFixProvider"),
+        (CSharpFixAssembly, "Microsoft.CodeAnalysis.CSharp.InlineDeclaration.CSharpInlineDeclarationCodeFixProvider")
+    ];
     private static readonly Lazy<ImmutableArray<DiagnosticAnalyzer>> AllAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
     private static readonly Lazy<ImmutableDictionary<string, CodeFixProvider>> CodeFixProviders = new(LoadCodeFixProviders, LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -80,21 +102,31 @@ internal static class RoslynCodeStyleAnalyzers
         string folder = Path.Combine(AppContext.BaseDirectory, "RoslynAnalyzers");
         var loader = new RuntimeAnalyzerAssemblyLoader(folder);
         var providers = new Dictionary<string, CodeFixProvider>(StringComparer.Ordinal);
-        foreach (string assemblyName in new[] { "Microsoft.CodeAnalysis.CodeStyle.Fixes.dll", "Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes.dll" })
+        var assemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
+        foreach ((string assemblyName, string typeName) in SupportedFixerTypes)
         {
             string path = Path.Combine(folder, assemblyName);
             if (!File.Exists(path)) { throw new ProductException($"The Roslyn code-style fixer assembly is missing at '{path}'. Reinstall the hygiene tool package."); }
-            foreach (Type type in loader.LoadFromPath(path).GetTypes()
-                .Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(CodeFixProvider).IsAssignableFrom(type)))
+            if (!assemblies.TryGetValue(assemblyName, out Assembly? assembly))
             {
-                CodeFixProvider? provider;
-                try { provider = Activator.CreateInstance(type) as CodeFixProvider; }
-                catch (Exception exception) when (exception is ArgumentException or TargetInvocationException or MissingMethodException) { continue; }
-                if (provider is null) { continue; }
-                foreach (string diagnosticId in provider.FixableDiagnosticIds.Where(SupportedFixDiagnostics.Contains))
-                {
-                    providers.TryAdd(diagnosticId, provider);
-                }
+                assembly = loader.LoadFromPath(path);
+                assemblies.Add(assemblyName, assembly);
+            }
+            Type type = assembly.GetType(typeName, throwOnError: true)!;
+            if (type.IsAbstract || type.ContainsGenericParameters || !typeof(CodeFixProvider).IsAssignableFrom(type))
+            {
+                throw new ProductException($"The pinned Roslyn fixer '{typeName}' is not a concrete code fix provider.");
+            }
+            CodeFixProvider? provider;
+            try { provider = Activator.CreateInstance(type) as CodeFixProvider; }
+            catch (Exception exception) when (exception is ArgumentException or TargetInvocationException or MissingMethodException)
+            {
+                throw new ProductException($"The pinned Roslyn fixer '{typeName}' could not be initialized: {exception.Message}");
+            }
+            if (provider is null) { throw new ProductException($"The pinned Roslyn fixer '{typeName}' could not be initialized."); }
+            foreach (string diagnosticId in provider.FixableDiagnosticIds.Where(SupportedFixDiagnostics.Contains))
+            {
+                providers.TryAdd(diagnosticId, provider);
             }
         }
         return providers.ToImmutableDictionary(StringComparer.Ordinal);

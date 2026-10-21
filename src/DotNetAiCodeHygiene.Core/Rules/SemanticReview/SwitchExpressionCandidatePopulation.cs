@@ -12,7 +12,7 @@ internal static class SwitchExpressionCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would a switch expression make this decision clearer with its enclosing member behavior visible? Keep the statement form when it communicates control flow better; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<SwitchExpressionMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<SwitchExpressionMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0066");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, SwitchStatementSyntax Switch)> Candidates)>(StringComparer.Ordinal);
@@ -22,7 +22,7 @@ internal static class SwitchExpressionCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             SwitchStatementSyntax? switchStatement = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 .AncestorsAndSelf().OfType<SwitchStatementSyntax>().FirstOrDefault();
@@ -63,7 +63,7 @@ internal static class SwitchExpressionCandidatePopulation
             }
 
             if (occurrences.Count == 0) { continue; }
-            SwitchExpressionOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerMember).ToArray();
+            SwitchExpressionOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerMember).ToArray();
             string groupPath = Path.GetRelativePath(Path.GetDirectoryName(project.FilePath!)!, document.FilePath!);
             groups.Add(new SwitchExpressionMemberGroup(memberId, groupPath, owner, occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

@@ -167,7 +167,7 @@ Focused checks are for iterative development; current valid evidence receipts an
 
 ## Human Review
 
-Human review is milestone-scoped, blocking, and independent. Prepare `.review/REV-M0023-COMPLETION.md` at implementation completion with links to rule diff, exact Core/CLI/consumer evidence, modernization cap and negative-case proof, and outstanding limitations. Leave the decision pending for the authorized reviewer; run the existing review-check only after an actual decision.
+Human review is milestone-scoped, blocking, and independent. `.review/REV-M0023-COMPLETION.md` is prepared with links to the rule diff, current Core/CLI/consumer evidence, modernization cap and negative-case proof, and outstanding limitations. Leave the decision pending for the authorized reviewer; run the existing review-check only after an actual decision.
 
 ## Documentation Policy
 
@@ -181,4 +181,4 @@ Ready: product-level decisions, negative boundaries, population strategy, budget
 
 ## Execution evidence status (2026-10-21)
 
-The work is **incomplete; no milestone completion or independent approval is claimed**. The ledger `.execution/M0023-deterministic-cleanup-and-modernization-reviews.md` contains the AC/EC reconciliation. The seven-stage validation, full Core/CLI suites, and installed-consumer package SHA-256 `B505C17C529F4C9EF675DB6F00D36AFE496DCDBAEE093EBC11785624E88B87C0` apply to a prior implementation snapshot and are stale for the current branch. The pinned Roslyn CodeStyle 5.0.0 package now exposes IDE0005 and its fixer through the product's public in-process path; focused Core evidence covers the normalizer, and `pack-current` passed for the current candidate. Exact installed-consumer behavior remains unverified. Final VAL-01–VAL-05 acceptance remains outstanding. Required modernization populations, integrated shared max-five budget, occurrence verdict flow, and related audit/documentation work remain unimplemented. `.review/REV-M0023-COMPLETION.md` is prepared with the decision pending.
+Implementation and the technical validation gates are complete on the current branch snapshot. Windows 11/.NET 11 current receipts pass: Release solution build (0 warnings/errors), Core 112/112, CLI 34/34, README policy, current package/installed-consumer, and self-host. `eng/validate.ps1 -Verify` returned `status: verified` and reused all seven stage receipts; current package SHA-256 is `426799A5C245613DF8CA85489B1CE2DB5D52FAF9EB2E681780F6D645D1E5E5CC`. The execution ledger retains criterion-specific partial/pending evidence where the planned negative-context, mixed-verdict, new-gate replay, and all-family audit fixtures are not yet complete. AC-16/VAL-06 remains blocking: `.review/REV-M0023-COMPLETION.md` is prepared, and the authorized independent human decision is pending. No approval or full milestone acceptance is claimed.

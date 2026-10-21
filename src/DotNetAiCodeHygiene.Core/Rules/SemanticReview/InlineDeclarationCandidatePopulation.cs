@@ -12,7 +12,7 @@ internal static class InlineDeclarationCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would declaring this local at its use site clarify its limited scope? Keep the separate declaration when it helps explain control flow or lifetime; mark uncertain when context is insufficient. This proposal covers IDE0018 inline declarations only, not general variable merging.";
 
-    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0018");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, LocalDeclarationStatementSyntax Declaration)> Candidates)>(StringComparer.Ordinal);
@@ -22,7 +22,7 @@ internal static class InlineDeclarationCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             LocalDeclarationStatementSyntax? declaration = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 .AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
@@ -62,7 +62,7 @@ internal static class InlineDeclarationCandidatePopulation
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
-            InlineDeclarationOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerMember).ToArray();
+            InlineDeclarationOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerMember).ToArray();
             string groupPath = Path.GetRelativePath(Path.GetDirectoryName(project.FilePath!)!, document.FilePath!);
             groups.Add(new InlineDeclarationMemberGroup(memberId, groupPath, owner, occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

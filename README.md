@@ -33,11 +33,12 @@ dotnet hygiene
 dotnet hygiene check --base origin/main --output json
 dotnet hygiene review accept <batch-handle> <item-id>...
 dotnet hygiene review accept <batch-handle> --all
+dotnet hygiene review decide <batch-handle> <occurrence-id> --verdict desirable|retain|uncertain
 ```
 
 Accept only items whose fixed questions you inspected and answered positively. Leave negative or uncertain items unaccepted and use the rule's escalation guidance. Rerun `dotnet hygiene` after source changes. `complete` means the selected gate obligations were processed; it does not certify the full repository population as defect-free. A successful command execution is not itself a complete gate.
 
-The six semantic-review rules keep independent, bounded gate-local selection. A rule may select up to five items; `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
+The six established semantic-review rules keep independent, bounded gate-local selection. The nine modernization rules share one five-package budget across all families; each selected package exposes bounded, separately judged occurrences and reports its remainder. Use `review decide` for those occurrence judgments; modernization suggestions never apply automatically. `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
 
 ## Manual Inspection and Debugging
 

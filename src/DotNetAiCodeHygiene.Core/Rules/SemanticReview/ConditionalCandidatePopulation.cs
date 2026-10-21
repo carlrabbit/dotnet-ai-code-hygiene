@@ -13,7 +13,7 @@ internal static class ConditionalCandidatePopulation
     internal const string Question = "Would converting between the conditional expression and if form clarify this control flow? Keep the current form when it better communicates branching or evaluation order; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0045", "IDE0046"];
 
-    internal static IReadOnlyList<ConditionalMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<ConditionalMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, SyntaxNode Candidate)> Candidates)>(StringComparer.Ordinal);
@@ -24,7 +24,7 @@ internal static class ConditionalCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
             SyntaxNode? candidateNode = node.AncestorsAndSelf().FirstOrDefault(ancestor => ancestor is IfStatementSyntax or ConditionalExpressionSyntax);
@@ -68,7 +68,7 @@ internal static class ConditionalCandidatePopulation
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
-            ConditionalOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerMember).ToArray();
+            ConditionalOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerMember).ToArray();
             string groupPath = Path.GetRelativePath(Path.GetDirectoryName(project.FilePath!)!, document.FilePath!);
             groups.Add(new ConditionalMemberGroup(memberId, groupPath, owner, occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

@@ -12,7 +12,7 @@ internal static class ReadonlyFieldCandidatePopulation
     internal const int MaximumOccurrencesPerType = 12;
     internal const string Question = "Should this field be readonly given all writes, constructor assignments, and uses across the type? Keep it mutable when later mutation is part of the design; mark uncertain when assignment behavior is unclear.";
 
-    internal static IReadOnlyList<ReadonlyFieldTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<ReadonlyFieldTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0044");
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, FieldDeclarationSyntax Field, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
@@ -22,7 +22,7 @@ internal static class ReadonlyFieldCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
             FieldDeclarationSyntax? field = node.AncestorsAndSelf().OfType<FieldDeclarationSyntax>().FirstOrDefault();
@@ -62,7 +62,7 @@ internal static class ReadonlyFieldCandidatePopulation
                     symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
-            ReadonlyFieldOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerType).ToArray();
+            ReadonlyFieldOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerType).ToArray();
             groups.Add(new ReadonlyFieldTypeGroup(typeId, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
                 occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

@@ -13,7 +13,7 @@ internal static class ExpressionBodyCandidatePopulation
     internal const string Question = "Would an expression body make this member easier to read in its type context? Keep the block when it communicates structure or intent; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027"];
 
-    internal static IReadOnlyList<ExpressionBodyTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<ExpressionBodyTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, MemberDeclarationSyntax Member, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
@@ -24,7 +24,7 @@ internal static class ExpressionBodyCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
             MemberDeclarationSyntax? member = node.AncestorsAndSelf().OfType<MemberDeclarationSyntax>().FirstOrDefault();
@@ -71,7 +71,7 @@ internal static class ExpressionBodyCandidatePopulation
             }
 
             if (occurrences.Count == 0) { continue; }
-            ExpressionBodyOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerType).ToArray();
+            ExpressionBodyOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerType).ToArray();
             groups.Add(new ExpressionBodyTypeGroup(typeId, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
                 occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }

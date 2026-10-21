@@ -471,9 +471,18 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 27. readability.type-responsibility.review    v1
 28. tests.quality.review                      v1
 29. comments.intent.review                    v1
+30. modernization.var-style                  v1
+31. modernization.expression-body            v1
+32. modernization.collection-expression      v1
+33. modernization.primary-constructor         v1
+34. modernization.switch-expression           v1
+35. modernization.conditional                 v1
+36. modernization.object-initializer           v1
+37. modernization.readonly-field               v1
+38. modernization.inline-declaration           v1
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule. M0023 appends the nine analyzer-backed modernization review families after the existing catalog; their occurrence decisions and shared budget are specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
 
 ## Non-goals
 

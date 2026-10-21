@@ -13,11 +13,13 @@ public sealed class M0010CapabilityTests
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
             "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.unused", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
+            "modernization.var-style", "modernization.expression-body", "modernization.collection-expression", "modernization.primary-constructor",
+            "modernization.switch-expression", "modernization.conditional", "modernization.object-initializer", "modernization.readonly-field", "modernization.inline-declaration",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(29);
+        await Assert.That(ids.Length).IsEqualTo(38);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)

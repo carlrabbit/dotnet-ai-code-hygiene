@@ -13,7 +13,7 @@ internal static class CollectionExpressionCandidatePopulation
     internal const string Question = "Would a collection expression make this construction clearer in its file context? Keep the existing form when it communicates intent better or language/runtime constraints matter; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0300", "IDE0301", "IDE0302", "IDE0303", "IDE0304", "IDE0305"];
 
-    internal static IReadOnlyList<CollectionExpressionFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<CollectionExpressionFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byFile = new Dictionary<DocumentId, List<(Document Document, Diagnostic Diagnostic, ExpressionSyntax Expression)>>();
@@ -24,7 +24,7 @@ internal static class CollectionExpressionCandidatePopulation
             cancellationToken.ThrowIfCancellationRequested();
             SyntaxTree tree = diagnostic.Location.SourceTree!;
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             ExpressionSyntax? expression = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 .AncestorsAndSelf().OfType<ExpressionSyntax>().FirstOrDefault();
@@ -68,7 +68,7 @@ internal static class CollectionExpressionCandidatePopulation
             }
 
             if (occurrences.Count == 0) { continue; }
-            CollectionExpressionOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerFile).ToArray();
+            CollectionExpressionOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerFile).ToArray();
             Document file = project.GetDocument(documentId)!;
             groups.Add(new CollectionExpressionFileGroup(Path.GetRelativePath(Path.GetDirectoryName(project.FilePath!)!, file.FilePath!),
                 occurrences.Count, bounded, occurrences.Count - bounded.Length));

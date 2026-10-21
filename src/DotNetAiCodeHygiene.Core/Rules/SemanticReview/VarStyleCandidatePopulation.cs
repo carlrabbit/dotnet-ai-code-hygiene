@@ -13,7 +13,7 @@ internal static class VarStyleCandidatePopulation
     internal const int MaximumOccurrencesPerFile = 12;
     internal const string Question = "Would the alternative var or explicit local type improve readability here? Keep the current form if it is clearer; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<VarStyleFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken)
+    internal static IReadOnlyList<VarStyleFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(
             compilation, project.AnalyzerOptions, "IDE0007", "IDE0008");
@@ -26,7 +26,7 @@ internal static class VarStyleCandidatePopulation
             SyntaxTree? tree = diagnostic.Location.SourceTree;
             if (tree is null) { continue; }
             Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath == tree.FilePath);
-            if (document is null) { continue; }
+            if (document is null || !RuleContext.IsEligibleSourceDocument(document)) { continue; }
             SyntaxNode root = tree.GetRoot(cancellationToken);
             LocalDeclarationStatementSyntax? declaration = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 .AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
@@ -72,7 +72,7 @@ internal static class VarStyleCandidatePopulation
             }
 
             if (occurrences.Count == 0) { continue; }
-            VarStyleOccurrence[] bounded = occurrences.Take(MaximumOccurrencesPerFile).ToArray();
+            VarStyleOccurrence[] bounded = exhaustive ? occurrences.ToArray() : occurrences.Take(MaximumOccurrencesPerFile).ToArray();
             groups.Add(new VarStyleFileGroup(path, occurrences.Count, bounded, occurrences.Count - bounded.Length));
         }
         return groups.OrderBy(group => group.Path, StringComparer.Ordinal).ToArray();
