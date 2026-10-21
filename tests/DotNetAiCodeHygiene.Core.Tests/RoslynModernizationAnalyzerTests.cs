@@ -177,4 +177,91 @@ public sealed class RoslynModernizationAnalyzerTests
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }
+
+    [Test]
+    public async Task SwitchExpressionCandidatesUseMemberScopeAndIncludeBehaviorContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-switch-expression-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int Run(int value) { int result; switch (value) { case 1: result = 10; break; default: result = 0; break; } return result; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_prefer_switch_expression = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<SwitchExpressionMemberGroup> groups = SwitchExpressionCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            SwitchExpressionMemberGroup group = groups.Single();
+            await Assert.That(group.Owner).Contains("Run(int)");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().Context).Contains("return result");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("switch");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ConditionalCandidatesKeepTheEnclosingMemberAndCodeFixPreview()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-conditional-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Sample { public int Run(bool flag) { if (flag) return 1; else return 0; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_prefer_conditional_expression = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<ConditionalMemberGroup> groups = ConditionalCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            ConditionalMemberGroup group = groups.Single();
+            await Assert.That(group.Owner).Contains("Run(bool)");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("?");
+            await Assert.That(group.Occurrences.Single().Context).Contains("if (flag)");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
+
+    [Test]
+    public async Task ObjectInitializerCandidatesIncludeConstructionAndMutationContext()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "hygiene-object-initializer-candidates-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(Path.Combine(repository, "Sample.cs"),
+                "public class Box { public int Value { get; set; } } public class Sample { public Box Run() { var box = new Box(); box.Value = 3; return box; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repository, ".editorconfig"),
+                "root = true\n[*.cs]\ndotnet_style_object_initializer = true:warning\n");
+
+            using var session = new RepositorySession(repository);
+            Project project = session.Projects.Single();
+            IReadOnlyList<ObjectInitializerMemberGroup> groups = ObjectInitializerCandidatePopulation.Build(
+                project, session.GetCompilation(project), CancellationToken.None);
+
+            await Assert.That(groups).Count().IsEqualTo(1);
+            ObjectInitializerMemberGroup group = groups.Single();
+            await Assert.That(group.Owner).Contains("Run()");
+            await Assert.That(group.TotalEligibleOccurrences).IsEqualTo(1);
+            await Assert.That(group.Occurrences.Single().Context).Contains("box.Value = 3");
+            await Assert.That(group.Occurrences.Single().PreviewDocument).Contains("Value = 3");
+        }
+        finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
+    }
 }
