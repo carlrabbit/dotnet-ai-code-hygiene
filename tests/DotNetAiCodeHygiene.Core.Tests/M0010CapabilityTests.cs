@@ -11,13 +11,13 @@ public sealed class M0010CapabilityTests
         string expected = string.Join("|", new[]
         {
             "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit",
-            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "docs.summary.required",
+            "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "docs.summary.required",
             "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review",
             "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review",
             "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review"
         });
         await Assert.That(string.Join("|", ids)).IsEqualTo(expected);
-        await Assert.That(ids.Length).IsEqualTo(19);
+        await Assert.That(ids.Length).IsEqualTo(23);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
             .Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(4);
         await Assert.That(RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>().SelectMany(rule => rule.EditorConfigEntries)
@@ -93,6 +93,7 @@ public sealed class M0010CapabilityTests
             await File.WriteAllTextAsync(source, originalSource);
             _ = new RewriteEngine(repo).Rewrite("normalize", [], false, false);
             string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("/// <summary>Sample.</summary>");
             await Assert.That(normalized).DoesNotContain("this.Value");
             await Assert.That(normalized).DoesNotContain("System.String.Empty");
 
@@ -181,6 +182,155 @@ public sealed class M0010CapabilityTests
             await Assert.That(normalized).Contains("if (true) {");
             await Assert.That(normalized).Contains("WriteLine(1); }");
             await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: false).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ExplicitAccessibilityRuleAddsSafeDefaultsOnlyWhenEnabled()
+    {
+        const string initial = "/// <summary>Sample.</summary>\n[System.Obsolete] class App{static class Nested{}static int Value;static App(){}public void Run(){}} interface Contract{void Call();} class Implementation:Contract{void Contract.Call(){}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-explicit-accessibility", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.accessibility.explicit", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.accessibility.explicit");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.accessibility.explicit", true);
+            RewriteResult planned = rewrite.Rewrite("normalize", [], false, checkOnly: true);
+            await Assert.That(planned.SelectedRuleIds).Contains("style.accessibility.explicit");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("internal class App");
+            await Assert.That(normalized).Contains("private static class Nested");
+            await Assert.That(normalized).Contains("private static int Value");
+            await Assert.That(normalized).Contains("static App()");
+            await Assert.That(normalized).Contains("internal interface Contract");
+            await Assert.That(normalized).Contains("public void Call()");
+            await Assert.That(normalized).Contains("internal class Implementation");
+            await Assert.That(normalized).Contains("void Contract.Call()");
+            string afterFirstRun = normalized;
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(afterFirstRun);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task DefaultLiteralNormalizationRequiresImmediatelyExplicitMatchingDeclarationType()
+    {
+        const string initial = "class App{int field=default(int);string Property{get;}=default(string);void Run(){int local=default(int);var inferred=default(int);}string Return(){return default(string);}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-default-literal", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.default.literal", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.default.literal");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.default.literal", true);
+            RewriteResult plan = rewrite.Rewrite("normalize", [], false, checkOnly: true);
+            await Assert.That(plan.ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("int field = default;");
+            await Assert.That(normalized).Contains("string Property { get; } = default;");
+            await Assert.That(normalized).Contains("int local = default;");
+            await Assert.That(normalized).Contains("var inferred = default(int);");
+            await Assert.That(normalized).Contains("return default(string);");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+
+            await File.WriteAllTextAsync(source, initial);
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><LangVersion>7.0</LangVersion></PropertyGroup></Project>");
+            hygiene.SetRule("style.accessibility.explicit", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task RedundantCastNormalizationRemovesOnlyExactIdentityCastsWithoutComments()
+    {
+        const string initial = "class App{void Run(){int value=(int)1;long widened=(long)1;int commented=(/* keep */int)1;string text=\"\";var inferred=(string)text;}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-redundant-cast", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.cast.redundant", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.cast.redundant");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.cast.redundant", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("int value = 1;");
+            await Assert.That(normalized).Contains("long widened = (long)1;");
+            await Assert.That(normalized).Contains("int commented = (/* keep */int)1;");
+            await Assert.That(normalized).Contains("var inferred = text;");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task RedundantInterpolationNormalizationRequiresConstantTextOnlyStrings()
+    {
+        const string initial = "class App{void Run(){string plain=$\"hello\";string hole=$\"{plain}\";string commented=/* keep */$\"still interpolated\";}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-redundant-interpolation", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.interpolation.redundant", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.interpolation.redundant");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.interpolation.redundant", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("string plain = \"hello\";");
+            await Assert.That(normalized).Contains("string hole = $\"{plain}\";");
+            await Assert.That(normalized).Contains("/* keep */");
+            await Assert.That(normalized).Contains("$\"still interpolated\"");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task InferredNameNormalizationRequiresExactIdentifierAndPreservesCommentedNames()
+    {
+        const string initial = "class App{void Run(){int value=1;string Name=\"\";var tuple=(value:value, other:value, retained:/* keep */value);var inferred=new{Name=Name};var explicitName=new{Other=Name};}}";
+        (string repo, string source) = await CreateRewriteFixture("hygiene-inferred-names", initial);
+        try
+        {
+            var hygiene = new HygieneEngine(repo);
+            var rewrite = new RewriteEngine(repo);
+            hygiene.SetRule("style.names.inferred", false);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).SelectedRuleIds).DoesNotContain("style.names.inferred");
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+
+            hygiene.SetRule("style.names.inferred", true);
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(initial);
+            _ = rewrite.Rewrite("normalize", [], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(source);
+            await Assert.That(normalized).Contains("var tuple = (value, other: value, retained:");
+            await Assert.That(normalized).Contains("/* keep */value");
+            await Assert.That(normalized).Contains("var inferred = new { Name };");
+            await Assert.That(normalized).Contains("var explicitName = new { Other = Name };");
+            await Assert.That(rewrite.Rewrite("normalize", [], false, checkOnly: true).ChangedCount).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
     }

@@ -177,6 +177,7 @@ Capabilities:
 ```text
 diagnose
 editorconfig-project
+normalize-remediate
 ```
 
 Configurable: yes; enabled by default.
@@ -201,6 +202,7 @@ Capabilities:
 ```text
 diagnose
 editorconfig-project
+normalize-remediate
 ```
 
 Configurable: yes; enabled by default.
@@ -212,9 +214,7 @@ dotnet_style_require_accessibility_modifiers = always
 dotnet_diagnostic.IDE0040.severity = error
 ```
 
-Diagnosis validates the effective configuration for supported projected C# compile inputs using the existing effective-EditorConfig semantics.
-
-No source rewrite is added for this rule in M0010.
+Diagnosis validates the effective configuration for supported projected C# compile inputs using the existing effective-EditorConfig semantics. When the rule is enabled, normalization adds the language-defined default accessibility to supported type/member declarations, including top-level `internal`, class/struct-member `private`, and interface-member `public`. It skips explicit-interface implementations and static constructors. Roslyn formats the edited document, then the normal project compilation and transactional commit path validate/apply it.
 
 ### `format.csharp.roslyn` v1
 
@@ -290,6 +290,62 @@ The rule requires C# 9 or later in the loaded project's effective parse options 
 
 It emits no normal `check` finding.
 
+### `style.default.literal` v1
+
+Purpose: replace `default(T)` with `default` only for an explicitly typed local, field, or property initializer whose declared symbol type exactly matches the default expression type.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule requires C# 7.1 or later and leaves `var` declarations, return expressions, comment/directive-bearing type syntax, and other contextual expressions unchanged. Compiler validation of the complete rewrite plan remains required.
+
+It emits no normal `check` finding.
+
+### `style.cast.redundant` v1
+
+Purpose: remove only casts for which Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Comment/directive-bearing candidates are left unchanged. Parentheses are retained or reduced only by Roslyn's simplifier, and the resulting project compilation is validated before commit.
+
+It emits no normal `check` finding.
+
+### `style.interpolation.redundant` v1
+
+Purpose: replace a constant interpolated string with ordinary string-literal syntax when it contains only text and no interpolation holes.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The string's Roslyn constant value is retained. Multiline and raw interpolated strings, actual interpolation holes, and comment/directive-bearing expressions are left unchanged.
+
+It emits no normal `check` finding.
+
+### `style.names.inferred` v1
+
+Purpose: omit a tuple or anonymous-object member name when an identifier expression unambiguously infers the exact same name.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Only simple identifier expressions with exact ordinal name matches are shortened. Mismatches and comment/directive-bearing names are retained.
+
+It emits no normal `check` finding.
+
 ## Default compatibility target
 
 With all new M0010 configurable rules enabled:
@@ -301,7 +357,7 @@ With all new M0010 configurable rules enabled:
 
 A deliberate disable changes only the disabled rule's owned capabilities.
 
-## Canonical rule order after M0011
+## Canonical rule order after M0023
 
 ```text
 1.  profile.dotnet.analysis.required          v2
@@ -312,17 +368,21 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 6.  style.qualification.this.unnecessary      v1
 7.  style.qualification.redundant              v1
 8.  style.object-creation.target-typed         v1
-9.  docs.summary.required                     v2
-10. docs.xml.consistent                       v1
-11. docs.text.sentence                        v1
-12. docs.summary.quality.review               v6
-13. docs.summary.language.german.review       v4
-14. readability.long-line.review              v1
-15. readability.control-flow.visual-block     v2
-16. architecture.boringness.review            v3
-17. readability.type-responsibility.review    v1
-18. tests.quality.review                      v1
-19. comments.intent.review                    v1
+9.  style.default.literal                    v1
+10. style.cast.redundant                      v1
+11. style.interpolation.redundant              v1
+12. style.names.inferred                     v1
+13. docs.summary.required                     v2
+14. docs.xml.consistent                       v1
+15. docs.text.sentence                        v1
+16. docs.summary.quality.review               v6
+17. docs.summary.language.german.review       v4
+18. readability.long-line.review              v1
+19. readability.control-flow.visual-block     v2
+20. architecture.boringness.review            v3
+21. readability.type-responsibility.review    v1
+22. tests.quality.review                      v1
+23. comments.intent.review                    v1
 ```
 
 The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
@@ -333,7 +393,7 @@ M0010 does not:
 
 - convert every formatter option into a hygiene rule;
 - make `readability.control-flow.visual-block` auto-fixable;
-- add direct source rewrites for braces/accessibility;
+- add direct source rewrites for braces/accessibility before M0023;
 - add arbitrary repository parameters for style rules;
 - add a public plugin API;
 - add reflection discovery, DI, a rule dependency graph, or a policy DSL;

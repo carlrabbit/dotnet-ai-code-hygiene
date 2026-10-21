@@ -61,9 +61,14 @@ M0004 intentionally limits normalization to Roslyn-backed simplification where s
 
 1. `style.qualification.this.unnecessary` removes only explicit `this.` qualification proven redundant by Roslyn;
 2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence;
-3. `style.object-creation.target-typed` converts `new T(...)` only for local, field, or property initializers whose explicit declared type is exactly the Roslyn-bound creation type. It requires effective C# 9 or later and leaves return expressions, inferred declarations, and commented/directive-bearing type syntax unchanged.
+3. `style.accessibility.explicit` adds the language-defined default access modifier to supported type and member declarations, while skipping static constructors and explicit-interface implementations.
+4. `style.object-creation.target-typed` converts `new T(...)` only for local, field, or property initializers whose explicit declared type is exactly the Roslyn-bound creation type. It requires effective C# 9 or later and leaves return expressions, inferred declarations, and commented/directive-bearing type syntax unchanged.
+5. `style.default.literal` shortens `default(T)` only in local, field, or property initializers whose explicit declared symbol type is exactly the default expression's Roslyn type. It requires effective C# 7.1 or later and leaves `var`, return expressions, and commented/directive-bearing type syntax unchanged.
+6. `style.cast.redundant` removes a cast only when Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type. Comment/directive-bearing candidates are retained, and Roslyn's simplifier owns any required parentheses.
+7. `style.interpolation.redundant` replaces only constant interpolated strings with no interpolation holes, retaining the Roslyn constant value and skipping multiline, raw-string, and comment/directive-bearing expressions.
+8. `style.names.inferred` removes tuple/anonymous-object names only when a simple identifier expression infers the exact same ordinal name; mismatches and comment/directive-bearing names remain.
 
-The target-typed creation rule is an explicit readability-oriented exception to judgmental modernization: it applies only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
+Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 
 These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 
