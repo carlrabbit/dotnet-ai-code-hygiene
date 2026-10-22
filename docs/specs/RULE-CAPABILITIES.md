@@ -177,6 +177,7 @@ Capabilities:
 ```text
 diagnose
 editorconfig-project
+normalize-remediate
 ```
 
 Configurable: yes; enabled by default.
@@ -201,6 +202,7 @@ Capabilities:
 ```text
 diagnose
 editorconfig-project
+normalize-remediate
 ```
 
 Configurable: yes; enabled by default.
@@ -212,9 +214,7 @@ dotnet_style_require_accessibility_modifiers = always
 dotnet_diagnostic.IDE0040.severity = error
 ```
 
-Diagnosis validates the effective configuration for supported projected C# compile inputs using the existing effective-EditorConfig semantics.
-
-No source rewrite is added for this rule in M0010.
+Diagnosis validates the effective configuration for supported projected C# compile inputs using the existing effective-EditorConfig semantics. When the rule is enabled, normalization adds the language-defined default accessibility to supported type/member declarations, including top-level `internal`, class/struct-member `private`, and interface-member `public`. It skips explicit-interface implementations and static constructors. Roslyn formats the edited document, then the normal project compilation and transactional commit path validate/apply it.
 
 ### `format.csharp.roslyn` v1
 
@@ -276,18 +276,170 @@ naming changes
 
 It emits no normal `check` finding in M0010.
 
+### `style.object-creation.target-typed` v1
+
+Purpose: use target-typed object creation only when the same explicit type is immediately visible on a local, field, or property initializer.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule requires C# 9 or later in the loaded project's effective parse options and verifies that Roslyn binds the explicit creation to the declared target type. Contextual expressions such as returns, `var` declarations, comments or directives embedded in the removed type syntax, and unsupported language versions are left unchanged. Compiler validation of the full rewrite plan remains required before commit.
+
+It emits no normal `check` finding.
+
+### `style.whitespace.blank-lines` v1
+
+Purpose: remove file-edge blank lines and reduce runs of more than two ordinary blank lines to two.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Runs overlapping multiline string/interpolated-string tokens, comments, documentation trivia, directives, or disabled text are retained. Interior runs of one or two blank lines remain unchanged to preserve visual grouping. Existing line endings are retained, and the rule does not wrap or reindent code.
+
+It emits no normal `check` finding.
+
+### `style.null-forgiving.redundant` v1
+
+Purpose: remove a null-forgiving operator only when nullable flow analysis proves the operand was already not-null at that source position.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule uses the operand's Roslyn nullable flow state before the suppression operator. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained. It does not infer safety from the result type of the suppression expression.
+
+It emits no normal `check` finding.
+
+### `style.parentheses.redundant` v1
+
+Purpose: remove parentheses only around an uncomplicated primary expression when Roslyn confirms that the inner and outer expressions have identical type, converted type, and symbol binding.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule considers identifiers, literals, `this`, and `base`. Compound expressions remain grouped, and comments, directives, or disabled text inside or around a candidate are retained. It does not guess about precedence or change a semantic review decision.
+
+It emits no normal `check` finding.
+
+### `style.usings.unused` v1
+
+Purpose: remove imports only when the pinned Roslyn IDE0005 analyzer and code fix report them unnecessary.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The tool bundles the matching Microsoft.CodeAnalysis.CSharp.CodeStyle 5.0.0 analyzer and fix assemblies. The Roslyn fix owns import selection and removal. A source file with a comment- or directive-bearing using directive is left unchanged so its trivia remains intact. Required imports and alias/global/conditional semantics are delegated to Roslyn's analyzer. It emits no normal `check` finding.
+
+### `style.usings.organize` v1
+
+Purpose: deterministically order adjacent plain namespace imports while retaining import semantics and trivia.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Adjacent imports without aliases or static/global modifiers are sorted with ordinal-ignore-case and ordinal name order. The `dotnet_sort_system_directives_first` analyzer-config option controls whether `System` namespaces precede other imports (default: true). Alias, static, global, comment-bearing, and directive-bearing imports break a sortable group. Conditional regions and comments remain attached to their original directives. Imports are never removed by this rule.
+
+It emits no normal `check` finding.
+
+### `style.modifiers.organize` v1
+
+Purpose: order declaration modifiers by the effective `csharp_preferred_modifier_order` value used by Roslyn IDE0036.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+When the option is absent, the rule uses Roslyn's conventional C# modifier order. Declarations containing a modifier absent from the effective order, or comments, directives, or disabled text in modifier trivia, remain unchanged. The rewrite moves only modifier tokens; it does not change declarations or member order.
+
+It emits no normal `check` finding.
+
+### `style.default.literal` v1
+
+Purpose: replace `default(T)` with `default` only for an explicitly typed local, field, or property initializer whose declared symbol type exactly matches the default expression type.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The rule requires C# 7.1 or later and leaves `var` declarations, return expressions, comment/directive-bearing type syntax, and other contextual expressions unchanged. Compiler validation of the complete rewrite plan remains required.
+
+It emits no normal `check` finding.
+
+### `style.cast.redundant` v1
+
+Purpose: remove only casts for which Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Comment/directive-bearing candidates are left unchanged. Parentheses are retained or reduced only by Roslyn's simplifier, and the resulting project compilation is validated before commit.
+
+It emits no normal `check` finding.
+
+### `style.interpolation.redundant` v1
+
+Purpose: replace a constant interpolated string with ordinary string-literal syntax when it contains only text and no interpolation holes.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+The string's Roslyn constant value is retained. Multiline and raw interpolated strings, actual interpolation holes, and comment/directive-bearing expressions are left unchanged.
+
+It emits no normal `check` finding.
+
+### `style.names.inferred` v1
+
+Purpose: omit a tuple or anonymous-object member name when an identifier expression unambiguously infers the exact same name.
+
+Capabilities:
+
+```text
+normalize-remediate
+```
+
+Only simple identifier expressions with exact ordinal name matches are shortened. Mismatches and comment/directive-bearing names are retained.
+
+It emits no normal `check` finding.
+
 ## Default compatibility target
 
 With all new M0010 configurable rules enabled:
 
 - generated braces/accessibility EditorConfig policy is effectively equivalent to profile v1;
 - `hygiene format` retains the existing Roslyn formatter behavior;
-- `hygiene normalize` retains the existing supported simplification + formatting behavior, now attributed to explicit rules;
+- `hygiene normalize` retains the existing supported simplification + formatting behavior, with explicit target-typed creation, required-braces remediation, Roslyn-backed unused-import removal, and safe using organization added by M0023;
 - existing documentation/readability/review rules retain their diagnostic contracts and versions.
 
 A deliberate disable changes only the disabled rule's owned capabilities.
 
-## Canonical rule order after M0011
+## Canonical rule order after M0023
 
 ```text
 1.  profile.dotnet.analysis.required          v2
@@ -297,20 +449,40 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 5.  format.csharp.roslyn                      v1
 6.  style.qualification.this.unnecessary      v1
 7.  style.qualification.redundant              v1
-8.  docs.summary.required                     v2
-9.  docs.xml.consistent                       v1
-10. docs.text.sentence                        v1
-11. docs.summary.quality.review               v6
-12. docs.summary.language.german.review       v4
-13. readability.long-line.review              v1
-14. readability.control-flow.visual-block     v2
-15. architecture.boringness.review            v3
-16. readability.type-responsibility.review    v1
-17. tests.quality.review                      v1
-18. comments.intent.review                    v1
+8.  style.object-creation.target-typed         v1
+9.  style.default.literal                    v1
+10. style.cast.redundant                      v1
+11. style.interpolation.redundant              v1
+12. style.names.inferred                     v1
+13. style.usings.unused                       v1
+14. style.usings.organize                     v1
+15. style.modifiers.organize                  v1
+16. style.null-forgiving.redundant            v1
+17. style.whitespace.blank-lines              v1
+18. style.parentheses.redundant               v1
+19. docs.summary.required                     v2
+20. docs.xml.consistent                       v1
+21. docs.text.sentence                        v1
+22. docs.summary.quality.review               v6
+23. docs.summary.language.german.review       v4
+24. readability.long-line.review              v1
+25. readability.control-flow.visual-block     v2
+26. architecture.boringness.review            v3
+27. readability.type-responsibility.review    v1
+28. tests.quality.review                      v1
+29. comments.intent.review                    v1
+30. modernization.var-style                  v1
+31. modernization.expression-body            v1
+32. modernization.collection-expression      v1
+33. modernization.primary-constructor         v1
+34. modernization.switch-expression           v1
+35. modernization.conditional                 v1
+36. modernization.object-initializer           v1
+37. modernization.readonly-field               v1
+38. modernization.inline-declaration           v1
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule; details are in `docs/specs/SEMANTIC-REVIEWS.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule. M0023 appends the nine analyzer-backed modernization review families after the existing catalog; their occurrence decisions and shared budget are specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
 
 ## Non-goals
 
@@ -318,7 +490,7 @@ M0010 does not:
 
 - convert every formatter option into a hygiene rule;
 - make `readability.control-flow.visual-block` auto-fixable;
-- add direct source rewrites for braces/accessibility;
+- add direct source rewrites for braces/accessibility before M0023;
 - add arbitrary repository parameters for style rules;
 - add a public plugin API;
 - add reflection discovery, DI, a rule dependency graph, or a policy DSL;

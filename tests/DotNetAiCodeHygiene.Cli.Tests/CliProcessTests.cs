@@ -447,11 +447,11 @@ public sealed class CliProcessTests
             await Assert.That(noFindings.RootElement.GetProperty("runId").GetString()!.StartsWith("R-", StringComparison.Ordinal)).IsTrue();
             await Assert.That(noFindings.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(0);
             await Assert.That(noFindings.RootElement.GetProperty("ignoredCount").GetInt32()).IsEqualTo(0);
-            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(6);
+            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(15);
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "docs.summary.quality.review")).ExitCode).IsEqualTo(0);
             ProcessResult reviewDisabled = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument reviewDisabledJson = JsonDocument.Parse(reviewDisabled.StandardOutput);
-            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(5);
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(14);
             await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches")[0].GetProperty("ruleId").GetString()).IsEqualTo("docs.summary.language.german.review");
             await Assert.That(reviewDisabledJson.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(noFindings.RootElement.GetProperty("findings").GetArrayLength());
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
@@ -619,6 +619,57 @@ public sealed class CliProcessTests
     }
 
     [Test]
+    public async Task ModernizationReviewDecideRecordsOneOccurrenceAndItemAcceptanceIsRejected()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-cli-modernization-decision-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await RunProcessAsync("git", repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(sourcePath, "public class Fixture { public void Run() { var first = 1; var second = 2; } }\n");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".editorconfig"),
+                "root = true\n[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\n");
+            ProcessResult bootstrap = await RunCliInAsync(repo, "bootstrap", "--output", "json");
+            await Assert.That(bootstrap.ExitCode).IsEqualTo(0);
+
+            ProcessResult check = await RunCliInAsync(repo, "check", "src/Fixture.cs", "--output", "json");
+            await Assert.That(check.ExitCode).IsEqualTo(0);
+            using JsonDocument checkedResult = JsonDocument.Parse(check.StandardOutput);
+            JsonElement batch = checkedResult.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                .Single(candidate => candidate.GetProperty("ruleId").GetString() == "modernization.var-style");
+            JsonElement item = batch.GetProperty("items")[0];
+            JsonElement occurrences = item.GetProperty("occurrences");
+            await Assert.That(occurrences.GetArrayLength()).IsEqualTo(2);
+            string handle = batch.GetProperty("handle").GetString()!;
+            string occurrenceId = occurrences[0].GetProperty("id").GetString()!;
+            string itemId = item.GetProperty("id").GetString()!;
+
+            ProcessResult decision = await RunCliInAsync(repo, "review", "decide", handle, occurrenceId, "--verdict", "retain", "--output", "json");
+            await Assert.That(decision.ExitCode).IsEqualTo(0);
+            using (JsonDocument decisionJson = JsonDocument.Parse(decision.StandardOutput))
+            {
+                await Assert.That(decisionJson.RootElement.GetProperty("status").GetString()).IsEqualTo("recorded");
+                await Assert.That(decisionJson.RootElement.GetProperty("occurrenceId").GetString()).IsEqualTo(occurrenceId);
+                await Assert.That(decisionJson.RootElement.GetProperty("verdict").GetString()).IsEqualTo("retain");
+            }
+
+            ProcessResult invalidAccept = await RunCliInAsync(repo, "review", "accept", handle, itemId);
+            await Assert.That(invalidAccept.ExitCode).IsEqualTo(3);
+            await Assert.That(invalidAccept.StandardError).Contains("independent occurrence decisions");
+
+            ProcessResult repeat = await RunCliInAsync(repo, "check", "src/Fixture.cs", "--output", "json");
+            using JsonDocument repeated = JsonDocument.Parse(repeat.StandardOutput);
+            JsonElement repeatedBatch = repeated.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                .Single(candidate => candidate.GetProperty("ruleId").GetString() == "modernization.var-style");
+            await Assert.That(repeatedBatch.GetProperty("items")[0].GetProperty("occurrences")[0].GetProperty("decision").GetString()).IsEqualTo("retain");
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task CheckBaseAndReviewAllAreExplicitGateModesWithProcessErrors()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-cli-gate-modes-" + Guid.NewGuid().ToString("N"));
@@ -725,9 +776,10 @@ public sealed class CliProcessTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
         JsonElement rules = json.RootElement.GetProperty("rules");
-        await Assert.That(rules.GetArrayLength()).IsEqualTo(18);
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(38);
         await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(4).ToArray())
             .IsEquivalentTo(new[] { "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+        await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).Count(id => id.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
         JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
         await Assert.That(formatter.GetProperty("configurable").GetBoolean()).IsTrue();
         await Assert.That(formatter.GetProperty("capabilities").GetProperty("format").GetBoolean()).IsTrue();
@@ -749,7 +801,7 @@ public sealed class CliProcessTests
         ProcessResult help = await RunCliAsync("help", "--agent");
         await Assert.That(help.ExitCode).IsEqualTo(0);
         await Assert.That(help.StandardOutput).Contains("Workflow:");
-        foreach (string required in new[] { "Targets:", "--base", "--review-all", "Exit 0", "--output text|json", "presentation-only", "non-mutating", "findings", "review accept", "0/N", "review expand", "review handoff", "planner", ".hygiene", "no model/provider", "dotnet hygiene" })
+        foreach (string required in new[] { "Targets:", "--base", "--review-all", "Exit 0", "--output text|json", "presentation-only", "non-mutating", "findings", "review accept", "occurrence verdicts", "review expand", "review handoff", "planner", ".hygiene", "no model/provider", "dotnet hygiene" })
         {
             await Assert.That(help.StandardOutput).Contains(required);
         }
@@ -821,7 +873,7 @@ public sealed class CliProcessTests
             await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
             using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
             string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
-            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("style.qualification.this.unnecessary,style.qualification.redundant,format.csharp.roslyn");
+            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("style.braces.required,style.accessibility.explicit,style.qualification.this.unnecessary,style.qualification.redundant,style.object-creation.target-typed,style.default.literal,style.cast.redundant,style.interpolation.redundant,style.names.inferred,style.usings.unused,style.usings.organize,style.modifiers.organize,style.null-forgiving.redundant,style.whitespace.blank-lines,style.parentheses.redundant,format.csharp.roslyn");
             await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
             await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
             ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");

@@ -102,9 +102,10 @@ internal static class RuleCatalog
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
         new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(), new BracesStyleRuleModule(), new AccessibilityStyleRuleModule(),
-        new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(),
+        new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(), new TargetTypedObjectCreationRuleModule(), new DefaultLiteralRuleModule(), new RedundantCastRuleModule(), new RedundantInterpolationRuleModule(), new InferredNamesRuleModule(), new UnusedImportsRuleModule(), new OrganizeUsingsRuleModule(), new OrganizeModifiersRuleModule(), new RedundantNullForgivingRuleModule(), new ExcessBlankLinesRuleModule(), new RedundantParenthesesRuleModule(),
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
+        .. ModernizationReviewRuleModule.All,
         new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule(),
         new TypeResponsibilityReviewRuleModule(), new TestQualityReviewRuleModule(), new CommentIntentReviewRuleModule()
     ];

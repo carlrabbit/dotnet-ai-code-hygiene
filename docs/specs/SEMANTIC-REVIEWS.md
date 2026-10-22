@@ -4,9 +4,9 @@ The supported public CLI namespace is `dotnet hygiene`. The autonomous no-argume
 
 ## Model and output
 
-The deterministic engine discovers each rule's complete eligible population. All six semantic-review rules use the shared gate-local selector specified in `docs/specs/SAMPLING.md`; each rule retains its own population semantics, questions, reviewer class, escalation condition, and acceptance meaning. The CLI performs no model/provider invocation.
+The deterministic engine discovers each rule's complete eligible population. The six established semantic-review rules use the shared gate-local selector and independent per-rule budgets specified in `docs/specs/SAMPLING.md`. The nine M0023 modernization rules use their separate shared five-package budget and retain each family's analyzer eligibility, scope, questions, and occurrence previews. The CLI performs no model/provider invocation and never applies those previews.
 
-Every enabled semantic-review rule emits exactly one normal batch on a successful check, including `0/N` and `0/0`. `PopulationCount` is the complete rule-eligible population for the reporting scope. `SampleCount` is the selected subset, with a fixed maximum of five per rule. Mechanical findings remain exhaustive. The host materializes the selected items as supplied and never performs another ranking.
+Every enabled semantic-review rule emits exactly one normal batch on a successful check, including `0/N` and `0/0`. For established rules, `PopulationCount` and `SampleCount` count eligible and selected subjects, with up to five selected per rule. For M0023 modernization rules they count eligible and selected packages; the nine rules together select at most five packages per ordinary gate. Each package exposes a bounded set of independent occurrence IDs, source/context, the Roslyn fix preview, total eligible occurrences, and the unreviewed remainder. Mechanical findings remain exhaustive. The host materializes the selected items as supplied and never performs another ranking.
 
 ## Gate surfaces
 
@@ -26,7 +26,7 @@ On ordinary source-change gates, changed subject content ranks first. Up to one 
 
 ## Acceptance, expansion, and handoff
 
-`dotnet hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. Negative or uncertain judgments are not recorded by the CLI. Accepted observations persist in `.hygiene/.state/gate-reviews.json`.
+`dotnet hygiene review accept <batch-handle> <item-id>...` and `--all` accept only items in the latest normal sample for the six established rules. Acceptance is an explicit caller assertion that every required question is confidently acceptable and no escalation condition applies. For M0023 modernization batches, use `dotnet hygiene review decide <batch-handle> <occurrence-id> --verdict desirable|retain|uncertain`; this revalidates and records one occurrence judgment in `.hygiene/.state/modernization-decisions.json`. Package-level acceptance is rejected, a decision never changes source, and other occurrences in the package remain undecided. The CLI does not infer negative or uncertain outcomes.
 
 Acceptance revalidates the current gate, base, full eligible population and each private ticket before an atomic write. Any missing, duplicate, stale, nonselected, incompatible, or previously accepted item rejects the complete request. Repeating a gate cannot replenish its fixed sample after partial acceptance. Accepted unchanged fingerprints are suppressed; changed content can become eligible again.
 
@@ -88,6 +88,24 @@ Legitimate external-service, persistence, platform, and interoperability boundar
 `implementer` reviews; material concerns or uncertainty escalate to `frontier`. It neither requires nor rewrites comments.
 
 All three include accurate source locations and current file context. Non-applicable summary fields are empty. An external reviewer inspects related code or reports uncertainty when the embedded context cannot establish a dependency or contract.
+
+## M0023 modernization review rules
+
+The following v1 rules use the pinned Roslyn analyzer and exact registered code-fix provider for the listed diagnostic family. Their grouped review subject is the file, type, or member containing eligible occurrences. The implementer sees the original syntax, surrounding source context, concrete Roslyn preview, stable occurrence identity, and rule-owned question for each occurrence.
+
+| Rule ID | Analyzer family | Review population |
+|---|---|---|
+| `modernization.var-style` | IDE0007/IDE0008 | File |
+| `modernization.expression-body` | IDE0021–IDE0027 | Type, including partial members |
+| `modernization.collection-expression` | IDE0300–IDE0305 | File |
+| `modernization.primary-constructor` | IDE0290 | Type and related partial state |
+| `modernization.switch-expression` | IDE0066 | Member and enclosing behavior |
+| `modernization.conditional` | IDE0045/IDE0046 | Member and control-flow context |
+| `modernization.object-initializer` | IDE0017 | Member and construction/mutation context |
+| `modernization.readonly-field` | IDE0044 | Type, assignments and uses |
+| `modernization.inline-declaration` | IDE0018 only | Member; concrete inline-declaration fix |
+
+Each selected package is bounded to 12 occurrences and reports its eligible total and unreviewed remainder. `dotnet hygiene review decide <batch> <occurrence> --verdict desirable|retain|uncertain` records an explicit occurrence judgment after source/context fingerprint revalidation. `desirable` is not applied by the CLI; `retain` does not suppress a future unrelated opportunity; `uncertain` records uncertainty without marking the occurrence accepted. Package-level `review accept`, unbounded `review expand`, and CLI `review handoff` are rejected for these rules: the implementer keeps the decision, and the CLI cannot widen the selected work. Decisions do not alter source or the shared sampling budget.
 
 ## Compatibility
 

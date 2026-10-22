@@ -12,6 +12,8 @@ internal interface ISemanticReviewRuleModule : IRuleModule
     public string EscalatedReviewerClass { get; }
 }
 
+internal interface ISharedModernizationReviewRuleModule : ISemanticReviewRuleModule { }
+
 internal sealed record ReviewTicketAssociation(string BatchId, string ItemId, GateTicket GateTicket);
 internal sealed record ReviewBatchMaterialization(ReviewBatch Batch, IReadOnlyList<ReviewTicketAssociation> Tickets);
 internal sealed record SemanticReviewMaterialization(ReviewBatch[] Batches, ReviewTicketAssociation[] Tickets);
@@ -25,10 +27,20 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
             .Select(module =>
             {
                 RuleModuleResult result = byId[module.Descriptor.Id].Result;
-                return HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
+                bool issueItemAcceptanceTickets = createTickets && module is not ISharedModernizationReviewRuleModule;
+                ReviewBatchMaterialization materialized = HygieneEngine.BuildReviewBatch(run, module.Descriptor, module.BatchNumber,
                     result.ReviewSubjects, result.SelectedReviewSubjects ?? [],
                     result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
-                    module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass, createTickets);
+                    module.Questions, module.EscalationCondition, module.EscalatedReviewerClass, result.ReviewerClass, issueItemAcceptanceTickets);
+                ReviewBatch batch = materialized.Batch;
+                if (module is ISharedModernizationReviewRuleModule)
+                {
+                    batch = batch with { Escalation = batch.Escalation with
+                    {
+                        Command = $"dotnet hygiene review decide {batch.Handle} <occurrence-id> --verdict uncertain"
+                    } };
+                }
+                return materialized with { Batch = batch };
             }).ToArray();
         return new(built.Select(x => x.Batch).ToArray(), built.SelectMany(x => x.Tickets).ToArray());
     }

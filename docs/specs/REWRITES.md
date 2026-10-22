@@ -60,11 +60,25 @@ The autonomous bootstrap approval snapshot covers relevant source and configurat
 M0004 intentionally limits normalization to Roslyn-backed simplification where semantic services establish equivalence:
 
 1. `style.qualification.this.unnecessary` removes only explicit `this.` qualification proven redundant by Roslyn;
-2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence.
+2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence;
+3. `style.accessibility.explicit` adds the language-defined default access modifier to supported type and member declarations, while skipping static constructors and explicit-interface implementations.
+4. `style.object-creation.target-typed` converts `new T(...)` only for local, field, or property initializers whose explicit declared type is exactly the Roslyn-bound creation type. It requires effective C# 9 or later and leaves return expressions, inferred declarations, and commented/directive-bearing type syntax unchanged.
+5. `style.default.literal` shortens `default(T)` only in local, field, or property initializers whose explicit declared symbol type is exactly the default expression's Roslyn type. It requires effective C# 7.1 or later and leaves `var`, return expressions, and commented/directive-bearing type syntax unchanged.
+6. `style.cast.redundant` removes a cast only when Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type. Comment/directive-bearing candidates are retained, and Roslyn's simplifier owns any required parentheses.
+7. `style.interpolation.redundant` replaces only constant interpolated strings with no interpolation holes, retaining the Roslyn constant value and skipping multiline, raw-string, and comment/directive-bearing expressions.
+8. `style.names.inferred` removes tuple/anonymous-object names only when a simple identifier expression infers the exact same ordinal name; mismatches and comment/directive-bearing names remain.
+9. `style.usings.unused` runs Roslyn IDE0005 and its pinned Roslyn code fix to remove unnecessary imports. It skips a file if any using directive carries a comment or directive, preserving source trivia.
+10. `style.usings.organize` orders contiguous uncomplicated namespace imports by name and honors `dotnet_sort_system_directives_first` (default true). It leaves aliases, `static`/`global` imports, comments, directives, and conditional regions in place as group boundaries and never removes imports.
+11. `style.null-forgiving.redundant` removes `!` only when Roslyn's nullable flow state for the operand is already not-null. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained.
+12. `style.whitespace.blank-lines` trims file-edge blank lines and reduces runs of more than two ordinary blank lines to two. It skips runs touching multiline strings, comments, documentation trivia, directives, or disabled text, and preserves one- or two-line interior grouping.
+13. `style.parentheses.redundant` removes parentheses only around an identifier, literal, `this`, or `base` expression when Roslyn confirms identical type, converted type, and symbol binding. Compound grouping and comment/directive-bearing candidates remain unchanged.
+14. `style.modifiers.organize` orders declaration modifiers by the effective `csharp_preferred_modifier_order` option (IDE0036), using Roslyn's conventional C# order when the option is absent. Modifier lists containing unsupported modifiers or comments/directives remain unchanged.
+
+Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
 
 These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
 
-Do not introduce transformations for `var` policy, expression-bodied members, namespace style, collection expressions, target-typed `new`, modifier/member ordering, naming, or broad modernization.
+M0023 keeps analyzer-backed proposals for `var` policy, expression-bodied members, collection expressions, primary constructors, switch expressions, conditional expressions, object initializers, readonly fields, and IDE0018 inline declarations as implementer judgments. The CLI records a verdict for each occurrence and never applies a modernization preview automatically. Target-typed `new` and inferred naming remain governed by their deterministic readability normalizers above.
 
 ## Relationship to check
 

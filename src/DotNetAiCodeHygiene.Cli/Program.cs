@@ -128,6 +128,13 @@ internal static class Program
             if (all && itemIds.Length > 0) { throw new ArgumentException("Use either item IDs or --all, not both."); }
             return RenderAcceptance(new HygieneEngine().AcceptReview(parse.GetValue(acceptHandle)!, itemIds, all), parse.GetValue(output) ?? "text");
         }));
+        var decideHandle = new Argument<string>("batch-handle");
+        var decideOccurrence = new Argument<string>("occurrence-id");
+        var verdict = new Option<string>("--verdict") { Required = true, Description = "Occurrence judgment: desirable, retain, or uncertain." };
+        var decide = new Command("decide", "Record one independently judged modernization occurrence.");
+        decide.Arguments.Add(decideHandle); decide.Arguments.Add(decideOccurrence); decide.Options.Add(verdict); decide.Options.Add(output);
+        decide.SetAction(parse => Run(() => RenderModernizationDecision(new HygieneEngine().RecordModernizationDecision(
+            parse.GetValue(decideHandle)!, parse.GetValue(decideOccurrence)!, parse.GetValue(verdict)!), parse.GetValue(output) ?? "text")));
         var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand the latest run's complete eligible review population.");
         expand.Arguments.Add(expandHandle); expand.Options.Add(output);
         expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
@@ -146,7 +153,7 @@ internal static class Program
             else { throw new ArgumentException("--output must be text or json."); }
             return 0;
         }));
-        review.Subcommands.Add(accept); review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
+        review.Subcommands.Add(accept); review.Subcommands.Add(decide); review.Subcommands.Add(expand); review.Subcommands.Add(handoff); root.Subcommands.Add(review);
         return root;
     }
     internal static int Run(Func<int> action)
@@ -257,7 +264,7 @@ internal static class Program
         return 0;
     }
     private sealed record FormatObservation(string Project, string Status, string Output, IReadOnlyList<string> ChangedPaths);
-    private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation);
+    private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewOccurrence>? Occurrences = null, int? OccurrencePopulationCount = null, int? OccurrencesRemainingCount = null);
     private sealed record WorkOrderFile(string Path, string CurrentContentSha256, string CurrentContent, IReadOnlyList<WorkOrderItem> Items);
     private sealed record AutonomousUpdateResult(int ExitCode, object? RevalidatedLifecycle, string Message, bool Handoff = false);
     private static object? releaseUpdateState;
@@ -741,7 +748,8 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                 string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)));
                 WorkOrderItem[] items = group.Select(pair => new WorkOrderItem(
                     pair.batch.RuleId, pair.batch.RuleVersion, pair.batch.Handle, pair.item.Id, pair.item.Line, pair.item.Symbol,
-                    pair.item.Summary, pair.item.Declaration, pair.batch.Questions, pair.batch.Escalation))
+                    pair.item.Summary, pair.item.Declaration, pair.batch.Questions, pair.batch.Escalation, pair.item.Occurrences,
+                    pair.item.OccurrencePopulationCount, pair.item.OccurrencesRemainingCount))
                     .OrderBy(item => item.RuleId, StringComparer.Ordinal).ThenBy(item => item.ItemId, StringComparer.Ordinal).ToArray();
                 return new WorkOrderFile(group.Key, hash, content, items);
             })
@@ -1113,9 +1121,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>... . Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>..., dotnet hygiene review decide <batch> <occurrence> --verdict desirable|retain|uncertain. Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded.
         Exhaustive audit: dotnet hygiene --yolo-all first asks whether the user explicitly tasked the calling agent. Proceed only with --attest-explicit-task; otherwise stop or pass --deny-explicit-task. A valid supported profile and accepted baseline are required; the audit will not create either. Continue with dotnet hygiene audit next --run <audit-dir>, record only external acceptable/problem/uncertain judgments with dotnet hygiene audit record --run <audit-dir> --file <judgments.json>, then create report.json and report.md with dotnet hygiene audit finish --run <audit-dir>. Problem/uncertain judgments require rationale. The audit is report-only: no source changes, formatting, normalization, normal acceptance, handoff, bootstrap, tool update, or provider call. Reports disclose that source changes during collection are not tracked. Source context stays in the chosen local audit directory.
-        Each enabled semantic-review rule selects independently, up to five items; a batch may be 0/N or 0/0. The agent must inspect every fixed question before explicit per-rule acceptance. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
+        The six established semantic-review rules select independently, up to five items each. The nine modernization families share one five-package budget and expose bounded occurrence verdicts through review decide; a verdict never applies a fix. The agent must inspect every fixed question before acceptance or deciding. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
         Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle or audit status. An incomplete audit report returns exit 5; exit 2 means invalid invocation, 3 authorization or unusable input/state/safety prerequisite, 4 missing required dependency. Normal review state is under .hygiene/.state; audit checkpoints are separate under .hygiene/audits. The CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
@@ -1146,7 +1154,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         return 0;
     }
     private static object PublicFinding(Finding f) => new { f.Id, f.Handle, f.RuleId, f.RuleVersion, f.Classification, f.Path, f.Line, f.Column, f.Symbol, f.Message, f.Suggestion };
-    private static object PublicBatch(ReviewBatch b) => new { b.Id, b.Handle, b.RuleId, b.RuleVersion, b.Mode, b.ReviewerClass, b.PopulationCount, b.SampleCount, b.Questions, b.Escalation, items = b.Items.Select(i => new { i.Id, i.Path, i.Line, i.Column, i.Symbol, i.Summary, i.Declaration }) };
+    private static object PublicBatch(ReviewBatch b) => new { b.Id, b.Handle, b.RuleId, b.RuleVersion, b.Mode, b.ReviewerClass, b.PopulationCount, b.SampleCount, b.Questions, b.Escalation, items = b.Items };
     private static int RenderReview(ReviewBatch batch, string output)
     {
         if (output == "json")
@@ -1178,12 +1186,23 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         else { throw new ArgumentException("--output must be text or json."); }
         return 0;
     }
+    private static int RenderModernizationDecision(ModernizationDecisionResult decision, string output)
+    {
+        if (output == "json") { Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, status = "recorded", decision.BatchHandle, decision.RuleId, decision.OccurrenceId, decision.Verdict }, Json)); }
+        else if (output == "text") { Console.WriteLine($"Recorded {decision.Verdict} judgment for {decision.OccurrenceId} ({decision.RuleId})."); }
+        else { throw new ArgumentException("--output must be text or json."); }
+        return 0;
+    }
     private static void RenderBatchText(ReviewBatch b)
     {
         Console.WriteLine($"{b.Id} {b.RuleId} — {b.Mode} {b.SampleCount}/{b.PopulationCount} — reviewer: {b.ReviewerClass}");
         foreach (ReviewItem item in b.Items)
         {
             Console.WriteLine($"  {item.Id} {item.Path}:{item.Line}:{item.Column} {item.Symbol} — {item.Summary}");
+            foreach (ReviewOccurrence occurrence in item.Occurrences ?? [])
+            {
+                Console.WriteLine($"    {occurrence.Id} {occurrence.Path}:{occurrence.Line} {occurrence.DiagnosticId}: {occurrence.PreviewTitle}; judgment: {occurrence.Decision ?? "pending"}");
+            }
         }
 
         foreach (ReviewQuestion question in b.Questions)
