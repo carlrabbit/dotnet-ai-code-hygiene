@@ -88,7 +88,7 @@ internal static class Program
         }
         foreach (string name in new[] { "format", "normalize" })
         {
-            var command = new Command(name, name == "format" ? "Apply enabled presentation-only format rules to selected C# source." : "Apply enabled semantics-preserving normalize rules to selected C# source.");
+            var command = new Command(name, name == "format" ? "Apply the SDK whitespace formatter to selected eligible C# source." : "Apply the approved SDK style fixes and finish with SDK whitespace formatting.");
             var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
             var changedOpt = new Option<bool>("--changed"); var checkOpt = new Option<bool>("--check");
             command.Arguments.Add(pathsArg); command.Options.Add(changedOpt); command.Options.Add(checkOpt); command.Options.Add(output);
@@ -130,8 +130,8 @@ internal static class Program
         }));
         var decideHandle = new Argument<string>("batch-handle");
         var decideOccurrence = new Argument<string>("occurrence-id");
-        var verdict = new Option<string>("--verdict") { Required = true, Description = "Occurrence judgment: desirable, retain, or uncertain." };
-        var decide = new Command("decide", "Record one independently judged modernization occurrence.");
+        var verdict = new Option<string>("--verdict") { Required = true, Description = "Removed legacy verdict; retained syntax needs a source-owned suppression." };
+        var decide = new Command("decide", "Removed legacy command; use a source-owned modernization exception.");
         decide.Arguments.Add(decideHandle); decide.Arguments.Add(decideOccurrence); decide.Options.Add(verdict); decide.Options.Add(output);
         decide.SetAction(parse => Run(() => RenderModernizationDecision(new HygieneEngine().RecordModernizationDecision(
             parse.GetValue(decideHandle)!, parse.GetValue(decideOccurrence)!, parse.GetValue(verdict)!), parse.GetValue(output) ?? "text")));
@@ -379,68 +379,30 @@ if ($updateCode -eq 0) {
 Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 ";
 
-    private sealed class AutonomousMutationTransaction : IDisposable
+    private sealed class AutonomousGitCheckpoint : IDisposable
     {
         private readonly string root;
-        private readonly Dictionary<string, byte[]?> original;
-        private Dictionary<string, byte[]?> expected;
-        private bool rolledBack;
+        private readonly string head;
+        private readonly string index;
 
-        public AutonomousMutationTransaction(string root)
+        public AutonomousGitCheckpoint(string root)
         {
             this.root = root;
-            original = Capture();
-            expected = Capture();
+            head = GitLine(root, "rev-parse", "--verify", "HEAD");
+            if (head.Length == 0) { throw new ProductException("Autonomous hygiene requires an identifiable Git HEAD checkpoint."); }
+            index = string.Join(Environment.NewLine, GitLines(root, "diff", "--cached", "--binary"));
+            string status = string.Join(Environment.NewLine, GitLines(root, "status", "--porcelain=v1", "--untracked-files=all"));
+            if (index.Length != 0 || status.Length != 0) { throw new ProductException("Autonomous mutation requires a clean Git worktree and index. Commit or explicitly restore the intended changes, then rerun dotnet hygiene."); }
         }
 
-        public void Checkpoint() => expected = Capture();
-
-        public IReadOnlyList<string> Rollback()
+        public void Verify()
         {
-            if (rolledBack) { return []; }
-            rolledBack = true;
-            var conflicts = new List<string>();
-            foreach (string path in original.Keys.Union(expected.Keys, StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
-            {
-                byte[]? originalBytes = original.GetValueOrDefault(path);
-                byte[]? expectedBytes = expected.GetValueOrDefault(path);
-                if (Equal(originalBytes, expectedBytes)) { continue; }
-                try
-                {
-                    byte[]? current = File.Exists(path) ? File.ReadAllBytes(path) : null;
-                    if (!Equal(current, expectedBytes)) { conflicts.Add(Path.GetRelativePath(root, path).Replace('\\', '/')); continue; }
-                    if (originalBytes is null) { if (File.Exists(path)) { File.Delete(path); } }
-                    else { ReplaceAtomically(path, originalBytes); }
-                }
-                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-                { conflicts.Add(Path.GetRelativePath(root, path).Replace('\\', '/')); }
-            }
-            return conflicts;
+            if (GitLine(root, "rev-parse", "--verify", "HEAD") != head
+                || string.Join(Environment.NewLine, GitLines(root, "diff", "--cached", "--binary")) != index)
+            { throw new ProductException("Git HEAD or index changed during autonomous hygiene. The run is incomplete; inspect and recover the worktree explicitly."); }
         }
 
         public void Dispose() { }
-
-        private Dictionary<string, byte[]?> Capture()
-        {
-            var paths = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj" or ".git"))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (string relative in new[] { ".editorconfig", "Directory.Build.props", ".hygiene/profile.json", ".hygiene/profile/Hygiene.props", ".hygiene/.state/baseline-approval.json" })
-            { paths.Add(Path.Combine(root, relative)); }
-            string reports = Path.Combine(root, ".hygiene", "reports");
-            if (Directory.Exists(reports)) { paths.UnionWith(Directory.EnumerateFiles(reports, "*", SearchOption.AllDirectories)); }
-            return paths.ToDictionary(path => path, path => File.Exists(path) ? File.ReadAllBytes(path) : null, StringComparer.OrdinalIgnoreCase);
-        }
-
-        private static bool Equal(byte[]? left, byte[]? right) => left is null ? right is null : right is not null && left.AsSpan().SequenceEqual(right);
-
-        private static void ReplaceAtomically(string path, byte[] content)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            string temp = path + "." + Guid.NewGuid().ToString("N") + ".rollback";
-            File.WriteAllBytes(temp, content);
-            if (File.Exists(path)) { File.Replace(temp, path, null); } else { File.Move(temp, path); }
-        }
     }
 
     private static int RunAutonomous(string output)
@@ -458,17 +420,16 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     private static int RunAutonomousLifecycle(string output, bool explicitBootstrap = false)
     {
         var engine = new HygieneEngine();
-        using var transaction = new AutonomousMutationTransaction(engine.Root);
+        using var transaction = new AutonomousGitCheckpoint(engine.Root);
         try { return RunAutonomousLifecycleCore(output, engine, transaction, explicitBootstrap); }
         catch (Exception error)
         {
-            IReadOnlyList<string> conflicts = transaction.Rollback();
-            string recovery = conflicts.Count == 0 ? "Repository changes made by this run were rolled back." : $"Rollback preserved concurrent or conflicting edits at: {string.Join(", ", conflicts)}.";
-            throw new ProductException($"Autonomous hygiene stopped before completion. {recovery} Original error: {error.Message}");
+            string[] changed = GitLines(engine.Root, "status", "--porcelain=v1", "--untracked-files=all");
+            throw new ProductException($"Autonomous hygiene stopped incomplete. The worktree remains inspectable; inspect or explicitly recover these paths: {string.Join(", ", changed)}. Original error: {error.Message}");
         }
     }
 
-    private static int RunAutonomousLifecycleCore(string output, HygieneEngine engine, AutonomousMutationTransaction transaction, bool explicitBootstrap)
+    private static int RunAutonomousLifecycleCore(string output, HygieneEngine engine, AutonomousGitCheckpoint transaction, bool explicitBootstrap)
     {
         string marker = Path.Combine(engine.Root, ".hygiene", "profile.json");
         if (!File.Exists(marker))
@@ -480,33 +441,33 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                 return 0;
             }
             ProfileResult profile = engine.Bootstrap(output);
-            transaction.Checkpoint();
-            FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
-            transaction.Checkpoint();
+            transaction.Verify();
+            FormatObservation[] restrictedStyle = [];
+            transaction.Verify();
             if (restrictedStyle.Any(item => item.Status == "failed"))
             {
-                IReadOnlyList<string> conflicts = transaction.Rollback();
-                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "bootstrap", action = "Resolve the formatter failure and rerun dotnet hygiene; baseline changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, preHygieneFormatting = preFormat, failedFormatterSteps = restrictedStyle };
+                transaction.Verify();
+                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "bootstrap", action = "Resolve the formatter failure and rerun dotnet hygiene; baseline changes remain inspectable for explicit recovery.", rolledBack = false, recovery = "Partial work remains inspectable; recovery is explicit and agent-owned.", preHygieneFormatting = preFormat, failedFormatterSteps = restrictedStyle };
                 WriteLifecycle(failed, output, "Bootstrap failed during restricted formatting. No baseline was accepted or installed as complete.");
                 return 0;
             }
             RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
-            transaction.Checkpoint();
-            RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
-            transaction.Checkpoint();
+            transaction.Verify();
+            RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+            transaction.Verify();
             string baselineStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, baselineStatus);
-            transaction.Checkpoint();
+            transaction.Verify();
             var report = new
             {
                 schemaVersion = 1,
                 status = baselineStatus,
                 lifecycle = "bootstrap",
                 toolVersion = ToolVersion,
-                profile = new { id = "dotnet-11", version = 2 },
+                profile = new { id = "dotnet-11", version = 3 },
                 changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal),
                 preHygieneFormatting = preFormat,
-                postHygieneFormatting = new { policy = "dotnet-format whitespace and explicit IDE0011/IDE0040 style allowlist", style = restrictedStyle, selectedRuleIds = normalized.SelectedRuleIds.Concat(formatted.SelectedRuleIds), changedPaths = normalized.ChangedPaths.Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal), idempotenceCheck = "available by rerunning dotnet hygiene" },
+                postHygieneFormatting = new { policy = "batched dotnet format style allowlist followed by whitespace formatting", sdkFormat = normalized.SelectedRuleIds, changedPaths = normalized.ChangedPaths.Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal), idempotenceCheck = "available by rerunning dotnet hygiene" },
                 remainingProfileFindings = profile.Findings,
                 reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'),
                 reportSha256 = FileSha256(reportPath)
@@ -575,44 +536,44 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             WriteLifecycle(incompatible, output, "The installed tool cannot safely reconcile this profile state.");
             return 0;
         }
-        transaction.Checkpoint();
+        transaction.Verify();
         bool materialPolicyChange = !string.Equals(acceptedPolicySnapshot, PolicySnapshotSha256(engine.Root), StringComparison.OrdinalIgnoreCase);
         if (reconciliation.ChangedPaths.Count > 0 || materialPolicyChange)
         {
-            FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
-            transaction.Checkpoint();
+            FormatObservation[] restrictedStyle = [];
+            transaction.Verify();
             if (restrictedStyle.Any(item => item.Status == "failed"))
             {
-                IReadOnlyList<string> conflicts = transaction.Rollback();
-                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Resolve the formatter failure and rerun dotnet hygiene; profile migration and source changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyle };
+                transaction.Verify();
+                var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "profile-update", action = "Resolve the formatter failure and rerun dotnet hygiene; profile migration and source changes remain inspectable for explicit recovery.", rolledBack = false, recovery = "Partial work remains inspectable; recovery is explicit and agent-owned.", failedFormatterSteps = restrictedStyle };
                 WriteLifecycle(failed, output, "Profile update failed during restricted formatting. No new baseline was accepted.");
                 return 0;
             }
             RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
-            transaction.Checkpoint();
-            RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
-            transaction.Checkpoint();
+            transaction.Verify();
+            RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+            transaction.Verify();
             string updateStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, priorFormatting, reconciliation, restrictedStyle, normalized, formatted, updateStatus);
-            transaction.Checkpoint();
+            transaction.Verify();
             var updateReport = new { schemaVersion = 1, status = updateStatus, lifecycle = "profile-update", toolVersion = ToolVersion, changedPaths = reconciliation.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = priorFormatting, restrictedStyle, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'), reportSha256 = FileSha256(reportPath) };
             WriteLifecycle(updateReport, output, updateStatus == "incomplete" ? "Profile update validation is incomplete." : "Profile policy changed. Review the new baseline and obtain explicit authorized external approval before proceeding.");
             return 0;
         }
         engine.RequireProfile();
-        FormatObservation[] restrictedStyleGate = ApplyRestrictedFormatting(engine.Root, engine);
-        transaction.Checkpoint();
+        FormatObservation[] restrictedStyleGate = [];
+        transaction.Verify();
         if (restrictedStyleGate.Any(item => item.Status == "failed"))
         {
-            IReadOnlyList<string> conflicts = transaction.Rollback();
-            var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "gate", action = "Resolve the formatter failure and rerun dotnet hygiene; all changes from this gate were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyleGate };
+            transaction.Verify();
+            var failed = new { schemaVersion = 1, status = "incomplete", lifecycle = "gate", action = "Resolve the formatter failure and rerun dotnet hygiene; gate edits remain inspectable for explicit recovery.", rolledBack = false, recovery = "Partial work remains inspectable; recovery is explicit and agent-owned.", failedFormatterSteps = restrictedStyleGate };
             WriteLifecycle(failed, output, "Gate failed during restricted formatting. The gate is incomplete.");
             return 0;
         }
         RewriteResult normalizedGate = new RewriteEngine().Rewrite("normalize", [], false, false);
-        transaction.Checkpoint();
-        RewriteResult formattedGate = new RewriteEngine().Rewrite("format", [], false, false);
-        transaction.Checkpoint();
+        transaction.Verify();
+        RewriteResult formattedGate = new("format", false, normalizedGate.TargetCount, 0, normalizedGate.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+        transaction.Verify();
         string[] changedPaths = normalizedGate.ChangedPaths.Concat(formattedGate.ChangedPaths).Distinct(StringComparer.Ordinal).ToArray();
         string[] changedSources = GitLines(engine.Root, "status", "--porcelain", "--", "*.cs");
         string branch = GitLine(engine.Root, "branch", "--show-current");
@@ -676,7 +637,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         return 0;
     }
 
-    private static int PrepareExistingBaseline(string output, HygieneEngine engine, AutonomousMutationTransaction transaction, string lifecycle)
+    private static int PrepareExistingBaseline(string output, HygieneEngine engine, AutonomousGitCheckpoint transaction, string lifecycle)
     {
         FormatObservation[] preFormat = AssessExistingFormat(engine.Root);
         if (preFormat.Any(item => item.Status == "assessment-unavailable"))
@@ -685,21 +646,21 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             return 0;
         }
         ProfileResult profile = engine.UpdateProfile();
-        transaction.Checkpoint();
-        FormatObservation[] restrictedStyle = ApplyRestrictedFormatting(engine.Root, engine);
-        transaction.Checkpoint();
+        transaction.Verify();
+        FormatObservation[] restrictedStyle = [];
+        transaction.Verify();
         if (restrictedStyle.Any(item => item.Status == "failed"))
         {
-            IReadOnlyList<string> conflicts = transaction.Rollback();
-            WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle, action = "Resolve formatter failures and rerun dotnet hygiene bootstrap; baseline changes were rolled back.", rolledBack = conflicts.Count == 0, rollbackConflicts = conflicts, failedFormatterSteps = restrictedStyle }, output, "Baseline preparation failed during restricted formatting.");
+            transaction.Verify();
+            WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle, action = "Resolve formatter failures and rerun dotnet hygiene bootstrap; baseline changes remain inspectable for explicit recovery.", rolledBack = false, recovery = "Partial work remains inspectable; recovery is explicit and agent-owned.", failedFormatterSteps = restrictedStyle }, output, "Baseline preparation failed during restricted formatting.");
             return 0;
         }
         RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
-        transaction.Checkpoint();
-        RewriteResult formatted = new RewriteEngine().Rewrite("format", [], false, false);
-        transaction.Checkpoint();
+        transaction.Verify();
+        RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+        transaction.Verify();
         string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, "approval-required");
-        transaction.Checkpoint();
+        transaction.Verify();
         WriteLifecycle(new { schemaVersion = 1, status = "approval-required", lifecycle, toolVersion = ToolVersion, changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), preHygieneFormatting = preFormat, reportPath = Path.GetRelativePath(engine.Root, reportPath).Replace('\\', '/'), reportSha256 = FileSha256(reportPath) }, output, "Review the prepared baseline report and explicitly accept it before normal gate execution.");
         return 0;
     }
@@ -760,78 +721,19 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     {
         string[] projects = EnumerateProjects(root);
         if (projects.Length == 0) { return []; }
-        string formatter = ResolveDotnetFormat(root);
         return projects.Select(project =>
         {
-            (int exitCode, string stdout, string stderr) = RunProcess("dotnet", root, formatter, project, "whitespace", "--verify-no-changes", "--no-restore");
+            (int exitCode, string stdout, string stderr) = RunProcess("dotnet", root, "format", project, "whitespace", "--verify-no-changes", "--no-restore");
             string status = exitCode == 0 ? "clean" : exitCode == 2 ? "drift" : "assessment-unavailable";
             string details = string.Join(Environment.NewLine, new[] { stdout, stderr }.Where(value => !string.IsNullOrWhiteSpace(value)));
             return new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), status, details.Trim(), []);
         }).ToArray();
     }
 
-    private static FormatObservation[] ApplyRestrictedFormatting(string root, HygieneEngine engine)
-    {
-        string[] diagnostics = engine.ListRules().Where(entry => entry.Enabled).Select(entry => entry.Rule.Id switch
-        {
-            "style.braces.required" => "IDE0011",
-            "style.accessibility.explicit" => "IDE0040",
-            _ => ""
-        }).Where(id => id.Length > 0).ToArray();
-        string[] projects = EnumerateProjects(root);
-        if (projects.Length == 0) { return []; }
-        string formatter = ResolveDotnetFormat(root);
-        Dictionary<string, string> original = EnumerateSources(root).ToDictionary(path => path, File.ReadAllText, StringComparer.OrdinalIgnoreCase);
-        var observations = new List<FormatObservation>();
-        foreach (string project in projects)
-        {
-            try
-            {
-                (int whitespaceCode, string whitespaceOut, string whitespaceErr) = RunProcess("dotnet", root, formatter, project, "whitespace", "--no-restore");
-                string styleOutput = "";
-                string styleStatus = "not-enabled";
-                if (diagnostics.Length > 0)
-                {
-                    string[] args = [formatter, "style", project, "--diagnostics", .. diagnostics, "--no-restore"];
-                    (int styleCode, string styleOut, string styleErr) = RunProcess("dotnet", root, args);
-                    styleOutput = string.Join(Environment.NewLine, new[] { styleOut, styleErr }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                    styleStatus = styleCode == 0 ? "applied" : "failed";
-                }
-                string output = string.Join(Environment.NewLine, new[] { whitespaceOut, whitespaceErr, styleOutput }.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
-                string projectDirectory = Path.GetDirectoryName(project)!;
-                string[] changed = original.Where(pair => pair.Key.StartsWith(projectDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                        && File.Exists(pair.Key) && File.ReadAllText(pair.Key) != pair.Value)
-                    .Select(pair => Path.GetRelativePath(root, pair.Key).Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray();
-                observations.Add(new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), whitespaceCode == 0 && styleStatus != "failed" ? "applied" : "failed", $"whitespace=exit:{whitespaceCode}; style={styleStatus}; {output}".Trim(), changed));
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or EnvironmentException)
-            {
-                observations.Add(new FormatObservation(Path.GetRelativePath(root, project).Replace('\\', '/'), "failed", error.Message, []));
-            }
-        }
-        return observations.ToArray();
-    }
-
     private static string[] EnumerateProjects(string root) => Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
         .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj" or ".git"))
         .Where(SdkProjectDetection.IsSdkStyle)
         .Order(StringComparer.OrdinalIgnoreCase).ToArray();
-
-    private static string[] EnumerateSources(string root) => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
-        .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "bin" or "obj" or ".git"))
-        .Order(StringComparer.OrdinalIgnoreCase).ToArray();
-
-    private static string ResolveDotnetFormat(string root)
-    {
-        (int exit, string info, string error) = RunProcess("dotnet", root, "--info");
-        if (exit != 0) { throw new EnvironmentException("Could not identify the active .NET SDK for dotnet-format."); }
-        string? basePath = info.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim()).Where(line => line.StartsWith("Base Path:", StringComparison.OrdinalIgnoreCase))
-            .Select(line => line["Base Path:".Length..].Trim()).FirstOrDefault();
-        string? formatter = basePath is null ? null : Path.GetFullPath(Path.Combine(basePath, "DotnetTools", "dotnet-format", "dotnet-format.dll"));
-        if (formatter is null || !File.Exists(formatter)) { throw new EnvironmentException($"The active .NET SDK does not provide dotnet-format. {error}".Trim()); }
-        return formatter;
-    }
 
     private static string SaveBaselineReport(string root, FormatObservation[] preFormat, ProfileResult profile, FormatObservation[] restrictedStyle, RewriteResult normalized, RewriteResult formatted, string status)
     {
@@ -846,14 +748,15 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             status,
             createdAtUtc = DateTimeOffset.UtcNow,
             tool = new { package = "DotNetAiCodeHygiene.Tool", version = ToolVersion },
-            profile = new { id = "dotnet-11", version = 2 },
+            profile = new { id = "dotnet-11", version = 3 },
             ruleVersions = HygieneEngine.Rules.Select(rule => new { rule.Id, rule.Version }),
             baselineSnapshotSha256 = baselineSnapshot,
             policySnapshotSha256 = policySnapshot,
             changedPaths = profile.ChangedPaths.Concat(restrictedStyle.SelectMany(item => item.ChangedPaths)).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal),
             preHygieneFormatting = preFormat,
-            postHygieneFormatting = new { policy = "dotnet-format whitespace and allowlisted style diagnostics", style = restrictedStyle, selectedRuleIds = normalized.SelectedRuleIds.Concat(formatted.SelectedRuleIds), changedPaths = restrictedStyle.SelectMany(item => item.ChangedPaths).Concat(normalized.ChangedPaths).Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal) },
+            postHygieneFormatting = new { policy = "batched dotnet format style allowlist followed by whitespace formatting", sdkFormat = normalized.SelectedRuleIds, changedPaths = normalized.ChangedPaths.Concat(formatted.ChangedPaths).Distinct(StringComparer.Ordinal) },
             remainingProfileFindings = profile.Findings,
+            profileMigrationNotes = profile.MigrationNotes ?? [],
             validation = new { profileFindingCount = profile.FindingCount, normalizedChangedCount = normalized.ChangedCount, formatterChangedCount = formatted.ChangedCount },
             approval = new { required = true, accepted = false, instruction = status == "incomplete" ? "Resolve all validation failures; this baseline cannot be accepted." : "An authorized external approver must inspect the baseline and explicitly record acceptance." }
         };
@@ -1099,7 +1002,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     {
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.FindingCount, r.Findings, r.ChangedPaths }, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.FindingCount, r.Findings, r.ChangedPaths, migrationNotes = r.MigrationNotes ?? [] }, Json));
         }
         else if (output == "text")
         {
@@ -1107,6 +1010,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             {
                 Console.WriteLine($"{f.RuleId} {f.Path}: {f.Message} {f.Suggestion}");
             }
+            foreach (string note in r.MigrationNotes ?? []) { Console.WriteLine("migration: " + note); }
         }
         else
         {
@@ -1121,9 +1025,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>..., dotnet hygiene review decide <batch> <occurrence> --verdict desirable|retain|uncertain. Handoff returns escalation-required and keeps those items outstanding. Format is presentation-only; normalize performs semantics-preserving code transformations. --review-all remains bounded.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene normalize --check; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>.... Handoff returns escalation-required and keeps those items outstanding. Format runs SDK whitespace; normalize runs the fixed SDK style diagnostic allowlist and whitespace. --review-all remains bounded.
         Exhaustive audit: dotnet hygiene --yolo-all first asks whether the user explicitly tasked the calling agent. Proceed only with --attest-explicit-task; otherwise stop or pass --deny-explicit-task. A valid supported profile and accepted baseline are required; the audit will not create either. Continue with dotnet hygiene audit next --run <audit-dir>, record only external acceptable/problem/uncertain judgments with dotnet hygiene audit record --run <audit-dir> --file <judgments.json>, then create report.json and report.md with dotnet hygiene audit finish --run <audit-dir>. Problem/uncertain judgments require rationale. The audit is report-only: no source changes, formatting, normalization, normal acceptance, handoff, bootstrap, tool update, or provider call. Reports disclose that source changes during collection are not tracked. Source context stays in the chosen local audit directory.
-        The six established semantic-review rules select independently, up to five items each. The nine modernization families share one five-package budget and expose bounded occurrence verdicts through review decide; a verdict never applies a fix. The agent must inspect every fixed question before acceptance or deciding. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
+        The six established semantic-review rules select independently, up to five items each. The nine modernization families share one five-package budget. Modern syntax is preferred; retain an occurrence with a meaningful native pragma for an SDK-suppressible diagnostic or a narrow `// hygiene:retain modernization.<rule-id> -- <reason>` source comment for hygiene-only candidates. Previous local modernization verdicts are not approval and are not migrated. The agent must inspect every fixed question before acceptance or escalation. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
         Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle or audit status. An incomplete audit report returns exit 5; exit 2 means invalid invocation, 3 authorization or unusable input/state/safety prerequisite, 4 missing required dependency. Normal review state is under .hygiene/.state; audit checkpoints are separate under .hygiene/audits. The CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
@@ -1131,6 +1035,11 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         if (output is not ("text" or "json"))
         {
             throw new ArgumentException("--output must be text or json.");
+        }
+
+        if (!checkOnly && GitLines(engine.Root, "status", "--porcelain=v1", "--untracked-files=all").Length > 0)
+        {
+            throw new ProductException("Mutating format and normalize commands require a clean Git worktree and index. Commit or explicitly restore the intended changes, then rerun.");
         }
 
         RewriteResult r = engine.Rewrite(command, paths, changed, checkOnly);
@@ -1201,7 +1110,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             Console.WriteLine($"  {item.Id} {item.Path}:{item.Line}:{item.Column} {item.Symbol} — {item.Summary}");
             foreach (ReviewOccurrence occurrence in item.Occurrences ?? [])
             {
-                Console.WriteLine($"    {occurrence.Id} {occurrence.Path}:{occurrence.Line} {occurrence.DiagnosticId}: {occurrence.PreviewTitle}; judgment: {occurrence.Decision ?? "pending"}");
+            Console.WriteLine($"    {occurrence.Id} {occurrence.Path}:{occurrence.Line} {occurrence.DiagnosticId}: {occurrence.PreviewTitle}");
             }
         }
 

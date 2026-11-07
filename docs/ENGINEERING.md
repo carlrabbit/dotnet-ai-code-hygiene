@@ -119,7 +119,7 @@ The documentation-subject/carrier fixture set is the primary shared-fact regress
 
 Profile validation must exercise effective MSBuild/analyzer configuration, not merely string-match generated files.
 
-The mandatory profile uses .NET 11 `AnalysisLevel=11`, explicit built-in analyzer enablement, and build-time code-style enforcement. Enabled `style.braces.required` and `style.accessibility.explicit` rules project IDE0011/IDE0040 settings and diagnose their effective values.
+The v3 mandatory profile uses .NET 11 `AnalysisLevel=11`, explicit built-in analyzer enablement, build-time code-style enforcement, and fixed SDK style/whitespace preferences. Profile validation checks effective settings for every eligible project source, including nested overrides. Mechanical rule IDs are non-disableable; the complete SDK fixer set is recorded in `docs/specs/REWRITES.md`.
 
 Do not introduce `latest` AnalysisLevel in the supported profile.
 
@@ -134,13 +134,11 @@ TreatWarningsAsErrors=true -> finding
 WarningsAsErrors non-empty -> finding
 ```
 
-User per-rule severity configuration for unrelated diagnostics is not a profile violation unless it weakens a required profile diagnostic.
+User per-rule severity configuration for unrelated diagnostics is not a profile violation unless it weakens one of the fixed v3 profile diagnostics.
 
 ## Mutation validation
 
-Bootstrap/update and source rewrites retain all-or-nothing mutation behavior.
-
-A failed profile run must not leave a partial marker/props/import/editorconfig update. A failed source rewrite must not leave a mixed selected-target state.
+Bootstrap/update retain atomic per-file metadata replacement. SDK source formatting uses a clean Git checkpoint and index/HEAD stability checks. Failure leaves any completed edits inspectable; recovery is agent-owned and no rollback is claimed.
 
 Profile mutation and source rewrite semantics remain independently regression-covered.
 
@@ -214,7 +212,7 @@ Architecture/refactoring work must preserve:
 
 - target/finding/ignore/explain behavior;
 - semantic-review population, independent batches, expansion, and handoff behavior;
-- format/normalize/check-only and transactional mutation behavior;
+- format/normalize/check-only and clean Git checkpoint, concurrency, and agent-owned recovery behavior;
 - profile/bootstrap/update/documentation behavior;
 - fixed-rule/toggle-only policy and repository German-rule disablement;
 - exact public rule IDs, versions, order, descriptor metadata, and established interface text unless a milestone explicitly changes them.

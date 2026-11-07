@@ -124,8 +124,8 @@ public sealed class M0017RuleTests
         await Assert.That(rule.Version).IsEqualTo(2);
         await Assert.That(rule.Classification).IsEqualTo("review-candidate");
         IRuleModule visualBlock = new ControlFlowVisualBlockRuleModule();
-        await Assert.That(visualBlock is IFormatRemediationRule).IsFalse();
-        await Assert.That(visualBlock is INormalizeRemediationRule).IsFalse();
+        await Assert.That(visualBlock.Descriptor.FormatRemediate).IsFalse();
+        await Assert.That(visualBlock.Descriptor.NormalizeRemediate).IsFalse();
     }
 
     [Test]

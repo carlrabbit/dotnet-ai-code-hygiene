@@ -17,13 +17,36 @@ public sealed class M0005EvidenceTests
             await Assert.That(missingRejected).IsTrue();
             _ = new ProfileManager(repo).Bootstrap();
             string marker = Path.Combine(repo, ".hygiene", "profile.json");
-            string future = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 3\n}\n";
+            string future = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 4\n}\n";
             await File.WriteAllTextAsync(marker, future);
             bool futureRejected = false;
             try { new ProfileManager(repo).Update(); }
             catch (ProductException e) { futureRejected = e.Message.Contains("Unsupported", StringComparison.OrdinalIgnoreCase); }
             await Assert.That(futureRejected).IsTrue();
             await Assert.That(await File.ReadAllTextAsync(marker)).IsEqualTo(future);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task M0024V2MigrationReportsFormerMechanicalDisablesAndPreservesSemanticDisables()
+    {
+        string repo = await NewProfileRepo(withProject: true);
+        try
+        {
+            string marker = Path.Combine(repo, ".hygiene", "profile.json");
+            string config = Path.Combine(repo, ".hygiene", "config.json");
+            await File.WriteAllTextAsync(marker, "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 2\n}\n");
+            await File.WriteAllTextAsync(config, "{\n  \"schemaVersion\": 1,\n  \"disabledRules\": [\"style.braces.required\", \"style.usings.unused\", \"readability.long-line.review\"],\n  \"userData\": \"preserve\"\n}\n");
+
+            ProfileResult migration = new ProfileManager(repo).Update();
+
+            await Assert.That(migration.MigrationNotes!).Contains("Removed former mechanical rule toggle 'style.braces.required'; the v3 profile now owns this behavior.");
+            await Assert.That(migration.MigrationNotes!).Contains("Removed former mechanical rule toggle 'style.usings.unused'; the v3 profile now owns this behavior.");
+            string migrated = await File.ReadAllTextAsync(config);
+            await Assert.That(migrated).Contains("readability.long-line.review");
+            await Assert.That(migrated).Contains("userData");
+            await Assert.That(await File.ReadAllTextAsync(marker)).Contains("\"version\": 3");
         }
         finally { DeleteTree(repo); }
     }
@@ -58,7 +81,7 @@ public sealed class M0005EvidenceTests
             {
                 await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/App.csproj" && f.Message.Contains(setting, StringComparison.Ordinal))).IsTrue();
             }
-            await Assert.That(findings.Any(f => f.RuleId == "style.braces.required" && f.Path == "src/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
             await Assert.That(findings.Any(f => f.RuleId == "profile.stylecop.prohibited" && f.Path == "src/App.csproj")).IsTrue();
         }
         finally { DeleteTree(repo); }
@@ -119,11 +142,11 @@ public sealed class M0005EvidenceTests
             string config = Path.Combine(nested, ".editorconfig");
             await File.WriteAllTextAsync(config, "[*.cs]\ndotnet_diagnostic.IDE0011.severity = none\n");
             IReadOnlyList<ProfileFinding> inherited = new ProfileManager(repo).Analyze();
-            await Assert.That(inherited.Any(f => f.RuleId == "style.braces.required" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(inherited.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
             await File.WriteAllTextAsync(config, "root = true\n[*.cs]\ndotnet_diagnostic.IDE0040.severity = none\n");
             IReadOnlyList<ProfileFinding> cutoff = new ProfileManager(repo).Analyze();
-            await Assert.That(cutoff.Any(f => f.RuleId == "style.accessibility.explicit" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0040", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(cutoff.Any(f => f.RuleId == "style.braces.required" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(cutoff.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0040", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(cutoff.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Api.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
         }
         finally { DeleteTree(repo); }
     }
@@ -142,7 +165,7 @@ public sealed class M0005EvidenceTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"nested/Projected.cs\" /></ItemGroup></Project>");
             IReadOnlyList<ProfileFinding> findings = new ProfileManager(repo).Analyze();
             await Assert.That(findings.Any(f => f.RuleId == "style.braces.required" && f.Path == "src/nested/Loose.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(findings.Any(f => f.RuleId == "style.braces.required" && f.Path == "src/nested/Projected.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(findings.Any(f => f.RuleId == "profile.dotnet.analysis.required" && f.Path == "src/nested/Projected.cs" && f.Message.Contains("IDE0011", StringComparison.Ordinal))).IsTrue();
         }
         finally { DeleteTree(repo); }
     }

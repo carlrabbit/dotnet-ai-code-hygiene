@@ -1,10 +1,16 @@
 # Rule Capabilities and Policy Projection
 
+## M0024 current execution authority
+
+The supported profile is `dotnet-11` v3. Standard formatting and approved style fixes run in batched SDK `dotnet format` invocations over the complete eligible project population. The committed root `.editorconfig` and required MSBuild profile provide effective settings. Ordinary mutation requires a clean Git worktree/index and known `HEAD`; the CLI does not commit or roll back. Source-owned pragma and `hygiene:retain` exceptions replace durable modernization verdict state. Every historical cleanup ID and its current SDK, specialized, or review-only disposition is listed in the M0024 disposition table near the end of this document.
+
+The capability descriptions and examples below retain pre-M0024 contracts for history. Where they conflict with this section or the M0024 disposition table, the M0024 contract controls.
+
 ## Product model
 
 A hygiene rule ID is the semantic owner of one fixed product policy.
 
-A rule may expose one or more capabilities:
+A historical rule IDs remain stable in the public catalog. In v3, standard mechanical work belongs to one fixed SDK formatter profile rather than per-rule source rewriters. A rule may expose product capabilities:
 
 ```text
 diagnose
@@ -16,9 +22,9 @@ profile-remediate
 
 Capabilities are optional. A rule does not need to emit findings merely because it owns a deterministic rewrite or toolchain projection.
 
-One rule ID owns all of its capabilities. Do not create separate semantic registries in which a rewrite or generated setting has no owning rule.
+The profile owns the SDK allowlist and generated settings. Historical mechanical IDs report their disposition and are not toggles or executable per-rule rewrite programs.
 
-Rule enable/disable is whole-policy participation. For a configurable rule, disabling the rule disables every optional capability owned by that rule:
+Rule enable/disable is whole-policy participation for configurable semantic/review rules. Fixed mechanical policy entries cannot be disabled:
 
 ```text
 diagnosis
@@ -27,7 +33,7 @@ diagnosis
 + hygiene-owned EditorConfig projection
 ```
 
-Mandatory rules remain non-disableable.
+Mandatory profile and fixed mechanical rules remain non-disableable.
 
 Repository configuration still contains only whole-rule enable/disable state. It does not parameterize rule semantics, rewrite behavior, severity, formatting choices, or generated values.
 
@@ -430,7 +436,13 @@ It emits no normal `check` finding.
 
 ## Default compatibility target
 
-With all new M0010 configurable rules enabled:
+### Historical pre-M0024 contract
+
+The compatibility bullets below describe the superseded M0023 implementation only. Current M0024 behavior is defined by the `dotnet-11 v3` fixed SDK profile above and the disposition table near the end of this document: standard cleanup runs through batched SDK `dotnet format`; former per-rule rewrite classes are retired; legacy mechanical IDs are not individually disableable; and unsupported narrow transformations remain review-only.
+
+### Historical behavior
+
+With all new M0010 configurable rules enabled before M0024:
 
 - generated braces/accessibility EditorConfig policy is effectively equivalent to profile v1;
 - `hygiene format` retains the existing Roslyn formatter behavior;
@@ -482,7 +494,32 @@ A deliberate disable changes only the disabled rule's owned capabilities.
 38. modernization.inline-declaration           v1
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule. M0023 appends the nine analyzer-backed modernization review families after the existing catalog; their occurrence decisions and shared budget are specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
+The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule. M0023 added nine modernization review families; M0024 adds `modernization.source-exception` validation. The modernization populations and budgets remain specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
+
+## M0024 mechanical disposition inventory
+
+The following historical deterministic cleanup IDs remain catalog identifiers. SDK dispositions run in the batched formatter; review-only entries have no automatic rewrite. The removed per-rule Roslyn rewrite classes are not part of the runtime.
+
+| Stable rule ID | v3 disposition |
+|---|---|
+| `format.csharp.roslyn` | `dotnet format whitespace` |
+| `style.braces.required` | SDK style IDE0011 |
+| `style.accessibility.explicit` | SDK style IDE0040 |
+| `style.usings.unused` | SDK style IDE0005 |
+| `style.usings.organize` | SDK import organization and whitespace |
+| `style.modifiers.organize` | SDK style IDE0036 |
+| `style.object-creation.target-typed` | SDK style IDE0090 |
+| `style.default.literal` | SDK style IDE0034 |
+| `style.cast.redundant` | SDK style IDE0004 |
+| `style.interpolation.redundant` | SDK style IDE0071 |
+| `style.names.inferred` | SDK style IDE0037 |
+| `style.qualification.this.unnecessary` | Review-only; no approved SDK parity |
+| `style.qualification.redundant` | Review-only; no approved SDK parity |
+| `style.null-forgiving.redundant` | Review-only; former flow-sensitive custom cleanup removed |
+| `style.whitespace.blank-lines` | SDK whitespace pass; exact legacy excess-blank-line parity not claimed |
+| `style.parentheses.redundant` | Review-only; IDE0047 is outside the allowlist |
+
+IDE0005, IDE0011, IDE0036, IDE0040, IDE0090, IDE0034, IDE0004, IDE0071 and IDE0037 are the complete approved `dotnet format style` inventory. No broad analyzer fix is used. SDK integration fixtures are the evidence for actual behavior and comment/directive preservation.
 
 ## Non-goals
 

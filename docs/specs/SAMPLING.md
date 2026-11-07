@@ -18,7 +18,7 @@ This is selective inspection for engineering attention. Selection can be biased 
 
 ## Accepted observations and tickets
 
-`dotnet hygiene review accept <batch> <item>...` or `--all` records accepted observations for the six established semantic-review rules. M0023 modernization packages do not support package-level acceptance: `dotnet hygiene review decide <batch> <occurrence> --verdict desirable|retain|uncertain` records one explicit occurrence judgment after revalidating its current fingerprint. A judgment is not a source rewrite. The CLI does not invoke a reviewer or infer a judgment.
+`dotnet hygiene review accept <batch> <item>...` or `--all` records accepted observations for the six established semantic-review rules. Modernization occurrences do not have durable local verdicts. The preferred outcome is a source edit; retaining one candidate requires a narrow, justified source annotation. The former `review decide` command returns migration guidance and does not write acceptance state.
 
 Private latest-run tickets bind the current gate, rule and algorithm versions, complete eligible-population fingerprint, selected identity, and content fingerprint. Expand, handoff, and accept re-evaluate the stored scope and reject stale bases, populations, versions, tickets, or already accepted items. A repeated gate keeps the same selected identities; accepting part of its batch does not fill newly opened slots. An accepted subject with unchanged content is suppressed. A changed fingerprint can be selected again when a later gate makes it relevant.
 

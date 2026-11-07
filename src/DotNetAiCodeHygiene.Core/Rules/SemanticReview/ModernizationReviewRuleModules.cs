@@ -20,6 +20,8 @@ internal sealed class ModernizationReviewRuleModule(
     public IReadOnlyList<ReviewQuestion> Questions { get; } = [new("occurrence-judgment", question)];
     public string EscalationCondition => "If the implementer cannot judge an occurrence from its bounded context, record uncertain and request planner input outside the CLI.";
     public string EscalatedReviewerClass => "planner";
+    internal IReadOnlyList<ModernizationCandidateGroup> BuildAllCandidates(Project project, Compilation compilation) =>
+        buildPopulation(project, compilation, CancellationToken.None, true);
 
     public RuleModuleResult Evaluate(RuleContext context)
     {
@@ -54,8 +56,11 @@ internal sealed class ModernizationReviewRuleModule(
                     Id = ScopedOccurrenceId(projectIdentity, Descriptor.Id, occurrence.Id),
                     Path = context.Session.Relative(Path.GetFullPath(Path.Combine(projectDirectory, occurrence.Path)))
                 }).ToArray();
-                var item = new ReviewItem("", normalizedPath, group.Line, 1, group.Owner, group.Summary, group.Declaration,
-                    occurrences, group.TotalOccurrences, group.RemainingOccurrences);
+                occurrences = ModernizationSourceExceptions.Filter(Descriptor.Id, occurrences, sourceContents, context.ExhaustiveAudit, out int suppressed);
+                if (occurrences.Length == 0) { continue; }
+                string summary = suppressed == 0 ? group.Summary : $"{group.Summary} {suppressed} valid source-owned retention exception(s) are excluded from this normal sample.";
+                var item = new ReviewItem("", normalizedPath, group.Line, 1, group.Owner, summary, group.Declaration,
+                    occurrences, Math.Max(0, group.TotalOccurrences - (context.ExhaustiveAudit ? 0 : suppressed)), group.RemainingOccurrences);
                 subjects.Add(new ReviewSubject(Descriptor.Id + "\0" + projectIdentity + "\0" + group.Identity,
                     content, item, DirectChange: directChange));
             }

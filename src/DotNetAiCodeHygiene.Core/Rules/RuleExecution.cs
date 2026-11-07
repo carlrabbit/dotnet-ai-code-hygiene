@@ -74,16 +74,6 @@ internal interface IRuleModule
     public RuleModuleResult Evaluate(RuleContext context);
 }
 
-internal interface IFormatRemediationRule
-{
-    public Document Format(Document document, Compilation compilation);
-}
-
-internal interface INormalizeRemediationRule
-{
-    public Document Normalize(Document document, Compilation compilation);
-}
-
 internal interface IEditorConfigProjectionRule
 {
     public IReadOnlyList<KeyValuePair<string, string>> EditorConfigEntries { get; }
@@ -102,8 +92,9 @@ internal static class RuleCatalog
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
         new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(), new BracesStyleRuleModule(), new AccessibilityStyleRuleModule(),
-        new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(), new TargetTypedObjectCreationRuleModule(), new DefaultLiteralRuleModule(), new RedundantCastRuleModule(), new RedundantInterpolationRuleModule(), new InferredNamesRuleModule(), new UnusedImportsRuleModule(), new OrganizeUsingsRuleModule(), new OrganizeModifiersRuleModule(), new RedundantNullForgivingRuleModule(), new ExcessBlankLinesRuleModule(), new RedundantParenthesesRuleModule(),
+        .. FixedMechanicalRuleModule.All,
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
+        new ModernizationSourceExceptionRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
         .. ModernizationReviewRuleModule.All,
         new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule(),
@@ -112,8 +103,8 @@ internal static class RuleCatalog
 
     internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor with
     {
-        FormatRemediate = module is IFormatRemediationRule,
-        NormalizeRemediate = module is INormalizeRemediationRule,
+        FormatRemediate = false,
+        NormalizeRemediate = false,
         EditorConfigProject = module is IEditorConfigProjectionRule
     }).ToArray();
     internal static Rule Get(string id) => All.Single(rule => rule.Id == id);

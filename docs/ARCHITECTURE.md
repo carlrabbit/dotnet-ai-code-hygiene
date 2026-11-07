@@ -21,12 +21,13 @@ check/bootstrap/update
 -> ignore/filter/order/persistence
 
 format/normalize
--> RuleCatalog capability selection
--> rule-owned remediations
--> shared rewrite transaction
+-> fixed v3 SDK formatting profile
+-> batched dotnet format style + whitespace passes
+-> clean Git checkpoint / HEAD and index verification
+-> explicit incomplete report on failure; agent-owned recovery
 ```
 
-The architecture deliberately separates **module independence** from **process independence**. A rule is a small logical program with its own diagnosis, remediation, or projection behavior, while all selected modules for one command run in-process over one shared command-scoped substrate.
+The architecture deliberately separates **module independence** from **process independence**. Check/bootstrap/update rules run in-process over one command-scoped substrate. Standard mechanical cleanup is delegated to the supported SDK CLI using the repository's fixed profile; historical rule IDs remain policy/reporting identifiers, not per-rule rewriter processes.
 
 ## Repository session
 
@@ -128,7 +129,7 @@ Dynamic values may be interpolated at evaluation time. Shared evaluators/helpers
 
 The catalog is primarily ordered explicit registration. It must not become a second manually synchronized copy of rule descriptors when descriptors are already owned by the registered modules.
 
-Generic host text remains host-owned when it is genuinely generic, for example persistence errors, unavailable source context, invalid command state, or transaction failures.
+Generic host text remains host-owned when it is genuinely generic, for example persistence errors, unavailable source context, invalid command state, or concurrent source/state changes.
 
 This locality rule does **not** justify a resource system, localization framework, generated rule metadata, generic message registry, rule-definition DSL, attribute discovery, or new dependency. Plain C# constants/static data colocated with the owning rule are preferred.
 
@@ -197,39 +198,35 @@ bootstrap/update
 
 Profile lifecycle/remediation infrastructure may remain shared. Rule-specific diagnostic text remains owned by the corresponding profile rule even when shared inspection code emits the underlying condition.
 
-Profile v2 owns mandatory analysis infrastructure. Enabled rules own optional EditorConfig contributions and effective-setting diagnosis. Profile ownership, StyleCop prohibition, and mutation safety remain governed by `docs/specs/PROFILE.md`.
+Profile v3 owns mandatory analysis infrastructure and the fixed SDK formatting profile. It validates effective EditorConfig settings for eligible project sources; mechanical settings are not optional per-rule projections. Profile ownership and StyleCop prohibition are governed by `docs/specs/PROFILE.md`.
 
 ## Rewrite architecture
 
-Rules and rewrites share repository/session infrastructure but are not one abstraction.
+The SDK owns standard C# formatting and allowlisted style fixes. The stable rule catalog records disposition without instantiating a custom rewrite per ID.
 
 Conceptually:
 
 ```text
-RewriteModule
-  inspect RepositorySession
-  produce proposed edits
-
-RewriteRunner
-  select explicit rewrite module
-  build complete plan
-  validate complete plan
-  pass plan to RewriteTransaction
+RewriteEngine
+  resolve eligible project sources
+  batch complete solution/project coverage
+  invoke supported dotnet format CLI phases
+  report SDK-reported or observed changed paths
 ```
 
-`format` and `normalize` remain commands that select enabled rule-owned remediation capabilities from the canonical `RuleCatalog`. The rewrite transaction is shared execution machinery, not an independent semantic rewrite catalogue.
+`format` runs SDK whitespace formatting. `normalize` runs only the fixed approved style diagnostics, then whitespace. The autonomous gate runs normalize across all eligible project sources independently of the bounded changed-file semantic review gate.
 
-The existing all-target transactional contract remains authoritative:
+Mutating operations use a clean Git checkpoint and leave an inspectable worktree on failure:
 
 ```text
-resolve all targets
--> compute complete rewrite plan
--> validate complete plan
--> if check-only: report
--> else atomic/rollback-protected commit
+resolve eligible targets
+-> snapshot HEAD/index
+-> run SDK batches
+-> verify HEAD/index
+-> report observed edits or incomplete state
 ```
 
-No selected source file is committed before complete planning and required validation succeed.
+No automatic commit, reset, clean, or rollback occurs. Recovery is explicit and agent-owned.
 
 ## Gate-local review boundary
 

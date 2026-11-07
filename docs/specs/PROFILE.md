@@ -1,5 +1,11 @@
 # Supported .NET Hygiene Profile
 
+## Current contract: `dotnet-11 v3`
+
+M0024 supersedes the earlier v2 profile behavior below. The committed root `.editorconfig` is the generator's fixed mechanical policy surface. Its `root = true` and `# hygiene profile:begin/end` boundaries are valid EditorConfig syntax. The managed C# block sets SDK whitespace/import preferences and only the approved IDE0005, IDE0004, IDE0011, IDE0034, IDE0036, IDE0040, IDE0071, IDE0037, and IDE0090 severities. The profile validates these values against every eligible project source's effective nested EditorConfig settings; nested conflicts are reported rather than overwritten.
+
+Version 3 makes mechanical settings a coherent fixed profile. Former per-rule mechanical toggles are removed during v1/v2 migration and shown in `migrationNotes`; semantic/review toggles and unrelated configuration survive. Migration changes the baseline policy and requires the existing external baseline approval before autonomous work. Local `modernization-decisions.json` is not migrated to approval or source suppression.
+
 M0010 profile v2 supersedes the M0005 v1 contract below where noted. Update migrates valid `dotnet-11` v1 repositories to v2.
 
 Rationale: the mandatory analyzer rule gives agents one predictable, tested .NET analyzer/code-style baseline independent of ambient defaults; it hardens only explicitly selected diagnostics instead of imposing warnings-as-errors broadly. The StyleCop prohibition keeps the project-owned supported policy coherent instead of composing overlapping style stacks. Automatic removal is unsafe because dependency and policy impact require caller judgment.
@@ -10,7 +16,7 @@ The current supported profile is:
 
 ```text
 id: dotnet-11
-version: 2
+version: 3
 ```
 
 Committed marker:
@@ -19,7 +25,7 @@ Committed marker:
 {
   "schemaVersion": 1,
   "profile": "dotnet-11",
-  "version": 2
+  "version": 3
 }
 ```
 
@@ -112,7 +118,7 @@ Repository-wide; no file/directory target and no `--changed`.
 
 Bootstrap:
 
-1. establishes/reconciles profile `dotnet-11` v2;
+1. establishes/reconciles profile `dotnet-11` v3;
 2. applies deterministic remediation for `profile.dotnet.analysis.required`;
 3. never removes StyleCop automatically;
 4. re-evaluates the bootstrap rule set;
@@ -133,7 +139,7 @@ Repository-wide; no targets and no `--changed`.
 
 Update requires a supported profile marker. It reconciles profile-owned artifacts to the current canonical profile and applies any fixed migration rules defined for the recorded version.
 
-For profile `dotnet-11` v1, update migrates the marker and replaces the former profile-owned style settings with projections from enabled rules. For v2, update repairs drift in hygiene-owned profile artifacts. Both paths are idempotent.
+For profile `dotnet-11` v1 or v2, update migrates the marker and removes former mechanical toggles while preserving semantic settings. It reports removed settings and prepares the established approval-required baseline when policy changes. Version 3 update repairs drift in the fixed hygiene-owned artifacts. All paths are idempotent.
 
 M0005 defines no fictional v0->v1 migration rule.
 
@@ -188,9 +194,9 @@ dotnet_style_require_accessibility_modifiers = always
 dotnet_diagnostic.IDE0040.severity = error
 ```
 
-`root = true` is mandatory profile infrastructure. Braces/accessibility settings are configurable rule-owned policy, not mandatory profile infrastructure.
+`root = true` is mandatory profile infrastructure. Braces/accessibility and the approved SDK mechanical diagnostic settings are fixed, non-disableable v3 policy.
 
-Deeper/user EditorConfig entries are allowed, but they must not weaken an enabled projecting rule's effective settings. Each style rule resolves the EditorConfig hierarchy for C# files that are evaluated `Compile` inputs of supported SDK-style C# projects, applying matching sections from parent to child until a `root = true` cutoff. A missing cutoff allows parent configuration to affect the repository. Files shared by multiple supported projects are validated once. Loose or otherwise unprojected C# files are not style-rule subjects. Diagnosis validates the effective configuration seen by supported project source files, not every raw setting regardless of whether it matches a source path.
+Deeper/user EditorConfig entries are allowed, but they must not conflict with fixed v3 values for eligible C# files. The root `root = true` prevents parent inheritance. Files included by multiple projects are validated deterministically; loose/unprojected C# files are outside profile project validation.
 
 ## Severity policy
 

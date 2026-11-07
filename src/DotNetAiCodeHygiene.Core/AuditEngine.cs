@@ -205,6 +205,8 @@ public sealed class ReadOnlyAuditEngine
             tool = manifest.ToolVersion,
             authorization = manifest.Authorization,
             coverage = new { eligible = inventory.Obligations.Count, assessed = judgments.Count, acceptable = judgments.Values.Count(x => x.Outcome == "acceptable"), problem = judgments.Values.Count(x => x.Outcome == "problem"), uncertain = judgments.Values.Count(x => x.Outcome == "uncertain"), unassessed, deterministicFindings = inventory.Findings.Count },
+            sourceOwnedExceptions = inventory.Obligations.Where(obligation => obligation.Subject.Occurrences?.Any(occurrence => occurrence.SourceExceptionReason is not null) == true)
+                .Select(obligation => new { obligation.RuleId, obligation.SourcePath, obligation.Subject.Line, reason = obligation.Subject.Occurrences!.First(occurrence => occurrence.SourceExceptionReason is not null).SourceExceptionReason }),
             rules,
             findings = inventory.Findings,
             rewriteProposals = inventory.RewriteProposals,
@@ -350,6 +352,14 @@ public sealed class ReadOnlyAuditEngine
         }
 
         b.AppendLine().AppendLine("## Semantic problems and uncertainties").AppendLine();
+        b.AppendLine("## Source-owned modernization exceptions").AppendLine();
+        var exceptions = inventory.Obligations.SelectMany(obligation => obligation.Subject.Occurrences ?? [])
+            .Where(occurrence => occurrence.SourceExceptionReason is not null).ToArray();
+        if (exceptions.Length == 0) { b.AppendLine("No valid retained modernization exceptions were observed."); }
+        foreach (ReviewOccurrence exception in exceptions)
+        {
+            b.AppendLine($"- `{exception.Path}:{exception.Line}` `{exception.DiagnosticId}` — {exception.SourceExceptionReason}");
+        }
         foreach (AuditSemanticObligation obligation in inventory.Obligations)
         {
             if (judgments.TryGetValue(obligation.ObligationId, out StoredAuditJudgment? j) && (j.Outcome is "problem" or "uncertain"))
