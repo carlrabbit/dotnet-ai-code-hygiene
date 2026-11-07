@@ -7,7 +7,7 @@ Please independently review the M0024 implementation in the linked pull request 
 - Milestone: `M0024 SDK-Backed Hygiene Profile and Source-Owned Modernization Exceptions`
 - Baseline: `6f9fa952def8da4a36c0de715bd206f7223a7f7c` (PR #25 head)
 - Implementation branch: `codex/m0024-sdk-format-profile-and-source-exceptions`
-- Pull request: pending creation
+- Pull request: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/26 (draft; target `codex/m0023-deterministic-cleanup`)
 - Candidate package SHA-256: `9552cbcd27eaca968340e0bdff92d2f2a79ed9baffb4b50f78029d8a2f816385`
 - Execution ledger: `.execution/M0024-sdk-format-profile-and-source-exceptions.md`
 - Validation: `./eng/validate.ps1 -Verify` reports seven current required stage receipts; Core suite 103/103, CLI suite 34/34, and exact installed-consumer pass.

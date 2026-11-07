@@ -92,11 +92,12 @@ The milestone/ledger registries were reconciled before implementation: AC-01..AC
 
 ### Current execution state
 
-- Status: implementation and automated acceptance evidence complete; independent completion review, commit and PR publication remain outstanding.
+- Status: implementation and automated acceptance evidence complete; independent completion review remains outstanding.
 - Source baseline: `6f9fa952def8da4a36c0de715bd206f7223a7f7c` on branch `codex/m0024-sdk-format-profile-and-source-exceptions`.
 - Handoff extracted into repository root. Exact registries reconciled before production changes: 17 AC, 31 EC, 7 VAL.
 - Fresh final candidate evidence: `solution`, Core tests (103/103), CLI tests (34/34), README policy, package, installed consumers, and self-host all have current receipts. `./eng/validate.ps1 -Verify` verified all 7/7 receipts as current. Exact installed package SHA-256: `9552cbcd27eaca968340e0bdff92d2f2a79ed9baffb4b50f78029d8a2f816385`.
 - Criterion reconciliation: AC-01..AC-16 and EC-01a..EC-16b are marked pass with test, package, or stage evidence mapped per row. AC-17/VAL-07 remain pending actual independent review. Registry counts still reconcile exactly to 17 AC, 31 EC, and 7 VAL entries.
 - Final evidence notes: SDK consumer scenarios include profile bootstrap/migration, formatting and modernization retention, dirty-source mutation rejection, and exact package provenance. The focused formatter failure test confirms prior SDK-phase edits remain inspectable when a later phase fails. `git diff --check` passes.
 - Blockers: independent human/delegate review is outstanding; no approval has been fabricated.
-- Resume point: finish milestone reconciliation, verify the pending review-check rejection, commit the candidate, open the M0024 PR against the PR #25 branch, and report `AWAITING HUMAN REVIEW`.
+- Pull request: [#26](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/26), draft against still-open PR #25 branch `codex/m0023-deterministic-cleanup`; source baseline verified as `6f9fa952def8da4a36c0de715bd206f7223a7f7c`.
+- Resume point: refresh post-commit validator receipts and `-Verify`, then report `AWAITING HUMAN REVIEW`; AC-17/VAL-07 require an actual independent decision and must remain pending until recorded.
