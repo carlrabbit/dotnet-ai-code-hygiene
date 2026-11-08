@@ -1068,6 +1068,23 @@ public sealed class CliProcessTests
                 await Assert.That(sourceExceptionMessages).IsEmpty();
                 await Assert.That(validJson.RootElement.GetProperty("reviewBatches").ToString()).DoesNotContain("VarStyle.cs");
             }
+            string closingBracePath = Path.Combine(repo, "src", "ClosingBrace.cs");
+            const string closingBraceSource = "public class ClosingBrace\n{\n    public void Run()\n    {\n        var earlier = 42;\n\n        // hygiene:retain modernization.var-style -- Explicit typing is required by an interoperability constraint.\n    }\n}\n";
+            await File.WriteAllTextAsync(closingBracePath, closingBraceSource);
+            ProcessResult closingBraceCheck = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
+            using (JsonDocument closingJson = JsonDocument.Parse(closingBraceCheck.StandardOutput))
+            {
+                await Assert.That(closingJson.RootElement.GetProperty("findings").EnumerateArray().Any(finding =>
+                    finding.GetProperty("ruleId").GetString() == "modernization.source-exception"
+                    && finding.GetProperty("path").GetString() == "src/ClosingBrace.cs"
+                    && finding.GetProperty("message").GetString()!.Contains("Malformed", StringComparison.Ordinal))).IsTrue();
+                JsonElement closingBatch = closingJson.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                    .Single(batch => batch.GetProperty("ruleId").GetString() == "modernization.var-style");
+                await Assert.That(closingBatch.GetProperty("items").EnumerateArray()
+                    .SelectMany(item => item.GetProperty("occurrences").EnumerateArray())
+                    .Any(occurrence => occurrence.GetProperty("path").GetString() == "src/ClosingBrace.cs"
+                        && occurrence.GetProperty("originalSyntax").GetString()!.Contains("earlier = 42", StringComparison.Ordinal))).IsTrue();
+            }
             ProcessResult boundedReview = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
             using (JsonDocument reviewJson = JsonDocument.Parse(boundedReview.StandardOutput))
             {
@@ -1083,6 +1100,8 @@ public sealed class CliProcessTests
                     && item.GetProperty("diagnosticId").GetString() == "IDE0008")).IsTrue();
                 await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/ExactStyle.cs"
                     && item.GetProperty("diagnosticId").GetString() == "IDE0007")).IsFalse();
+                await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/ClosingBrace.cs"
+                    && item.GetProperty("originalSyntax").GetString()!.Contains("earlier = 42", StringComparison.Ordinal))).IsTrue();
             }
             string auditReport = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-audit-" + Guid.NewGuid().ToString("N"));
             try
@@ -1105,6 +1124,13 @@ public sealed class CliProcessTests
                 await Assert.That(exactOccurrences.Length).IsEqualTo(2);
                 await Assert.That(exactOccurrences.Any(item => item.GetProperty("subject").ToString().Contains("sourceExceptionReason", StringComparison.Ordinal))).IsTrue();
                 await Assert.That(exactOccurrences.All(item => item.GetProperty("subject").ToString().Contains("sourceExceptionReason", StringComparison.Ordinal))).IsFalse();
+                JsonElement closingObligation = obligations.EnumerateArray().Single(item => item.GetProperty("ruleId").GetString() == "modernization.var-style"
+                    && item.GetProperty("sourcePath").GetString() == "src/ClosingBrace.cs");
+                await Assert.That(closingObligation.GetProperty("subject").ToString().Contains("earlier = 42", StringComparison.Ordinal)).IsTrue();
+                await Assert.That(closingObligation.GetProperty("subject").ToString().Contains("sourceExceptionReason", StringComparison.Ordinal)).IsFalse();
+                await Assert.That(inventory.RootElement.GetProperty("findings").EnumerateArray().Any(finding =>
+                    finding.GetProperty("ruleId").GetString() == "modernization.source-exception"
+                    && finding.GetProperty("finding").GetProperty("path").GetString() == "src/ClosingBrace.cs")).IsTrue();
             }
             finally { DeleteTree(auditReport); }
             await CommitAllAsync(repo, "valid native exception");

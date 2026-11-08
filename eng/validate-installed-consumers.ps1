@@ -125,7 +125,18 @@ public class Exact { public void Run() { var apparent = new Widget(); int retain
 #pragma warning restore IDE0007
 public class Widget { }
 '@
-        git add .editorconfig Sample.cs Exact.cs; git commit -m 'source-owned exception fixture' | Out-Null
+        Set-Content -NoNewline -Path Closing.cs -Value @'
+public class Closing
+{
+    public void Run()
+    {
+        var earlier = 42;
+
+        // hygiene:retain modernization.var-style -- Explicit typing is required by an interoperability constraint.
+    }
+}
+'@
+        git add .editorconfig Sample.cs Exact.cs Closing.cs; git commit -m 'source-owned exception fixture' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean source-exception fixture.' }
         $review = dotnet hygiene check --review-all --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) { throw 'Installed review-all check failed on the exception fixture.' }
@@ -134,6 +145,8 @@ public class Widget { }
         $reviewOccurrences = @($varReview.items | ForEach-Object { $_.occurrences })
         if (-not ($reviewOccurrences | Where-Object { $_.path -eq 'Sample.cs' -and $_.originalSyntax -match 'reviewed =' }) -or ($reviewOccurrences | Where-Object { $_.path -eq 'Sample.cs' -and $_.originalSyntax -match 'retained =' })) { throw 'Installed hygiene retention did not attach to only the first same-line syntax subject.' }
         if (-not ($reviewOccurrences | Where-Object { $_.path -eq 'Exact.cs' -and $_.diagnosticId -eq 'IDE0008' }) -or ($reviewOccurrences | Where-Object { $_.path -eq 'Exact.cs' -and $_.diagnosticId -eq 'IDE0007' })) { throw 'Installed native pragma did not suppress only its exact modernization diagnostic identity.' }
+        if (-not ($reviewOccurrences | Where-Object { $_.path -eq 'Closing.cs' -and $_.originalSyntax -match 'earlier = 42' })) { throw 'Installed review omitted the earlier candidate when a retention comment preceded the method closing brace.' }
+        if (-not ($review.findings | Where-Object { $_.ruleId -eq 'modernization.source-exception' -and $_.path -eq 'Closing.cs' -and $_.message -match 'Malformed' })) { throw 'Installed hygiene check did not report the closing-brace annotation as unattached.' }
         if (Test-Path -LiteralPath '.hygiene/.state/modernization-decisions.json') { throw 'Installed tool created retired durable modernization verdict state.' }
         $dirtyBefore = Get-Content -LiteralPath Sample.cs -Raw
         Set-Content -NoNewline -Path Sample.cs -Value ($dirtyBefore + "`npublic object Dirty(){return new object();}`n")
@@ -180,7 +193,7 @@ public class Widget { }
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
+    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
     Write-Output "Installed-consumer M0024 evidence passed; package SHA-256 $packageSha256."
 }

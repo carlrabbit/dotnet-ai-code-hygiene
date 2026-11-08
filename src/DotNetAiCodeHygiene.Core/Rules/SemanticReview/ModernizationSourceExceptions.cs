@@ -184,7 +184,8 @@ internal static class ModernizationSourceExceptions
                 continue;
             }
             SyntaxNode? subject = nextToken.Parent?.AncestorsAndSelf()
-                .FirstOrDefault(node => node is StatementSyntax or MemberDeclarationSyntax);
+                .FirstOrDefault(node => (node is StatementSyntax or MemberDeclarationSyntax)
+                    && node.SpanStart > trivia.Span.End);
             bool valid = Rules.Contains(ruleId) && IsMeaningful(reason) && subject is not null;
             results.Add(new(path, ruleId, reason, commentLine.Start.Line + 1, subject?.Span ?? default, valid));
         }

@@ -54,6 +54,60 @@ public sealed class ModernizationSourceExceptionTests
     }
 
     [Test]
+    public async Task RetentionBeforeClosingBracesIsUnattachedAndCannotSuppressEarlierCandidates()
+    {
+        const string annotation = "// hygiene:retain modernization.var-style -- Explicit typing is required by an interoperability constraint.";
+        string[] sources =
+        [
+            $"class MethodClose {{ void Run() {{ var earlier = 42;\n{annotation}\n}} }}\n",
+            $"class TypeClose {{ void Run() {{ var earlier = 42; }}\n{annotation}\n}}\n",
+            $"class NestedClose {{ void Run() {{ {{ var earlier = 42;\n{annotation}\n}} }} }}\n"
+        ];
+
+        for (int index = 0; index < sources.Length; index++)
+        {
+            string path = $"Closing{index}.cs";
+            SyntaxNode root = CSharpSyntaxTree.ParseText(sources[index]).GetRoot();
+            LocalDeclarationStatementSyntax earlier = root.DescendantNodes().OfType<LocalDeclarationStatementSyntax>().Single();
+            IReadOnlyList<ModernizationRetention> parsed = ModernizationSourceExceptions.Parse(path, sources[index]);
+            ReviewOccurrence[] candidates = [Occurrence("earlier", "IDE0008", path, 1, earlier.Span)];
+            IReadOnlyDictionary<string, string> sourceMap = new Dictionary<string, string> { [path] = sources[index] };
+
+            ReviewOccurrence[] normal = ModernizationSourceExceptions.Filter("modernization.var-style", candidates, sourceMap,
+                exhaustiveAudit: false, out int normalSuppressed);
+            ReviewOccurrence[] audit = ModernizationSourceExceptions.Filter("modernization.var-style", candidates, sourceMap,
+                exhaustiveAudit: true, out int auditSuppressed);
+
+            await Assert.That(parsed.Count).IsEqualTo(1);
+            await Assert.That(parsed[0].Valid).IsFalse();
+            await Assert.That(parsed[0].SubjectSpan.Length).IsEqualTo(0);
+            await Assert.That(normalSuppressed).IsEqualTo(0);
+            await Assert.That(normal.Select(item => item.Id).ToArray()).IsEquivalentTo(["earlier"]);
+            await Assert.That(auditSuppressed).IsEqualTo(0);
+            await Assert.That(audit.Single().SourceExceptionReason).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task RetentionAttachesToTheNextStatementOrMemberDeclaration()
+    {
+        const string annotation = "// hygiene:retain modernization.var-style -- Explicit typing is required by an interoperability constraint.";
+        const string statementSource = $"class StatementTarget {{ void Run() {{\n{annotation}\nvar value = 42;\n}} }}\n";
+        const string memberSource = $"class MemberTarget {{\n{annotation}\nvoid Run() {{ }}\n}}\n";
+        SyntaxNode statementRoot = CSharpSyntaxTree.ParseText(statementSource).GetRoot();
+        SyntaxNode memberRoot = CSharpSyntaxTree.ParseText(memberSource).GetRoot();
+        StatementSyntax statement = statementRoot.DescendantNodes().OfType<LocalDeclarationStatementSyntax>().Single();
+        MethodDeclarationSyntax member = memberRoot.DescendantNodes().OfType<MethodDeclarationSyntax>().Single();
+        ModernizationRetention statementRetention = ModernizationSourceExceptions.Parse("Statement.cs", statementSource).Single();
+        ModernizationRetention memberRetention = ModernizationSourceExceptions.Parse("Member.cs", memberSource).Single();
+
+        await Assert.That(statementRetention.Valid).IsTrue();
+        await Assert.That(statementRetention.SubjectSpan).IsEqualTo(statement.Span);
+        await Assert.That(memberRetention.Valid).IsTrue();
+        await Assert.That(memberRetention.SubjectSpan).IsEqualTo(member.Span);
+    }
+
+    [Test]
     public async Task NativePragmaMatchesExactDiagnosticWithinItsModernizationFamily()
     {
         const string path = "Sample.cs";
