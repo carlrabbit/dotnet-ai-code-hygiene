@@ -67,6 +67,7 @@ internal static class ExpressionBodyCandidatePopulation
                     .Select(reference => reference.GetSyntax(cancellationToken).ToString())
                     .OrderBy(text => text, StringComparer.Ordinal));
                 occurrences.Add(new ExpressionBodyOccurrence(identity, diagnostic.Id, path, lineSpan.StartLinePosition.Line + 1,
+                    member.SpanStart, member.Span.Length,
                     owner, member.ToFullString(), context, preview.Title, preview.Text, Question));
             }
 
@@ -84,5 +85,5 @@ internal static class ExpressionBodyCandidatePopulation
 internal sealed record ExpressionBodyTypeGroup(string TypeId, string TypeName, int TotalEligibleOccurrences,
     IReadOnlyList<ExpressionBodyOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record ExpressionBodyOccurrence(string Id, string DiagnosticId, string Path, int Line, string Owner,
+internal sealed record ExpressionBodyOccurrence(string Id, string DiagnosticId, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

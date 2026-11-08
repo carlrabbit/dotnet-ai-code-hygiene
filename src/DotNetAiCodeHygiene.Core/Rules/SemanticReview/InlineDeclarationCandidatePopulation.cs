@@ -59,6 +59,7 @@ internal static class InlineDeclarationCandidatePopulation
                 if (preview is null || string.Equals(preview.Text, originalDocument, StringComparison.Ordinal)) { continue; }
                 FileLinePositionSpan lineSpan = declaration.GetLocation().GetLineSpan();
                 occurrences.Add(new InlineDeclarationOccurrence(id, path, lineSpan.StartLinePosition.Line + 1,
+                    declaration.SpanStart, declaration.Span.Length,
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
@@ -75,5 +76,5 @@ internal static class InlineDeclarationCandidatePopulation
 internal sealed record InlineDeclarationMemberGroup(string MemberId, string Path, string Owner, int TotalEligibleOccurrences,
     IReadOnlyList<InlineDeclarationOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record InlineDeclarationOccurrence(string Id, string Path, int Line, string Owner,
+internal sealed record InlineDeclarationOccurrence(string Id, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

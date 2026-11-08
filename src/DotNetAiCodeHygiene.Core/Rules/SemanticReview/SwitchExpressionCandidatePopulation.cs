@@ -58,7 +58,7 @@ internal static class SwitchExpressionCandidatePopulation
                 string originalDocument = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult().ToString();
                 if (preview is null || string.Equals(preview.Text, originalDocument, StringComparison.Ordinal)) { continue; }
                 FileLinePositionSpan lineSpan = switchStatement.GetLocation().GetLineSpan();
-                occurrences.Add(new SwitchExpressionOccurrence(id, path, lineSpan.StartLinePosition.Line + 1, owner,
+                occurrences.Add(new SwitchExpressionOccurrence(id, path, lineSpan.StartLinePosition.Line + 1, switchStatement.SpanStart, switchStatement.Span.Length, owner,
                     original, context, preview.Title, preview.Text, Question));
             }
 
@@ -76,5 +76,5 @@ internal static class SwitchExpressionCandidatePopulation
 internal sealed record SwitchExpressionMemberGroup(string MemberId, string Path, string Owner, int TotalEligibleOccurrences,
     IReadOnlyList<SwitchExpressionOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record SwitchExpressionOccurrence(string Id, string Path, int Line, string Owner, string OriginalSyntax,
+internal sealed record SwitchExpressionOccurrence(string Id, string Path, int Line, int CandidateStart, int CandidateLength, string Owner, string OriginalSyntax,
     string Context, string PreviewTitle, string PreviewDocument, string Question);

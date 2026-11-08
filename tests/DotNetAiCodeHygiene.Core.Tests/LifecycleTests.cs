@@ -181,7 +181,7 @@ public sealed class LifecycleTests
             await Assert.That(result.Findings.Count).IsEqualTo(0);
             await Assert.That(session.HasProjects).IsFalse();
             await Assert.That(session.CompilationCount).IsEqualTo(0);
-            await Assert.That(session.FactComputations(("modernization-source-exceptions", "Short.cs"))).IsEqualTo(0);
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", document.Id))).IsEqualTo(0);
         }
         finally { DeleteTree(repo); }
     }
@@ -193,15 +193,17 @@ public sealed class LifecycleTests
         Directory.CreateDirectory(repo);
         try
         {
-            const string path = "Short.cs";
             const string source = "// hygiene:retain modernization.var-style -- This explicit type documents an interop boundary.\nclass Short { int Value = 1; }";
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("source-exception-cache", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "Short.cs", SourceText.From(source));
             using var session = new RepositorySession(repo);
-            var context = new RuleContext(session, []);
+            var context = new RuleContext(session, [document]);
 
-            _ = context.SourceExceptions(path, source);
-            _ = context.SourceExceptions(path, source);
+            _ = context.SourceExceptions(document);
+            _ = context.SourceExceptions(document);
 
-            await Assert.That(session.FactComputations(("modernization-source-exceptions", path))).IsEqualTo(1);
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", document.Id))).IsEqualTo(1);
         }
         finally { DeleteTree(repo); }
     }

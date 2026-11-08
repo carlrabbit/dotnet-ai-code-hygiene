@@ -63,6 +63,7 @@ internal static class ObjectInitializerCandidatePopulation
                 if (!seenFixes.Add(fixKey)) { continue; }
                 FileLinePositionSpan lineSpan = candidate.GetLocation().GetLineSpan();
                 occurrences.Add(new ObjectInitializerOccurrence(id, path, lineSpan.StartLinePosition.Line + 1,
+                    candidate.SpanStart, candidate.Span.Length,
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
@@ -79,5 +80,5 @@ internal static class ObjectInitializerCandidatePopulation
 internal sealed record ObjectInitializerMemberGroup(string MemberId, string Path, string Owner, int TotalEligibleOccurrences,
     IReadOnlyList<ObjectInitializerOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record ObjectInitializerOccurrence(string Id, string Path, int Line, string Owner,
+internal sealed record ObjectInitializerOccurrence(string Id, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

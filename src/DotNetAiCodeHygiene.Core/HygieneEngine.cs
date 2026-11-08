@@ -27,7 +27,11 @@ public sealed record ReviewItem(string Id, string Path, int Line, int Column, st
 public sealed record ReviewOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string Preview, string Question,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    string? SourceExceptionReason = null);
+    string? SourceExceptionReason = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal Microsoft.CodeAnalysis.Text.TextSpan? CandidateSpan { get; init; }
+}
 public sealed record ModernizationDecisionResult(string BatchHandle, string RuleId, string OccurrenceId, string Verdict);
 public sealed record ReviewEscalation(string Condition, string Command, string ReviewerClass);
 public sealed record ReviewSource(string Path, string Content);

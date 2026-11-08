@@ -59,6 +59,7 @@ internal static class ReadonlyFieldCandidatePopulation
                 string context = string.Join("\n\n", symbol.DeclaringSyntaxReferences
                     .Select(reference => reference.GetSyntax(cancellationToken).ToString()).OrderBy(text => text, StringComparer.Ordinal));
                 occurrences.Add(new ReadonlyFieldOccurrence(id, path, lineSpan.StartLinePosition.Line + 1,
+                    field.SpanStart, field.Span.Length,
                     symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
@@ -75,5 +76,5 @@ internal static class ReadonlyFieldCandidatePopulation
 internal sealed record ReadonlyFieldTypeGroup(string TypeId, string TypeName, int TotalEligibleOccurrences,
     IReadOnlyList<ReadonlyFieldOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record ReadonlyFieldOccurrence(string Id, string Path, int Line, string Owner,
+internal sealed record ReadonlyFieldOccurrence(string Id, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

@@ -1041,11 +1041,14 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
             string varStylePath = Path.Combine(repo, "src", "VarStyle.cs");
+            string exactStylePath = Path.Combine(repo, "src", "ExactStyle.cs");
             const string valid = "public class Native\n{\n#pragma warning disable IDE0090 // This explicit construction is required by the serializer contract.\n    public object Explicit = new object();\n#pragma warning restore IDE0090\n    public object Ordinary = new object();\n    public int Count = default(int);\n}\n";
-            const string hygieneSemantic = "public class VarStyle\n{\n    public void Run()\n    {\n        // hygiene:retain modernization.var-style -- This explicit local type documents the interop boundary.\n        var value = 1;\n    }\n}\n";
+            const string hygieneSemantic = "public class VarStyle\n{\n    public void Run()\n    {\n        // hygiene:retain modernization.var-style -- This explicit local type documents the interop boundary.\n        var retained = 1; var ordinary = 2;\n    }\n}\n";
+            const string exactDiagnosticIdentity = "#pragma warning disable IDE0007 // An explicit local type is required at this interoperability boundary.\npublic class ExactStyle { public void Run() { var apparent = new Widget(); int retained = 1; } }\n#pragma warning restore IDE0007\npublic class Widget { }\n";
             await File.WriteAllTextAsync(sourcePath, valid);
             await File.WriteAllTextAsync(varStylePath, hygieneSemantic);
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", ".editorconfig"), "[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\n");
+            await File.WriteAllTextAsync(exactStylePath, exactDiagnosticIdentity);
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", ".editorconfig"), "[*.cs]\ncsharp_style_var_for_built_in_types = false:warning\ncsharp_style_var_when_type_is_apparent = false:warning\ncsharp_style_var_elsewhere = false:warning\n[ExactStyle.cs]\ncsharp_style_var_for_built_in_types = true:warning\ncsharp_style_var_when_type_is_apparent = false:warning\n");
             Directory.CreateDirectory(Path.Combine(repo, ".hygiene"));
             await File.WriteAllTextAsync(Path.Combine(repo, ".hygiene", "config.json"), "{\"schemaVersion\":1,\"disabledRules\":[\"modernization.expression-body\",\"modernization.collection-expression\",\"modernization.primary-constructor\",\"modernization.switch-expression\",\"modernization.conditional\",\"modernization.object-initializer\",\"modernization.readonly-field\",\"modernization.inline-declaration\"]}\n");
             await PrepareAcceptedBaselineAsync(repo);
@@ -1065,6 +1068,45 @@ public sealed class CliProcessTests
                 await Assert.That(sourceExceptionMessages).IsEmpty();
                 await Assert.That(validJson.RootElement.GetProperty("reviewBatches").ToString()).DoesNotContain("VarStyle.cs");
             }
+            ProcessResult boundedReview = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
+            using (JsonDocument reviewJson = JsonDocument.Parse(boundedReview.StandardOutput))
+            {
+                JsonElement varStyle = reviewJson.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                    .Single(batch => batch.GetProperty("ruleId").GetString() == "modernization.var-style");
+                JsonElement[] sampledOccurrences = varStyle.GetProperty("items").EnumerateArray()
+                    .SelectMany(item => item.GetProperty("occurrences").EnumerateArray()).ToArray();
+                await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/VarStyle.cs"
+                    && item.GetProperty("originalSyntax").GetString()!.Contains("ordinary = 2", StringComparison.Ordinal))).IsTrue();
+                await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/VarStyle.cs"
+                    && item.GetProperty("originalSyntax").GetString()!.Contains("retained = 1", StringComparison.Ordinal))).IsFalse();
+                await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/ExactStyle.cs"
+                    && item.GetProperty("diagnosticId").GetString() == "IDE0008")).IsTrue();
+                await Assert.That(sampledOccurrences.Any(item => item.GetProperty("path").GetString() == "src/ExactStyle.cs"
+                    && item.GetProperty("diagnosticId").GetString() == "IDE0007")).IsFalse();
+            }
+            string auditReport = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-audit-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                ProcessResult audit = await RunCliInAsync(repo, "--yolo-all", "--attest-explicit-task", "--report-dir", auditReport, "--output", "json");
+                await Assert.That(audit.ExitCode).IsEqualTo(0);
+                using JsonDocument inventory = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(auditReport, "inventory.json")));
+                JsonElement obligations = inventory.RootElement.GetProperty("obligations");
+                JsonElement[] varOccurrences = obligations.EnumerateArray()
+                    .Where(item => item.GetProperty("ruleId").GetString() == "modernization.var-style"
+                        && item.GetProperty("sourcePath").GetString() == "src/VarStyle.cs")
+                    .ToArray();
+                await Assert.That(varOccurrences.Length).IsEqualTo(2);
+                await Assert.That(varOccurrences.Any(item => item.GetProperty("subject").ToString().Contains("retained = 1", StringComparison.Ordinal))).IsTrue();
+                await Assert.That(varOccurrences.Any(item => item.GetProperty("subject").ToString().Contains("ordinary = 2", StringComparison.Ordinal))).IsTrue();
+                JsonElement[] exactOccurrences = obligations.EnumerateArray()
+                    .Where(item => item.GetProperty("ruleId").GetString() == "modernization.var-style"
+                        && item.GetProperty("sourcePath").GetString() == "src/ExactStyle.cs")
+                    .ToArray();
+                await Assert.That(exactOccurrences.Length).IsEqualTo(2);
+                await Assert.That(exactOccurrences.Any(item => item.GetProperty("subject").ToString().Contains("sourceExceptionReason", StringComparison.Ordinal))).IsTrue();
+                await Assert.That(exactOccurrences.All(item => item.GetProperty("subject").ToString().Contains("sourceExceptionReason", StringComparison.Ordinal))).IsFalse();
+            }
+            finally { DeleteTree(auditReport); }
             await CommitAllAsync(repo, "valid native exception");
 
             ProcessResult normalize = await RunCliInAsync(repo, "normalize", "--output", "json");
@@ -1098,7 +1140,7 @@ public sealed class CliProcessTests
                 finding.GetProperty("ruleId").GetString() == "modernization.source-exception"
                 && finding.GetProperty("message").GetString()!.Contains("Ineffective or stale", StringComparison.Ordinal))).IsTrue();
 
-            await File.WriteAllTextAsync(varStylePath, hygieneSemantic.Replace("var value = 1;", "int value = 1;", StringComparison.Ordinal));
+            await File.WriteAllTextAsync(varStylePath, hygieneSemantic.Replace("var retained = 1;", "int retained = 1;", StringComparison.Ordinal));
             ProcessResult staleSemantic = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument staleSemanticJson = JsonDocument.Parse(staleSemantic.StandardOutput);
             await Assert.That(staleSemanticJson.RootElement.GetProperty("findings").EnumerateArray().Any(finding =>

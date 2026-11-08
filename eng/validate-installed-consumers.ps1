@@ -108,24 +108,32 @@ public class Sample
         git checkout -- Sample.cs
         if ($LASTEXITCODE -ne 0) { throw 'Could not restore the clean installed suppression fixture.' }
 
-        Set-Content -NoNewline -Path .editorconfig -Value "root = true`n[*.cs]`ncsharp_style_var_for_built_in_types = false:warning`ncsharp_style_var_when_type_is_apparent = false:warning`ncsharp_style_var_elsewhere = false:warning`n"
+        Set-Content -NoNewline -Path .editorconfig -Value "root = true`n[*.cs]`ncsharp_style_var_for_built_in_types = false:warning`ncsharp_style_var_when_type_is_apparent = false:warning`ncsharp_style_var_elsewhere = false:warning`n[Exact.cs]`ncsharp_style_var_for_built_in_types = true:warning`ncsharp_style_var_when_type_is_apparent = false:warning`n"
         Set-Content -NoNewline -Path Sample.cs -Value @'
 public class Sample
 {
     public void Run()
     {
         // hygiene:retain modernization.var-style -- The inferred framework type is required at this interop boundary.
-        var retained = System.DateTime.Now;
-        var reviewed = System.DateTime.UtcNow;
+        var retained = System.DateTime.Now; var reviewed = System.DateTime.UtcNow;
     }
 }
 '@
-        git add .editorconfig Sample.cs; git commit -m 'source-owned exception fixture' | Out-Null
+        Set-Content -NoNewline -Path Exact.cs -Value @'
+#pragma warning disable IDE0007 // This explicit type is required at the interop boundary.
+public class Exact { public void Run() { var apparent = new Widget(); int retained = 1; } }
+#pragma warning restore IDE0007
+public class Widget { }
+'@
+        git add .editorconfig Sample.cs Exact.cs; git commit -m 'source-owned exception fixture' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean source-exception fixture.' }
         $review = dotnet hygiene check --review-all --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) { throw 'Installed review-all check failed on the exception fixture.' }
         $varReview = $review.reviewBatches | Where-Object ruleId -eq 'modernization.var-style'
-        if (-not $varReview -or $varReview.items[0].summary -notmatch 'source-owned retention exception') { throw 'A valid source-owned exception did not exclude only its candidate from the normal review sample.' }
+        if (-not $varReview -or -not ($varReview.items | Where-Object { $_.path -eq 'Sample.cs' -and $_.summary -match 'source-owned retention exception' })) { throw 'A valid source-owned exception did not exclude only its candidate from the normal review sample.' }
+        $reviewOccurrences = @($varReview.items | ForEach-Object { $_.occurrences })
+        if (-not ($reviewOccurrences | Where-Object { $_.path -eq 'Sample.cs' -and $_.originalSyntax -match 'reviewed =' }) -or ($reviewOccurrences | Where-Object { $_.path -eq 'Sample.cs' -and $_.originalSyntax -match 'retained =' })) { throw 'Installed hygiene retention did not attach to only the first same-line syntax subject.' }
+        if (-not ($reviewOccurrences | Where-Object { $_.path -eq 'Exact.cs' -and $_.diagnosticId -eq 'IDE0008' }) -or ($reviewOccurrences | Where-Object { $_.path -eq 'Exact.cs' -and $_.diagnosticId -eq 'IDE0007' })) { throw 'Installed native pragma did not suppress only its exact modernization diagnostic identity.' }
         if (Test-Path -LiteralPath '.hygiene/.state/modernization-decisions.json') { throw 'Installed tool created retired durable modernization verdict state.' }
         $dirtyBefore = Get-Content -LiteralPath Sample.cs -Raw
         Set-Content -NoNewline -Path Sample.cs -Value ($dirtyBefore + "`npublic object Dirty(){return new object();}`n")
@@ -172,7 +180,7 @@ public class Sample
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
+    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
     Write-Output "Installed-consumer M0024 evidence passed; package SHA-256 $packageSha256."
 }

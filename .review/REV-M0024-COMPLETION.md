@@ -27,6 +27,16 @@ The independent implementation review findings against revision `57aaebc49193c3b
 
 Correction-specific focused tests passed: Core source-exception no-work/cache (2/2), profile generation/migration/effective IDE0090 nested behavior (2/2), fixed SDK inventory (1/1), CLI native suppression behavior (1/1), and formatter multi-phase/multi-project aggregation (1/1). Full Core 106/106 and CLI 36/36 passed. Final stage receipts and installed package provenance are in `.execution/M0024-sdk-format-profile-and-source-exceptions.md`.
 
+## Second implementation review corrections
+
+The second review findings against PR #26 revision `2dfba9377202494f3649c257c80a31bef8aa4e3c` are addressed in the pending correction set for the same PR branch:
+
+1. Native suppression filtering now requires both the modernization rule family and exact Roslyn diagnostic identity. Candidate spans and diagnostic IDs are carried through all nine population adapters. Fresh Core tests prove IDE0007 does not filter IDE0008; the CLI test generates both IDs under nested conflicting preferences, confirms only IDE0007 is filtered in normal review, and confirms exhaustive audit still includes both with a reason only on the suppressed candidate.
+2. Hygiene exceptions preserve source syntax spans from parse through candidate filtering and stale validation. Same-line statements no longer share a suppression range. Core fixtures prove next-subject containment and exhaustive reason annotations; the CLI case confirms the sibling statement remains normally sampled, audit keeps both, and making only the attached candidate ineligible reports stale even while its sibling remains.
+3. Native pragma handling uses active Roslyn `PragmaWarningDirectiveTriviaSyntax` rather than line regexes. Justification must come from an actual same-line or adjacent comment. Parser fixtures cover missing/boilerplate text, noncomment preceding source, matched/unmatched and multiple-ID directives, scope length, literal lookalikes and inactive preprocessor content. Fresh focused Core suite passed 5/5; fresh focused CLI lifecycle suite passed 1/1 and includes actual SDK normalize plus authorized exhaustive audit.
+
+The exact newly packed installed-consumer stage is being extended to repeat the same-line source-subject and IDE0007/IDE0008 exact-identity checks against the locally installed package. Full required validation receipts and the installed package SHA-256 will be recorded in the execution ledger after the final metadata commit. No reviewer identity or decision has been entered; this packet remains pending independent review.
+
 ## Independent review questions
 
 1. Is delegation to the supported .NET 11 SDK formatter complete and bounded to the approved diagnostic set, and is any retained specialized fallback necessary?

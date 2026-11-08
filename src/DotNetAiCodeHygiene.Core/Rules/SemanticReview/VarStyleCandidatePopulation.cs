@@ -68,6 +68,7 @@ internal static class VarStyleCandidatePopulation
                 string context = declaration.Parent?.Parent?.ToString() ?? declaration.Parent?.ToString() ?? "";
                 occurrences.Add(new VarStyleOccurrence(identity, diagnostic.Id, path,
                     lineSpan.StartLinePosition.Line + 1, lineSpan.StartLinePosition.Character + 1,
+                    declaration.SpanStart, declaration.Span.Length,
                     owner, original, context, preview.Title, preview.Text, Question));
             }
 
@@ -84,5 +85,5 @@ internal static class VarStyleCandidatePopulation
 internal sealed record VarStyleFileGroup(string Path, int TotalEligibleOccurrences,
     IReadOnlyList<VarStyleOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record VarStyleOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column,
+internal sealed record VarStyleOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column, int CandidateStart, int CandidateLength,
     string Owner, string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

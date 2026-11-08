@@ -65,6 +65,7 @@ internal static class ConditionalCandidatePopulation
                 if (!seenEquivalentFixes.Add(fixKey)) { continue; }
                 FileLinePositionSpan lineSpan = candidate.GetLocation().GetLineSpan();
                 occurrences.Add(new ConditionalOccurrence(id, diagnostic.Id, path, lineSpan.StartLinePosition.Line + 1,
+                    candidate.SpanStart, candidate.Span.Length,
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
@@ -81,5 +82,5 @@ internal static class ConditionalCandidatePopulation
 internal sealed record ConditionalMemberGroup(string MemberId, string Path, string Owner, int TotalEligibleOccurrences,
     IReadOnlyList<ConditionalOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record ConditionalOccurrence(string Id, string DiagnosticId, string Path, int Line, string Owner,
+internal sealed record ConditionalOccurrence(string Id, string DiagnosticId, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);
