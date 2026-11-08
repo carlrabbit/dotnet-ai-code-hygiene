@@ -6,12 +6,26 @@ Please independently review the M0024 implementation in the linked pull request 
 
 - Milestone: `M0024 SDK-Backed Hygiene Profile and Source-Owned Modernization Exceptions`
 - Baseline: `6f9fa952def8da4a36c0de715bd206f7223a7f7c` (PR #25 head)
-- Implementation source revision: `b6b67789a81bbfc7d04dc943487b705669aa2a9a` (implementation and validation candidate; the following PR commit synchronizes only the review packet and ledger)
+- Implementation source revision: `c2926723f91013b7b071b848a85976e74dc58d2a` (includes all corrections for the independent implementation review)
 - Implementation branch: `codex/m0024-sdk-format-profile-and-source-exceptions`
 - Pull request: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/26 (draft; target `codex/m0023-deterministic-cleanup`)
-- Candidate package SHA-256: `9552cbcd27eaca968340e0bdff92d2f2a79ed9baffb4b50f78029d8a2f816385`
+- Candidate package SHA-256: `a2d8a3746655818e5b1ebd3e4e36d4258ec4b079d357d4d3f41d271f1dd578c7`
 - Execution ledger: `.execution/M0024-sdk-format-profile-and-source-exceptions.md`
-- Validation: `./eng/validate.ps1 -Verify` reports seven current required stage receipts; Core suite 103/103, CLI suite 34/34, and exact installed-consumer pass.
+- Validation on the corrected implementation: solution build; Core suite 106/106; CLI suite 36/36; README policy; exact package; installed consumers; and self-host all passed. The self-host receipt fingerprints the complete tracked diff, so it is rerun after this metadata commit and followed by `./eng/validate.ps1 -Verify`.
+
+## Implementation review corrections
+
+The independent implementation review findings against revision `57aaebc49193c3b89c675f414e29c785fe26ccfd` were addressed in `c2926723f91013b7b071b848a85976e74dc58d2a`:
+
+1. IDE0090 now uses `csharp_style_implicit_object_creation_when_type_is_apparent=true`. Nested false/true settings are exercised against real SDK formatting; profile generation, migration and installed bootstrap verify the supported key. IDE0036 order includes `file` and `required`; SDK formatting and compilation verify modern declarations.
+2. Native IDE0090 pragma validation is separate from the nine hygiene modernization populations. Valid, missing-reason, overbroad, unbalanced, ineffective and stale pragmas are checked by hygiene; SDK normalization demonstrates only the intended IDE0090 remains suppressed while IDE0034 and unsuppressed IDE0090 fixes still run. The pinned analyzer package does not provide IDE0079 for this check; effectiveness is verified with the actual IDE0090 analyzer against a source view with that native pragma removed.
+3. Each style/whitespace phase and project batch writes to its own report location; check-only aggregation unions reports. A two-project SDK fixture compares exact changed paths for style-only, whitespace-only, both phases, separate phase files, no-change and repeat runs, and confirms check-only bytes do not change.
+4. IDE0071 is removed from automatic formatting and `style.interpolation.redundant` is Review-only. Direct .NET 11 SDK behavior shows IDE0071 simplifies explicit `ToString()` in an interpolation but does not turn `$"hello"` into a string literal; no unrelated automatic transform was introduced.
+5. Source exception discovery first checks for relevant annotations. No-annotation lifecycle instrumentation proves no project/candidate analysis occurs; source parsing is cached per path and existing exceptions build only the applicable rule/subject candidates. The complete Core/CLI gates retain ordinary sampling and exhaustive audit coverage.
+6. `format --changed` and `normalize --changed` are explicitly check-only selection modes. Help, docs and tests agree; an installed dirty consumer with a real formatting defect reports the selected path without writes, and ordinary dirty mutation still rejects.
+7. The entire approved diagnostic inventory and EditorConfig mappings were reviewed. No diagnostic was added. Documentation specifies each approved diagnostic purpose, option/value, fixer disposition and IDE0071 mismatch. IDE0037 tuple and anonymous-type options and all other listed mappings are exercised by the SDK fixture.
+
+Correction-specific focused tests passed: Core source-exception no-work/cache (2/2), profile generation/migration/effective IDE0090 nested behavior (2/2), fixed SDK inventory (1/1), CLI native suppression behavior (1/1), and formatter multi-phase/multi-project aggregation (1/1). Full Core 106/106 and CLI 36/36 passed. Final stage receipts and installed package provenance are in `.execution/M0024-sdk-format-profile-and-source-exceptions.md`.
 
 ## Independent review questions
 
