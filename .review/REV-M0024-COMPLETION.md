@@ -6,12 +6,12 @@ Please independently review the M0024 implementation in the linked pull request 
 
 - Milestone: `M0024 SDK-Backed Hygiene Profile and Source-Owned Modernization Exceptions`
 - Baseline: `6f9fa952def8da4a36c0de715bd206f7223a7f7c` (PR #25 head)
-- Implementation source revision: `b45b249904554ccf32472f3c0a5f846f45157b16` (includes the second source-local exception review corrections)
+- Implementation source revision: `a52ba230b2073a70699a7a1719b020ca4c1dd80c` (includes the third source-exception attachment-boundary correction)
 - Implementation branch: `codex/m0024-sdk-format-profile-and-source-exceptions`
 - Pull request: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/26 (draft; target `codex/m0023-deterministic-cleanup`)
-- Candidate package SHA-256: `fa0cb290539533a31d848e6a1226309145b76284541280029aa45837c7e70098`
+- Candidate package SHA-256: `1a07855de09be081d6be61e858c0a90437324a90698088425a5b859f31b1f8fb`
 - Execution ledger: `.execution/M0024-sdk-format-profile-and-source-exceptions.md`
-- Validation on the corrected implementation: solution build; Core suite 107/107; CLI suite 36/36; README policy; exact package; and installed consumers all have fresh current receipts. The exact package was installed locally and consumer provenance records same-line source-subject and exact IDE0007/IDE0008 behavior. Self-host fingerprints the complete tracked diff and is run after this review-packet commit, followed by `./eng/validate.ps1 -Verify`.
+- Validation on the corrected implementation: solution build; Core suite 109/109; CLI suite 36/36; README policy; exact package; and installed consumers all have fresh current receipts. The exact package was installed locally and consumer provenance records closing-brace nonattachment as well as same-line source-subject and exact IDE0007/IDE0008 behavior. Self-host fingerprints the complete tracked diff and is run after this review-packet commit, followed by `./eng/validate.ps1 -Verify`.
 
 ## Implementation review corrections
 
@@ -36,6 +36,12 @@ The second review findings against PR #26 revision `2dfba9377202494f3649c257c80a
 3. Native pragma handling uses active Roslyn `PragmaWarningDirectiveTriviaSyntax` rather than line regexes. Justification must come from an actual same-line or adjacent comment. Parser fixtures cover missing/boilerplate text, noncomment preceding source, matched/unmatched and multiple-ID directives, scope length, literal lookalikes and inactive preprocessor content. Fresh focused Core suite passed 5/5; fresh focused CLI lifecycle suite passed 1/1 and includes actual SDK normalize plus authorized exhaustive audit.
 
 The exact newly packed installed-consumer stage passed against package SHA-256 `fa0cb290539533a31d848e6a1226309145b76284541280029aa45837c7e70098`, including same-line source-subject and IDE0007/IDE0008 exact-identity checks. The execution ledger records current receipt fingerprints and provenance hash. No reviewer identity or decision has been entered; this packet remains pending independent review.
+
+## Third implementation review correction
+
+The third review identified a `hygiene:retain` comment immediately before a closing brace that could bind to an enclosing block/declaration because the selected syntax node began before the annotation. Commit `a52ba230b2073a70699a7a1719b020ca4c1dd80c` corrects attachment selection to require the selected Roslyn statement/member span to begin after the annotation. The added Core regression covers method-body, type and nested-block closing braces with earlier candidates; valid following statements/members; and same-line sibling precision. Invalid comments are findings and do not suppress earlier candidates in either normal filtering or exhaustive filtering. The actual CLI `check`/`--review-all` regression and exact installed-consumer fixture confirm the behavior across both consumer boundaries.
+
+Focused evidence: Core `ModernizationSourceExceptionTests/*` 7/7 and CLI `NativeSuppressionsAreValidatedSeparatelyAndDoNotDisableOtherSdkFixes` 1/1. Full current gates: solution fingerprint `27365569244f2d673a31189c9c58e9c6d791b5ddc208b89d03f55555ac52582c`; Core 109/109 fingerprint `1cc85fe7280cb28786382a8d3c74ff4f319938c48114d36a7e38fd719e89c533`; CLI 36/36 fingerprint `f6a125a5be76d3c5acc156a145750a44104f22312a552d55d61a5ca0a7f572f9`; README policy `5d3dba1cbc8d99e2ca79e58f9102905a31f09b65f5f24777c60b5eea60ae4513`; package `2ce081ff2d6b62c7b274a3f595dd51c4acf5ed8b26b4fc6b3dd4bf5e9881b727`; installed consumers `47b630629e2150801ba0f4340480923b0f1298c26852263e232f294909228aef`. Exact package SHA-256 `1a07855de09be081d6be61e858c0a90437324a90698088425a5b859f31b1f8fb`; consumer provenance SHA-256 `4A8633D711A3088ED8172948CF557959AE5D48EE4D885B5C018E64B1426FE308`. The final self-host and `-Verify` receipts are recorded in the execution ledger after this packet is committed.
 
 ## Independent review questions
 
