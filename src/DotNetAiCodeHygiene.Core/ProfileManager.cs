@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
@@ -9,20 +10,42 @@ using System.Xml.Linq;
 namespace DotNetAiCodeHygiene.Core;
 
 public sealed record ProfileFinding(string RuleId, string Path, string Message, string Suggestion);
-public sealed record ProfileResult(string Command, int FindingCount, IReadOnlyList<ProfileFinding> Findings, IReadOnlyList<string> ChangedPaths);
+public sealed record ProfileResult(string Command, int FindingCount, IReadOnlyList<ProfileFinding> Findings, IReadOnlyList<string> ChangedPaths,
+    IReadOnlyList<string>? MigrationNotes = null);
 
 /// <summary>Owns the fixed dotnet-11 profile and its explicitly delimited repository artifacts.</summary>
 public sealed class ProfileManager
 {
     private static readonly ConcurrentDictionary<string, (string Fingerprint, string Output)> Evaluations = new(StringComparer.OrdinalIgnoreCase);
-    private const string Start = "<!-- hygiene profile:begin -->";
-    private const string End = "<!-- hygiene profile:end -->";
+    private const string Start = "# hygiene profile:begin";
+    private const string End = "# hygiene profile:end";
+    private const string LegacyStart = "<!-- hygiene profile:begin -->";
+    private const string LegacyEnd = "<!-- hygiene profile:end -->";
     private const string Import = "<!-- hygiene profile import:begin -->";
     private const string ImportEnd = "<!-- hygiene profile import:end -->";
     private readonly string root;
     private readonly Action<int>? afterReplace;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    private static readonly string Marker = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 2\n}\n";
+    private static readonly string Marker = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 3\n}\n";
+    private static readonly (string Key, string Value)[] MechanicalOptions =
+    [
+        ("indent_style", "space"), ("indent_size", "4"), ("dotnet_sort_system_directives_first", "true"),
+        ("dotnet_separate_import_directive_groups", "false"), ("csharp_prefer_braces", "true"),
+        ("csharp_preferred_modifier_order", "public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async"),
+        ("dotnet_style_require_accessibility_modifiers", "always"), ("csharp_style_implicit_object_creation_when_type_is_apparent", "true"),
+        ("csharp_prefer_simple_default_expression", "true"), ("dotnet_style_coalesce_expression", "true"),
+        ("dotnet_style_prefer_inferred_tuple_names", "true"),
+        ("dotnet_style_prefer_inferred_anonymous_type_member_names", "true"),
+        ("dotnet_diagnostic.IDE0005.severity", "warning"), ("dotnet_diagnostic.IDE0004.severity", "warning"),
+        ("dotnet_diagnostic.IDE0011.severity", "error"), ("dotnet_diagnostic.IDE0034.severity", "warning"),
+        ("dotnet_diagnostic.IDE0036.severity", "warning"), ("dotnet_diagnostic.IDE0040.severity", "error"),
+        ("dotnet_diagnostic.IDE0037.severity", "warning"),
+        ("dotnet_diagnostic.IDE0090.severity", "warning")
+    ];
+    private static readonly string[] FixedMechanicalRuleIds = RuleCatalog.Modules
+        .OfType<FixedMechanicalRuleModule>().Select(module => module.Descriptor.Id)
+        .Append(BracesStyleRuleModule.RuleId).Append(AccessibilityStyleRuleModule.RuleId)
+        .Distinct(StringComparer.Ordinal).ToArray();
     private static readonly string Props = "<Project>\n  <PropertyGroup>\n    <AnalysisLevel>11</AnalysisLevel>\n    <EnableNETAnalyzers>true</EnableNETAnalyzers>\n    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>\n  </PropertyGroup>\n</Project>\n";
     private static readonly string ImportBlock = $"{Import}\n  <Import Project=\"$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props\" Condition=\"Exists('$(MSBuildThisFileDirectory).hygiene/profile/Hygiene.props')\" />\n  {ImportEnd}";
 
@@ -69,7 +92,7 @@ public sealed class ProfileManager
             JsonElement e = doc.RootElement;
             string[] names = e.ValueKind == JsonValueKind.Object ? e.EnumerateObject().Select(p => p.Name).ToArray() : [];
             if (names.Length != 3 || !names.ToHashSet(StringComparer.Ordinal).SetEquals(["schemaVersion", "profile", "version"]) ||
-                e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() != 2)
+                e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() != 3)
             {
                 throw new ProductException("Unsupported hygiene profile; run dotnet hygiene update when a migration is available, or resolve the profile state manually.");
             }
@@ -82,11 +105,13 @@ public sealed class ProfileManager
     public IReadOnlyList<ProfileFinding> Analyze()
     {
         string[] disabled = ReadDisabledRules();
-        IEnumerable<ProfileFinding> findings = AnalyzeRequiredProfile().Concat(AnalyzeStyleCop());
+        IEnumerable<ProfileFinding> findings = AnalyzeRequiredProfile().Concat(AnalyzeStyleCop())
+            .Concat(AnalyzeEditorConfigRule(ProfileAnalysisRuleModule.RuleId, MechanicalOptions.Select(option => KeyValuePair.Create(option.Key, option.Value)).ToArray()));
         foreach (IEditorConfigProjectionRule module in RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>())
         {
             IRuleModule rule = (IRuleModule)module;
-            if (!disabled.Contains(rule.Descriptor.Id, StringComparer.Ordinal))
+            if (!FixedMechanicalRuleIds.Contains(rule.Descriptor.Id, StringComparer.Ordinal)
+                && !disabled.Contains(rule.Descriptor.Id, StringComparer.Ordinal))
             {
                 findings = findings.Concat(AnalyzeEditorConfigRule(rule.Descriptor.Id, module.EditorConfigEntries));
             }
@@ -457,16 +482,26 @@ public sealed class ProfileManager
     private ProfileResult Apply(string command, bool requireMarker)
     {
         string[] disabled = ReadDisabledRules();
+        int priorVersion = 0;
         if (requireMarker)
         {
             RequireSupportedForUpdate();
+            using JsonDocument previous = JsonDocument.Parse(File.ReadAllText(P(".hygiene/profile.json")));
+            priorVersion = previous.RootElement.GetProperty("version").GetInt32();
         }
 
         string editorPath = P(".editorconfig"), directoryPropsPath = P("Directory.Build.props");
+        string configPath = P(".hygiene/config.json");
         string editor = File.Exists(editorPath) ? File.ReadAllText(editorPath) : "root = true\n";
         string props = File.Exists(directoryPropsPath) ? File.ReadAllText(directoryPropsPath) : "<Project>\n</Project>\n";
         string nextEditor = ReconcileEditor(editor, disabled);
         string nextProps = ReconcileImport(props);
+        string? priorConfig = File.Exists(configPath) ? File.ReadAllText(configPath) : null;
+        string? nextConfig = priorConfig is null ? null : ReconcileConfig(priorConfig, out _);
+        string[] removedMechanical = priorConfig is null ? [] : GetDisabledMechanicalRules(priorConfig);
+        string[] migrationNotes = removedMechanical.Select(id => $"Removed former mechanical rule toggle '{id}'; the v3 profile now owns this behavior.")
+            .Concat(requireMarker && priorVersion < 3 ? ["Profile policy changed to v3; the established external baseline approval is required before the autonomous gate can run."] : [])
+            .ToArray();
         var changes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [P(".hygiene/profile.json")] = Marker,
@@ -474,9 +509,38 @@ public sealed class ProfileManager
             [editorPath] = nextEditor,
             [directoryPropsPath] = nextProps
         };
+        if (nextConfig is not null) { changes[configPath] = nextConfig; }
         string[] changed = Commit(changes);
         var findings = Analyze();
-        return new(command, findings.Count, findings, changed.Select(Rel).Order(StringComparer.Ordinal).ToArray());
+        return new(command, findings.Count, findings, changed.Select(Rel).Order(StringComparer.Ordinal).ToArray(), migrationNotes);
+    }
+
+    private static string[] GetDisabledMechanicalRules(string content)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(content);
+            if (!document.RootElement.TryGetProperty("disabledRules", out JsonElement disabled) || disabled.ValueKind != JsonValueKind.Array) { return []; }
+            return disabled.EnumerateArray().Select(value => value.GetString() ?? "").Where(FixedMechanicalRuleIds.Contains).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        }
+        catch (JsonException) { return []; }
+    }
+
+    private static string ReconcileConfig(string content, out string[] removed)
+    {
+        try
+        {
+            JsonObject config = JsonNode.Parse(content)?.AsObject() ?? throw new JsonException();
+            if (config["schemaVersion"]?.GetValue<int>() != 1 || config["disabledRules"] is not JsonArray disabled) { throw new JsonException(); }
+            removed = disabled.Select(value => value?.GetValue<string>() ?? "").Where(FixedMechanicalRuleIds.Contains).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            config["disabledRules"] = new JsonArray(disabled.Select(value => value?.DeepClone()).Where(value => value is not null
+                && !FixedMechanicalRuleIds.Contains(value.GetValue<string>())).ToArray());
+            return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n";
+        }
+        catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException)
+        {
+            throw new ProductException("Invalid or unsupported .hygiene/config.json; no profile migration was applied.");
+        }
     }
 
     private void RequireSupportedForUpdate()
@@ -492,7 +556,7 @@ public sealed class ProfileManager
             JsonElement e = doc.RootElement;
             string[] names = e.ValueKind == JsonValueKind.Object ? e.EnumerateObject().Select(property => property.Name).ToArray() : [];
             if (names.Length != 3 || !names.ToHashSet(StringComparer.Ordinal).SetEquals(["schemaVersion", "profile", "version"]) ||
-                e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() is not (1 or 2))
+                e.GetProperty("schemaVersion").GetInt32() != 1 || e.GetProperty("profile").GetString() != "dotnet-11" || e.GetProperty("version").GetInt32() is not (1 or 2 or 3))
             {
                 throw new ProductException("Unsupported hygiene profile; run dotnet hygiene update when a migration is available, or resolve the profile state manually.");
             }
@@ -518,11 +582,11 @@ public sealed class ProfileManager
                 throw new ProductException("Invalid or unsupported .hygiene/config.json.");
             }
             string[] disabled = root.GetProperty("disabledRules").EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
-            if (disabled.Distinct(StringComparer.Ordinal).Count() != disabled.Length || disabled.Any(id => !RuleCatalog.All.Any(rule => rule.Id == id && rule.Configurable)))
+            if (disabled.Distinct(StringComparer.Ordinal).Count() != disabled.Length || disabled.Any(id => !RuleCatalog.All.Any(rule => rule.Id == id && (rule.Configurable || FixedMechanicalRuleIds.Contains(id, StringComparer.Ordinal)))))
             {
                 throw new ProductException("Invalid or unsupported .hygiene/config.json.");
             }
-            return disabled;
+            return disabled.Where(id => !FixedMechanicalRuleIds.Contains(id, StringComparer.Ordinal)).ToArray();
         }
         catch (ProductException) { throw; }
         catch (Exception e) when (e is JsonException or IOException or KeyNotFoundException or InvalidOperationException)
@@ -555,11 +619,13 @@ public sealed class ProfileManager
         }
 
         string[] projectionLines = RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>()
-            .Where(module => !disabledRuleIds.Contains(((IRuleModule)module).Descriptor.Id, StringComparer.Ordinal))
+            .Where(module => !FixedMechanicalRuleIds.Contains(((IRuleModule)module).Descriptor.Id, StringComparer.Ordinal)
+                && !disabledRuleIds.Contains(((IRuleModule)module).Descriptor.Id, StringComparer.Ordinal))
             .SelectMany(module => new[] { "# hygiene rule: " + ((IRuleModule)module).Descriptor.Id }
                 .Concat(module.EditorConfigEntries.Select(entry => entry.Key + " = " + entry.Value))
                 .Append(""))
             .ToArray();
+        projectionLines = [.. projectionLines, .. MechanicalOptions.Select(option => option.Key + " = " + option.Value)];
         string projection = string.Join("\n", new[] { Start, "[*.cs]" }.Concat(projectionLines).Append(End));
         return clean.TrimEnd() + "\n\n" + projection + "\n";
     }
@@ -576,7 +642,9 @@ public sealed class ProfileManager
     }
     private static string RemoveManaged(string text, string start, string end)
     {
-        int a = text.IndexOf(start, StringComparison.Ordinal), b = text.IndexOf(end, StringComparison.Ordinal);
+        string effectiveStart = text.Contains(start, StringComparison.Ordinal) ? start : start == Start ? LegacyStart : start;
+        string effectiveEnd = effectiveStart == LegacyStart ? LegacyEnd : end;
+        int a = text.IndexOf(effectiveStart, StringComparison.Ordinal), b = text.IndexOf(effectiveEnd, StringComparison.Ordinal);
         if ((a < 0) != (b < 0) || (a >= 0 && b < a))
         {
             throw new ProductException("Conflicting or incomplete hygiene-managed section; repair its boundary markers before retrying.");

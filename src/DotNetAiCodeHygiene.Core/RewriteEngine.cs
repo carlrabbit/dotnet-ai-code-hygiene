@@ -1,251 +1,226 @@
-using System.Text;
+using System.Diagnostics;
+using System.ComponentModel;
+using System.Text.RegularExpressions;
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Formatting;
-using Microsoft.CodeAnalysis.MSBuild;
-using Microsoft.CodeAnalysis.Simplification;
-using Microsoft.CodeAnalysis.Text;
-using Microsoft.Build.Locator;
 
 namespace DotNetAiCodeHygiene.Core;
 
-internal static class RoslynWorkspaceRegistration
-{
-    private static readonly object Gate = new();
-    public static void EnsureRegistered()
-    {
-        lock (Gate)
-        {
-            if (!MSBuildLocator.IsRegistered)
-            {
-                MSBuildLocator.RegisterDefaults();
-            }
-        }
-    }
-}
-
-internal interface IRewriteModule
-{
-    public string Command { get; }
-    public Document Rewrite(Document document, Compilation compilation);
-    public bool ValidatesResult { get; }
-    public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot);
-    public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot);
-}
-
-internal static class RewriteCompilerValidation
-{
-    internal static bool HasRepositoryErrors(Compilation compilation, string repositoryRoot) => compilation.GetDiagnostics().Any(d =>
-        d.Severity == DiagnosticSeverity.Error && (d.Location.SourceTree is null
-            || Path.GetFullPath(d.Location.SourceTree.FilePath).StartsWith(Path.GetFullPath(repositoryRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)));
-}
-
-internal sealed class RewriteRunner(IReadOnlyList<IRewriteModule> modules)
-{
-    internal IRewriteModule Get(string command) => modules.SingleOrDefault(m => m.Command == command)
-        ?? throw new ArgumentException("Unknown rewrite command.");
-    internal Document Rewrite(string command, Document document, Compilation compilation) => Get(command).Rewrite(document, compilation);
-}
-
 public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> ChangedPaths, IReadOnlyList<string> SelectedRuleIds);
 
-/// <summary>Plans Roslyn rewrites completely before applying an all-target transaction.</summary>
+/// <summary>Runs the supported SDK formatter in repository-wide batches and reports its actual source changes.</summary>
 public sealed class RewriteEngine
 {
+    internal static IReadOnlyList<string> ApprovedDiagnostics { get; } = ["IDE0005", "IDE0011", "IDE0036", "IDE0040", "IDE0090", "IDE0034", "IDE0004", "IDE0037"];
     private readonly string root;
-    private readonly Action? beforeCommit;
-    private readonly Action<int>? afterFileCommit;
-    private readonly Func<string, string>? plannedTextForTesting;
-    public RewriteEngine(string? cwd = null) : this(cwd, null, null) { }
-    internal RewriteEngine(string? cwd, Action? beforeCommit, Action<int>? afterFileCommit = null, Func<string, string>? plannedTextForTesting = null)
+    private readonly Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)>? phaseRunner;
+
+    public RewriteEngine(string? cwd = null)
     {
-        this.beforeCommit = beforeCommit;
-        this.afterFileCommit = afterFileCommit;
-        this.plannedTextForTesting = plannedTextForTesting;
         root = RepositorySession.FindRoot(cwd);
     }
 
+    internal RewriteEngine(string? cwd, Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)> phaseRunner)
+        : this(cwd) => this.phaseRunner = phaseRunner;
+    public string Root => root;
+
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
-        if (command is not ("format" or "normalize"))
-        {
-            throw new ArgumentException("Unknown rewrite command.");
-        }
-        IReadOnlyList<(Rule Rule, bool Enabled)> listedRules = new HygieneEngine(root).ListRules();
-        HashSet<string> enabled = listedRules.Where(item => item.Enabled).Select(item => item.Rule.Id).ToHashSet(StringComparer.Ordinal);
-        IFormatRemediationRule[] formatRules = RuleCatalog.Modules.OfType<IFormatRemediationRule>()
-            .Where(module => enabled.Contains(((IRuleModule)module).Descriptor.Id)).ToArray();
-        INormalizeRemediationRule[] normalizeRules = RuleCatalog.Modules.OfType<INormalizeRemediationRule>()
-            .Where(module => enabled.Contains(((IRuleModule)module).Descriptor.Id)).ToArray();
-        string[] selectedRuleIds = command == "format"
-            ? formatRules.Select(module => ((IRuleModule)module).Descriptor.Id).ToArray()
-            : normalizeRules.Select(module => ((IRuleModule)module).Descriptor.Id).Concat(formatRules.Select(module => ((IRuleModule)module).Descriptor.Id)).ToArray();
+        if (command is not ("format" or "normalize")) { throw new ArgumentException("Unknown rewrite command."); }
+        checkOnly |= changed;
         using var session = new RepositorySession(root);
         string[] targets = session.ResolveTargets(paths, changed);
         Dictionary<string, (Project Project, Document Document)> assigned = session.AssignTargets(targets, paths);
-        targets = assigned.Keys.Order(StringComparer.Ordinal).ToArray();
-        var original = targets.ToDictionary(p => p, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
-        var plan = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        var changedByProject = new Dictionary<ProjectId, Dictionary<string, string>>();
-        foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
+        string[] eligible = assigned.Keys.Order(StringComparer.Ordinal).ToArray();
+        string[] diagnostics = command == "normalize" ? ApprovedDiagnostics.ToArray() : [];
+        string[] selectedRules = command == "format"
+            ? ["format.csharp.sdk.whitespace"]
+            : ["format.csharp.sdk.whitespace", .. ApprovedDiagnostics.Select(id => "sdk." + id)];
+
+        if (eligible.Length == 0)
         {
-            Project project = group.First().Value.Project;
-            Compilation compilation = session.GetCompilation(project);
-            if (command == "normalize")
-            {
-                if (RewriteCompilerValidation.HasRepositoryErrors(compilation, root))
-                {
-                    throw new ProductException($"Cannot normalize: project '{Rel(project.FilePath!)}' has compiler errors.");
-                }
-            }
-
-            foreach (var pair in group)
-            {
-                Document document = pair.Value.Document;
-                SourceText source = document.GetTextAsync().GetAwaiter().GetResult();
-                Document changedDocument = document;
-                if (command == "normalize")
-                {
-                    foreach (INormalizeRemediationRule rule in normalizeRules)
-                    {
-                        changedDocument = rule.Normalize(changedDocument, compilation);
-                        compilation = changedDocument.Project.GetCompilationAsync().GetAwaiter().GetResult()
-                            ?? throw new ProductException("Roslyn could not load the intermediate normalization state.");
-                    }
-                }
-                bool normalizationChanged = command == "normalize"
-                    && !source.ContentEquals(changedDocument.GetTextAsync().GetAwaiter().GetResult());
-                if (command == "format" || normalizationChanged)
-                {
-                    foreach (IFormatRemediationRule rule in formatRules)
-                    {
-                        changedDocument = rule.Format(changedDocument, compilation);
-                    }
-                }
-                SourceText rewritten = changedDocument.GetTextAsync().GetAwaiter().GetResult();
-                string content = plannedTextForTesting?.Invoke(rewritten.ToString()) ?? rewritten.ToString();
-                if (!StringComparer.Ordinal.Equals(source.ToString(), content))
-                {
-                    Encoding encoding = source.Encoding ?? new UTF8Encoding(false);
-                    byte[] preamble = encoding.GetPreamble();
-                    bool hasPreamble = preamble.Length > 0 && original[pair.Key].AsSpan().StartsWith(preamble);
-                    byte[] encoded = encoding.GetBytes(content);
-                    plan[pair.Key] = hasPreamble ? preamble.Concat(encoded).ToArray() : encoded;
-                    if (!changedByProject.TryGetValue(group.Key, out var files))
-                    {
-                        changedByProject[group.Key] = files = new(StringComparer.OrdinalIgnoreCase);
-                    }
-
-                    files[pair.Key] = content;
-                }
-            }
-        }
-        if (command == "normalize" && plan.Count > 0)
-        {
-            foreach (var group in assigned.GroupBy(x => x.Value.Project.Id))
-            {
-                if (!changedByProject.TryGetValue(group.Key, out var files))
-                {
-                    continue;
-                }
-
-                Project project = group.First().Value.Project;
-                Solution solution = project.Solution;
-                foreach (var entry in group)
-                {
-                    if (!files.TryGetValue(entry.Key, out string? text))
-                    {
-                        continue;
-                    }
-
-                    solution = solution.WithDocumentText(entry.Value.Document.Id, SourceText.From(text, Encoding.UTF8));
-                }
-                Compilation after = solution.GetProject(group.Key)!.GetCompilationAsync().GetAwaiter().GetResult() ?? throw new ProductException("Roslyn could not validate the rewrite plan.");
-                if (RewriteCompilerValidation.HasRepositoryErrors(after, root))
-                {
-                    throw new ProductException($"Normalization would introduce compiler errors in '{Rel(project.FilePath!)}'; no files were changed.");
-                }
-            }
-        }
-        string[] changedPaths = plan.Keys.Select(Rel).Order(StringComparer.Ordinal).ToArray();
-        if (!checkOnly && plan.Count > 0)
-        {
-            Commit(plan, original);
+            return new(command, checkOnly, 0, 0, 0, [], selectedRules);
         }
 
-        return new(command, checkOnly, targets.Length, plan.Count, targets.Length - plan.Count, changedPaths, selectedRuleIds);
-    }
-
-    private void Commit(Dictionary<string, byte[]> plan, Dictionary<string, byte[]> original)
-    {
-        foreach (var item in original)
-        {
-            if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value))
-            {
-                throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
-            }
-        }
-
-        var staged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var committed = new List<string>();
+        var bytes = eligible.ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
+        string head = checkOnly ? "" : TryGit(root, "rev-parse", "--verify", "HEAD").Trim();
+        string index = checkOnly || head.Length == 0 ? "" : Git(root, "diff", "--cached", "--binary");
+        string reportDirectory = Path.Combine(Path.GetTempPath(), "hygiene-dotnet-format-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(reportDirectory);
+        int styleExit = 0, whitespaceExit = 0, batchIndex = 0;
+        var reportDirectories = new List<string>();
+        string log = "";
         try
         {
-            foreach (var entry in plan)
+            IReadOnlyList<(string Workspace, string[] Files)> batches = FindBatches(session, assigned);
+            if (command == "normalize")
             {
-                string temp = entry.Key + "." + Guid.NewGuid().ToString("N") + ".rewrite.tmp";
-                File.WriteAllBytes(temp, entry.Value);
-                staged.Add(entry.Key, temp);
-            }
-            beforeCommit?.Invoke();
-            foreach (var item in original)
-            {
-                if (!File.ReadAllBytes(item.Key).AsSpan().SequenceEqual(item.Value))
+                foreach ((string workspace, string[] files) in batches)
                 {
-                    throw new ProductException($"Source changed during rewrite planning: {Rel(item.Key)}; retry the command.");
+                    string phaseReport = CreatePhaseReportDirectory(reportDirectory, "style", batchIndex++);
+                    reportDirectories.Add(phaseReport);
+                    (styleExit, string output) = RunPhase(workspace, "style", files, diagnostics, checkOnly, phaseReport);
+                    log += output;
+                    if (styleExit != 0 && !(checkOnly && styleExit == 2)) { throw Failure("style", styleExit, output, eligible, bytes); }
                 }
+            }
+            foreach ((string workspace, string[] files) in batches)
+            {
+                string phaseReport = CreatePhaseReportDirectory(reportDirectory, "whitespace", batchIndex++);
+                reportDirectories.Add(phaseReport);
+                (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, phaseReport);
+                log += output;
+                if (whitespaceExit != 0 && !(checkOnly && whitespaceExit == 2)) { throw Failure("whitespace", whitespaceExit, output, eligible, bytes); }
             }
 
-            int committedCount = 0;
-            foreach (var entry in staged.ToArray())
+            string[] changedPaths = checkOnly
+                ? ReadReportedChanges(reportDirectories, log).Where(candidate => eligible.Any(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(candidate), StringComparison.OrdinalIgnoreCase))).Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
+                : eligible.Where(path => !bytes[path].AsSpan().SequenceEqual(File.ReadAllBytes(path)))
+                    .Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            string afterHead = checkOnly || head.Length == 0 ? "" : Git(root, "rev-parse", "--verify", "HEAD").Trim();
+            string afterIndex = checkOnly || head.Length == 0 ? "" : Git(root, "diff", "--cached", "--binary");
+            if (!checkOnly && head.Length > 0 && (afterHead != head || afterIndex != index))
             {
-                string backup = entry.Key + "." + Guid.NewGuid().ToString("N") + ".rewrite.bak";
-                File.Replace(entry.Value, entry.Key, backup);
-                staged[entry.Key] = backup;
-                committed.Add(entry.Key);
-                afterFileCommit?.Invoke(++committedCount);
+                throw new ProductException("Git HEAD or index changed during formatting. The run is incomplete; inspect the worktree and preserve the current edits before recovery.");
             }
-            foreach (string backup in staged.Values)
-            {
-                if (File.Exists(backup))
-                {
-                    File.Delete(backup);
-                }
-            }
-        }
-        catch
-        {
-            foreach (string path in committed.AsEnumerable().Reverse())
-            {
-                string backup = staged[path];
-                if (File.Exists(backup))
-                {
-                    File.Replace(backup, path, null);
-                }
-            }
-            throw;
+            int changedCount = changedPaths.Length;
+            return new(command, checkOnly, eligible.Length, changedCount, Math.Max(0, eligible.Length - changedCount), changedPaths, selectedRules);
         }
         finally
         {
-            foreach (string temp in staged.Values)
-            {
-                if (File.Exists(temp))
-                {
-                    File.Delete(temp);
-                }
-            }
+            try { Directory.Delete(reportDirectory, recursive: true); } catch (IOException) { }
         }
     }
 
-    private string Rel(string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
+    private static string CreatePhaseReportDirectory(string root, string phase, int index)
+    {
+        string directory = Path.Combine(root, $"{index:D3}-{phase}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private ProductException Failure(string phase, int exitCode, string output, string[] eligible, IReadOnlyDictionary<string, byte[]> original)
+    {
+        string[] partial = eligible.Where(path => File.Exists(path) && !original[path].AsSpan().SequenceEqual(File.ReadAllBytes(path)))
+            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')).ToArray();
+        return new ProductException($"dotnet format {phase} failed with exit code {exitCode}; formatting is incomplete and edits remain inspectable. Inspect/recover these paths explicitly: {string.Join(", ", partial)}. {output.Trim()}");
+    }
+
+    private (int ExitCode, string Output) RunPhase(string workspace, string phase, string[] files, string[] diagnostics, bool checkOnly, string reportDirectory)
+    {
+        if (phaseRunner is not null) { return phaseRunner(workspace, phase, files, diagnostics, checkOnly, reportDirectory); }
+        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        start.ArgumentList.Add("format");
+        start.ArgumentList.Add(workspace);
+        start.ArgumentList.Add(phase);
+        start.ArgumentList.Add("--no-restore");
+        start.ArgumentList.Add("--report");
+        start.ArgumentList.Add(reportDirectory);
+        foreach (string file in files)
+        {
+            start.ArgumentList.Add("--include");
+            start.ArgumentList.Add(Path.GetRelativePath(root, file).Replace('\\', '/'));
+        }
+        if (diagnostics.Length > 0)
+        {
+            start.ArgumentList.Add("--diagnostics");
+            foreach (string diagnostic in diagnostics) { start.ArgumentList.Add(diagnostic); }
+        }
+        if (checkOnly) { start.ArgumentList.Add("--verify-no-changes"); }
+        try
+        {
+            using Process process = Process.Start(start) ?? throw new EnvironmentException("Could not start the installed .NET SDK dotnet format command.");
+            Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderr = process.StandardError.ReadToEndAsync();
+            process.WaitForExit();
+            Task.WaitAll(stdout, stderr);
+            return (process.ExitCode, stdout.Result + Environment.NewLine + stderr.Result);
+        }
+        catch (Win32Exception error) { throw new EnvironmentException("The .NET SDK dotnet format command is unavailable: " + error.Message); }
+    }
+
+    private IReadOnlyList<(string Workspace, string[] Files)> FindBatches(RepositorySession session, Dictionary<string, (Project Project, Document Document)> assigned)
+    {
+        string[] projects = assigned.Values.Select(value => value.Project.FilePath).Where(path => path is not null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        foreach (string solution in Directory.EnumerateFiles(root, "*.sln*", SearchOption.TopDirectoryOnly).Where(path => Path.GetExtension(path) is ".sln" or ".slnx"))
+        {
+            (int exit, string output) = RunSimple("sln", solution, "list");
+            if (exit != 0) { continue; }
+            var listed = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => line.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                .Select(line => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, line.Trim())))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (projects.All(listed.Contains))
+            {
+                return [(solution, assigned.Keys.Order(StringComparer.Ordinal).ToArray())];
+            }
+        }
+        return assigned.GroupBy(pair => pair.Value.Project.FilePath!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => (group.Key, group.Select(pair => pair.Key).Order(StringComparer.Ordinal).ToArray())).ToArray();
+    }
+
+    private (int ExitCode, string Output) RunSimple(params string[] arguments)
+    {
+        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
+        using Process process = Process.Start(start) ?? throw new EnvironmentException("Could not start dotnet.");
+        string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd(); process.WaitForExit();
+        return (process.ExitCode, output);
+    }
+
+    private static string[] ReadReportedChanges(IEnumerable<string> directories, string output)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string directory in directories)
+        {
+            foreach (string report in Directory.EnumerateFiles(directory, "*.json", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    using JsonDocument json = JsonDocument.Parse(File.ReadAllText(report));
+                    Visit(json.RootElement);
+                    void Visit(JsonElement value)
+                    {
+                        if (value.ValueKind == JsonValueKind.Object)
+                        {
+                            foreach (JsonProperty property in value.EnumerateObject())
+                            {
+                                if (property.Name.Contains("file", StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
+                                {
+                                    paths.Add(property.Value.GetString()!);
+                                }
+                                else { Visit(property.Value); }
+                            }
+                        }
+                        else if (value.ValueKind == JsonValueKind.Array) { foreach (JsonElement child in value.EnumerateArray()) { Visit(child); } }
+                    }
+                }
+                catch (JsonException) { }
+            }
+        }
+        foreach (string line in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            Match diagnostic = Regex.Match(line, "^(?<path>.*?\\.cs)\\(\\d+,\\d+\\):", RegexOptions.CultureInvariant);
+            if (diagnostic.Success) { paths.Add(diagnostic.Groups["path"].Value); continue; }
+            string candidate = line.Trim().Trim('"');
+            if (candidate.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) { paths.Add(candidate); }
+        }
+        return paths.ToArray();
+    }
+
+    private static string Git(string workingDirectory, params string[] arguments)
+    {
+        var start = new ProcessStartInfo("git") { WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
+        using Process process = Process.Start(start) ?? throw new EnvironmentException("Could not start Git.");
+        string output = process.StandardOutput.ReadToEnd(); string error = process.StandardError.ReadToEnd(); process.WaitForExit();
+        if (process.ExitCode != 0) { throw new EnvironmentException("Git checkpoint inspection failed: " + error.Trim()); }
+        return output;
+    }
+
+    private static string TryGit(string workingDirectory, params string[] arguments)
+    {
+        try { return Git(workingDirectory, arguments); }
+        catch (EnvironmentException) { return ""; }
+    }
 }

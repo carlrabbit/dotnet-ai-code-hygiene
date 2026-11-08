@@ -16,6 +16,8 @@ decoupled
 
 The same artifact schema is used in both modes.
 
+Modernization outcomes are no longer stored as durable `desirable`, `retain`, or `uncertain` verdicts. Prefer-modernize is evidenced by the source edit; retention requires a justified source-owned suppression; uncertainty stays outstanding for human review. The former `.hygiene/.state/modernization-decisions.json` file is not approval evidence. The CLI does not expand or hand off modernization batches; route uncertainty through the external review workflow without widening the shared five-package gate budget.
+
 A handoff is an explicit engineering/review work product. It is not an engine-managed acceptance record, semantic-review history database, or source of rule state.
 
 ## Command
@@ -33,7 +35,7 @@ The command:
 5. writes exactly one JSON request artifact;
 6. reports the resulting path on stdout.
 
-The command does not invoke a model and does not modify source/latest-run state.
+The command does not invoke a model and does not modify source/latest-run state. It revalidates against the current Git `HEAD` and source population; a missing or changed gate requires a fresh `check`.
 
 ## Default repository destination
 

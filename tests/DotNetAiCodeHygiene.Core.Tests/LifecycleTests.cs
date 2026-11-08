@@ -107,7 +107,7 @@ public sealed class LifecycleTests
     }
 
     [Test]
-    public async Task TestOnlyRuleAndRewriteModulesRunThroughTheirRunners()
+    public async Task TestOnlyRuleModulesRunThroughTheirRunner()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-module-seams-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repo);
@@ -124,13 +124,6 @@ public sealed class LifecycleTests
             await Assert.That(session.CompilationCount).IsEqualTo(0);
             await Assert.That(session.FactCount).IsEqualTo(0);
 
-            using var workspace = new AdhocWorkspace();
-            Project project = workspace.AddProject("rewrite-test", LanguageNames.CSharp);
-            Document document = workspace.AddDocument(project.Id, "input.cs", SourceText.From("class Before { }"));
-            Compilation compilation = document.Project.GetCompilationAsync().GetAwaiter().GetResult()!;
-            var rewriteRunner = new RewriteRunner([new TestRewriteModule()]);
-            Document rewritten = rewriteRunner.Rewrite("test-rewrite", document, compilation);
-            await Assert.That(rewritten.GetTextAsync().GetAwaiter().GetResult().ToString()).IsEqualTo("class After { }");
         }
         finally { DeleteTree(repo); }
     }
@@ -140,15 +133,6 @@ public sealed class LifecycleTests
         public Rule Descriptor => descriptor;
         public RuleModuleResult Evaluate(RuleContext context) => RuleModuleResult.FindingsOnly(
             [new Finding("", "", descriptor.Id, descriptor.Version, descriptor.Classification, "", 1, 1, null, "test", "", "", "", "", "test", "test")]);
-    }
-
-    private sealed class TestRewriteModule : IRewriteModule
-    {
-        public string Command => "test-rewrite";
-        public bool ValidatesResult => false;
-        public void ValidateProject(Compilation compilation, string projectPath, string repositoryRoot) { }
-        public void ValidateResult(Compilation compilation, string projectPath, string repositoryRoot) { }
-        public Document Rewrite(Document document, Compilation compilation) => document.WithText(SourceText.From("class After { }"));
     }
 
     [Test]
@@ -177,6 +161,51 @@ public sealed class LifecycleTests
         {
             DeleteTree(repo);
         }
+    }
+
+    [Test]
+    public async Task SourceExceptionValidationDoesNotLoadProjectsWhenNoSourceAnnotationExists()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-lazy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("lightweight", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "Short.cs", SourceText.From("class Short { }"));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [document]);
+
+            RuleModuleResult result = new ModernizationSourceExceptionRuleModule().Evaluate(context);
+
+            await Assert.That(result.Findings.Count).IsEqualTo(0);
+            await Assert.That(session.HasProjects).IsFalse();
+            await Assert.That(session.CompilationCount).IsEqualTo(0);
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", document.Id))).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task SourceExceptionParsingIsSharedWithinTheCommandContext()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            const string source = "// hygiene:retain modernization.var-style -- This explicit type documents an interop boundary.\nclass Short { int Value = 1; }";
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("source-exception-cache", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "Short.cs", SourceText.From(source));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [document]);
+
+            _ = context.SourceExceptions(document);
+            _ = context.SourceExceptions(document);
+
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", document.Id))).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
     }
 
     [Test]
@@ -312,8 +341,9 @@ public sealed class LifecycleTests
             await Git(repo, "init", "-q");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string file = Path.Combine(repo, "src", "Fixture.cs");
-            const string initial = "public class Fixture{private int value;public int Value(){return this.value;}}";
+            const string initial = "using System; public class Fixture{public object Value(){return new object();}}";
             await File.WriteAllTextAsync(file, initial);
+            _ = new ProfileManager(repo).Bootstrap();
             var engine = new RewriteEngine(repo);
             RewriteResult formatCheck = engine.Rewrite("format", [], false, true);
             await Assert.That(formatCheck.ChangedCount).IsEqualTo(1);
@@ -324,10 +354,10 @@ public sealed class LifecycleTests
             await Assert.That(engine.Rewrite("format", [], false, false).ChangedCount).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(formatted);
             RewriteResult normalizeCheck = engine.Rewrite("normalize", [], false, true);
-            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(1);
+            await Assert.That(normalizeCheck.ChangedCount).IsGreaterThan(0);
             await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(formatted);
             RewriteResult normalize = engine.Rewrite("normalize", [], false, false);
-            await Assert.That(normalize.ChangedCount).IsEqualTo(1);
+            await Assert.That(normalize.ChangedCount).IsGreaterThan(0);
             string normalized = await File.ReadAllTextAsync(file);
             await Assert.That(engine.Rewrite("normalize", [], false, false).ChangedCount).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(normalized);
@@ -336,7 +366,82 @@ public sealed class LifecycleTests
     }
 
     [Test]
-    public async Task NormalizeRejectsCompilerErrorsAndRewriteConflictNeverOverwritesSource()
+    public async Task FormatterFailureLeavesEarlierSdkPhaseEditsInspectable()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-format-partial-failure-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            string project = Path.Combine(repo, "src", "Fixture.csproj");
+            string file = Path.Combine(repo, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            const string initial = "public sealed class Widget { } public class Sample{public Widget Create()=>new Widget();}\n";
+            await File.WriteAllTextAsync(file, initial);
+            int calls = 0;
+            var engine = new RewriteEngine(repo, (workspace, phase, files, diagnostics, checkOnly, reportDirectory) =>
+            {
+                calls++;
+                if (phase == "style")
+                {
+                    File.WriteAllText(file, initial.Replace("new Widget()", "new()", StringComparison.Ordinal));
+                    return (0, "simulated SDK style completion");
+                }
+
+                return (1, "simulated SDK whitespace interruption");
+            });
+
+            await Assert.That(() => engine.Rewrite("normalize", [], false, checkOnly: false))
+                .Throws<ProductException>().WithMessageContaining("formatting is incomplete");
+            await Assert.That(calls).IsEqualTo(2);
+            string remaining = await File.ReadAllTextAsync(file);
+            await Assert.That(remaining).Contains("Create()=>new();");
+            await Assert.That(remaining).IsNotEqualTo(initial);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task RoslynFormatterPreservesCommentTextVisualGroupingLineEndingsAndIdempotence()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-format-contract-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string file = Path.Combine(repo, "src", "Fixture.cs");
+            const string initial = "        /// <summary>API documentation.</summary>\r\npublic class Fixture{\r\n  // +--- visual grouping ---+\r\n      /* Keep this explanatory block. */int Value;   \r\n}\r\n";
+            await File.WriteAllTextAsync(file, initial);
+            string[] commentsBefore = CSharpSyntaxTree.ParseText(initial).GetRoot().DescendantTrivia(descendIntoTrivia: true)
+                .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                    || trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+                .Select(trivia => trivia.ToString()).ToArray();
+
+            var rewrite = new RewriteEngine(repo);
+            byte[] beforeCheck = await File.ReadAllBytesAsync(file);
+            await Assert.That(rewrite.Rewrite("format", [], false, checkOnly: true).ChangedCount).IsEqualTo(1);
+            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(beforeCheck)).IsTrue();
+            _ = rewrite.Rewrite("format", [], false, checkOnly: false);
+            string formatted = await File.ReadAllTextAsync(file);
+            string[] commentsAfter = CSharpSyntaxTree.ParseText(formatted).GetRoot().DescendantTrivia(descendIntoTrivia: true)
+                .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                    || trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+                .Select(trivia => trivia.ToString()).ToArray();
+            await Assert.That(commentsAfter).IsEquivalentTo(commentsBefore);
+            await Assert.That(formatted).Contains("// +--- visual grouping ---+");
+            await Assert.That(formatted).Contains("/* Keep this explanatory block. */");
+            await Assert.That(formatted.EndsWith("\r\n", StringComparison.Ordinal)).IsTrue();
+            await Assert.That(Regex.IsMatch(formatted, "(?<!\\r)\\n")).IsFalse();
+            await Assert.That(Regex.IsMatch(formatted, "[ \\t]+\\r\\n")).IsFalse();
+            await Assert.That(rewrite.Rewrite("format", [], false, checkOnly: false).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(formatted);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NormalizeUsesSdkBatchAndLeavesCheckOnlySourcesUntouched()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-safety-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "src"));
@@ -353,33 +458,17 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(first, a);
             await File.WriteAllTextAsync(second, invalid);
             await File.WriteAllTextAsync(unselected, untouched);
+            await Git(repo, "config", "user.email", "hygiene@example.invalid");
+            await Git(repo, "config", "user.name", "Hygiene Tests");
+            await Git(repo, "add", ".");
+            await Git(repo, "commit", "-m", "fixture");
             var engine = new RewriteEngine(repo);
-            bool rejected = false;
-            try { engine.Rewrite("normalize", [first, second], false, false); } catch (ProductException) { rejected = true; }
-            await Assert.That(rejected).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
-            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo(invalid);
-
-            const string validSecond = "public class B{public void Run(){System.Console.WriteLine(2);}}";
-            await File.WriteAllTextAsync(second, validSecond);
-            var conflicting = new RewriteEngine(repo, () => File.WriteAllText(second, "external edit"));
-            rejected = false;
-            try { conflicting.Rewrite("format", [first, second], false, false); } catch (ProductException) { rejected = true; }
-            await Assert.That(rejected).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
-            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo("external edit");
-
-            await File.WriteAllTextAsync(second, validSecond);
-            var faulted = new RewriteEngine(repo, null, count => { if (count == 1) { throw new OperationCanceledException("injected cancellation"); } });
-            bool cancelled = false;
-            try { faulted.Rewrite("format", [first, second], false, false); } catch (OperationCanceledException) { cancelled = true; }
-            await Assert.That(cancelled).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(a);
-            await Assert.That(await File.ReadAllTextAsync(second)).IsEqualTo(validSecond);
-            RewriteResult committed = new RewriteEngine(repo).Rewrite("format", [first, second], false, false);
-            await Assert.That(committed.ChangedCount).IsEqualTo(2);
-            await Assert.That(await File.ReadAllTextAsync(first)).IsNotEqualTo(a);
-            await Assert.That(await File.ReadAllTextAsync(second)).IsNotEqualTo(validSecond);
+            byte[] before = await File.ReadAllBytesAsync(first);
+            RewriteResult plan = engine.Rewrite("normalize", [first, second], false, true);
+            await Assert.That(plan.TargetCount).IsEqualTo(2);
+            await Assert.That(plan.SelectedRuleIds).Contains("sdk.IDE0005");
+            await Assert.That((await File.ReadAllBytesAsync(first)).AsSpan().SequenceEqual(before)).IsTrue();
+            await Assert.That(plan.ChangedPaths.Count).IsGreaterThan(0);
             await Assert.That(await File.ReadAllTextAsync(unselected)).IsEqualTo(untouched);
         }
         finally { DeleteTree(repo); }
@@ -501,7 +590,7 @@ public sealed class LifecycleTests
     }
 
     [Test]
-    public async Task NormalizationCatalogueIsConservativeAndPostValidationBlocksEveryWrite()
+    public async Task NormalizationUsesApprovedSdkDiagnosticsAndCheckOnlyDoesNotWrite()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-catalogue-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "src"));
@@ -514,27 +603,55 @@ public sealed class LifecycleTests
             const string source = "using System; public class Fixture{private int value; public String Safe(){return System.String.Empty;} public int Read(){return this.value;} public int Shadow(int value){return this.value + value;}}";
             await File.WriteAllTextAsync(first, source);
             await File.WriteAllTextAsync(second, "public class Other { }\n");
+            await Git(repo, "config", "user.email", "hygiene@example.invalid");
+            await Git(repo, "config", "user.name", "Hygiene Tests");
+            await Git(repo, "add", ".");
+            await Git(repo, "commit", "-m", "fixture");
             var engine = new RewriteEngine(repo);
+            byte[] before = await File.ReadAllBytesAsync(first);
             RewriteResult plan = engine.Rewrite("normalize", [first], false, true);
-            await Assert.That(plan.ChangedCount).IsEqualTo(1);
-            await Assert.That(await File.ReadAllTextAsync(first)).IsEqualTo(source);
-            RewriteResult normalized = engine.Rewrite("normalize", [first], false, false);
-            string result = await File.ReadAllTextAsync(first);
-            await Assert.That(normalized.ChangedCount).IsEqualTo(1);
-            await Assert.That(result).Contains("using System;");
-            await Assert.That(result).Contains("string Safe()");
-            await Assert.That(result).Contains("return value;");
-            await Assert.That(result).Contains("return this.value + value;");
-            await Assert.That(result).DoesNotContain("System.String.Empty");
+            await Assert.That(plan.TargetCount).IsEqualTo(1);
+            await Assert.That(plan.SelectedRuleIds).Contains("sdk.IDE0011");
+            await Assert.That(plan.SelectedRuleIds).Contains("format.csharp.sdk.whitespace");
+            await Assert.That((await File.ReadAllBytesAsync(first)).AsSpan().SequenceEqual(before)).IsTrue();
+        }
+        finally { DeleteTree(repo); }
+    }
 
-            byte[] firstBefore = await File.ReadAllBytesAsync(first);
-            byte[] secondBefore = await File.ReadAllBytesAsync(second);
-            var invalidPlan = new RewriteEngine(repo, null, null, text => text + "\npublic MissingType Broken;\n");
-            bool postValidationRejected = false;
-            try { invalidPlan.Rewrite("normalize", [first, second], false, false); } catch (ProductException e) when (e.Message.Contains("would introduce compiler errors", StringComparison.Ordinal)) { postValidationRejected = true; }
-            await Assert.That(postValidationRejected).IsTrue();
-            await Assert.That((await File.ReadAllBytesAsync(first)).AsSpan().SequenceEqual(firstBefore)).IsTrue();
-            await Assert.That((await File.ReadAllBytesAsync(second)).AsSpan().SequenceEqual(secondBefore)).IsTrue();
+    [Test]
+    public async Task TargetTypedCreationUsesTheSdkDiagnosticAndHonorsLanguageVersion()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-target-typed-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Assert.That(await RunGitExitCode(repo, "init", "-q")).IsEqualTo(0);
+            string project = Path.Combine(repo, "src", "Fixture.csproj");
+            string sourcePath = Path.Combine(repo, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><LangVersion>12.0</LangVersion></PropertyGroup></Project>");
+            const string source = "public sealed class Widget { }\npublic sealed class App { public Widget Field = new Widget(); public Widget Property { get; } = new Widget(); public Widget Create() => new Widget(); public void Run() { Widget local = new Widget(); } }\n";
+            await File.WriteAllTextAsync(sourcePath, source);
+            _ = new ProfileManager(repo).Bootstrap();
+
+            var engine = new RewriteEngine(repo);
+            RewriteResult planned = engine.Rewrite("normalize", [sourcePath], false, checkOnly: true);
+            string proposed = await File.ReadAllTextAsync(sourcePath);
+            await Assert.That(planned.ChangedCount).IsGreaterThan(0);
+            await Assert.That(proposed).IsEqualTo(source);
+
+            _ = engine.Rewrite("normalize", [sourcePath], false, checkOnly: false);
+            string normalized = await File.ReadAllTextAsync(sourcePath);
+            await Assert.That(normalized).Contains("Widget Field = new();");
+            // SDK IDE0090 intentionally leaves auto-property initializers unchanged in this context.
+            await Assert.That(normalized).Contains("Widget Property { get; } = new Widget();");
+            await Assert.That(normalized).Contains("Widget local = new();");
+            await Assert.That(normalized).Contains("Create() => new();");
+            await Assert.That(engine.Rewrite("normalize", [sourcePath], false, checkOnly: false).ChangedCount).IsEqualTo(0);
+
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><LangVersion>8.0</LangVersion></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(sourcePath, source);
+            await Assert.That(new RewriteEngine(repo).Rewrite("normalize", [sourcePath], false, checkOnly: true).ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(source);
         }
         finally { DeleteTree(repo); }
     }
@@ -551,7 +668,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.cs"), "public class Sample { public void Run() { var x = 1; if (x > 0) { x++; } } }\n");
             var engine = new HygieneEngine(repo);
-            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit", "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "docs.summary.quality.review", "docs.summary.language.german.review", "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit", "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.unused", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "modernization.source-exception", "docs.summary.quality.review", "docs.summary.language.german.review", "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review", "modernization.var-style", "modernization.expression-body", "modernization.collection-expression", "modernization.primary-constructor", "modernization.switch-expression", "modernization.conditional", "modernization.object-initializer", "modernization.readonly-field", "modernization.inline-declaration" });
             await Assert.That(engine.ListRules().All(x => x.Enabled)).IsTrue();
             CheckResult result = engine.Check([], false);
             await Assert.That(result.Findings.Select(x => x.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.required", "readability.control-flow.visual-block" });
@@ -734,7 +851,8 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
             var engine = new HygieneEngine(repo);
             CheckResult both = engine.Check([], false);
-            await Assert.That(both.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "docs.summary.language.german.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(both.ReviewBatches.Where(b => !b.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "docs.summary.language.german.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(both.ReviewBatches.Count(b => b.RuleId.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
             ReviewBatch quality = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             ReviewBatch german = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.language.german.review");
             await Assert.That(quality.RuleVersion).IsEqualTo(6);
@@ -753,7 +871,8 @@ public sealed class LifecycleTests
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
             disabledEngine.SetRule("docs.summary.language.german.review", false);
             CheckResult englishPolicy = disabledEngine.Check([], false);
-            await Assert.That(englishPolicy.ReviewBatches.Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(englishPolicy.ReviewBatches.Where(b => !b.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(englishPolicy.ReviewBatches.Count(b => b.RuleId.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
             ReviewBatch qualityOnly = englishPolicy.ReviewBatches.Single(batch => batch.RuleId == "docs.summary.quality.review");
             await Assert.That(qualityOnly.PopulationFingerprint).IsEqualTo(quality.PopulationFingerprint);
             await Assert.That(File.Exists(gateStatePath)).IsFalse();

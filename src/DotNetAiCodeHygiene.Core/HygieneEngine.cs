@@ -17,7 +17,22 @@ public sealed record Rule(string Id, int Version, string OutputKind, string Clas
     bool Diagnose = true, bool FormatRemediate = false, bool NormalizeRemediate = false, bool EditorConfigProject = false, bool ProfileRemediate = false);
 public sealed record Finding(string Id, string Handle, string RuleId, int RuleVersion, string Classification, string Path, int Line, int Column, string? Symbol, string Message, string Suggestion, string Observation, string Reason, string Constraint, string Anchor, string Fingerprint, string? Discriminator = null);
 public sealed record ReviewQuestion(string Id, string Text);
-public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration);
+public sealed record ReviewItem(string Id, string Path, int Line, int Column, string Symbol, string Summary, string Declaration,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<ReviewOccurrence>? Occurrences = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? OccurrencePopulationCount = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? OccurrencesRemainingCount = null);
+public sealed record ReviewOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column, string Owner,
+    string OriginalSyntax, string Context, string PreviewTitle, string Preview, string Question,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? SourceExceptionReason = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal Microsoft.CodeAnalysis.Text.TextSpan? CandidateSpan { get; init; }
+}
+public sealed record ModernizationDecisionResult(string BatchHandle, string RuleId, string OccurrenceId, string Verdict);
 public sealed record ReviewEscalation(string Condition, string Command, string ReviewerClass);
 public sealed record ReviewSource(string Path, string Content);
 public sealed record ReviewAcceptance(string BatchHandle, string RuleId, IReadOnlyList<string> ItemIds)
@@ -115,12 +130,13 @@ public sealed class HygieneEngine
         get
         {
             Config value = Read(ConfigPath, new Config(1, []));
-            if (value.SchemaVersion != 1 || value.DisabledRules is null || value.DisabledRules.Any(id => !Rules.Any(r => r.Id == id && r.Configurable)) || value.DisabledRules.Distinct(StringComparer.Ordinal).Count() != value.DisabledRules.Length)
+            string[] fixedMechanical = [BracesStyleRuleModule.RuleId, AccessibilityStyleRuleModule.RuleId];
+            if (value.SchemaVersion != 1 || value.DisabledRules is null || value.DisabledRules.Any(id => !Rules.Any(r => r.Id == id && (r.Configurable || fixedMechanical.Contains(id, StringComparer.Ordinal)))) || value.DisabledRules.Distinct(StringComparer.Ordinal).Count() != value.DisabledRules.Length)
             {
                 throw new ProductException("Invalid or unsupported .hygiene/config.json.");
             }
 
-            return value.DisabledRules;
+            return value.DisabledRules.Where(id => !fixedMechanical.Contains(id, StringComparer.Ordinal)).ToArray();
         }
     }
     private DecisionFile ReadDecisions()
@@ -199,7 +215,8 @@ public sealed class HygieneEngine
         auditScopeSink?.Invoke(reportingDocuments.Length, session.Projects.Count);
         var ruleContext = new RuleContext(session, reportingDocuments,
             new GateSelectionContext(gateId, exhaustiveAudit ? "exhaustive" : mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines), exhaustiveAudit);
-        IReadOnlyList<RuleModuleExecution> executions = ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal));
+        IReadOnlyList<RuleModuleExecution> executions = SharedModernizationBudget.SelectExecutions(
+            ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal)), ruleContext);
         string completeGateIdentity = GateLocalReviewStore.GateIdentity(gateId, inspectionMode, resolvedBase, head,
             targets.Select(session.Relative), executions.Where(execution => RuleCatalog.SemanticReviewModules.Any(module => module.Descriptor.Id == execution.Descriptor.Id))
                 .Select(execution => (execution.Descriptor.Id, execution.Descriptor.Version, (IEnumerable<ReviewSubject>)execution.Result.ReviewSubjects)));
@@ -265,6 +282,10 @@ public sealed class HygieneEngine
             batchId = parts[1];
         }
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (stored.RuleId.StartsWith("modernization.", StringComparison.Ordinal))
+        {
+            throw new ProductException("Modernization packages remain bounded by the shared review budget. Apply the preferred syntax, add a justified source-owned suppression to retain it, or leave uncertain work outstanding; no durable local verdict is available.");
+        }
         CheckResult fresh;
         string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
         string? freshGateIdentity = null;
@@ -315,6 +336,10 @@ public sealed class HygieneEngine
         { throw new ProductException("Review batch is unavailable; run check again."); }
         string batchId = ResolveBatchId(handle, snapshot);
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
+        if (stored.RuleId.StartsWith("modernization.", StringComparison.Ordinal))
+        {
+            throw new ProductException("Modernization candidates require independent occurrence decisions; item-level review acceptance is not valid for this batch.");
+        }
         if (acceptAll) { itemIds = stored.Items.Select(item => item.Id).ToArray(); }
         if (itemIds.Length == 0 && !acceptAll) { throw new ArgumentException("Provide one or more sampled item IDs or use --all."); }
         if (itemIds.Distinct(StringComparer.Ordinal).Count() != itemIds.Length) { throw new ProductException("Review acceptance contains a duplicate item ID; rerun hygiene check."); }
@@ -355,6 +380,11 @@ public sealed class HygieneEngine
         if (!StringComparer.Ordinal.Equals(Snapshot(LatestPath), initialLatest)) { throw new ProductException("Latest review run changed concurrently; rerun hygiene check."); }
         gateReviews.Commit();
         return new(stored.Handle, stored.RuleId, itemIds);
+    }
+
+    public ModernizationDecisionResult RecordModernizationDecision(string handle, string occurrenceId, string verdict)
+    {
+        throw new ProductException("Modernization verdicts are no longer durable acceptance. Apply the preferred idiomatic change, add a justified source-local suppression to retain legacy syntax, or leave uncertain work outstanding.");
     }
 
     private static string ResolveBatchId(string handle, RunSnapshot snapshot)

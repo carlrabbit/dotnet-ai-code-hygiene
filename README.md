@@ -1,6 +1,6 @@
 # dotnet-ai-code-hygiene
 
-`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The current package version is `0.10.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
+`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The current package version is `0.11.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
 
 The `0.11.0` package is validated from a local feed; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 
@@ -11,7 +11,7 @@ dotnet hygiene --version
 
 ## First Bootstrap
 
-In a Git repository, ask an implementation agent to run `dotnet hygiene` and follow the emitted steps. On first use, the tool assesses existing project formatting without changing source, installs the `dotnet-11` v2 profile, and formats eligible repository C# sources. It writes a baseline report under `.hygiene/reports/` with changed paths and observed validation. The report remains **approval-required** until an authorized external approver reviews and accepts the baseline. The tool cannot determine who has that authority.
+In a Git repository with a known, clean `HEAD`, ask an implementation agent to run `dotnet hygiene` and follow the emitted steps. On first use, the tool assesses existing project formatting without changing source, installs the `dotnet-11` v3 profile, and runs batched SDK `dotnet format` style and whitespace passes over eligible repository C# projects. It writes a baseline report under `.hygiene/reports/` with changed paths and observed validation. The report remains **approval-required** until an authorized external approver reviews and accepts the baseline. The tool cannot determine who has that authority.
 
 Review the baseline report and source diff before accepting it. Bootstrap preserves content outside the profile-owned sections in `.editorconfig` and `Directory.Build.props`; malformed or incompatible profile state requires a safe manual decision. The pre-hygiene formatter assessment reports current drift; it does not infer whether a formatter was previously run.
 
@@ -26,7 +26,7 @@ Baseline acceptance names the SHA-256 of the exact report reviewed. The tool ref
 
 ## Run on Gates
 
-After the baseline is approved, run `dotnet hygiene` from the repository. It applies enabled deterministic normalization and formatting, infers a trusted local gate where possible, and reports deterministic findings plus selected semantic-review work grouped by source file. Follow only the selected work order. Inspect each rule's questions independently; remediation or acceptance for one rule does not satisfy another.
+After the baseline is approved, start autonomous mutation from a clean Git worktree and index with an identifiable `HEAD`, then run `dotnet hygiene` from the repository. It applies the fixed SDK formatting policy, infers a trusted local gate where possible, and reports deterministic findings plus selected semantic-review work grouped by source file. Follow only the selected work order. Inspect each rule's questions independently; remediation or acceptance for one rule does not satisfy another. On failure, inspect and recover the partial worktree explicitly; the tool does not roll back or create commits.
 
 ```powershell
 dotnet hygiene
@@ -37,7 +37,7 @@ dotnet hygiene review accept <batch-handle> --all
 
 Accept only items whose fixed questions you inspected and answered positively. Leave negative or uncertain items unaccepted and use the rule's escalation guidance. Rerun `dotnet hygiene` after source changes. `complete` means the selected gate obligations were processed; it does not certify the full repository population as defect-free. A successful command execution is not itself a complete gate.
 
-The six semantic-review rules keep independent, bounded gate-local selection. A rule may select up to five items; `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
+The six established semantic-review rules keep independent, bounded gate-local selection. The nine modernization rules share one five-package budget across all families; each selected package exposes bounded occurrences and reports its remainder. Prefer modern syntax; a retained hygiene-only candidate requires `// hygiene:retain modernization.<rule-id> -- <reason>` immediately before its declaration or statement. `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
 
 ## Manual Inspection and Debugging
 
@@ -56,7 +56,7 @@ dotnet hygiene format --check
 dotnet hygiene normalize --check
 ```
 
-Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` plan changes without applying them. Autonomous formatting snapshots C# sources and hygiene-managed profile files before mutation. A formatter failure rolls those changes back; if a file changed since the last tool checkpoint, rollback preserves it and reports the conflict. Inspect a failed or incomplete outcome rather than treating it as a successful gate.
+Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check`, `normalize --check`, and rewrite `--changed` use the SDK's nonmutating verification mode; `--changed` selects staged, unstaged, and untracked source paths and always implies check-only. Normal autonomous cleanup runs SDK format across all eligible project sources. Mutating commands require a clean Git checkpoint; failures leave edits inspectable and recovery is explicit from Git. The tool does not roll back, commit, reset, or clean.
 
 ## Exhaustive read-only audit
 

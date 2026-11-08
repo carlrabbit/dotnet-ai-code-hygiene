@@ -66,22 +66,26 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal Dictionary<string, int> OccurrenceCounts(string ruleId, Document document) =>
         occurrenceCounts.GetValueOrDefault((ruleId, document.Id)) ?? (occurrenceCounts[(ruleId, document.Id)] = new(StringComparer.Ordinal));
     internal ProfileManager ProfileManager => Session.GetFact("profile-manager", () => new ProfileManager(Session.Root));
+    internal IReadOnlyList<ModernizationRetention> SourceExceptions(Document document)
+    {
+        string path = RelativePath(document);
+        string source = Text(document).ToString();
+        var options = Tree(document).Options as Microsoft.CodeAnalysis.CSharp.CSharpParseOptions;
+        return Session.GetFact(("modernization-source-exceptions", document.Id), () => ModernizationSourceExceptions.Parse(path, source, options));
+    }
+    internal IReadOnlyList<ModernizationRetention> SourceExceptions(string path, string source)
+    {
+        Document? document = ReportingDocuments.FirstOrDefault(candidate => string.Equals(RelativePath(candidate), path, StringComparison.Ordinal));
+        return document is null
+            ? Session.GetFact(("modernization-source-exceptions", path), () => ModernizationSourceExceptions.Parse(path, source))
+            : SourceExceptions(document);
+    }
 }
 
 internal interface IRuleModule
 {
     public Rule Descriptor { get; }
     public RuleModuleResult Evaluate(RuleContext context);
-}
-
-internal interface IFormatRemediationRule
-{
-    public Document Format(Document document, Compilation compilation);
-}
-
-internal interface INormalizeRemediationRule
-{
-    public Document Normalize(Document document, Compilation compilation);
 }
 
 internal interface IEditorConfigProjectionRule
@@ -102,17 +106,19 @@ internal static class RuleCatalog
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
         new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(), new BracesStyleRuleModule(), new AccessibilityStyleRuleModule(),
-        new RoslynFormatRuleModule(), new ThisQualificationRuleModule(), new RedundantQualificationRuleModule(),
+        .. FixedMechanicalRuleModule.All,
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
+        new ModernizationSourceExceptionRuleModule(),
         new SummaryQualityReviewRuleModule(), new SummaryGermanReviewRuleModule(),
+        .. ModernizationReviewRuleModule.All,
         new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(), new BoringnessReviewRuleModule(),
         new TypeResponsibilityReviewRuleModule(), new TestQualityReviewRuleModule(), new CommentIntentReviewRuleModule()
     ];
 
     internal static Rule[] All { get; } = Modules.Select(module => module.Descriptor with
     {
-        FormatRemediate = module is IFormatRemediationRule,
-        NormalizeRemediate = module is INormalizeRemediationRule,
+        FormatRemediate = false,
+        NormalizeRemediate = false,
         EditorConfigProject = module is IEditorConfigProjectionRule
     }).ToArray();
     internal static Rule Get(string id) => All.Single(rule => rule.Id == id);

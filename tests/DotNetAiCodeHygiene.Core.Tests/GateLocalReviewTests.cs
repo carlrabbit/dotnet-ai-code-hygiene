@@ -384,7 +384,7 @@ public sealed class GateLocalReviewTests
             await Assert.That(auditQuality.SampleCount).IsEqualTo(8);
             await Assert.That(auditQuality.Items.Count(item => item.Id == normal.Items[0].Id)).IsEqualTo(1);
             await Assert.That(audit.ReviewBatches.Single(batch => batch.RuleId == TestQualityReviewRuleModule.RuleId).PopulationCount).IsEqualTo(0);
-            await Assert.That(audit.ReviewBatches.Count).IsEqualTo(6);
+            await Assert.That(audit.ReviewBatches.Count).IsEqualTo(15);
             await Assert.That((await File.ReadAllBytesAsync(latestPath)).AsSpan().SequenceEqual(latestBefore)).IsTrue();
             await Assert.That((await File.ReadAllBytesAsync(gatePath)).AsSpan().SequenceEqual(gateBefore)).IsTrue();
             await Assert.That((await File.ReadAllBytesAsync(sourcePath)).AsSpan().SequenceEqual(sourceBefore)).IsTrue();

@@ -27,7 +27,7 @@ gate-local semantic review/handoff
 - Commands may choose whether to execute available remediation.
 - Mandatory profile rules cannot be disabled or ignored.
 - Configurable source/review rules retain enable/disable behavior.
-- Semantic-review rules use the shared gate-local selector while keeping eligibility and review contracts rule-owned.
+- The six established semantic-review rules use independent gate-local selection; M0023 modernization reviews share a five-package budget across nine rule-owned families.
 - The engine does not dynamically resolve contradictions between arbitrary third-party analyzers.
 
 ## Public CLI
@@ -55,7 +55,7 @@ Existing explain/ignore/rules/help surfaces remain.
 The current hygiene profile remains:
 
 ```text
-dotnet-11 v2
+dotnet-11 v3
 ```
 
 Detailed profile contract:
@@ -108,7 +108,7 @@ docs/specs/DOCUMENTATION.md
 
 Semantic documentation review is specified separately in `docs/specs/SEMANTIC-REVIEWS.md`.
 
-## Canonical normal rule order after M0016
+## Historical normal rule order after M0016
 
 ```text
 1.  profile.dotnet.analysis.required          v2
@@ -131,7 +131,7 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 18. comments.intent.review                    v1
 ```
 
-M0017 appends three independent semantic-review rules after B-3 and reclassifies visual-block as v2 review-candidate. Earlier rule identities and relative ordering are unchanged.
+This M0016 catalog snapshot is historical. M0017 appended three semantic-review rules; M0023 added cleanup identifiers and nine modernization review rules; M0024 moved mechanical execution to the SDK and added source-exception validation. The current canonical 39-rule order and dispositions are in `docs/specs/RULE-CAPABILITIES.md`.
 
 The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 
