@@ -56,7 +56,7 @@ dotnet hygiene format --check
 dotnet hygiene normalize --check
 ```
 
-Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check` and `normalize --check` use the SDK's nonmutating verification mode. Normal autonomous cleanup runs SDK format across all eligible project sources. Mutating commands require a clean Git checkpoint; failures leave edits inspectable and recovery is explicit from Git. The tool does not roll back, commit, reset, or clean.
+Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check`, `normalize --check`, and rewrite `--changed` use the SDK's nonmutating verification mode; `--changed` selects staged, unstaged, and untracked source paths and always implies check-only. Normal autonomous cleanup runs SDK format across all eligible project sources. Mutating commands require a clean Git checkpoint; failures leave edits inspectable and recovery is explicit from Git. The tool does not roll back, commit, reset, or clean.
 
 ## Exhaustive read-only audit
 

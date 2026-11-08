@@ -12,11 +12,11 @@ internal static class InlineDeclarationCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would declaring this local at its use site clarify its limited scope? Keep the separate declaration when it helps explain control flow or lifetime; mark uncertain when context is insufficient. This proposal covers IDE0018 inline declarations only, not general variable merging.";
 
-    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0018");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, LocalDeclarationStatementSyntax Declaration)> Candidates)>(StringComparer.Ordinal);
-        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0018" && candidate.Location.SourceTree is not null)
+        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0018" && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath))
             .OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal).ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

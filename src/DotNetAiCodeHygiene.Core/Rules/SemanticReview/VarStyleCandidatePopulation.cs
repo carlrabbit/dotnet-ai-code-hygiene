@@ -13,12 +13,12 @@ internal static class VarStyleCandidatePopulation
     internal const int MaximumOccurrencesPerFile = 12;
     internal const string Question = "Would the alternative var or explicit local type improve readability here? Keep the current form if it is clearer; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<VarStyleFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<VarStyleFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(
             compilation, project.AnalyzerOptions, "IDE0007", "IDE0008");
         var byFile = new Dictionary<DocumentId, List<(Diagnostic Diagnostic, LocalDeclarationStatementSyntax Declaration)>>();
-        foreach (Diagnostic diagnostic in diagnostics.Where(diagnostic => diagnostic.Id is "IDE0007" or "IDE0008")
+        foreach (Diagnostic diagnostic in diagnostics.Where(diagnostic => (diagnostic.Id is "IDE0007" or "IDE0008") && CandidatePathFilter.Matches(diagnostic, onlyPath))
             .OrderBy(diagnostic => diagnostic.Location.SourceTree?.FilePath, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.SourceSpan.Start))
         {

@@ -11,7 +11,7 @@ public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCou
 /// <summary>Runs the supported SDK formatter in repository-wide batches and reports its actual source changes.</summary>
 public sealed class RewriteEngine
 {
-    internal static IReadOnlyList<string> ApprovedDiagnostics { get; } = ["IDE0005", "IDE0011", "IDE0036", "IDE0040", "IDE0090", "IDE0034", "IDE0004", "IDE0071", "IDE0037"];
+    internal static IReadOnlyList<string> ApprovedDiagnostics { get; } = ["IDE0005", "IDE0011", "IDE0036", "IDE0040", "IDE0090", "IDE0034", "IDE0004", "IDE0037"];
     private readonly string root;
     private readonly Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)>? phaseRunner;
 
@@ -27,6 +27,7 @@ public sealed class RewriteEngine
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
         if (command is not ("format" or "normalize")) { throw new ArgumentException("Unknown rewrite command."); }
+        checkOnly |= changed;
         using var session = new RepositorySession(root);
         string[] targets = session.ResolveTargets(paths, changed);
         Dictionary<string, (Project Project, Document Document)> assigned = session.AssignTargets(targets, paths);
@@ -46,7 +47,8 @@ public sealed class RewriteEngine
         string index = checkOnly || head.Length == 0 ? "" : Git(root, "diff", "--cached", "--binary");
         string reportDirectory = Path.Combine(Path.GetTempPath(), "hygiene-dotnet-format-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(reportDirectory);
-        int styleExit = 0, whitespaceExit = 0;
+        int styleExit = 0, whitespaceExit = 0, batchIndex = 0;
+        var reportDirectories = new List<string>();
         string log = "";
         try
         {
@@ -55,20 +57,24 @@ public sealed class RewriteEngine
             {
                 foreach ((string workspace, string[] files) in batches)
                 {
-                    (styleExit, string output) = RunPhase(workspace, "style", files, diagnostics, checkOnly, reportDirectory);
+                    string phaseReport = CreatePhaseReportDirectory(reportDirectory, "style", batchIndex++);
+                    reportDirectories.Add(phaseReport);
+                    (styleExit, string output) = RunPhase(workspace, "style", files, diagnostics, checkOnly, phaseReport);
                     log += output;
                     if (styleExit != 0 && !(checkOnly && styleExit == 2)) { throw Failure("style", styleExit, output, eligible, bytes); }
                 }
             }
             foreach ((string workspace, string[] files) in batches)
             {
-                (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, reportDirectory);
+                string phaseReport = CreatePhaseReportDirectory(reportDirectory, "whitespace", batchIndex++);
+                reportDirectories.Add(phaseReport);
+                (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, phaseReport);
                 log += output;
                 if (whitespaceExit != 0 && !(checkOnly && whitespaceExit == 2)) { throw Failure("whitespace", whitespaceExit, output, eligible, bytes); }
             }
 
             string[] changedPaths = checkOnly
-                ? ReadReportedChanges(reportDirectory, log).Where(candidate => eligible.Any(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(candidate), StringComparison.OrdinalIgnoreCase))).Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
+                ? ReadReportedChanges(reportDirectories, log).Where(candidate => eligible.Any(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(candidate), StringComparison.OrdinalIgnoreCase))).Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
                 : eligible.Where(path => !bytes[path].AsSpan().SequenceEqual(File.ReadAllBytes(path)))
                     .Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             string afterHead = checkOnly || head.Length == 0 ? "" : Git(root, "rev-parse", "--verify", "HEAD").Trim();
@@ -84,6 +90,13 @@ public sealed class RewriteEngine
         {
             try { Directory.Delete(reportDirectory, recursive: true); } catch (IOException) { }
         }
+    }
+
+    private static string CreatePhaseReportDirectory(string root, string phase, int index)
+    {
+        string directory = Path.Combine(root, $"{index:D3}-{phase}");
+        Directory.CreateDirectory(directory);
+        return directory;
     }
 
     private ProductException Failure(string phase, int exitCode, string output, string[] eligible, IReadOnlyDictionary<string, byte[]> original)
@@ -155,32 +168,35 @@ public sealed class RewriteEngine
         return (process.ExitCode, output);
     }
 
-    private static string[] ReadReportedChanges(string directory, string output)
+    private static string[] ReadReportedChanges(IEnumerable<string> directories, string output)
     {
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string report in Directory.EnumerateFiles(directory, "*.json", SearchOption.AllDirectories))
+        foreach (string directory in directories)
         {
-            try
+            foreach (string report in Directory.EnumerateFiles(directory, "*.json", SearchOption.AllDirectories))
             {
-                using JsonDocument json = JsonDocument.Parse(File.ReadAllText(report));
-                Visit(json.RootElement);
-                void Visit(JsonElement value)
+                try
                 {
-                    if (value.ValueKind == JsonValueKind.Object)
+                    using JsonDocument json = JsonDocument.Parse(File.ReadAllText(report));
+                    Visit(json.RootElement);
+                    void Visit(JsonElement value)
                     {
-                        foreach (JsonProperty property in value.EnumerateObject())
+                        if (value.ValueKind == JsonValueKind.Object)
                         {
-                            if (property.Name.Contains("file", StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
+                            foreach (JsonProperty property in value.EnumerateObject())
                             {
-                                paths.Add(property.Value.GetString()!);
+                                if (property.Name.Contains("file", StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
+                                {
+                                    paths.Add(property.Value.GetString()!);
+                                }
+                                else { Visit(property.Value); }
                             }
-                            else { Visit(property.Value); }
                         }
+                        else if (value.ValueKind == JsonValueKind.Array) { foreach (JsonElement child in value.EnumerateArray()) { Visit(child); } }
                     }
-                    else if (value.ValueKind == JsonValueKind.Array) { foreach (JsonElement child in value.EnumerateArray()) { Visit(child); } }
                 }
+                catch (JsonException) { }
             }
-            catch (JsonException) { }
         }
         foreach (string line in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
         {

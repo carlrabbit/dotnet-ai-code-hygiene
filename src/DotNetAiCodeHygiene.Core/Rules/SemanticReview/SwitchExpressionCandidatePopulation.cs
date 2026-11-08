@@ -12,11 +12,11 @@ internal static class SwitchExpressionCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would a switch expression make this decision clearer with its enclosing member behavior visible? Keep the statement form when it communicates control flow better; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<SwitchExpressionMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<SwitchExpressionMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0066");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, SwitchStatementSyntax Switch)> Candidates)>(StringComparer.Ordinal);
-        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0066" && candidate.Location.SourceTree is not null)
+        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0066" && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath))
             .OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal).ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

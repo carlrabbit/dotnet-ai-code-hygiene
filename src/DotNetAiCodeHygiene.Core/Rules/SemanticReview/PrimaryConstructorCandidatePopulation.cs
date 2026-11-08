@@ -12,11 +12,11 @@ internal static class PrimaryConstructorCandidatePopulation
     internal const int MaximumOccurrencesPerType = 12;
     internal const string Question = "Would moving constructor parameters to a primary constructor simplify this type without obscuring state, initialization order, or the public API? Keep the existing constructor when it communicates ownership better; mark uncertain when context is insufficient.";
 
-    internal static IReadOnlyList<PrimaryConstructorTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<PrimaryConstructorTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0290");
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
-        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0290" && candidate.Location.SourceTree is not null)
+        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0290" && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath))
             .OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal).ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

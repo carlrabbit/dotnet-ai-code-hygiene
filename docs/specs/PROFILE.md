@@ -2,7 +2,7 @@
 
 ## Current contract: `dotnet-11 v3`
 
-M0024 supersedes the earlier v2 profile behavior below. The committed root `.editorconfig` is the generator's fixed mechanical policy surface. Its `root = true` and `# hygiene profile:begin/end` boundaries are valid EditorConfig syntax. The managed C# block sets SDK whitespace/import preferences and only the approved IDE0005, IDE0004, IDE0011, IDE0034, IDE0036, IDE0040, IDE0071, IDE0037, and IDE0090 severities. The profile validates these values against every eligible project source's effective nested EditorConfig settings; nested conflicts are reported rather than overwritten.
+M0024 supersedes the earlier v2 profile behavior below. The committed root `.editorconfig` is the generator's fixed mechanical policy surface. Its `root = true` and `# hygiene profile:begin/end` boundaries are valid EditorConfig syntax. The managed C# block sets SDK whitespace/import preferences and only the approved IDE0005, IDE0004, IDE0011, IDE0034, IDE0036, IDE0040, IDE0037, and IDE0090 severities. The historical interpolation cleanup is review-only because IDE0071 does not implement it. The profile validates these values against every eligible project source's effective nested EditorConfig settings; nested conflicts are reported rather than overwritten.
 
 Version 3 makes mechanical settings a coherent fixed profile. Former per-rule mechanical toggles are removed during v1/v2 migration and shown in `migrationNotes`; semantic/review toggles and unrelated configuration survive. Migration changes the baseline policy and requires the existing external baseline approval before autonomous work. Local `modernization-decisions.json` is not migrated to approval or source suppression.
 

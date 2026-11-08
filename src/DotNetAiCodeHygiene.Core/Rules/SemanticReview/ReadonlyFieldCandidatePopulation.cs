@@ -12,11 +12,11 @@ internal static class ReadonlyFieldCandidatePopulation
     internal const int MaximumOccurrencesPerType = 12;
     internal const string Question = "Should this field be readonly given all writes, constructor assignments, and uses across the type? Keep it mutable when later mutation is part of the design; mark uncertain when assignment behavior is unclear.";
 
-    internal static IReadOnlyList<ReadonlyFieldTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<ReadonlyFieldTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0044");
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, FieldDeclarationSyntax Field, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
-        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0044" && candidate.Location.SourceTree is not null)
+        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0044" && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath))
             .OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal).ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

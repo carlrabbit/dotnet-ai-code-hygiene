@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -6,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DotNetAiCodeHygiene.Core;
 
-internal sealed record ModernizationRetention(string Path, string RuleId, string Reason, int CommentLine, TextSpan SubjectSpan, bool Valid);
+internal sealed record ModernizationRetention(string Path, string RuleId, string Reason, int CommentLine, TextSpan SubjectSpan, bool Valid, bool IsNative = false);
 
 internal sealed class ModernizationSourceExceptionRuleModule : IRuleModule
 {
@@ -15,18 +16,35 @@ internal sealed class ModernizationSourceExceptionRuleModule : IRuleModule
     public RuleModuleResult Evaluate(RuleContext context)
     {
         var findings = new List<Finding>();
-        HashSet<(string RuleId, string Path, int Line)> candidates = GetAllCandidateLines(context);
+        var parsedByDocument = new Dictionary<Document, (string Path, string Source, IReadOnlyList<ModernizationRetention> Exceptions)>();
         foreach (Document document in context.ReportingDocuments)
         {
             string path = context.RelativePath(document);
             string source = context.Text(document).ToString();
-            foreach (ModernizationRetention retention in ModernizationSourceExceptions.Parse(path, source))
+            if (!ModernizationSourceExceptions.ContainsAnnotation(source)) { continue; }
+            parsedByDocument[document] = (path, source, context.SourceExceptions(path, source));
+        }
+        if (parsedByDocument.Count == 0) { return RuleModuleResult.Empty; }
+
+        ModernizationRetention[] retentions = parsedByDocument.Values.SelectMany(value => value.Exceptions).ToArray();
+        HashSet<(string RuleId, string Path, int Line)> candidates = GetCandidateLinesForExceptions(context,
+            retentions.Where(retention => retention.Valid && ModernizationSourceExceptions.IsKnownRule(retention.RuleId)).ToArray());
+        HashSet<(string Path, int Line)> ineffectiveNativeSuppressions = GetIneffectiveNativeSuppressions(context,
+            parsedByDocument.Keys.ToArray(), retentions.Where(retention => retention.Valid && retention.IsNative).ToArray());
+
+        foreach ((Document _, (string path, string source, IReadOnlyList<ModernizationRetention> exceptions)) in parsedByDocument)
+        {
+            foreach (ModernizationRetention retention in exceptions)
             {
-                bool stale = retention.Valid && !candidates.Any(candidate => candidate.RuleId == retention.RuleId
-                    && candidate.Path == path && CoversLine(source, retention.SubjectSpan, candidate.Line));
+                bool stale = retention.Valid && (retention.IsNative && retention.RuleId.StartsWith("sdk.", StringComparison.Ordinal)
+                    ? ineffectiveNativeSuppressions.Contains((path, retention.CommentLine))
+                    : !candidates.Any(candidate => candidate.RuleId == retention.RuleId && candidate.Path == path
+                        && CoversLine(source, retention.SubjectSpan, candidate.Line)));
                 if (retention.Valid && !stale) { continue; }
-                string message = stale ? "Stale modernization retention comment: no matching eligible candidate remains in its attached syntax subject."
-                    : "Malformed, unknown-rule, unjustified, or unattached modernization retention comment.";
+                string message = stale
+                    ? retention.IsNative ? "Ineffective or stale native IDE suppression: the SDK reports that this warning suppression is unnecessary."
+                        : "Stale modernization retention comment: no matching eligible candidate remains in its attached syntax subject."
+                    : "Malformed, unknown-rule, unjustified, or unattached modernization retention comment or native pragma.";
                 findings.Add(new Finding("", "", Descriptor.Id, Descriptor.Version, Descriptor.Classification, path, retention.CommentLine, 1,
                     retention.RuleId, message, "Use // hygiene:retain modernization.<known-rule> -- <concrete local reason> immediately before one declaration or statement.",
                     "Source-local modernization retention annotations must be narrow and justified.", message, "The comment must name one enabled modernization rule, attach to one source syntax subject, and explain a concrete local constraint.",
@@ -37,23 +55,79 @@ internal sealed class ModernizationSourceExceptionRuleModule : IRuleModule
         return RuleModuleResult.FindingsOnly(findings);
     }
 
-    private static HashSet<(string RuleId, string Path, int Line)> GetAllCandidateLines(RuleContext context)
+    private static HashSet<(string RuleId, string Path, int Line)> GetCandidateLinesForExceptions(RuleContext context, IReadOnlyList<ModernizationRetention> retentions)
     {
         var result = new HashSet<(string, string, int)>();
-        foreach (Project project in context.Session.Projects)
+        var targets = retentions.GroupBy(retention => (retention.RuleId, retention.Path));
+        foreach (IGrouping<(string RuleId, string Path), ModernizationRetention> target in targets)
         {
-            string projectDirectory = Path.GetDirectoryName(project.FilePath!)!;
-            Compilation compilation = context.Session.GetCompilation(project);
-            foreach (ModernizationReviewRuleModule module in ModernizationReviewRuleModule.All.OfType<ModernizationReviewRuleModule>())
+            ModernizationReviewRuleModule? module = ModernizationReviewRuleModule.All.OfType<ModernizationReviewRuleModule>()
+                .FirstOrDefault(candidate => candidate.Descriptor.Id == target.Key.RuleId);
+            if (module is null) { continue; }
+            foreach (Project project in context.Session.Projects)
             {
-                foreach (ModernizationCandidateGroup group in module.BuildAllCandidates(project, compilation))
+                string fullTarget = Path.GetFullPath(Path.Combine(context.Session.Root, target.Key.Path));
+                if (!project.Documents.Any(document => string.Equals(document.FilePath, fullTarget, StringComparison.OrdinalIgnoreCase))) { continue; }
+                Project analysisProject = ModernizationSourceExceptions.WithoutNativePragmas(project, target.Key.RuleId);
+                string cacheKey = "modernization-candidates\0" + project.Id + "\0" + target.Key.RuleId + "\0" + analysisProject.Version + "\0" + bool.TrueString + "\0" + fullTarget;
+                IReadOnlyList<ModernizationCandidateGroup> groups = context.Session.GetFact(cacheKey,
+                    () => module.BuildCandidatesForPath(analysisProject, analysisProject == project
+                        ? context.Session.GetCompilation(project)
+                        : analysisProject.GetCompilationAsync().GetAwaiter().GetResult()
+                            ?? throw new ProductException($"Could not compile source-exception subject project '{project.Name}'."), fullTarget));
+                foreach (ModernizationCandidateGroup group in groups)
                 {
+                    string projectDirectory = Path.GetDirectoryName(project.FilePath!)!;
                     foreach (ReviewOccurrence occurrence in group.Occurrences)
                     {
                         string fullPath = Path.GetFullPath(Path.IsPathRooted(occurrence.Path) ? occurrence.Path : Path.Combine(projectDirectory, occurrence.Path));
-                        result.Add((module.Descriptor.Id, context.Session.Relative(fullPath), occurrence.Line));
+                        string path = context.Session.Relative(fullPath);
+                        if (path == target.Key.Path) { result.Add((target.Key.RuleId, path, occurrence.Line)); }
                     }
                 }
+            }
+        }
+        return result;
+    }
+
+    private static HashSet<(string Path, int Line)> GetIneffectiveNativeSuppressions(RuleContext context,
+        IReadOnlyList<Document> documents, IReadOnlyList<ModernizationRetention> retentions)
+    {
+        var result = new HashSet<(string, int)>();
+        ModernizationRetention[] sdkSuppressions = retentions.Where(retention => retention.RuleId.StartsWith("sdk.", StringComparison.Ordinal)).ToArray();
+        if (sdkSuppressions.Length == 0) { return result; }
+        foreach (IGrouping<Project, Document> projectGroup in documents.GroupBy(document => document.Project))
+        {
+            string[] projectPaths = projectGroup.Select(context.RelativePath).ToArray();
+            ModernizationRetention[] projectSuppressions = sdkSuppressions.Where(retention => projectPaths.Contains(retention.Path, StringComparer.Ordinal)).ToArray();
+            if (projectSuppressions.Length == 0) { continue; }
+            string cacheKey = "source-exception-sdk-candidates\0" + projectGroup.Key.Id;
+            ImmutableArray<Diagnostic> diagnostics = context.Session.GetFact(cacheKey, () =>
+            {
+                Compilation compilation = context.Session.GetCompilation(projectGroup.Key);
+                Compilation unsuppressed = compilation;
+                foreach (Document document in projectGroup.Key.Documents)
+                {
+                    SyntaxTree? originalTree = compilation.SyntaxTrees.FirstOrDefault(tree =>
+                        string.Equals(Path.GetFullPath(tree.FilePath), Path.GetFullPath(document.FilePath!), StringComparison.OrdinalIgnoreCase));
+                    if (originalTree is null) { continue; }
+                    string source = document.GetTextAsync().GetAwaiter().GetResult().ToString();
+                    string withoutIde0090Pragmas = Regex.Replace(source,
+                        "(?m)^\\s*#pragma\\s+warning\\s+(?:disable|restore)\\s+IDE0090(?:\\s*//[^\\r\\n]*)?\\s*$", "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                    if (string.Equals(source, withoutIde0090Pragmas, StringComparison.Ordinal)) { continue; }
+                    var replacement = CSharpSyntaxTree.ParseText(SourceText.From(withoutIde0090Pragmas), (CSharpParseOptions)originalTree.Options, originalTree.FilePath);
+                    unsuppressed = unsuppressed.ReplaceSyntaxTree(originalTree, replacement);
+                }
+                return RoslynCodeStyleAnalyzers.Analyze(unsuppressed, projectGroup.Key.AnalyzerOptions, "IDE0090");
+            });
+            foreach (ModernizationRetention suppression in projectSuppressions)
+            {
+                string fullPath = Path.GetFullPath(Path.Combine(context.Session.Root, suppression.Path));
+                string source = context.Text(projectGroup.First(document => context.RelativePath(document) == suppression.Path)).ToString();
+                bool hasCandidate = diagnostics.Any(diagnostic => diagnostic.Id == "IDE0090" && diagnostic.Location.SourceTree is not null
+                    && string.Equals(Path.GetFullPath(diagnostic.Location.SourceTree.FilePath), fullPath, StringComparison.OrdinalIgnoreCase)
+                    && CoversLine(source, suppression.SubjectSpan, diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1));
+                if (!hasCandidate) { result.Add((suppression.Path, suppression.CommentLine)); }
             }
         }
         return result;
@@ -138,9 +212,9 @@ internal static class ModernizationSourceExceptions
                 bool valid = ids.Length == 1 && ruleId.Length > 0 && IsMeaningful(reason) && !disabled.ContainsKey(diagnostic);
                 if (!disabled.TryAdd(diagnostic, (index, reason, valid, ruleId)))
                 {
-                    results.Add(new(path, ruleId.Length > 0 ? ruleId : "sdk." + diagnostic, reason, index + 1, default, false));
+                    results.Add(new(path, ruleId.Length > 0 ? ruleId : "sdk." + diagnostic, reason, index + 1, default, false, IsNative: true));
                 }
-                if (!valid) { results.Add(new(path, ruleId.Length > 0 ? ruleId : "sdk." + diagnostic, reason, index + 1, default, false)); }
+                if (!valid) { results.Add(new(path, ruleId.Length > 0 ? ruleId : "sdk." + diagnostic, reason, index + 1, default, false, IsNative: true)); }
             }
             else if (restore.Success)
             {
@@ -149,20 +223,20 @@ internal static class ModernizationSourceExceptions
                 string diagnostic = ids.Length == 1 ? ids[0].ToUpperInvariant() : "IDE-multiple";
                 if (ids.Length != 1 || !disabled.Remove(diagnostic, out var scope) || index - scope.Line > 12)
                 {
-                    results.Add(new(path, PragmaRule(diagnostic) is string rule && rule.Length > 0 ? rule : "sdk." + diagnostic, "", index + 1, default, false));
+                    results.Add(new(path, PragmaRule(diagnostic) is string rule && rule.Length > 0 ? rule : "sdk." + diagnostic, "", index + 1, default, false, IsNative: true));
                 }
                 else if (scope.Valid)
                 {
                     int spanStart = text.Lines[scope.Line].End;
                     int spanEnd = text.Lines[index].Start;
                     results.Add(new(path, scope.RuleId, scope.Reason, scope.Line + 1,
-                        TextSpan.FromBounds(spanStart, Math.Max(spanStart, spanEnd)), true));
+                        TextSpan.FromBounds(spanStart, Math.Max(spanStart, spanEnd)), true, IsNative: true));
                 }
             }
         }
         foreach (var remaining in disabled.Values)
         {
-            results.Add(new(path, remaining.RuleId.Length > 0 ? remaining.RuleId : "sdk.IDE", "", remaining.Line + 1, default, false));
+            results.Add(new(path, remaining.RuleId.Length > 0 ? remaining.RuleId : "sdk.IDE", "", remaining.Line + 1, default, false, IsNative: true));
         }
         return results;
     }
@@ -182,7 +256,16 @@ internal static class ModernizationSourceExceptions
     };
 
     internal static ReviewOccurrence[] Filter(string ruleId, ReviewOccurrence[] occurrences, IReadOnlyDictionary<string, string> sources,
+        RuleContext context, bool exhaustiveAudit, out int suppressedCount)
+        => Filter(ruleId, occurrences, sources, context.SourceExceptions, exhaustiveAudit, out suppressedCount);
+
+    // Parser-level fixture entry point; command execution uses the RuleContext cache above.
+    internal static ReviewOccurrence[] Filter(string ruleId, ReviewOccurrence[] occurrences, IReadOnlyDictionary<string, string> sources,
         bool exhaustiveAudit, out int suppressedCount)
+        => Filter(ruleId, occurrences, sources, Parse, exhaustiveAudit, out suppressedCount);
+
+    private static ReviewOccurrence[] Filter(string ruleId, ReviewOccurrence[] occurrences, IReadOnlyDictionary<string, string> sources,
+        Func<string, string, IReadOnlyList<ModernizationRetention>> parse, bool exhaustiveAudit, out int suppressedCount)
     {
         suppressedCount = 0;
         var retained = new List<ReviewOccurrence>(occurrences.Length);
@@ -193,7 +276,12 @@ internal static class ModernizationSourceExceptions
                 retained.Add(occurrence);
                 continue;
             }
-            ModernizationRetention? exception = Parse(occurrence.Path, source).Where(item => item.Valid && item.RuleId == ruleId)
+            if (!ContainsAnnotation(source))
+            {
+                retained.Add(occurrence);
+                continue;
+            }
+            ModernizationRetention? exception = parse(occurrence.Path, source).Where(item => item.Valid && item.RuleId == ruleId)
                 .FirstOrDefault(item => CoversLine(source, item.SubjectSpan, occurrence.Line));
             if (exception is null)
             {
@@ -207,9 +295,44 @@ internal static class ModernizationSourceExceptions
     }
 
     internal static bool IsKnownRule(string ruleId) => Rules.Contains(ruleId);
+    internal static bool ContainsAnnotation(string source) => source.Contains("hygiene:retain", StringComparison.Ordinal)
+        || source.Contains("#pragma warning", StringComparison.Ordinal);
     internal static bool IsMeaningful(string reason) => reason.Length >= 20
         && !Regex.IsMatch(reason, "^(keep|retain|leave|unchanged|no reason|n/a|todo)\\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
         && reason.Any(char.IsLetter);
+
+    internal static Project WithoutNativePragmas(Project project, string ruleId)
+    {
+        string[] diagnostics = ruleId switch
+        {
+            "modernization.var-style" => ["IDE0007", "IDE0008"],
+            "modernization.expression-body" => ["IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027"],
+            "modernization.primary-constructor" => ["IDE0290"],
+            "modernization.switch-expression" => ["IDE0066"],
+            "modernization.conditional" => ["IDE0045", "IDE0046"],
+            "modernization.object-initializer" => ["IDE0017"],
+            "modernization.readonly-field" => ["IDE0044"],
+            "modernization.inline-declaration" => ["IDE0018"],
+            _ => []
+        };
+        if (diagnostics.Length == 0) { return project; }
+        string idPattern = string.Join("|", diagnostics);
+        Regex pragma = new($"(?m)^\\s*#pragma\\s+warning\\s+(?:disable|restore)\\s+(?:{idPattern})(?:\\s*//[^\\r\\n]*)?\\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Project result = project;
+        foreach (Document document in project.Documents)
+        {
+            SourceText source = document.GetTextAsync().GetAwaiter().GetResult();
+            string text = source.ToString();
+            string unsuppressed = pragma.Replace(text, "");
+            if (!string.Equals(text, unsuppressed, StringComparison.Ordinal))
+            {
+                result = result.Solution.WithDocumentText(document.Id, SourceText.From(unsuppressed, source.Encoding))
+                    .GetProject(project.Id) ?? throw new ProductException($"Could not create source-exception analysis view for project '{project.Name}'.");
+            }
+        }
+        return result;
+    }
 
     private static bool CoversLine(string source, TextSpan span, int oneBasedLine)
     {

@@ -13,12 +13,12 @@ internal static class CollectionExpressionCandidatePopulation
     internal const string Question = "Would a collection expression make this construction clearer in its file context? Keep the existing form when it communicates intent better or language/runtime constraints matter; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0300", "IDE0301", "IDE0302", "IDE0303", "IDE0304", "IDE0305"];
 
-    internal static IReadOnlyList<CollectionExpressionFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<CollectionExpressionFileGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byFile = new Dictionary<DocumentId, List<(Document Document, Diagnostic Diagnostic, ExpressionSyntax Expression)>>();
         foreach (Diagnostic diagnostic in diagnostics.Where(candidate => DiagnosticIds.Contains(candidate.Id, StringComparer.Ordinal)
-            && candidate.Location.SourceTree is not null).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
+            && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath)).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
             .ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

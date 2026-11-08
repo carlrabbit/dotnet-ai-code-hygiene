@@ -50,7 +50,7 @@ try {
         $profile = Get-Content -LiteralPath .hygiene/profile.json -Raw | ConvertFrom-Json
         if ($profile.version -ne 3) { throw 'Installed bootstrap did not write profile v3.' }
         $editor = Get-Content -LiteralPath .editorconfig -Raw
-        if ($editor -notmatch '(?m)^# hygiene profile:begin$' -or $editor -match '<!-- hygiene profile:' -or $editor -notmatch 'dotnet_diagnostic.IDE0090.severity = warning') { throw 'Installed bootstrap did not generate a valid v3 EditorConfig profile.' }
+        if ($editor -notmatch '(?m)^# hygiene profile:begin$' -or $editor -match '<!-- hygiene profile:' -or $editor -notmatch 'dotnet_diagnostic.IDE0090.severity = warning' -or $editor -notmatch 'csharp_style_implicit_object_creation_when_type_is_apparent = true' -or $editor -match 'dotnet_style_object_creation_when_type_is_apparent' -or $editor -notmatch 'csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async' -or $editor -match 'dotnet_diagnostic.IDE0071.severity') { throw 'Installed bootstrap did not generate the corrected v3 EditorConfig profile and modifier order.' }
         if (-not (Test-Path -LiteralPath $bootstrap.reportPath)) { throw 'Installed bootstrap omitted its source-bound baseline report.' }
         git add -A
         git commit -m 'accept reviewed profile artifacts' | Out-Null
@@ -69,16 +69,44 @@ try {
         git add Sample.cs; git commit -m 'formatted sample' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean formatted source.' }
 
-        Set-Content -NoNewline -Path Sample.cs -Value 'public sealed class Widget { } public class Sample{public Widget Create()=>new Widget();}'
+        Set-Content -NoNewline -Path Sample.cs -Value 'public class Sample{public object Create = new object();}'
         git add Sample.cs; git commit -m 'manual normalize input' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean manual normalize input.' }
         $normalizeBefore = Get-Content -LiteralPath Sample.cs -Raw
         $normalizeCheck = dotnet hygiene normalize --check --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $normalizeCheck.selectedRuleIds -notcontains 'sdk.IDE0090' -or $normalizeCheck.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $normalizeBefore) { throw 'Installed normalize --check did not report the approved SDK diagnostic without writing.' }
         dotnet hygiene normalize | Out-Null
-        if ($LASTEXITCODE -ne 0 -or (Get-Content -Raw Sample.cs) -notmatch 'Create\(\) => new\(\);') { throw 'Installed SDK style normalization did not apply IDE0090.' }
+        if ($LASTEXITCODE -ne 0 -or (Get-Content -Raw Sample.cs) -notmatch 'Create = new\(\);') { throw 'Installed SDK style normalization did not apply IDE0090.' }
         git add Sample.cs; git commit -m 'normalized sample' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean normalized source.' }
+
+        Set-Content -NoNewline -Path Sample.cs -Value @'
+public class Sample
+{
+#pragma warning disable IDE0090 // This explicit construction is required by the serializer contract.
+    public object Explicit = new object();
+#pragma warning restore IDE0090
+    public object Ordinary = new object();
+    public int Count = default(int);
+}
+'@
+        git add Sample.cs; git commit -m 'native suppression fixture' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean native suppression fixture.' }
+        $nativeCheck = dotnet hygiene check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or @($nativeCheck.findings | Where-Object { $_.ruleId -eq 'modernization.source-exception' }).Count -ne 0) { throw 'The valid installed IDE0090 suppression was reported stale or malformed.' }
+        $nativeBefore = Get-Content -LiteralPath Sample.cs -Raw
+        $nativeCheckOnly = dotnet hygiene normalize --check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $nativeCheckOnly.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $nativeBefore) { throw 'Installed normalize --check did not preserve the suppressed source while reporting unrelated SDK fixes.' }
+        dotnet hygiene normalize | Out-Null
+        $nativeNormalized = Get-Content -LiteralPath Sample.cs -Raw
+        if ($LASTEXITCODE -ne 0 -or $nativeNormalized -notmatch 'Explicit = new object\(\)' -or $nativeNormalized -notmatch 'Ordinary = new\(\)' -or $nativeNormalized -notmatch 'Count = default;') { throw 'The IDE0090 suppression affected unrelated fixes or allowed its intended diagnostic through.' }
+        git add Sample.cs; git commit -m 'normalized native suppression fixture' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit normalized native suppression fixture.' }
+        Set-Content -NoNewline -Path Sample.cs -Value "#pragma warning disable IDE0090 // This explicit construction is required by the serializer contract.`npublic class Sample { public object Value = new(); }`n#pragma warning restore IDE0090`n"
+        $ineffective = dotnet hygiene check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not ($ineffective.findings | Where-Object { $_.ruleId -eq 'modernization.source-exception' -and $_.message -match 'Ineffective or stale' })) { throw 'The installed tool did not report an ineffective IDE0090 suppression.' }
+        git checkout -- Sample.cs
+        if ($LASTEXITCODE -ne 0) { throw 'Could not restore the clean installed suppression fixture.' }
 
         Set-Content -NoNewline -Path .editorconfig -Value "root = true`n[*.cs]`ncsharp_style_var_for_built_in_types = false:warning`ncsharp_style_var_when_type_is_apparent = false:warning`ncsharp_style_var_elsewhere = false:warning`n"
         Set-Content -NoNewline -Path Sample.cs -Value @'
@@ -100,8 +128,10 @@ public class Sample
         if (-not $varReview -or $varReview.items[0].summary -notmatch 'source-owned retention exception') { throw 'A valid source-owned exception did not exclude only its candidate from the normal review sample.' }
         if (Test-Path -LiteralPath '.hygiene/.state/modernization-decisions.json') { throw 'Installed tool created retired durable modernization verdict state.' }
         $dirtyBefore = Get-Content -LiteralPath Sample.cs -Raw
-        Set-Content -NoNewline -Path Sample.cs -Value ($dirtyBefore + "`n// dirty input`n")
+        Set-Content -NoNewline -Path Sample.cs -Value ($dirtyBefore + "`npublic object Dirty(){return new object();}`n")
         $dirtySource = Get-Content -LiteralPath Sample.cs -Raw
+        $changedMode = dotnet hygiene normalize --changed --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $changedMode.checkOnly -or $changedMode.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $dirtySource) { throw 'Installed --changed normalization was not a nonmutating check-only selection.' }
         $dirtyMutation = dotnet hygiene format --output json 2>&1
         if ($LASTEXITCODE -ne 3 -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $dirtySource) { throw 'A dirty mutating formatter did not stop without changing source.' }
         $readOnly = dotnet hygiene format --check --output json | ConvertFrom-Json
@@ -142,7 +172,7 @@ public class Sample
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'source-owned-exception', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
+    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
     Write-Output "Installed-consumer M0024 evidence passed; package SHA-256 $packageSha256."
 }

@@ -12,7 +12,7 @@ internal sealed class ModernizationReviewRuleModule(
     Rule descriptor,
     int batchNumber,
     string question,
-    Func<Project, Compilation, CancellationToken, bool, IReadOnlyList<ModernizationCandidateGroup>> buildPopulation)
+    Func<Project, Compilation, CancellationToken, bool, string?, IReadOnlyList<ModernizationCandidateGroup>> buildPopulation)
     : ISharedModernizationReviewRuleModule
 {
     public Rule Descriptor { get; } = descriptor;
@@ -21,7 +21,9 @@ internal sealed class ModernizationReviewRuleModule(
     public string EscalationCondition => "If the implementer cannot judge an occurrence from its bounded context, record uncertain and request planner input outside the CLI.";
     public string EscalatedReviewerClass => "planner";
     internal IReadOnlyList<ModernizationCandidateGroup> BuildAllCandidates(Project project, Compilation compilation) =>
-        buildPopulation(project, compilation, CancellationToken.None, true);
+        buildPopulation(project, compilation, CancellationToken.None, true, null);
+    internal IReadOnlyList<ModernizationCandidateGroup> BuildCandidatesForPath(Project project, Compilation compilation, string fullPath) =>
+        buildPopulation(project, compilation, CancellationToken.None, true, Path.GetFullPath(fullPath));
 
     public RuleModuleResult Evaluate(RuleContext context)
     {
@@ -29,8 +31,24 @@ internal sealed class ModernizationReviewRuleModule(
         var sourceContents = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (Project project in context.Session.Projects)
         {
-            Compilation compilation = context.Session.GetCompilation(project);
-            foreach (ModernizationCandidateGroup group in buildPopulation(project, compilation, CancellationToken.None, context.ExhaustiveAudit))
+            bool hasNativeException = project.Documents.Any(document =>
+            {
+                string path = context.RelativePath(document);
+                string source = context.Text(document).ToString();
+                return ModernizationSourceExceptions.ContainsAnnotation(source)
+                    && context.SourceExceptions(path, source).Any(exception => exception.Valid && exception.IsNative && exception.RuleId == Descriptor.Id);
+            });
+            Project analysisProject = hasNativeException ? ModernizationSourceExceptions.WithoutNativePragmas(project, Descriptor.Id) : project;
+            string candidateKey = "modernization-candidates\0" + project.Id + "\0" + Descriptor.Id + "\0" + analysisProject.Version + "\0" + context.ExhaustiveAudit;
+            IReadOnlyList<ModernizationCandidateGroup> groups = context.Session.GetFact(candidateKey, () =>
+            {
+                Compilation compilation = analysisProject == project
+                    ? context.Session.GetCompilation(project)
+                    : analysisProject.GetCompilationAsync().GetAwaiter().GetResult()
+                        ?? throw new ProductException($"Could not compile modernization project '{project.Name}'.");
+                return buildPopulation(analysisProject, compilation, CancellationToken.None, context.ExhaustiveAudit, null);
+            });
+            foreach (ModernizationCandidateGroup group in groups)
             {
                 string projectDirectory = Path.GetDirectoryName(project.FilePath!)!;
                 string fullPath = Path.GetFullPath(Path.Combine(projectDirectory, group.Path));
@@ -56,7 +74,7 @@ internal sealed class ModernizationReviewRuleModule(
                     Id = ScopedOccurrenceId(projectIdentity, Descriptor.Id, occurrence.Id),
                     Path = context.Session.Relative(Path.GetFullPath(Path.Combine(projectDirectory, occurrence.Path)))
                 }).ToArray();
-                occurrences = ModernizationSourceExceptions.Filter(Descriptor.Id, occurrences, sourceContents, context.ExhaustiveAudit, out int suppressed);
+                occurrences = ModernizationSourceExceptions.Filter(Descriptor.Id, occurrences, sourceContents, context, context.ExhaustiveAudit, out int suppressed);
                 if (occurrences.Length == 0) { continue; }
                 string summary = suppressed == 0 ? group.Summary : $"{group.Summary} {suppressed} valid source-owned retention exception(s) are excluded from this normal sample.";
                 var item = new ReviewItem("", normalizedPath, group.Line, 1, group.Owner, summary, group.Declaration,
@@ -82,52 +100,52 @@ internal sealed class ModernizationReviewRuleModule(
     ];
 
     private static ModernizationReviewRuleModule Create(string id, int batch, string question,
-        Func<Project, Compilation, CancellationToken, bool, IReadOnlyList<ModernizationCandidateGroup>> build) =>
+        Func<Project, Compilation, CancellationToken, bool, string?, IReadOnlyList<ModernizationCandidateGroup>> build) =>
         new(new Rule(id, 1, "review-batch", "review-batch", "Offer compiler-backed, non-mutating modernization candidates for implementer judgment.", true),
             batch, question, build);
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildVarStyle(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        VarStyleCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.Path, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildVarStyle(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        VarStyleCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.Path, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, occurrence.DiagnosticId, occurrence.Path, occurrence.Line, occurrence.Column,
                 occurrence.Owner, occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildExpressionBodies(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        ExpressionBodyCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildExpressionBodies(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        ExpressionBodyCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
             group.TotalEligibleOccurrences, group.RemainingOccurrences, group.Occurrences.Select(occurrence => Convert(occurrence.Id, occurrence.DiagnosticId, occurrence.Path,
                 occurrence.Line, 1, occurrence.Owner, occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildCollectionExpressions(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        CollectionExpressionCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.Path, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildCollectionExpressions(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        CollectionExpressionCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.Path, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, occurrence.DiagnosticId, occurrence.Path, occurrence.Line, 1,
                 "collection expression", occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildPrimaryConstructors(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        PrimaryConstructorCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildPrimaryConstructors(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        PrimaryConstructorCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
             group.TotalEligibleOccurrences, group.RemainingOccurrences, group.Occurrences.Select(occurrence => Convert(occurrence.Id, "IDE0290", occurrence.Path, occurrence.Line, 1,
                 occurrence.Owner, occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildSwitchExpressions(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        SwitchExpressionCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildSwitchExpressions(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        SwitchExpressionCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, "IDE0066", occurrence.Path, occurrence.Line, 1, occurrence.Owner,
                 occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildConditionals(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        ConditionalCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildConditionals(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        ConditionalCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, occurrence.DiagnosticId, occurrence.Path, occurrence.Line, 1,
                 occurrence.Owner, occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildObjectInitializers(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        ObjectInitializerCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildObjectInitializers(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        ObjectInitializerCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, "IDE0017", occurrence.Path, occurrence.Line, 1, occurrence.Owner,
                 occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildReadonlyFields(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        ReadonlyFieldCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildReadonlyFields(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        ReadonlyFieldCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.TypeId, group.Occurrences[0].Path,
             group.TotalEligibleOccurrences, group.RemainingOccurrences, group.Occurrences.Select(occurrence => Convert(occurrence.Id, "IDE0044", occurrence.Path, occurrence.Line, 1,
                 occurrence.Owner, occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 
-    private static IReadOnlyList<ModernizationCandidateGroup> BuildInlineDeclarations(Project project, Compilation compilation, CancellationToken token, bool exhaustive) =>
-        InlineDeclarationCandidatePopulation.Build(project, compilation, token, exhaustive).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
+    private static IReadOnlyList<ModernizationCandidateGroup> BuildInlineDeclarations(Project project, Compilation compilation, CancellationToken token, bool exhaustive, string? onlyPath) =>
+        InlineDeclarationCandidatePopulation.Build(project, compilation, token, exhaustive, onlyPath).Select(group => Group(group.MemberId, group.Path, group.TotalEligibleOccurrences, group.RemainingOccurrences,
             group.Occurrences.Select(occurrence => Convert(occurrence.Id, "IDE0018", occurrence.Path, occurrence.Line, 1, occurrence.Owner,
                 occurrence.OriginalSyntax, occurrence.Context, occurrence.PreviewTitle, occurrence.PreviewDocument, occurrence.Question)))).ToArray();
 

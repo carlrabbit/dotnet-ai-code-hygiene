@@ -374,7 +374,7 @@ Capabilities:
 normalize-remediate
 ```
 
-When the option is absent, the rule uses Roslyn's conventional C# modifier order. Declarations containing a modifier absent from the effective order, or comments, directives, or disabled text in modifier trivia, remain unchanged. The rewrite moves only modifier tokens; it does not change declarations or member order.
+The generated v3 profile uses the supported SDK order `public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async`, including the modern `file`, `required`, and `volatile` modifiers. When the option is absent, the rule uses Roslyn's conventional C# modifier order. Declarations containing a modifier absent from the effective order, or comments, directives, or disabled text in modifier trivia, remain unchanged. The rewrite moves only modifier tokens; it does not change declarations or member order.
 
 It emits no normal `check` finding.
 
@@ -511,7 +511,7 @@ The following historical deterministic cleanup IDs remain catalog identifiers. S
 | `style.object-creation.target-typed` | SDK style IDE0090 |
 | `style.default.literal` | SDK style IDE0034 |
 | `style.cast.redundant` | SDK style IDE0004 |
-| `style.interpolation.redundant` | SDK style IDE0071 |
+| `style.interpolation.redundant` | Review-only; IDE0071 simplifies explicit `ToString()` calls inside interpolations and is not equivalent to converting interpolation without holes to a string literal. |
 | `style.names.inferred` | SDK style IDE0037 |
 | `style.qualification.this.unnecessary` | Review-only; no approved SDK parity |
 | `style.qualification.redundant` | Review-only; no approved SDK parity |
@@ -519,7 +519,7 @@ The following historical deterministic cleanup IDs remain catalog identifiers. S
 | `style.whitespace.blank-lines` | SDK whitespace pass; exact legacy excess-blank-line parity not claimed |
 | `style.parentheses.redundant` | Review-only; IDE0047 is outside the allowlist |
 
-IDE0005, IDE0011, IDE0036, IDE0040, IDE0090, IDE0034, IDE0004, IDE0071 and IDE0037 are the complete approved `dotnet format style` inventory. No broad analyzer fix is used. SDK integration fixtures are the evidence for actual behavior and comment/directive preservation.
+IDE0005, IDE0011, IDE0036, IDE0040, IDE0090, IDE0034, IDE0004 and IDE0037 are the complete approved `dotnet format style` inventory. IDE0071 is excluded because its explicit-`ToString()` simplification does not implement the historical no-hole interpolation cleanup. No broad analyzer fix is used. SDK integration fixtures are the evidence for actual behavior and comment/directive preservation.
 
 ## Non-goals
 

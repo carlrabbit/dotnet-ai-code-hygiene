@@ -164,6 +164,49 @@ public sealed class LifecycleTests
     }
 
     [Test]
+    public async Task SourceExceptionValidationDoesNotLoadProjectsWhenNoSourceAnnotationExists()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-lazy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using var workspace = new AdhocWorkspace();
+            Project project = workspace.AddProject("lightweight", LanguageNames.CSharp);
+            Document document = workspace.AddDocument(project.Id, "Short.cs", SourceText.From("class Short { }"));
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, [document]);
+
+            RuleModuleResult result = new ModernizationSourceExceptionRuleModule().Evaluate(context);
+
+            await Assert.That(result.Findings.Count).IsEqualTo(0);
+            await Assert.That(session.HasProjects).IsFalse();
+            await Assert.That(session.CompilationCount).IsEqualTo(0);
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", "Short.cs"))).IsEqualTo(0);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task SourceExceptionParsingIsSharedWithinTheCommandContext()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-source-exception-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            const string path = "Short.cs";
+            const string source = "// hygiene:retain modernization.var-style -- This explicit type documents an interop boundary.\nclass Short { int Value = 1; }";
+            using var session = new RepositorySession(repo);
+            var context = new RuleContext(session, []);
+
+            _ = context.SourceExceptions(path, source);
+            _ = context.SourceExceptions(path, source);
+
+            await Assert.That(session.FactComputations(("modernization-source-exceptions", path))).IsEqualTo(1);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task RegisteredProductionRulesShareLazyDocumentationFactAndCompilation()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-production-shared-fact-" + Guid.NewGuid().ToString("N"));

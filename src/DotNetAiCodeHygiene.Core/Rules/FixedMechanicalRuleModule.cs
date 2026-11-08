@@ -14,7 +14,7 @@ internal sealed class FixedMechanicalRuleModule(string id, string disposition) :
         new FixedMechanicalRuleModule("style.object-creation.target-typed", "SDK style diagnostic IDE0090."),
         new FixedMechanicalRuleModule("style.default.literal", "SDK style diagnostic IDE0034."),
         new FixedMechanicalRuleModule("style.cast.redundant", "SDK style diagnostic IDE0004."),
-        new FixedMechanicalRuleModule("style.interpolation.redundant", "SDK style diagnostic IDE0071."),
+        new FixedMechanicalRuleModule("style.interpolation.redundant", "Review-only: IDE0071 simplifies explicit ToString calls inside interpolations; it is not equivalent to converting interpolation without holes to a string literal."),
         new FixedMechanicalRuleModule("style.names.inferred", "SDK style diagnostic IDE0037."),
         new FixedMechanicalRuleModule("style.usings.unused", "SDK style diagnostic IDE0005."),
         new FixedMechanicalRuleModule("style.usings.organize", "SDK import organization and whitespace formatting."),

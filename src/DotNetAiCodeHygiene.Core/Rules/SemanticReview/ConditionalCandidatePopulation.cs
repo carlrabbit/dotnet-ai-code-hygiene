@@ -13,12 +13,12 @@ internal static class ConditionalCandidatePopulation
     internal const string Question = "Would converting between the conditional expression and if form clarify this control flow? Keep the current form when it better communicates branching or evaluation order; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0045", "IDE0046"];
 
-    internal static IReadOnlyList<ConditionalMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<ConditionalMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, SyntaxNode Candidate)> Candidates)>(StringComparer.Ordinal);
         foreach (Diagnostic diagnostic in diagnostics.Where(candidate => DiagnosticIds.Contains(candidate.Id, StringComparer.Ordinal)
-            && candidate.Location.SourceTree is not null).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
+            && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath)).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
             .ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();

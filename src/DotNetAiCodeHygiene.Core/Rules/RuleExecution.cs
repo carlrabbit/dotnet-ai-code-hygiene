@@ -66,6 +66,8 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     internal Dictionary<string, int> OccurrenceCounts(string ruleId, Document document) =>
         occurrenceCounts.GetValueOrDefault((ruleId, document.Id)) ?? (occurrenceCounts[(ruleId, document.Id)] = new(StringComparer.Ordinal));
     internal ProfileManager ProfileManager => Session.GetFact("profile-manager", () => new ProfileManager(Session.Root));
+    internal IReadOnlyList<ModernizationRetention> SourceExceptions(string path, string source) =>
+        Session.GetFact(("modernization-source-exceptions", path), () => ModernizationSourceExceptions.Parse(path, source));
 }
 
 internal interface IRuleModule

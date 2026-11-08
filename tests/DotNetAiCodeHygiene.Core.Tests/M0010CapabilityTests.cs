@@ -21,7 +21,7 @@ public sealed class M0010CapabilityTests
     [Test]
     public async Task SDKFormatterUsesFixedApprovedDiagnosticInventory()
     {
-        string[] expected = ["IDE0005", "IDE0011", "IDE0036", "IDE0040", "IDE0090", "IDE0034", "IDE0004", "IDE0071", "IDE0037"];
+        string[] expected = ["IDE0005", "IDE0011", "IDE0036", "IDE0040", "IDE0090", "IDE0034", "IDE0004", "IDE0037"];
         await Assert.That(RewriteEngine.ApprovedDiagnostics).IsEquivalentTo(expected);
     }
 }

@@ -47,6 +47,37 @@ public sealed class M0005EvidenceTests
             await Assert.That(migrated).Contains("readability.long-line.review");
             await Assert.That(migrated).Contains("userData");
             await Assert.That(await File.ReadAllTextAsync(marker)).Contains("\"version\": 3");
+            string editor = await File.ReadAllTextAsync(Path.Combine(repo, ".editorconfig"));
+            await Assert.That(editor).Contains("csharp_style_implicit_object_creation_when_type_is_apparent = true");
+            await Assert.That(editor.Contains("dotnet_style_object_creation_when_type_is_apparent", StringComparison.Ordinal)).IsFalse();
+            await Assert.That(editor).Contains("csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async");
+            await Assert.That(editor).Contains("dotnet_style_prefer_inferred_anonymous_type_member_names = true");
+            await Assert.That(editor).DoesNotContain("dotnet_diagnostic.IDE0071.severity");
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task M0024TargetTypedPreferenceUsesEffectiveNestedEditorConfigValue()
+    {
+        string repo = await NewProfileRepo(withProject: true);
+        try
+        {
+            var manager = new ProfileManager(repo);
+            _ = manager.Bootstrap();
+            string nested = Path.Combine(repo, "src", ".editorconfig");
+            await File.WriteAllTextAsync(nested, "[*.cs]\ncsharp_style_implicit_object_creation_when_type_is_apparent = false\ncsharp_preferred_modifier_order = static,public,private,protected,internal\n");
+
+            ProfileFinding[] conflicts = manager.Analyze().Where(finding => finding.Path == "src/Api.cs"
+                && finding.Message.Contains("csharp_style_implicit_object_creation_when_type_is_apparent", StringComparison.Ordinal)).ToArray();
+
+            await Assert.That(conflicts.Length).IsEqualTo(1);
+            await Assert.That(conflicts[0].Message).Contains("must be true");
+            await Assert.That(manager.Analyze().Any(finding => finding.Path == "src/Api.cs"
+                && finding.Message.Contains("csharp_preferred_modifier_order", StringComparison.Ordinal))).IsTrue();
+            await File.WriteAllTextAsync(nested, "[*.cs]\ncsharp_style_implicit_object_creation_when_type_is_apparent = true\n");
+            await Assert.That(manager.Analyze().Any(finding => finding.Path == "src/Api.cs"
+                && finding.Message.Contains("csharp_style_implicit_object_creation_when_type_is_apparent", StringComparison.Ordinal))).IsFalse();
         }
         finally { DeleteTree(repo); }
     }
