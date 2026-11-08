@@ -6,12 +6,12 @@ Please independently review the M0024 implementation in the linked pull request 
 
 - Milestone: `M0024 SDK-Backed Hygiene Profile and Source-Owned Modernization Exceptions`
 - Baseline: `6f9fa952def8da4a36c0de715bd206f7223a7f7c` (PR #25 head)
-- Implementation source revision: `c2926723f91013b7b071b848a85976e74dc58d2a` (includes all corrections for the independent implementation review)
+- Implementation source revision: `b45b249904554ccf32472f3c0a5f846f45157b16` (includes the second source-local exception review corrections)
 - Implementation branch: `codex/m0024-sdk-format-profile-and-source-exceptions`
 - Pull request: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/26 (draft; target `codex/m0023-deterministic-cleanup`)
-- Candidate package SHA-256: `a2d8a3746655818e5b1ebd3e4e36d4258ec4b079d357d4d3f41d271f1dd578c7`
+- Candidate package SHA-256: `fa0cb290539533a31d848e6a1226309145b76284541280029aa45837c7e70098`
 - Execution ledger: `.execution/M0024-sdk-format-profile-and-source-exceptions.md`
-- Validation on the corrected implementation: solution build; Core suite 106/106; CLI suite 36/36; README policy; exact package; installed consumers; and self-host all passed. The self-host receipt fingerprints the complete tracked diff, so it is rerun after this metadata commit and followed by `./eng/validate.ps1 -Verify`.
+- Validation on the corrected implementation: solution build; Core suite 107/107; CLI suite 36/36; README policy; exact package; and installed consumers all have fresh current receipts. The exact package was installed locally and consumer provenance records same-line source-subject and exact IDE0007/IDE0008 behavior. Self-host fingerprints the complete tracked diff and is run after this review-packet commit, followed by `./eng/validate.ps1 -Verify`.
 
 ## Implementation review corrections
 
@@ -29,13 +29,13 @@ Correction-specific focused tests passed: Core source-exception no-work/cache (2
 
 ## Second implementation review corrections
 
-The second review findings against PR #26 revision `2dfba9377202494f3649c257c80a31bef8aa4e3c` are addressed in the pending correction set for the same PR branch:
+The second review findings against PR #26 revision `2dfba9377202494f3649c257c80a31bef8aa4e3c` are addressed in commit `b45b249904554ccf32472f3c0a5f846f45157b16` on the same PR branch:
 
 1. Native suppression filtering now requires both the modernization rule family and exact Roslyn diagnostic identity. Candidate spans and diagnostic IDs are carried through all nine population adapters. Fresh Core tests prove IDE0007 does not filter IDE0008; the CLI test generates both IDs under nested conflicting preferences, confirms only IDE0007 is filtered in normal review, and confirms exhaustive audit still includes both with a reason only on the suppressed candidate.
 2. Hygiene exceptions preserve source syntax spans from parse through candidate filtering and stale validation. Same-line statements no longer share a suppression range. Core fixtures prove next-subject containment and exhaustive reason annotations; the CLI case confirms the sibling statement remains normally sampled, audit keeps both, and making only the attached candidate ineligible reports stale even while its sibling remains.
 3. Native pragma handling uses active Roslyn `PragmaWarningDirectiveTriviaSyntax` rather than line regexes. Justification must come from an actual same-line or adjacent comment. Parser fixtures cover missing/boilerplate text, noncomment preceding source, matched/unmatched and multiple-ID directives, scope length, literal lookalikes and inactive preprocessor content. Fresh focused Core suite passed 5/5; fresh focused CLI lifecycle suite passed 1/1 and includes actual SDK normalize plus authorized exhaustive audit.
 
-The exact newly packed installed-consumer stage is being extended to repeat the same-line source-subject and IDE0007/IDE0008 exact-identity checks against the locally installed package. Full required validation receipts and the installed package SHA-256 will be recorded in the execution ledger after the final metadata commit. No reviewer identity or decision has been entered; this packet remains pending independent review.
+The exact newly packed installed-consumer stage passed against package SHA-256 `fa0cb290539533a31d848e6a1226309145b76284541280029aa45837c7e70098`, including same-line source-subject and IDE0007/IDE0008 exact-identity checks. The execution ledger records current receipt fingerprints and provenance hash. No reviewer identity or decision has been entered; this packet remains pending independent review.
 
 ## Independent review questions
 
