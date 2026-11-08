@@ -12,11 +12,11 @@ internal static class InlineDeclarationCandidatePopulation
     internal const int MaximumOccurrencesPerMember = 12;
     internal const string Question = "Would declaring this local at its use site clarify its limited scope? Keep the separate declaration when it helps explain control flow or lifetime; mark uncertain when context is insufficient. This proposal covers IDE0018 inline declarations only, not general variable merging.";
 
-    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<InlineDeclarationMemberGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, "IDE0018");
         var byMember = new Dictionary<string, (Document Document, string Owner, string Context, List<(Diagnostic Diagnostic, LocalDeclarationStatementSyntax Declaration)> Candidates)>(StringComparer.Ordinal);
-        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0018" && candidate.Location.SourceTree is not null)
+        foreach (Diagnostic diagnostic in diagnostics.Where(candidate => candidate.Id == "IDE0018" && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath))
             .OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal).ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -59,6 +59,7 @@ internal static class InlineDeclarationCandidatePopulation
                 if (preview is null || string.Equals(preview.Text, originalDocument, StringComparison.Ordinal)) { continue; }
                 FileLinePositionSpan lineSpan = declaration.GetLocation().GetLineSpan();
                 occurrences.Add(new InlineDeclarationOccurrence(id, path, lineSpan.StartLinePosition.Line + 1,
+                    declaration.SpanStart, declaration.Span.Length,
                     owner, original, context, preview.Title, preview.Text, Question));
             }
             if (occurrences.Count == 0) { continue; }
@@ -75,5 +76,5 @@ internal static class InlineDeclarationCandidatePopulation
 internal sealed record InlineDeclarationMemberGroup(string MemberId, string Path, string Owner, int TotalEligibleOccurrences,
     IReadOnlyList<InlineDeclarationOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record InlineDeclarationOccurrence(string Id, string Path, int Line, string Owner,
+internal sealed record InlineDeclarationOccurrence(string Id, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

@@ -1,98 +1,40 @@
-# Deterministic Rewrite Behavior
+# SDK Formatting and Rewrite Behavior
 
-## Common targeting
+## Commands and scope
 
-`format` and `normalize` use the same repository and target-selection concepts as `check`:
+`dotnet hygiene format` runs the supported SDK `dotnet format whitespace` pass. `dotnet hygiene normalize` runs the fixed approved SDK style diagnostics and then whitespace formatting. Both support explicit paths, `--changed`, and `--check`; `--changed` always implies check-only selection because it selects dirty staged, unstaged, and untracked paths while mutation requires a clean Git checkpoint. The autonomous gate normalizes the complete eligible project source population regardless of the changed-file semantic review gate.
 
-```text
-dotnet hygiene format
-dotnet hygiene format --changed
-dotnet hygiene format <file|directory> [...]
+`--check` and `--changed` use `--verify-no-changes` and report the union of paths from every SDK phase and project batch without writing source. Each formatter invocation receives its own report directory so a later report cannot overwrite earlier findings. Normal mutations require a clean Git worktree/index and a known `HEAD`; the tool records and verifies `HEAD` and the index around the SDK run. It never creates commits, pushes, resets, cleans, or promises rollback. A failed or interrupted pass leaves inspectable edits and reports that recovery is agent-owned.
 
-dotnet hygiene normalize
-dotnet hygiene normalize --changed
-dotnet hygiene normalize <file|directory> [...]
-```
+Results identify SDK phases and the fixed diagnostic inventory. Changed paths are measured from the SDK report for check-only operations and source snapshots for mutating operations; the tool does not claim per-character or exact diagnostic causality.
 
-Explicit paths and `--changed` are mutually exclusive. Repository discovery, relative paths, exclusions, SDK-style project membership, changed-file semantics, outside-repository rejection, and overlap de-duplication align with `check`.
+## Approved style diagnostics
 
-## Common output
+The `dotnet-11 v3` profile permits only these `dotnet format style` diagnostics:
 
-Both commands support `--output text|json` and `--check`.
+| Diagnostic | Purpose and configured policy | SDK fix disposition |
+|---|---|---|
+| IDE0005 | Remove unnecessary imports; severity `warning`; no style option | SDK fixer is approved; actual normalize fixtures exercise the style phase and installed package. |
+| IDE0011 | Require braces; `csharp_prefer_braces=true`; severity `error` | SDK fixer is approved; nested severity conflicts are rejected. |
+| IDE0036 | Order declaration modifiers; `csharp_preferred_modifier_order=public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async`; severity `warning` | SDK fixer is approved; public/static, file/sealed, and required/public declarations are formatted and compiled in the SDK fixture. |
+| IDE0040 | Add explicit accessibility; `dotnet_style_require_accessibility_modifiers=always`; severity `error` | SDK fixer is approved; profile migration/effective-setting validation owns the policy. |
+| IDE0090 | Use implicit object creation when type is apparent; `csharp_style_implicit_object_creation_when_type_is_apparent=true`; severity `warning` | SDK fixer is approved; nested `false` prevents the fix, while effective `true` transforms field/local/return contexts and the installed package preserves pragmatically suppressed cases. |
+| IDE0034 | Prefer default literals; `csharp_prefer_simple_default_expression=true`; severity `warning` | SDK fixer is approved and is verified to run alongside a valid IDE0090 suppression. |
+| IDE0004 | Remove unnecessary casts; severity `warning`; no style option | SDK fixer is approved; no separate option is required. |
+| IDE0037 | Prefer inferred tuple/member names; `dotnet_style_prefer_inferred_tuple_names=true` and `dotnet_style_prefer_inferred_anonymous_type_member_names=true`; severity `warning` | SDK fixer is approved for both tuple and anonymous type naming preferences. |
 
-`--check` computes the same rewrite plan without committing source changes. A successful command returns exit `0` whether zero or more changes are needed/applied; nonzero exits retain existing error semantics.
+Whitespace formatting and import organization are handled by the SDK whitespace phase. No generic analyzer-fix pass runs. The actual supported SDK must expose each listed fixer; unapproved structural modernizations remain semantic review suggestions. The profile's options are IDE0011 `csharp_prefer_braces=true`, IDE0036 `csharp_preferred_modifier_order` using the SDK order `public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async`, IDE0040 `dotnet_style_require_accessibility_modifiers=always`, IDE0090 `csharp_style_implicit_object_creation_when_type_is_apparent=true`, IDE0034 `csharp_prefer_simple_default_expression=true`, and IDE0037 `dotnet_style_prefer_inferred_tuple_names=true` plus `dotnet_style_prefer_inferred_anonymous_type_member_names=true`. IDE0005 and IDE0004 need no style option. Their severities are explicit in the profile.
 
-JSON schema version 1 exposes: `command`, `checkOnly`, `targetCount`, `changedCount`, `unchangedCount`, deterministic repository-relative `changedPaths`, and ordered `selectedRuleIds`.
+IDE0071 is excluded from the approved inventory: the SDK rule simplifies explicit `ToString()` calls inside an interpolation, which does not match the historical hygiene cleanup that converted interpolated strings without holes (for example `$"hello"`) to ordinary string literals. That historical rule remains review-only; M0024 does not add another automatic transformation to preserve its old status.
 
-## Mutation transaction
+## Rule disposition
 
-Rewrite commands are all-or-nothing over the complete resolved target set:
+The stable catalog retains historical M0023 IDs. `docs/specs/RULE-CAPABILITIES.md` records each ID's SDK or review-only disposition. Removed Roslyn source rewriters are not executed. `dotnet format whitespace` is used for formatting, the allowlist above handles standard fixes, and unsupported narrow cases stay review-only. Parity claims are limited to behavior observed in SDK fixtures and the installed-consumer gate.
 
-```text
-resolve all targets
--> load required Roslyn context
--> compute complete rewrite plan in memory
--> validate complete plan
--> if --check: report only
--> else commit plan
-```
+## Concurrency and failure
 
-No selected source file is replaced before plan construction and required validation succeed for every selected target. Commit uses atomic per-file replacement plus rollback protection sufficient to guarantee that failure/cancellation does not leave a mixed old/new selected target set. External modification between read/plan and commit is rejected rather than silently overwritten.
+Source snapshots are used only to report SDK edits. They are not a rollback transaction. If `HEAD` or the index changes during mutation, the operation stops and reports incomplete state. Conflicting external edits are not overwritten by an application-level restore. Recovery is explicit from Git after inspecting all remaining worktree changes.
 
-## Formatting
+## Exhaustive audit
 
-`dotnet hygiene format` selects enabled `format-remediate` rules from the canonical rule catalogue. The autonomous lifecycle also invokes `dotnet-format` whitespace formatting and restricts style fixes to enabled hygiene-owned IDE0011/IDE0040 diagnostic IDs. It never runs generic analyzer fixes. The initial `format.csharp.roslyn` rule owns Roslyn formatting against actual loaded document/project context and applicable project/editor configuration available to Roslyn. It may change whitespace/trivia presentation but must not intentionally perform semantic simplification, structural modernization, naming changes, or normalization policy rewrites.
-
-Formatting is idempotent and does not require a clean semantic compilation when Roslyn can load and parse the selected source sufficiently.
-
-## Normalization
-
-`dotnet hygiene normalize` selects enabled `normalize-remediate` rules from the canonical rule catalogue, then applies enabled format rules to changed documents. It is deterministic, project-aware, and semantics-preserving.
-
-Relevant loaded projects must compile without compiler errors before transformation. Rewritten relevant project context must also compile without compiler errors before commit. Changed normalized documents are formatted before final comparison/commit.
-
-Normalization is idempotent.
-
-The autonomous bootstrap approval snapshot covers relevant source and configuration bytes. Before approval, changing those bytes invalidates the pending baseline report; after acceptance, ordinary source changes remain eligible for routine gates and only a material policy snapshot change requires another baseline approval.
-
-## Initial normalization catalogue
-
-M0004 intentionally limits normalization to Roslyn-backed simplification where semantic services establish equivalence:
-
-1. `style.qualification.this.unnecessary` removes only explicit `this.` qualification proven redundant by Roslyn;
-2. `style.qualification.redundant` simplifies other redundant member/type/namespace/name qualification where Roslyn proves equivalence;
-3. `style.accessibility.explicit` adds the language-defined default access modifier to supported type and member declarations, while skipping static constructors and explicit-interface implementations.
-4. `style.object-creation.target-typed` converts `new T(...)` only for local, field, or property initializers whose explicit declared type is exactly the Roslyn-bound creation type. It requires effective C# 9 or later and leaves return expressions, inferred declarations, and commented/directive-bearing type syntax unchanged.
-5. `style.default.literal` shortens `default(T)` only in local, field, or property initializers whose explicit declared symbol type is exactly the default expression's Roslyn type. It requires effective C# 7.1 or later and leaves `var`, return expressions, and commented/directive-bearing type syntax unchanged.
-6. `style.cast.redundant` removes a cast only when Roslyn reports an identity conversion and the operand's exact nullable type equals the cast type. Comment/directive-bearing candidates are retained, and Roslyn's simplifier owns any required parentheses.
-7. `style.interpolation.redundant` replaces only constant interpolated strings with no interpolation holes, retaining the Roslyn constant value and skipping multiline, raw-string, and comment/directive-bearing expressions.
-8. `style.names.inferred` removes tuple/anonymous-object names only when a simple identifier expression infers the exact same ordinal name; mismatches and comment/directive-bearing names remain.
-9. `style.usings.unused` runs Roslyn IDE0005 and its pinned Roslyn code fix to remove unnecessary imports. It skips a file if any using directive carries a comment or directive, preserving source trivia.
-10. `style.usings.organize` orders contiguous uncomplicated namespace imports by name and honors `dotnet_sort_system_directives_first` (default true). It leaves aliases, `static`/`global` imports, comments, directives, and conditional regions in place as group boundaries and never removes imports.
-11. `style.null-forgiving.redundant` removes `!` only when Roslyn's nullable flow state for the operand is already not-null. Maybe-null or unknown flow, error types, comments, directives, and disabled text are retained.
-12. `style.whitespace.blank-lines` trims file-edge blank lines and reduces runs of more than two ordinary blank lines to two. It skips runs touching multiline strings, comments, documentation trivia, directives, or disabled text, and preserves one- or two-line interior grouping.
-13. `style.parentheses.redundant` removes parentheses only around an identifier, literal, `this`, or `base` expression when Roslyn confirms identical type, converted type, and symbol binding. Compound grouping and comment/directive-bearing candidates remain unchanged.
-14. `style.modifiers.organize` orders declaration modifiers by the effective `csharp_preferred_modifier_order` option (IDE0036), using Roslyn's conventional C# order when the option is absent. Modifier lists containing unsupported modifiers or comments/directives remain unchanged.
-
-Required accessibility, target-typed creation, default literals, redundant casts, redundant interpolation, and inferred names are readability-oriented, rule-owned normalizers. Target-typed creation and default literals apply only with an immediately visible declared type. Other modernization families remain review decisions and are not automatic normalization.
-
-These are independent fixed policies, each enabled by default and independently configurable as a whole rule.
-
-M0023 keeps analyzer-backed proposals for `var` policy, expression-bodied members, collection expressions, primary constructors, switch expressions, conditional expressions, object initializers, readonly fields, and IDE0018 inline declarations as implementer judgments. The CLI records a verdict for each occurrence and never applies a modernization preview automatically. Target-typed `new` and inferred naming remain governed by their deterministic readability normalizers above.
-
-## Relationship to check
-
-Rewrite commands do not automatically execute `hygiene check`.
-
-Canonical agent workflow:
-
-```text
-implement/change code
--> run relevant tests
--> hygiene normalize
--> hygiene check
--> resolve deterministic findings and semantic review work
--> rerun/recheck as needed
-```
-
-No rewrite history database is introduced.
+`dotnet hygiene --yolo-all` remains nonmutating. It uses check-only SDK formatter phases, enumerates all enabled semantic modernization populations including valid source-owned exceptions, and reports retained exceptions with their reason rather than counting them as unexamined or clean.

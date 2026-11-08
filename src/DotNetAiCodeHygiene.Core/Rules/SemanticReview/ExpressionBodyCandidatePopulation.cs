@@ -13,12 +13,12 @@ internal static class ExpressionBodyCandidatePopulation
     internal const string Question = "Would an expression body make this member easier to read in its type context? Keep the block when it communicates structure or intent; mark uncertain when context is insufficient.";
     private static readonly string[] DiagnosticIds = ["IDE0021", "IDE0022", "IDE0023", "IDE0024", "IDE0025", "IDE0026", "IDE0027"];
 
-    internal static IReadOnlyList<ExpressionBodyTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false)
+    internal static IReadOnlyList<ExpressionBodyTypeGroup> Build(Project project, Compilation compilation, CancellationToken cancellationToken, bool exhaustive = false, string? onlyPath = null)
     {
         ImmutableArray<Diagnostic> diagnostics = RoslynCodeStyleAnalyzers.Analyze(compilation, project.AnalyzerOptions, DiagnosticIds);
         var byType = new Dictionary<string, (INamedTypeSymbol Symbol, List<(Document Document, Diagnostic Diagnostic, MemberDeclarationSyntax Member, TypeDeclarationSyntax Type)> Candidates)>(StringComparer.Ordinal);
         foreach (Diagnostic diagnostic in diagnostics.Where(candidate => DiagnosticIds.Contains(candidate.Id, StringComparer.Ordinal)
-            && candidate.Location.SourceTree is not null).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
+            && candidate.Location.SourceTree is not null && CandidatePathFilter.Matches(candidate, onlyPath)).OrderBy(candidate => candidate.Location.SourceTree!.FilePath, StringComparer.Ordinal)
             .ThenBy(candidate => candidate.Location.SourceSpan.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -67,6 +67,7 @@ internal static class ExpressionBodyCandidatePopulation
                     .Select(reference => reference.GetSyntax(cancellationToken).ToString())
                     .OrderBy(text => text, StringComparer.Ordinal));
                 occurrences.Add(new ExpressionBodyOccurrence(identity, diagnostic.Id, path, lineSpan.StartLinePosition.Line + 1,
+                    member.SpanStart, member.Span.Length,
                     owner, member.ToFullString(), context, preview.Title, preview.Text, Question));
             }
 
@@ -84,5 +85,5 @@ internal static class ExpressionBodyCandidatePopulation
 internal sealed record ExpressionBodyTypeGroup(string TypeId, string TypeName, int TotalEligibleOccurrences,
     IReadOnlyList<ExpressionBodyOccurrence> Occurrences, int RemainingOccurrences);
 
-internal sealed record ExpressionBodyOccurrence(string Id, string DiagnosticId, string Path, int Line, string Owner,
+internal sealed record ExpressionBodyOccurrence(string Id, string DiagnosticId, string Path, int Line, int CandidateStart, int CandidateLength, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string PreviewDocument, string Question);

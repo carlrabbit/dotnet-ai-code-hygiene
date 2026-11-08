@@ -396,7 +396,7 @@ public sealed class RoslynModernizationAnalyzerTests
             ReviewBatch varBatch = modernization.Single(batch => batch.RuleId == "modernization.var-style");
             await Assert.That(varBatch.PopulationCount).IsEqualTo(1);
             await Assert.That(varBatch.SampleCount).IsEqualTo(1);
-            await Assert.That(varBatch.Escalation.Command).Contains("review decide");
+            await Assert.That(varBatch.Escalation.Command).Contains("source-local suppression");
             await Assert.That(varBatch.Items.Single().Occurrences).Count().IsEqualTo(2);
             await Assert.That(varBatch.Items.Single().Occurrences!.All(occurrence => occurrence.Preview.Contains("int ", StringComparison.Ordinal))).IsTrue();
         }
@@ -404,7 +404,7 @@ public sealed class RoslynModernizationAnalyzerTests
     }
 
     [Test]
-    public async Task ModernizationDecisionsAreOccurrenceScopedRevalidatedAndNeverItemAccepted()
+    public async Task ModernizationVerdictsCannotBecomeDurableAcceptance()
     {
         string repository = Path.Combine(Path.GetTempPath(), "hygiene-modernization-decisions-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repository);
@@ -431,26 +431,24 @@ public sealed class RoslynModernizationAnalyzerTests
             string firstId = package.Occurrences![0].Id;
             string secondId = package.Occurrences[1].Id;
             string originalSource = await File.ReadAllTextAsync(sourcePath);
-            _ = engine.RecordModernizationDecision(batch.Handle, firstId, "retain");
-            _ = engine.RecordModernizationDecision(batch.Handle, secondId, "uncertain");
+            await Assert.That(() => engine.RecordModernizationDecision(batch.Handle, firstId, "retain"))
+                .Throws<ProductException>().WithMessageContaining("no longer durable acceptance");
+            await Assert.That(() => engine.RecordModernizationDecision(batch.Handle, secondId, "uncertain"))
+                .Throws<ProductException>().WithMessageContaining("source-local suppression");
             await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(originalSource);
             await Assert.That(() => engine.AcceptReview(batch.Handle, [package.Id])).Throws<ProductException>()
                 .WithMessageContaining("item-level review acceptance is not valid");
             await Assert.That(() => engine.ExpandReview(batch.Handle)).Throws<ProductException>()
-                .WithMessageContaining("already bounded by the shared review budget");
+                .WithMessageContaining("remain bounded by the shared review budget");
             await Assert.That(() => engine.CreateReviewHandoff(batch.Handle)).Throws<ProductException>()
-                .WithMessageContaining("does not expand or hand off these judgments");
+                .WithMessageContaining("remain bounded by the shared review budget");
 
-            CheckResult repeated = engine.Check(["Sample.cs"], changed: false, applyIgnores: false, publishLatest: false);
-            ReviewBatch repeatedBatch = repeated.ReviewBatches.Single(item => item.RuleId == "modernization.var-style");
-            ReviewOccurrence judged = repeatedBatch.Items.Single().Occurrences!.Single(occurrence => occurrence.Id == firstId);
-            await Assert.That(judged.Decision).IsEqualTo("retain");
-            await Assert.That(repeatedBatch.Items.Single().Occurrences!.Single(occurrence => occurrence.Id == secondId).Decision).IsEqualTo("uncertain");
+            await Assert.That(File.Exists(Path.Combine(repository, ".hygiene", ".state", "modernization-decisions.json"))).IsFalse();
 
             await File.WriteAllTextAsync(sourcePath,
                 "public class Sample { public void Run() { var first = 1; var second = 2; System.Console.WriteLine(first); } }\n");
             await Assert.That(() => engine.RecordModernizationDecision(batch.Handle, secondId, "desirable"))
-                .Throws<ProductException>().WithMessageContaining("changed");
+                .Throws<ProductException>().WithMessageContaining("no longer durable acceptance");
         }
         finally { if (Directory.Exists(repository)) { Directory.Delete(repository, recursive: true); } }
     }

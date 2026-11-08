@@ -55,7 +55,7 @@ Existing explain/ignore/rules/help surfaces remain.
 The current hygiene profile remains:
 
 ```text
-dotnet-11 v2
+dotnet-11 v3
 ```
 
 Detailed profile contract:
@@ -131,7 +131,7 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 18. comments.intent.review                    v1
 ```
 
-This M0016 catalog snapshot is historical. M0017 appended three semantic-review rules; M0023 added cleanup capabilities and nine modernization review rules. The current canonical 38-rule order and capabilities are in `docs/specs/RULE-CAPABILITIES.md`.
+This M0016 catalog snapshot is historical. M0017 appended three semantic-review rules; M0023 added cleanup identifiers and nine modernization review rules; M0024 moved mechanical execution to the SDK and added source-exception validation. The current canonical 39-rule order and dispositions are in `docs/specs/RULE-CAPABILITIES.md`.
 
 The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 

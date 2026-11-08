@@ -37,7 +37,7 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
                 {
                     batch = batch with { Escalation = batch.Escalation with
                     {
-                        Command = $"dotnet hygiene review decide {batch.Handle} <occurrence-id> --verdict uncertain"
+                        Command = "Prefer modern syntax; retain only with a valid source-local suppression, otherwise leave the candidate outstanding."
                     } };
                 }
                 return materialized with { Batch = batch };
