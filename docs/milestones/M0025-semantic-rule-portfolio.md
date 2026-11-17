@@ -382,7 +382,7 @@ The implementer reads this milestone and the seeded ledger, verifies exact ID se
 | VAL-02 | Current Core/CLI receipts: cross-project relations, bounded evidence, lazy work and page expansion passed. | Core/CLI | complete |
 | VAL-03 | Current Core/CLI receipts: shared budget, gate priority, acceptance, invalidation and legacy-state scenarios passed. | Core/CLI | complete |
 | VAL-04 | CLI 36/36; README and self-host receipts; audit authorization and modernization/profile regressions passed. | CLI/repository | complete |
-| VAL-05 | Canonical ./eng/validate.ps1 -Verify remains to run after final reconciliation. | aggregate | pending verification |
+| VAL-05 | Canonical ./eng/validate.ps1 -Verify passed, reusing all seven current fingerprint-matched receipts. | aggregate | complete |
 | VAL-06 | Package SHA-256 ed742a42f0fc65396ae0a4d5c5395d699c0288bbb408d8643579c79ee3d15565; shim SHA-256 4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da; installed consumer passed. | installed consumer | complete |
 | VAL-07 | In-process read-only census on f128195ee4e99590c47e31939e0aed932613d679 and 400f140b6764c560fe9f4d96437d8b8a6b73243d; detail in ledger. | real source snapshots | complete |
 | VAL-08 | Wait for authorized independent reviewer, then run ./eng/review-check.ps1 -Milestone M0025. | human review | pending |

@@ -9,7 +9,7 @@
 - Execution ledger: `.execution/M0025-semantic-rule-portfolio.md`
 - Current package: `DotNetAiCodeHygiene.Tool.0.12.0.nupkg`, SHA-256 `ed742a42f0fc65396ae0a4d5c5395d699c0288bbb408d8643579c79ee3d15565`
 - Installed shim SHA-256: `4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da`; exact installed-consumer provenance is `.execution/validation/consumer-provenance.json`.
-- Validation/evidence reconciliation: Core 104/104; CLI 36/36; solution, README policy, package, installed consumer and self-host receipts passed. Final aggregate `-Verify` is being refreshed after completion evidence updates.
+- Validation/evidence reconciliation: Core 104/104; CLI 36/36; solution, README policy, package, installed consumer and self-host receipts passed. Canonical `./eng/validate.ps1 -Verify` passed and reused all seven current fingerprint-matched receipts; self-host will be refreshed after this final packet update.
 
 ## Independent reviewer questions
 

@@ -96,7 +96,7 @@
 | VAL-02 | Tier 1/3 — relationships, bounded context, lazy work; Windows 11 / .NET 11 / Git, multi-project SDK fixtures | AC-19, AC-20, AC-23; EC-19a, EC-19b, EC-20a, EC-20b, EC-23a, EC-23b | complete | Current Core/CLI receipts; relationship, evidence, lazy work and expansion cases. |
 | VAL-03 | Tier 1/3 — gate selection, accepted state and legacy cleanup; Windows 11 / .NET 11 / Git / isolated repositories | AC-18, AC-21, AC-22, AC-24, AC-27; EC-21a, EC-21b, EC-22a, EC-22b, EC-24a, EC-24b, EC-27a | complete | Current Core/CLI receipts; budget, acceptance, invalidation and legacy cases. |
 | VAL-04 | Tier 1/3 — CLI, audit and non-regression; Windows 11 / .NET 11 / Git / PowerShell, existing SDK/profile test substrates | AC-25, AC-26, DOC-01; EC-25a, EC-25b, EC-26a, EC-26b | complete | Current CLI/README receipts; audit, state isolation and modernization regressions. |
-| VAL-05 | Tier 2 — final repository validation; Windows 11 / .NET 11 / Git / PowerShell; existing canonical validator | AC-28, AC-29, DOC-01 (aggregate code/test/document receipts only; individual rule cases remain VAL-01–04) | pending verification | Current solution/Core/CLI/README/package/consumer/self-host receipts; awaiting -Verify. |
+| VAL-05 | Tier 2 — final repository validation; Windows 11 / .NET 11 / Git / PowerShell; existing canonical validator | AC-28, AC-29, DOC-01 (aggregate code/test/document receipts only; individual rule cases remain VAL-01–04) | complete | ./eng/validate.ps1 -Verify passed and reused seven current fingerprint-matched receipts; refresh self-host after this final evidence update. |
 | VAL-06 | Tier 4 — exact locally packed and installed tool; Windows 11 / .NET 11 / Git / PowerShell / isolated local NuGet feed+tool path | AC-25, AC-26, AC-27, AC-28; EC-25a, EC-25b, EC-27a, EC-28a, EC-28b | complete | Package ed742a42f0fc65396ae0a4d5c5395d699c0288bbb408d8643579c79ee3d15565; shim 4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da; installed consumer passed. |
 | VAL-07 | Tier 3 investigative observation — real repository candidate census; Authorized local Git clones of hygiene + other existing authorized local .NET repo source revisions where available; no credential provisioning | AC-30; EC-30a | complete | Read-only census on f128195ee4e99590c47e31939e0aed932613d679 and 400f140b6764c560fe9f4d96437d8b8a6b73243d; counts/timing below. |
 | VAL-08 | Tier 5 — independent M0025 human review; Authorized human/delegate using current PR, milestone, ledger, recorded current receipts and installed tool | REV-01 | pending | Pending independent reviewer decision; checker follows the decision. |
@@ -113,14 +113,14 @@
 ## Implementation-Owned Evidence and Resume State
 
 - Current canonical receipts are under .execution/validation: solution, core-tests, cli-tests, readme-policy, pack-current, installed-consumers and self-host. Package and installed shim hashes are in consumer-provenance.json.
-- Implementation PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/28. Implementation commit 87ddfca53fbd0dd45edb95c60e14b20cdffd91fd; current PR head after the review-packet-only commit is 0f9be508012958334b42089f12d81277d8b82636.
+- Implementation PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/28. Implementation commit 87ddfca53fbd0dd45edb95c60e14b20cdffd91fd; subsequent branch commits contain review and execution evidence only.
 - Individual AC/EC evidence is duplicated in the M0025 completion matrix below; each case remains separately identified.
 - VAL-07 is a read-only in-process census on two disposable detached worktrees; only SHAs/counts/overlap/context/timing are retained. No source content or semantic verdicts were recorded.
-- Remaining: run ./eng/validate.ps1 -Verify after final reconciliation. Keep VAL-08 and REV-01 pending until an authorized human decision; do not run review-check before then.
+- Aggregate ./eng/validate.ps1 -Verify passed, reusing seven current receipts. Refresh self-host after final documentation updates, then verify again. Keep VAL-08 and REV-01 pending until an authorized human decision; do not run review-check before then.
 
 ## Final Reconciliation
 
-Reconciliation: milestone and ledger sets match exactly: 30 AC plus DOC-01 and REV-01 (32 obligations), and 41 EC; both retain all eight gates. AC-01–30, DOC-01 and EC-01a–30a are complete against the per-ID matrix below. REV-01 and VAL-08 await human review; VAL-05 awaits canonical -Verify.
+Reconciliation: milestone and ledger sets match exactly: 30 AC plus DOC-01 and REV-01 (32 obligations), and 41 EC; both retain all eight gates. AC-01–30, DOC-01, EC-01a–30a, and VAL-01–07 are complete against the per-ID matrix and current receipts. REV-01 and VAL-08 await independent human review.
 ### VAL-07 report-only observation details
 
 Census mode: bounded broad selection over the eligible population, with at most ten distinct obligations. Per-rule counts below are the full eligible population at each historical tree. Overlap is the number of distinct path+symbol keys present under at least two rule IDs. The census did not alter source, repository review state or approval state, and emitted no semantic verdicts.
