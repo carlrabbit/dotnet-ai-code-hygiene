@@ -113,6 +113,7 @@
 ## Implementation-Owned Evidence and Resume State
 
 - Current canonical receipts are under .execution/validation: solution, core-tests, cli-tests, readme-policy, pack-current, installed-consumers and self-host. Package and installed shim hashes are in consumer-provenance.json.
+- Implementation PR: https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/28. Implementation commit 87ddfca53fbd0dd45edb95c60e14b20cdffd91fd; current PR head after the review-packet-only commit is 0f9be508012958334b42089f12d81277d8b82636.
 - Individual AC/EC evidence is duplicated in the M0025 completion matrix below; each case remains separately identified.
 - VAL-07 is a read-only in-process census on two disposable detached worktrees; only SHAs/counts/overlap/context/timing are retained. No source content or semantic verdicts were recorded.
 - Remaining: run ./eng/validate.ps1 -Verify after final reconciliation. Keep VAL-08 and REV-01 pending until an authorized human decision; do not run review-check before then.
