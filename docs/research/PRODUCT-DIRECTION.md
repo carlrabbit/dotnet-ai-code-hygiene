@@ -10,7 +10,9 @@ This document preserves the current product thesis and the reasoning that should
 
 M0016 replaced production hazard/age-based semantic-review scheduling with deterministic, bounded, gate-local candidate selection for the three original semantic-review rules. A concrete changed-source/manual/explicit-surveillance gate, not the passage of time, authorizes semantic review work. Historical M0009–M0015 hazard and age research remains historical rather than operative authority. The research synthesis is in [SAMPLING-GATE-PIVOT.md](SAMPLING-GATE-PIVOT.md); the implemented behavior is governed by the current specifications.
 
-M0017 planning expands that mechanism to type-responsibility, test-quality, and ordinary-comment review. It also reclassifies the existing visual-block blank-line signal as a review *candidate*, not proof of a missing mandatory formatting fix. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md) for the product/agent boundary.
+M0017 expanded that mechanism to type-responsibility, test-quality, and ordinary-comment review. It also reclassified the visual-block blank-line signal as a review *candidate*, not proof of a mandatory formatting defect. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md) for the product/agent boundary.
+
+**November 2026 planning decision:** Pre-1.0 rule development favors broad agent-implemented candidate portfolios, comparative evaluation on real code, and aggressive consolidation without experimental backwards-compatibility constraints. Deterministic rule mechanics are tested, but synthetic fixed-label LLM 'good/bad' cases are not reliable or repeatable tests of semantic judgment. The operative planning decision is in [Project Guidance](../PROJECT-GUIDANCE.md); its research rationale is [Semantic Rule Portfolio Strategy](SEMANTIC-RULE-PORTFOLIO-STRATEGY.md).
 
 ## Product thesis
 
@@ -62,17 +64,17 @@ The current product boundary deliberately keeps model/provider invocation outsid
 
 This boundary should remain the default unless a future milestone establishes a concrete benefit that cannot be achieved cleanly through external orchestration.
 
-### Prefer a small high-value surface
+### Prefer a small high-value production surface
 
 Do not attempt to replace Roslyn analyzers, dotnet format, IDE tooling, or every style ecosystem.
 
-Add rules or rewrites where the tool can provide a distinct AI-development benefit, a stronger opinionated contract, useful agent-oriented output, or a workflow that existing tools do not provide well.
+Add rules or rewrites where the tool can provide a distinct AI-development benefit, a stronger opinionated contract, useful agent-oriented output, or a workflow that existing tools do not provide well. **A focused final product does not require narrow sequential implementation.** Build and compare more experimental candidates than will ultimately ship when that reduces total agentic planning, implementation and validation cost.
 
 ### Verify review-work machinery, not the reviewing model
 
 The hygiene product's verifiable contract is to discover rule-eligible subjects, identify and explain deterministic indicators, select bounded gate-relevant review work, supply truthful context, persist explicit accepted evidence, and invalidate stale work. A deterministic trigger is not proof of a semantic defect.
 
-Judgment and context-sensitive remediation belong to the external invoking agent. Do not make software acceptance depend on benchmarks of the current model's subjective correctness, usefulness scores, a particular model/provider, or predictions about future agent capability. The tool must remain useful as models change.
+Judgment and context-sensitive remediation belong to the external invoking agent. Do not make software acceptance depend on benchmarks of the current model's subjective correctness, usefulness scores, a particular model/provider, or predictions about future agent capability. Synthetic controlled code examples may test deterministic detector predicates but must not assert fixed model-produced semantic verdicts. The tool must remain useful as models change.
 
 Gate-local selection is selective inspection, not population certification. No defect-rate, completeness, or false-positive guarantee follows from a five-item sample. See [Verifiable Review Work](VERIFIABLE-REVIEW-WORK.md).
 
@@ -88,7 +90,7 @@ See docs/research/RULE-APPLICATION-ARCHITECTURE.md.
 
 ### Bounded semantic-review selection
 
-M0016 supplies the active fixed-budget gate-local mechanism. New semantic rules should reuse it, with independently defined subjects, questions and escalation, rather than reviving historical hazard clocks or introducing parameter-learning experiments.
+M0016 supplies the current fixed-budget gate-local mechanism. A future portfolio redesign may change identities, grouping, selection budgets and persistence without pre-1.0 backwards-compatibility obligations when a ready milestone authorizes it. Do not revive historical hazard clocks or parameter-learning experiments by default.
 
 The historical subject-state and aggregate/cohort studies remain in docs/research/SAMPLING-RULES.md for provenance, not as an implementation roadmap or substitute for the current sampling specification.
 
@@ -156,7 +158,7 @@ A mature version should provide a compact set of high-value hygiene operations t
 - How much repository-level context should a rule be allowed to request?
 - When does the current engine need to become an explicit rule pipeline?
 - Which future semantic rules need individual sampling guarantees versus population-level statistical guarantees?
-- Should BORING become a named product principle with enforceable sub-rules, or remain a planning heuristic?
+- Which specific BORING failure modes deserve separate executable rules, which overlap with existing type-responsibility review, and how should their combined gate budget be bounded?
 - Which forms of deterministic remediation are sufficiently safe to belong in the CLI?
 - What evidence would justify moving model invocation or orchestration into the product boundary?
 - What evidence would justify cross-platform support or broader distribution?

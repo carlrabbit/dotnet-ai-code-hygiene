@@ -87,6 +87,10 @@ dotnet hygiene
 
 For a tool installed with `--tool-path`, run `dotnet tool update --tool-path <tool-path> DotNetAiCodeHygiene.Tool --version <approved-version>` from the same trusted package source. Offline or unavailable release metadata is not evidence that the installation is current; follow the explicit next action in the lifecycle report. Do not use floating prerelease versions or arbitrary package feeds.
 
+## Planning and Semantic Rule Development
+
+The pre-1.0 planning policy is in [Project Guidance](docs/PROJECT-GUIDANCE.md), with the rationale in [Semantic Rule Portfolio Strategy](docs/research/SEMANTIC-RULE-PORTFOLIO-STRATEGY.md). Rule development favors broad agent-implemented candidate portfolios followed by consolidation; it does not preserve experimental rule contracts for compatibility. Deterministic candidate and handoff contracts are tested, but invented fixed-label LLM judgments are not treated as repeatable semantic regression tests.
+
 ## Deferred Work
 
 `--review-all` remains a bounded inspection request, not exhaustive authorization. No hosted CI/workflow, provider integration, or public package publication is part of this release.

@@ -74,6 +74,25 @@ Do not introduce production plugin discovery or a DI framework solely to obtain 
 
 Physical source-layout requirements are validated by repository/source review plus normal compilation/tests; do not build a runtime architecture framework merely to enforce folders.
 
+## Semantic-review software validation
+
+For semantic rules, separate **deterministic candidate/review-work correctness** from **external agent judgment**. The first is tested as software; the second is not an automated acceptance oracle. This boundary is binding when planning milestone evidence and implementing tests. See [Project Guidance](PROJECT-GUIDANCE.md) and the supporting [Verifiable Review Work](research/VERIFIABLE-REVIEW-WORK.md) research.
+
+Required software evidence, as applicable to the rule and milestone, includes:
+
+- Roslyn eligibility, exclusions, exact mechanical predicates, source spans, semantic-symbol identities and stable population/fingerprints;
+- accurate surrounding source and cross-project context, truthful questions, escalation metadata and correct isolation of independent rule findings;
+- changed/explicit/full/zero-work gate behavior; deterministic bounded allocation; rechecks and stale/invalidated acceptance; no unwanted change to unrelated populations;
+- installed-tool behavior when the milestone requires consumer-surface acceptance.
+
+Small controlled C# snippets or isolated fixture repositories **are appropriate** for these deterministic properties. A compiler fixture proving that a candidate exists is not proof that its design is defective.
+
+Do **not** add synthetic `good code`/`bad code` corpora whose asserted outcome is an LLM's subjective BORINGness, architecture, readability, comment-intent, or test-quality verdict. Do not repeatedly run model judgments as deterministic regression tests; such verdicts depend on real project context and vary across models, prompts and runs. Do not require precision/recall, model consensus, a fixed 'gold' label or a semantic benchmark score to close software acceptance.
+
+Optional real-repository semantic assessments are **investigative**, not ordinary Core/CLI tests or milestone gates unless specifically planned to answer a material policy question. Record real changes, scope, provenance, observed actionable versus legitimate/no-change outcomes, review effort, overlap, uncertainty and evidence limitations; do not claim repeatable model truth or population-wide accuracy. A concrete detector defect discovered during exploration should produce a deterministic regression for that defect, not a frozen LLM judgment.
+
+During broad parallel rule implementation, use focused tests while editing and the required complete milestone gates at completion. Use the existing resumable receipts and sharding without re-running unrelated full validation after every rule. The acceptance ledger must still preserve criterion-specific evidence rather than replacing it with a green aggregate.
+
 ## Profile fixtures
 
 Use isolated SDK-style Git repositories covering:

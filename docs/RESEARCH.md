@@ -10,17 +10,20 @@ Use this layer for:
 - competing options, hypotheses, and open questions;
 - external technical research when a planning decision needs factual evidence.
 
-Do not treat research as a specification. When planning resolves a material choice, promote the decision into the applicable milestone/specification/architecture authority and keep the research as rationale and provenance.
+Do not treat research as a specification. When planning resolves a material choice, promote the decision into the applicable milestone, project planning guidance, specification, architecture or engineering authority and keep research as rationale and provenance. The current major planning decisions on broad agentic rule development and semantic testing are authoritative in [PROJECT-GUIDANCE.md](PROJECT-GUIDANCE.md).
 
 ## Current planning context
 
 - docs/research/PRODUCT-DIRECTION.md — product thesis, design principles, likely evolution, and milestone-selection criteria.
 - docs/research/HUMAN-CONSUMABILITY.md — human-in-the-loop constraints, BORING-code direction, and review/catch-up pressure.
 - docs/research/RULE-APPLICATION-ARCHITECTURE.md — current rule-application shape, scaling concerns, and candidate pipeline direction.
-- docs/research/SAMPLING-RULES.md — statistical sampling direction for expensive/dense rule populations, including subject-state and aggregate/cohort models.
+- docs/research/SAMPLING-RULES.md — historical statistical sampling options for expensive/dense rule populations, not the current production policy.
+- [SEMANTIC-RULE-PORTFOLIO-STRATEGY.md](research/SEMANTIC-RULE-PORTFOLIO-STRATEGY.md) — rationale for broad agent-driven candidate implementation, comparative consolidation, and avoidance of synthetic LLM-verdict tests.
+- [VERIFIABLE-REVIEW-WORK.md](research/VERIFIABLE-REVIEW-WORK.md) — the previously established distinction between deterministic review-work contracts and nonrepeatable external semantic judgments.
+- [SAMPLING-GATE-PIVOT.md](research/SAMPLING-GATE-PIVOT.md) — why earlier hazard/age experiments were superseded by change-gate review.
 
 These documents intentionally contain unresolved questions. A planning agent should use them to decide what deserves a milestone or further research; an implementation agent should follow the milestone and authoritative docs selected for its work.
 
-## Activity-age direction
+## Historical activity-age work
 
-See [ACTIVITY-AGE.md](research/ACTIVITY-AGE.md) for the accepted planning direction: abstract age units from project-scoped activity, not generic wall-clock time. M0012 owns implementation; M0013 is a separate planned validation experiment. Current runtime contracts remain in the specifications until implementation.
+[ACTIVITY-AGE.md](research/ACTIVITY-AGE.md) and related M0012–M0014 experiments document an earlier approach. That approach was superseded by the [gate-local sampling pivot](research/SAMPLING-GATE-PIVOT.md) and subsequent production milestones; it is retained for evidence and historical interpretation, **not** as current planning or implementation authority. Current runtime contracts remain in the specifications.
