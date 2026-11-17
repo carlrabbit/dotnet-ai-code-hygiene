@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Text;
 
 namespace DotNetAiCodeHygiene.Core;
 
@@ -43,6 +44,131 @@ internal sealed class SemanticReviewRuleRunner(IReadOnlyList<ISemanticReviewRule
                 return materialized with { Batch = batch };
             }).ToArray();
         return new(built.Select(x => x.Batch).ToArray(), built.SelectMany(x => x.Tickets).ToArray());
+    }
+}
+
+internal static class GeneralSemanticBudget
+{
+    internal const int MaximumObligations = 10;
+    internal const int MaximumContextAffected = 2;
+    private static readonly HashSet<string> PortfolioRuleIds = new(StringComparer.Ordinal)
+    {
+        "architecture.abstraction.necessity", "architecture.indirection.value", "architecture.responsibility.cohesion",
+        "architecture.boundary.ownership", "architecture.authority.uniqueness", "architecture.lifecycle.binding", "architecture.mechanism.explicitness",
+        "behavior.error.contract", "behavior.validation.boundary", "behavior.state.consistency", "behavior.resource.ownership",
+        "tests.assertion.effectiveness", "tests.change-contract.coverage", "tests.isolation.coupling",
+        "docs.summary.quality.review", "docs.summary.language.german.review", "comments.intent.review"
+    };
+
+    internal static IReadOnlyList<RuleModuleExecution> SelectExecutions(IReadOnlyList<RuleModuleExecution> executions, RuleContext context)
+    {
+        var general = executions.Where(execution => PortfolioRuleIds.Contains(execution.Descriptor.Id))
+            .ToArray();
+        if (general.Length == 0) { return executions; }
+        var populations = general.Select(execution => (execution.Descriptor,
+            (IReadOnlyList<ReviewSubject>)execution.Result.ReviewSubjects.Select(subject => subject with
+            { RelatedEvidenceFingerprint = context.RelationshipFingerprint(subject.RelatedAnchors) }).ToArray())).ToArray();
+        IReadOnlyDictionary<string, IReadOnlyList<ReviewSubject>> selected = context.SelectGeneral(populations);
+        var populationById = populations.ToDictionary(population => population.Descriptor.Id, population => population.Item2, StringComparer.Ordinal);
+        return executions.Select(execution =>
+        {
+            if (!selected.TryGetValue(execution.Descriptor.Id, out IReadOnlyList<ReviewSubject>? subjects)) { return execution; }
+            RuleModuleResult result = execution.Result with
+            {
+                ReviewSubjects = populationById[execution.Descriptor.Id],
+                SelectedReviewSubjects = subjects,
+                ReviewSourceContents = SelectedSources(execution.Result, subjects, context)
+            };
+            return execution with { Result = result };
+        }).ToArray();
+    }
+
+    private static IReadOnlyDictionary<string, string> SelectedSources(RuleModuleResult result, IReadOnlyList<ReviewSubject> selected, RuleContext context)
+    {
+        var sources = result.ReviewSourceContents.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        foreach (ReviewAnchor anchor in selected.SelectMany(subject => subject.RelatedAnchors ?? []).DistinctBy(value => value.Path))
+        {
+            if (!sources.ContainsKey(anchor.Path) && context.SourceContent(anchor.Path) is string content) { sources[anchor.Path] = content; }
+        }
+        return sources;
+    }
+}
+
+internal static class ReviewEvidenceBuilder
+{
+    internal const int MaximumExcerpts = 8;
+    internal const int MaximumUtf8Bytes = 24_000;
+
+    internal static (ReviewItem Item, ReviewSource[] Sources) Build(ReviewItem item, ReviewAnchor? primary,
+        IReadOnlyList<ReviewAnchor>? related, IReadOnlyDictionary<string, string> sourceContents,
+        string? question, string? legitimateCase, string? signal)
+    {
+        primary ??= new ReviewAnchor("", item.Path, item.Line, item.Column, item.Symbol, "primary");
+        var anchors = new[] { primary }.Concat(related ?? []).DistinctBy(a => (a.Project, a.Path, a.Line, a.Symbol, a.Relation)).ToArray();
+        var excerpts = new List<ReviewEvidenceExcerpt>();
+        var sources = new Dictionary<string, string>(StringComparer.Ordinal);
+        var missing = new List<string>();
+        int bytes = Encoding.UTF8.GetByteCount(question ?? "") + Encoding.UTF8.GetByteCount(legitimateCase ?? "") +
+            Encoding.UTF8.GetByteCount(signal ?? "") + Encoding.UTF8.GetByteCount(item.Summary) +
+            Encoding.UTF8.GetByteCount(item.Declaration) + Encoding.UTF8.GetByteCount(item.Symbol) + Encoding.UTF8.GetByteCount(item.Path);
+        foreach (ReviewAnchor anchor in anchors)
+        {
+            string label = $"{anchor.Project}:{anchor.Path}:{anchor.Line}:{anchor.Symbol}";
+            if (!sourceContents.TryGetValue(anchor.Path, out string? source))
+            {
+                missing.Add($"{label} (source unavailable)");
+                continue;
+            }
+            if (excerpts.Count >= MaximumExcerpts)
+            {
+                missing.Add($"{label} (excerpt limit {MaximumExcerpts} reached)");
+                continue;
+            }
+            string[] lines = source.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+            int center = Math.Clamp(anchor.Line - 1, 0, Math.Max(0, lines.Length - 1));
+            int first = Math.Max(0, center - 3), last = Math.Min(lines.Length - 1, center + 3);
+            string text = string.Join("\n", lines[first..(last + 1)]);
+            int metadataBytes = Encoding.UTF8.GetByteCount(anchor.Project + anchor.Path + anchor.Symbol + anchor.Relation);
+            int remaining = MaximumUtf8Bytes - bytes - metadataBytes;
+            if (remaining <= 0)
+            {
+                missing.Add($"{label} (24,000 UTF-8 byte limit reached)");
+                continue;
+            }
+            string bounded = TruncateUtf8(text, remaining);
+            if (bounded.Length < text.Length) { missing.Add($"{label} (excerpt truncated at 24,000 UTF-8 bytes)"); }
+            int excerptBytes = Encoding.UTF8.GetByteCount(bounded) + metadataBytes;
+            bytes += excerptBytes;
+            string sourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+            var excerpt = new ReviewEvidenceExcerpt(anchor.Project, anchor.Path, first + 1, last + 1, anchor.Symbol, bounded, sourceHash);
+            excerpts.Add(excerpt);
+            sources[anchor.Path] = bounded;
+        }
+        string status = excerpts.Count == 0 ? "unavailable" : missing.Count == 0 ? "available" : "partial";
+        return (item with
+        {
+            Question = question,
+            LegitimateCase = legitimateCase,
+            ObservedSignal = signal,
+            ContextStatus = status,
+            PrimaryAnchor = primary,
+            RelatedAnchors = related ?? [],
+            Evidence = excerpts,
+            MissingEvidence = missing
+        }, sources.Select(pair => new ReviewSource(pair.Key, pair.Value)).ToArray());
+    }
+
+    private static string TruncateUtf8(string value, int maximumBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(value) <= maximumBytes) { return value; }
+        int low = 0, high = value.Length;
+        while (low < high)
+        {
+            int middle = low + (high - low + 1) / 2;
+            if (Encoding.UTF8.GetByteCount(value.AsSpan(0, middle)) <= maximumBytes) { low = middle; }
+            else { high = middle - 1; }
+        }
+        return value[..low];
     }
 }
 

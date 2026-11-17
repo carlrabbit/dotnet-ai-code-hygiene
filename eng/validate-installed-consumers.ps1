@@ -1,15 +1,16 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
-$package = Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.11.0.nupkg
+$package = Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.12.0.nupkg
 $packageSha256 = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-$tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-m0024-consumer-' + [guid]::NewGuid().ToString('N'))
+$tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-m0025-consumer-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'
 $toolPath = Join-Path $tierRoot 'tools'
 $consumer = Join-Path $tierRoot 'consumer'
 $migration = Join-Path $tierRoot 'migration'
+$relationshipConsumer = Join-Path $tierRoot 'relationship-consumer'
 $cache = Join-Path $tierRoot 'nuget-cache'
 $report = Join-Path $tierRoot 'audit'
-New-Item -ItemType Directory -Force $feed, $toolPath, $consumer, $migration, $cache | Out-Null
+New-Item -ItemType Directory -Force $feed, $toolPath, $consumer, $migration, $relationshipConsumer, $cache | Out-Null
 Copy-Item -LiteralPath $package.FullName -Destination $feed
 if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $packageSha256) { throw 'The isolated feed package differs from the package just packed.' }
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
@@ -24,18 +25,19 @@ $env:PATH = $toolPath + [IO.Path]::PathSeparator + $env:PATH
 $env:NUGET_PACKAGES = $cache
 $env:DOTNET_HYGIENE_SKIP_UPDATE = '1'
 try {
-    dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.11.0
+    dotnet tool install DotNetAiCodeHygiene.Tool --tool-path $toolPath --configfile $nugetConfig --version 0.12.0
     if ($LASTEXITCODE -ne 0) { throw "Isolated exact-package install failed ($LASTEXITCODE)." }
     $installed = Join-Path $toolPath 'dotnet-hygiene.exe'
     if (-not (Test-Path -LiteralPath $installed)) { throw 'The installed dotnet-hygiene apphost is missing.' }
+    $installedShimSha256 = (Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash.ToLowerInvariant()
     $installedVersion = dotnet hygiene --version
-    if ($LASTEXITCODE -ne 0 -or ($installedVersion -join '').Trim() -ne '0.11.0') { throw 'The installed command did not report package version 0.11.0.' }
+    if ($LASTEXITCODE -ne 0 -or ($installedVersion -join '').Trim() -ne '0.12.0') { throw 'The installed command did not report package version 0.12.0.' }
 
     Push-Location $consumer
     try {
         git init -q -b main
-        git config user.email hygiene-m0024@example.invalid
-        git config user.name 'M0024 Installed Consumer'
+        git config user.email hygiene-m0025@example.invalid
+        git config user.name 'M0025 Installed Consumer'
         Set-Content -NoNewline -Path .gitignore -Value "**/bin/`n**/obj/`n**/.hygiene/.state/`n"
         Set-Content -NoNewline -Path Consumer.csproj -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
         Set-Content -NoNewline -Path Sample.cs -Value 'using System; public class Sample{public object Create(){return new object();}}'
@@ -55,7 +57,7 @@ try {
         git add -A
         git commit -m 'accept reviewed profile artifacts' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not establish the clean profile checkpoint.' }
-        dotnet hygiene baseline accept --approver 'Isolated M0024 fixture reviewer' --report-sha256 $bootstrap.reportSha256 | Out-Null
+        dotnet hygiene baseline accept --approver 'Isolated M0025 fixture reviewer' --report-sha256 $bootstrap.reportSha256 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'The exact installed bootstrap report could not be accepted in the isolated fixture.' }
 
         Set-Content -NoNewline -Path Sample.cs -Value 'using System; public class Sample{public object Create(){return new object();}}'
@@ -165,8 +167,8 @@ public class Closing
     Push-Location $migration
     try {
         git init -q -b main
-        git config user.email hygiene-m0024@example.invalid
-        git config user.name 'M0024 Migration Consumer'
+        git config user.email hygiene-m0025@example.invalid
+        git config user.name 'M0025 Migration Consumer'
         Set-Content -NoNewline -Path .gitignore -Value "**/bin/`n**/obj/`n**/.hygiene/.state/`n"
         New-Item -ItemType Directory -Force src, .hygiene | Out-Null
         Set-Content -NoNewline -Path src\Consumer.csproj -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
@@ -189,13 +191,67 @@ public class Closing
     }
     finally { Pop-Location }
 
+    Push-Location $relationshipConsumer
+    try {
+        git init -q -b main
+        git config user.email hygiene-m0025@example.invalid
+        git config user.name 'M0025 Relationship Consumer'
+        Set-Content -NoNewline -Path .gitignore -Value "**/bin/`n**/obj/`n**/.hygiene/.state/`n"
+        New-Item -ItemType Directory -Force Provider, Consumer | Out-Null
+        Set-Content -NoNewline -Path Provider\Provider.csproj -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework><AssemblyName>ProviderLib</AssemblyName></PropertyGroup></Project>'
+        Set-Content -NoNewline -Path Provider\Provider.cs -Value 'namespace ProviderLib; public sealed class Provider { public string GetValue() => "v1"; }'
+        Set-Content -NoNewline -Path Consumer\Consumer.csproj -Value '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup><ItemGroup><ProjectReference Include="..\Provider\Provider.csproj" /></ItemGroup></Project>'
+        Set-Content -NoNewline -Path Consumer\Service.cs -Value 'using ProviderLib; public sealed class ConsumerService { public string Read() => new Provider().GetValue(); }'
+        dotnet restore .\Consumer\Consumer.csproj --configfile $nugetConfig | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'M0025 relationship consumer restore failed.' }
+        git add -A; git commit -m 'relationship consumer baseline' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit M0025 relationship baseline.' }
+        $bootstrap = dotnet hygiene bootstrap --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $bootstrap.status -ne 'approval-required') { throw 'Installed M0025 bootstrap did not create an approval-required baseline.' }
+        git add -A; git commit -m 'reviewed M0025 profile artifacts' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit M0025 reviewed profile artifacts.' }
+        dotnet hygiene baseline accept --approver 'Isolated M0025 fixture reviewer' --report-sha256 $bootstrap.reportSha256 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Installed M0025 baseline acceptance failed.' }
+
+        Set-Content -NoNewline -Path Provider\Provider.cs -Value 'namespace ProviderLib; public sealed class Provider { public string GetDisplayValue() => "v2"; }'
+        Set-Content -NoNewline -Path Consumer\Service.cs -Value 'using ProviderLib; public sealed class ConsumerService { public string Read() => new Provider().GetDisplayValue(); }'
+        git add Provider\Provider.cs Consumer\Service.cs; git commit -m 'change provider contract and consumer' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit M0025 cross-project change.' }
+        $base = (git rev-parse HEAD^).Trim()
+        $review = dotnet hygiene check --base $base --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0) { throw 'Installed dotnet hygiene check failed on the M0025 relationship change.' }
+        $boundary = $review.reviewBatches | Where-Object ruleId -eq 'architecture.boundary.ownership'
+        $related = @($boundary.items | Where-Object { $_.relatedAnchors.Count -gt 0 })
+        if (-not $boundary -or $boundary.sampleCount -lt 1 -or -not $related) { throw 'Installed consumer did not report selected cross-project boundary review work.' }
+        $relatedItem = $related[0]
+        if ($relatedItem.evidence.Count -lt 2 -or $relatedItem.contextStatus -ne 'available') { throw 'Installed relationship review did not include bounded evidence from both projects.' }
+        if (($review.reviewBatches | Where-Object { $_.ruleId -in @('architecture.abstraction.necessity','architecture.indirection.value','architecture.responsibility.cohesion','architecture.boundary.ownership','architecture.authority.uniqueness','architecture.lifecycle.binding','architecture.mechanism.explicitness','behavior.error.contract','behavior.validation.boundary','behavior.state.consistency','behavior.resource.ownership','tests.assertion.effectiveness','tests.change-contract.coverage','tests.isolation.coupling','docs.summary.quality.review','docs.summary.language.german.review','comments.intent.review') } | ForEach-Object sampleCount | Measure-Object -Sum).Sum -gt 10) { throw 'Installed consumer exceeded the shared ten-obligation portfolio budget.' }
+        dotnet hygiene review accept $boundary.handle $relatedItem.id | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Installed consumer could not accept the selected relationship obligation.' }
+        $afterAcceptance = dotnet hygiene check --base $base --output json | ConvertFrom-Json
+        $afterBoundary = $afterAcceptance.reviewBatches | Where-Object ruleId -eq 'architecture.boundary.ownership'
+        if ($LASTEXITCODE -ne 0 -or @($afterBoundary.items | Where-Object id -eq $relatedItem.id).Count -ne 0) { throw 'Same-gate accepted relationship work was not suppressed without a replacement obligation.' }
+
+        $protectedPaths = @('Provider/Provider.cs','Consumer/Service.cs','.git/index','.hygiene/profile.json','.hygiene/.state/latest-run.json','.hygiene/.state/gate-reviews.json')
+        $protectedBefore = @{}
+        foreach ($path in $protectedPaths) { if (Test-Path -LiteralPath $path) { $protectedBefore[$path] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash } }
+        $audit = Join-Path $tierRoot 'm0025-audit'
+        $auditStart = dotnet hygiene --yolo-all --attest-explicit-task --report-dir $audit --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $auditStart.status -ne 'collecting') { throw 'Installed exhaustive audit did not start after explicit task attestation.' }
+        $auditRun = $auditStart.auditDirectory
+        $auditWork = dotnet hygiene audit next --run $auditRun --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $null -eq $auditWork) { throw 'Installed exhaustive audit did not produce bounded next work.' }
+        foreach ($path in $protectedPaths) { if ($protectedBefore.ContainsKey($path) -and (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $protectedBefore[$path]) { throw "Exhaustive audit modified protected file '$path'." } }
+    }
+    finally { Pop-Location }
+
     $version = (& dotnet --version).Trim()
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 2; milestone = 'M0024'; package = $package.Name; packageSha256 = $packageSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.11.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration') } |
+    [pscustomobject]@{ schemaVersion = 3; milestone = 'M0025'; package = $package.Name; packageSha256 = $packageSha256; installedShimSha256 = $installedShimSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.12.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration', 'cross-project-related-evidence', 'shared-semantic-budget', 'same-gate-acceptance-without-refill', 'attested-exhaustive-read-only-audit') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
-    Write-Output "Installed-consumer M0024 evidence passed; package SHA-256 $packageSha256."
+    Write-Output "Installed-consumer M0025 evidence passed; package SHA-256 $packageSha256."
 }
 finally {
     $env:PATH = $oldPath
@@ -204,7 +260,7 @@ finally {
     $resolvedTier = [IO.Path]::GetFullPath($tierRoot)
     $resolvedTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
     if (-not $resolvedTemp.EndsWith([IO.Path]::DirectorySeparatorChar)) { $resolvedTemp += [IO.Path]::DirectorySeparatorChar }
-    if ($resolvedTier.StartsWith($resolvedTemp, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path -Leaf $resolvedTier) -like 'hygiene-m0024-consumer-*' -and (Test-Path -LiteralPath $resolvedTier)) {
+    if ($resolvedTier.StartsWith($resolvedTemp, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path -Leaf $resolvedTier) -like 'hygiene-m0025-consumer-*' -and (Test-Path -LiteralPath $resolvedTier)) {
         Remove-Item -LiteralPath $resolvedTier -Recurse -Force
     }
 }

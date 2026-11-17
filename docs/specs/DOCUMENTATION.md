@@ -201,9 +201,9 @@ It does not apply to `<inheritdoc/>`, `<remarks>`, `<example>`, `<code>`, `<c>`,
 
 ## Summary quality review
 
-`docs.summary.quality.review` is version `6`; `docs.summary.language.german.review` is version `4`. Each rule uses independent gate-local selection over the shared subject/carrier population. Gate admission and priority are defined in `docs/specs/SEMANTIC-REVIEWS.md`.
+`docs.summary.quality.review` is version `7`; `docs.summary.language.german.review` is version `5`. Each rule uses the shared gate-local semantic budget over the summary-carrier population. Gate admission and priority are defined in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
 
-Each rule has a maximum normal budget of five selected subjects and records accepted observations only through explicit review acceptance. The language-neutral quality rubric remains separate from the independent German review policy.
+Both rules remain independently toggleable, but selected obligations consume the same ten-obligation budget as the other general semantic rules. The language-neutral quality rubric remains separate from the optional German review policy. Accepted observations are recorded only through explicit review acceptance.
 
 Population changes from literal `<summary>` elements to explicit non-empty documentation summaries resolved through the summary-carrier model:
 
@@ -218,23 +218,7 @@ Subject identity remains the API subject identity; content fingerprint uses the 
 
 ## Canonical normal-rule order
 
-Canonical normal order:
-
-```text
-1. profile.dotnet.analysis.required         v1  mandatory finding
-2. profile.stylecop.prohibited              v1  mandatory finding
-3. docs.summary.required                    v2  configurable finding
-4. docs.xml.consistent                      v1  configurable finding
-5. docs.text.sentence                       v1  configurable finding
-6. docs.summary.quality.review              v6  configurable review-batch
-7. docs.summary.language.german.review      v4  configurable review-batch
-8. readability.long-line.review             v1  configurable review-candidate
-9. readability.control-flow.visual-block    v2  configurable review-candidate
-10. architecture.boringness.review          v3  configurable review-batch
-11. readability.type-responsibility.review  v1  configurable review-batch
-12. tests.quality.review                    v1  configurable review-batch
-13. comments.intent.review                  v1  configurable review-batch
-```
+The current runtime catalog and all rule versions are listed in `docs/specs/RULE-CAPABILITIES.md`. The summary-review subjects and policy are specified above; their selected obligations participate in the shared ten-obligation budget defined in `docs/specs/SAMPLING.md`.
 
 Structural documentation findings are evaluated before semantic summary review.
 

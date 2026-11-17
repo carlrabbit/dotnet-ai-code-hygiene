@@ -23,7 +23,17 @@ public sealed record ReviewItem(string Id, string Path, int Line, int Column, st
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     int? OccurrencePopulationCount = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    int? OccurrencesRemainingCount = null);
+    int? OccurrencesRemainingCount = null,
+    string? Question = null,
+    string? LegitimateCase = null,
+    string? ObservedSignal = null,
+    string? ContextStatus = null,
+    ReviewAnchor? PrimaryAnchor = null,
+    IReadOnlyList<ReviewAnchor>? RelatedAnchors = null,
+    IReadOnlyList<ReviewEvidenceExcerpt>? Evidence = null,
+    IReadOnlyList<string>? MissingEvidence = null);
+public sealed record ReviewAnchor(string Project, string Path, int Line, int Column, string Symbol, string Relation);
+public sealed record ReviewEvidenceExcerpt(string Project, string Path, int StartLine, int EndLine, string Symbol, string Text, string SourceSha256);
 public sealed record ReviewOccurrence(string Id, string DiagnosticId, string Path, int Line, int Column, string Owner,
     string OriginalSyntax, string Context, string PreviewTitle, string Preview, string Question,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -39,10 +49,10 @@ public sealed record ReviewAcceptance(string BatchHandle, string RuleId, IReadOn
 {
     public int AcceptedCount => ItemIds.Count;
 }
-public sealed record ReviewBatch(string Id, string Handle, string RuleId, int RuleVersion, string Mode, string ReviewerClass, int PopulationCount, int SampleCount, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewItem> Items, string PopulationFingerprint, IReadOnlyList<ReviewItem>? PopulationItems = null, IReadOnlyList<ReviewSource>? SourceContents = null);
+public sealed record ReviewBatch(string Id, string Handle, string RuleId, int RuleVersion, string Mode, string ReviewerClass, int PopulationCount, int SampleCount, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewItem> Items, string PopulationFingerprint, IReadOnlyList<ReviewItem>? PopulationItems = null, IReadOnlyList<ReviewSource>? SourceContents = null, int PageOffset = 0, int? NextPageOffset = null);
 public sealed record ReviewRequestSource(string RunId, string BatchHandle);
 public sealed record ReviewRequestRule(string Id, int Version);
-public sealed record SemanticReviewRequest(int SchemaVersion, string Kind, string HandoffId, string CreatedAtUtc, ReviewRequestSource Source, ReviewRequestRule Rule, string Mode, string ReviewerClass, int PopulationCount, IReadOnlyList<ReviewQuestion> Questions, IReadOnlyList<ReviewItem> Items, IReadOnlyList<ReviewSource> Sources);
+public sealed record SemanticReviewRequest(int SchemaVersion, string Kind, string HandoffId, string CreatedAtUtc, ReviewRequestSource Source, ReviewRequestRule Rule, string Mode, string ReviewerClass, int PopulationCount, IReadOnlyList<ReviewQuestion> Questions, IReadOnlyList<ReviewItem> Items, IReadOnlyList<ReviewSource> Sources, int PageOffset = 0, int? NextPageOffset = null);
 public sealed record CheckResult(int SchemaVersion, string RunId, IReadOnlyList<Finding> Findings, int IgnoredCount, IReadOnlyList<ReviewBatch> ReviewBatches);
 public sealed record IgnoreDecision(string Id, string RuleId, int RuleVersion, string Path, string Anchor, string Fingerprint, string Reason, DateTimeOffset CreatedAt, string? Discriminator = null);
 public sealed record IgnoreView(string Id, string RuleId, string Path, string State, string Reason);
@@ -131,6 +141,11 @@ public sealed class HygieneEngine
         {
             Config value = Read(ConfigPath, new Config(1, []));
             string[] fixedMechanical = [BracesStyleRuleModule.RuleId, AccessibilityStyleRuleModule.RuleId];
+            string[] retired = ["architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review"];
+            if (value.DisabledRules?.Any(retired.Contains) == true)
+            {
+                throw new ProductException(".hygiene/config.json disables retired M0017 semantic rule IDs. Preserve a copy of the file, remove only the retired IDs, then rerun; no configuration bytes were changed.");
+            }
             if (value.SchemaVersion != 1 || value.DisabledRules is null || value.DisabledRules.Any(id => !Rules.Any(r => r.Id == id && (r.Configurable || fixedMechanical.Contains(id, StringComparer.Ordinal)))) || value.DisabledRules.Distinct(StringComparer.Ordinal).Count() != value.DisabledRules.Length)
             {
                 throw new ProductException("Invalid or unsupported .hygiene/config.json.");
@@ -188,7 +203,7 @@ public sealed class HygieneEngine
         return (result, documents, projects);
     }
 
-    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false, Action<string>? gateIdentitySink = null, bool exhaustiveAudit = false, Action<int, int>? auditScopeSink = null)
+    private CheckResult CheckCore(string[] paths, bool changed, bool applyIgnores, bool includeDisabled, bool publishLatest, List<ReviewTicketAssociation>? ticketSink = null, string? baseRef = null, bool reviewAll = false, Action<string>? gateIdentitySink = null, bool exhaustiveAudit = false, Action<int, int>? auditScopeSink = null, string? expandRuleId = null, int expandPageOffset = 0, bool createReviewTickets = true)
     {
         RequireProfile();
         using var session = new RepositorySession(root);
@@ -214,9 +229,10 @@ public sealed class HygieneEngine
         Document[] reportingDocuments = projectsByTarget.Values.Select(value => value.Document).DistinctBy(document => document.Id).ToArray();
         auditScopeSink?.Invoke(reportingDocuments.Length, session.Projects.Count);
         var ruleContext = new RuleContext(session, reportingDocuments,
-            new GateSelectionContext(gateId, exhaustiveAudit ? "exhaustive" : mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines), exhaustiveAudit);
+            new GateSelectionContext(gateId, exhaustiveAudit ? "exhaustive" : mode, changedPaths.ToHashSet(StringComparer.Ordinal), changedLines, expandRuleId, expandPageOffset), exhaustiveAudit);
         IReadOnlyList<RuleModuleExecution> executions = SharedModernizationBudget.SelectExecutions(
             ruleRunner.Run(ruleContext, disabled.ToHashSet(StringComparer.Ordinal)), ruleContext);
+        executions = GeneralSemanticBudget.SelectExecutions(executions, ruleContext);
         string completeGateIdentity = GateLocalReviewStore.GateIdentity(gateId, inspectionMode, resolvedBase, head,
             targets.Select(session.Relative), executions.Where(execution => RuleCatalog.SemanticReviewModules.Any(module => module.Descriptor.Id == execution.Descriptor.Id))
                 .Select(execution => (execution.Descriptor.Id, execution.Descriptor.Version, (IEnumerable<ReviewSubject>)execution.Result.ReviewSubjects)));
@@ -226,16 +242,22 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions, createTickets: !exhaustiveAudit);
+        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions, createTickets: createReviewTickets && !exhaustiveAudit);
         ticketSink?.AddRange(review.Tickets);
         ReviewBatch[] batches = review.Batches;
-        var result = new CheckResult(1, run, active, ignored, batches);
+        var result = new CheckResult(2, run, active, ignored, batches);
         if (publishLatest)
         {
             string[] storedTargets = targets.Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
             string[] storedInputs = changed || baseRef is not null ? [] : paths.Select(p => Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(root, p)))
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/')).ToArray();
-            string latest = JsonSerializer.Serialize(new RunSnapshot(1, run, active, ignored, batches.Select(b => b with { SourceContents = null }).ToArray(), storedTargets, changed || baseRef is not null, storedInputs, review.Tickets, baseRef, reviewAll, completeGateIdentity), json);
+            ReviewBatch[] storedBatches = batches.Select(batch => batch with
+            {
+                Items = batch.Items.Select(item => item with { Evidence = null }).ToArray(),
+                PopulationItems = batch.PopulationItems?.Select(item => item with { Evidence = null }).ToArray(),
+                SourceContents = null
+            }).ToArray();
+            string latest = JsonSerializer.Serialize(new RunSnapshot(2, run, active, ignored, storedBatches, storedTargets, changed || baseRef is not null, storedInputs, review.Tickets, baseRef, reviewAll, completeGateIdentity), json);
             WriteAtomic(LatestPath, latest);
         }
         return result;
@@ -245,16 +267,31 @@ public sealed class HygieneEngine
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
-            .Select(s => (s.Identity, s.Content, s.Item, ContentFingerprint: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s.Content)))))
+            .Select(s => (Subject: s, s.Identity, s.Content, s.Item, ContentFingerprint: GateLocalReviewStore.CandidateFingerprint(s)))
             .ToArray();
         string populationData = string.Join("\n", ordered.Select(s => s.Identity + "\0" + s.ContentFingerprint));
         string population = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rule.Id + "\0" + rule.Version + "\0" + populationData)));
-        ReviewItem[] all = ordered.Select((s, i) => s.Item with { Id = "RI-" + (i + 1) }).ToArray();
+        string? question = questions.Count == 1 ? questions[0].Text : null;
+        ReviewItem CreateItem((ReviewSubject Subject, string Identity, string Content, ReviewItem Item, string ContentFingerprint) s, int index, bool selected)
+        {
+            string project = s.Identity.Split('\0', 2)[0];
+            ReviewAnchor primary = s.Subject.PrimaryAnchor ?? new ReviewAnchor(project, s.Item.Path, s.Item.Line, s.Item.Column, s.Item.Symbol, "primary");
+            ReviewAnchor[] related = s.Subject.RelatedAnchors?.ToArray() ?? [];
+            ReviewItem item = s.Item with { Id = "RI-" + (index + 1), Question = question, LegitimateCase = s.Subject.LegitimateCase,
+                ObservedSignal = s.Subject.ObservedSignal, PrimaryAnchor = primary, RelatedAnchors = related };
+            if (!selected) { return item; }
+            return ReviewEvidenceBuilder.Build(item, primary, related, sourceContents, question, s.Subject.LegitimateCase, s.Subject.ObservedSignal).Item;
+        }
+        ReviewItem[] all = ordered.Select((s, i) => CreateItem(s, i, false)).ToArray();
         var ids = ordered.Select((s, i) => (s.Identity, Id: "RI-" + (i + 1))).ToDictionary(x => x.Identity, x => x.Id, StringComparer.Ordinal);
-        ReviewItem[] sample = selectedSubjects.Select(s => s.Item with { Id = ids.TryGetValue(s.Identity, out string? id) ? id : throw new ProductException("A rule selected review work outside its eligible population.") }).ToArray();
-        ReviewSource[] sources = ordered.Select(s => s.Item.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(path => sourceContents.TryGetValue(path, out string? content) && content is not null ? new ReviewSource(path, content) : throw new ProductException($"Source context for '{path}' is unavailable."))
-            .ToArray();
+        ReviewItem[] sample = selectedSubjects.Select(s =>
+        {
+            int index = Array.FindIndex(ordered, candidate => candidate.Identity == s.Identity);
+            if (index < 0) { throw new ProductException("A rule selected review work outside its eligible population."); }
+            return CreateItem(ordered[index], index, true);
+        }).ToArray();
+        ReviewSource[] sources = sample.SelectMany(item => item.Evidence ?? []).GroupBy(excerpt => excerpt.Path, StringComparer.Ordinal)
+            .Select(group => new ReviewSource(group.Key, string.Join("\n\n", group.Select(excerpt => excerpt.Text)))).ToArray();
         string batchId = "B-" + batchNumber;
         var batch = new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", reviewerClass, ordered.Length, sample.Length, questions,
             new ReviewEscalation(escalationCondition, "dotnet hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);
@@ -262,10 +299,12 @@ public sealed class HygieneEngine
         return new(batch, tickets);
     }
 
-    public ReviewBatch ExpandReview(string handle)
+    public ReviewBatch ExpandReview(string handle, int pageOffset = 0)
     {
+        const int pageSize = 50;
+        if (pageOffset < 0 || pageOffset % pageSize != 0) { throw new ProductException($"Expansion offset must be a nonnegative multiple of {pageSize}."); }
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
+        if (snapshot.SchemaVersion != 2 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
         {
             throw new ProductException("Review batch is unavailable; run check again.");
         }
@@ -289,38 +328,42 @@ public sealed class HygieneEngine
         CheckResult fresh;
         string[] revalidationPaths = snapshot.ChangedScope ? [] : snapshot.InputPaths ?? snapshot.TargetPaths;
         string? freshGateIdentity = null;
-        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, baseRef: snapshot.BaseRef, reviewAll: snapshot.ReviewAll, gateIdentitySink: value => freshGateIdentity = value); }
-        catch (ProductException) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check."); }
+        try { fresh = CheckCore(revalidationPaths, snapshot.ChangedScope && snapshot.BaseRef is null, true, false, false, baseRef: snapshot.BaseRef, reviewAll: snapshot.ReviewAll, gateIdentitySink: value => freshGateIdentity = value, expandRuleId: stored.RuleId, expandPageOffset: pageOffset, createReviewTickets: false); }
+        catch (ProductException e) { throw new ProductException("Review population cannot be revalidated; rerun hygiene check. " + e.Message); }
         if (!StringComparer.Ordinal.Equals(snapshot.GateIdentity, freshGateIdentity)) { throw new ProductException("Review gate changed; rerun hygiene check."); }
         ReviewBatch current = fresh.ReviewBatches.SingleOrDefault(b => b.RuleId == stored.RuleId) ?? throw new ProductException("Review population changed; rerun hygiene check.");
         if (!StringComparer.Ordinal.Equals(stored.PopulationFingerprint, current.PopulationFingerprint))
         {
             throw new ProductException("Review population changed; rerun hygiene check.");
         }
+        if (pageOffset > current.PopulationCount) { throw new ProductException($"Expansion offset {pageOffset} exceeds the eligible population of {current.PopulationCount}."); }
 
         return stored with
         {
             Mode = "expanded",
             ReviewerClass = stored.Escalation.ReviewerClass,
             PopulationCount = current.PopulationCount,
-            SampleCount = current.PopulationCount,
-            Items = current.PopulationItems ?? [],
+            SampleCount = current.SampleCount,
+            Items = current.Items,
             PopulationItems = current.PopulationItems,
-            SourceContents = current.SourceContents
+            SourceContents = current.SourceContents,
+            PageOffset = pageOffset,
+            NextPageOffset = pageOffset + current.SampleCount < current.PopulationCount ? pageOffset + current.SampleCount : null
         };
     }
 
-    public string CreateReviewHandoff(string handle, string? filePath = null)
+    public string CreateReviewHandoff(string handle, string? filePath = null, int pageOffset = 0)
     {
-        ReviewBatch expanded = ExpandReview(handle);
+        ReviewBatch expanded = ExpandReview(handle, pageOffset);
         string[] sourceHandle = expanded.Handle.Split('/');
         string runId = sourceHandle[0];
         string runToken = runId.StartsWith("R-", StringComparison.Ordinal) ? runId[2..] : runId;
         string batchToken = expanded.Id.Replace("-", "", StringComparison.Ordinal);
+        if (expanded.PageOffset > 0) { batchToken += "P" + expanded.PageOffset.ToString(System.Globalization.CultureInfo.InvariantCulture); }
         string handoffId = "HR-" + Regex.Replace(runToken, "[^A-Za-z0-9]", "", RegexOptions.CultureInvariant).ToUpperInvariant() + "-" + Regex.Replace(batchToken, "[^A-Za-z0-9]", "", RegexOptions.CultureInvariant).ToUpperInvariant();
-        var request = new SemanticReviewRequest(1, "semantic-review-request", handoffId, DateTimeOffset.UtcNow.ToString("O"),
+        var request = new SemanticReviewRequest(2, "semantic-review-request", handoffId, DateTimeOffset.UtcNow.ToString("O"),
             new ReviewRequestSource(runId, expanded.Handle), new ReviewRequestRule(expanded.RuleId, expanded.RuleVersion), "expanded", expanded.ReviewerClass,
-            expanded.PopulationCount, expanded.Questions, expanded.Items, expanded.SourceContents ?? []);
+            expanded.PopulationCount, expanded.Questions, expanded.Items, expanded.SourceContents ?? [], expanded.PageOffset, expanded.NextPageOffset);
         string destination = Path.GetFullPath(string.IsNullOrWhiteSpace(filePath)
             ? Path.Combine(root, ".hygiene", "reviews", handoffId, "request.json")
             : Path.IsPathRooted(filePath) ? filePath : Path.Combine(root, filePath));
@@ -332,7 +375,7 @@ public sealed class HygieneEngine
     {
         string? initialLatest = Snapshot(LatestPath);
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
+        if (snapshot.SchemaVersion != 2 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.ReviewBatches is null || snapshot.TargetPaths is null || string.IsNullOrWhiteSpace(snapshot.GateIdentity))
         { throw new ProductException("Review batch is unavailable; run check again."); }
         string batchId = ResolveBatchId(handle, snapshot);
         ReviewBatch stored = snapshot.ReviewBatches.SingleOrDefault(b => b.Id == batchId) ?? throw new ProductException($"Review batch '{handle}' was not found in the latest run.");
@@ -476,7 +519,7 @@ public sealed class HygieneEngine
     public Finding Explain(string handle)
     {
         RunSnapshot snapshot = Read(LatestPath, new RunSnapshot(0, "", [], 0));
-        if (snapshot.SchemaVersion != 1 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.Findings is null || snapshot.IgnoredCount < 0 || snapshot.Findings.Any(f => f is null || string.IsNullOrEmpty(f.Id) || string.IsNullOrEmpty(f.RuleId)) || snapshot.Findings.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != snapshot.Findings.Length)
+        if (snapshot.SchemaVersion != 2 || string.IsNullOrWhiteSpace(snapshot.RunId) || snapshot.Findings is null || snapshot.IgnoredCount < 0 || snapshot.Findings.Any(f => f is null || string.IsNullOrEmpty(f.Id) || string.IsNullOrEmpty(f.RuleId)) || snapshot.Findings.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != snapshot.Findings.Length)
         {
             throw new ProductException("Latest run state is unavailable or malformed; run check again.");
         }

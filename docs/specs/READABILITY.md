@@ -20,6 +20,4 @@ Within a block, inspect each statement after the first. The rule applies when th
 
 The match is an inspection signal, not proof of poor readability. Review conceptual grouping and choose whether to leave code unchanged, add whitespace, or restructure it. It has no automatic formatter or fixer; `format` and `normalize` do not alter it.
 
-## `readability.type-responsibility.review`
-
-Version: `1`, semantic batch B-4, configurable and enabled by default. Reviews source-backed class, struct, interface, and record declarations, including nested and partial parts. Its fixed questions cover coherent ownership, reconstruction of unrelated state/workflows, and concrete responsibility separation without needless fragmentation. The normal reviewer is `implementer`; escalate material concerns or insufficient context to `planner`. Type length and member count are not verdicts.
+Type responsibility is reviewed through the focused `architecture.responsibility.cohesion` contract. Its source-backed subject, fixed question, legitimate cases, and escalation policy are defined in `docs/specs/SEMANTIC-REVIEWS.md`.

@@ -230,7 +230,7 @@ No automatic commit, reset, clean, or rollback occurs. Recovery is explicit and 
 
 ## Gate-local review boundary
 
-The six established semantic-review rules use deterministic, finite gate-local selection with a fixed ceiling of five subjects per rule. The nine modernization rules use a separate shared ceiling of five packages across all families, with individually judged occurrences inside each package. Changed subjects rank first; deterministic cross-rule rotation prevents starvation. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
+The 17 focused general semantic-review rules use deterministic, finite gate-local selection under one shared ceiling of ten distinct rule-subject obligations. Changed primary subjects rank first; at most two context-affected obligations may be admitted when a concrete related anchor changed. Deterministic rotating rule order prevents permanent first-rule priority. The nine modernization rules use a separate shared ceiling of five packages across all families, with individually judged occurrences inside each package. Bare full checks schedule no semantic work. Explicit paths authorize bounded manual inspection.
 
 Selection is potentially biased selective inspection, not a calibrated defect-rate estimate or a population-quality certificate. Tickets bind the gate, rule/algorithm versions, eligible population, subject identity, and content fingerprint. Only explicit review acceptance persists an observation.
 

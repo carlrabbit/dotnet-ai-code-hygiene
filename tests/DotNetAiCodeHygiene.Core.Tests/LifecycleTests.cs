@@ -11,51 +11,16 @@ namespace DotNetAiCodeHygiene.Core.Tests;
 public sealed class LifecycleTests
 {
     [Test]
-    public async Task BoringnessRubricEscalatesOnlyAtTheFixedThreshold()
-    {
-        await Assert.That(BoringnessReviewRuleModule.RequiresPlannerEscalation([false, false, false, false, false])).IsFalse();
-        await Assert.That(BoringnessReviewRuleModule.RequiresPlannerEscalation([true, false, false, false, false])).IsFalse();
-        await Assert.That(BoringnessReviewRuleModule.RequiresPlannerEscalation([true, true, false, false, false])).IsTrue();
-        await Assert.That(BoringnessReviewRuleModule.RequiresPlannerEscalation([false, false, false, true, false])).IsTrue();
-        var module = new BoringnessReviewRuleModule();
-        await Assert.That(module.Questions.Select(question => question.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3", "Q4", "Q5" });
-        await Assert.That(module.EscalatedReviewerClass).IsEqualTo("planner");
-        await Assert.That(module.EscalationCondition).Contains("Q4 is yes");
-    }
-
-    [Test]
     public async Task SemanticBatchRetainsFullPopulationWhenNoTicketsAreDue()
     {
         var subject = new ReviewSubject("project/Api.cs\0T:Api", "summary", new ReviewItem("", "src/Api.cs", 1, 1, "Api", "A summary.", "Api"));
-        ReviewBatchMaterialization materialization = HygieneEngine.BuildReviewBatch("R-TEST", RuleCatalog.Get(SummaryQualityReviewRuleModule.RuleId), 1,
+        ReviewBatchMaterialization materialization = HygieneEngine.BuildReviewBatch("R-TEST", RuleCatalog.Get(DocumentationSummaryQualityReviewRuleModule.RuleId), 1,
             [subject], [], new Dictionary<string, string>(StringComparer.Ordinal) { ["src/Api.cs"] = "public class Api { }" },
-            SummaryQualityReviewRuleModule.RuleQuestions, SummaryQualityReviewRuleModule.EscalationText, "frontier", "implementer");
+            new DocumentationSummaryQualityReviewRuleModule().Questions, new DocumentationSummaryQualityReviewRuleModule().EscalationCondition, "frontier", "implementer");
         await Assert.That(materialization.Batch.PopulationCount).IsEqualTo(1);
         await Assert.That(materialization.Batch.SampleCount).IsEqualTo(0);
         await Assert.That(materialization.Batch.Items.Count).IsEqualTo(0);
         await Assert.That(materialization.Batch.PopulationItems!.Count).IsEqualTo(1);
-    }
-
-    [Test]
-    public async Task BoringnessIncludesNestedTypeDeclarationsAndExcludesEnumsAndDelegates()
-    {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-boringness-population-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(repo, "src"));
-        try
-        {
-            await Git(repo, "init", "-q");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Types.cs"), "public class Outer { public class Nested { } public record NestedRecord(); public interface INested { } } public struct Value { } public record Entry(); public interface IEntry { } public enum State { Ready } public delegate void Handler(); public partial class Repeated { } public partial class Repeated { }");
-            ReviewBatch batch = new HygieneEngine(repo).Check([], false).ReviewBatches.Single(item => item.RuleId == "architecture.boringness.review");
-            await Assert.That(batch.PopulationCount).IsEqualTo(9);
-            string[] symbols = batch.PopulationItems!.Select(item => item.Symbol).ToArray();
-            await Assert.That(symbols.Any(symbol => symbol.Contains("Nested", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(symbols.Any(symbol => symbol.Contains("INested", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(symbols.Count(symbol => symbol.Contains("Repeated", StringComparison.Ordinal))).IsEqualTo(2);
-            await Assert.That(symbols.Any(symbol => symbol.Contains("Handler", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(symbols.Any(symbol => symbol.Contains("State", StringComparison.Ordinal))).IsFalse();
-        }
-        finally { DeleteTree(repo); }
     }
 
     [Test]
@@ -252,7 +217,12 @@ public sealed class LifecycleTests
             ReviewItem item = result.ReviewBatches.Single(batch => batch.RuleId == "docs.summary.quality.review")
                 .PopulationItems!.Single(reviewItem => reviewItem.Symbol == "T:Person.Name");
 
-            await Assert.That(item).IsEqualTo(new ReviewItem("RI-2", "src/Api.cs", 3, 22, "T:Person.Name", "Der Anzeigename.", "Person"));
+            await Assert.That(item.Id).IsEqualTo("RI-2");
+            await Assert.That(item.Path).IsEqualTo("src/Api.cs");
+            await Assert.That(item.Symbol).IsEqualTo("T:Person.Name");
+            await Assert.That(item.Summary).IsEqualTo("Der Anzeigename.");
+            await Assert.That(item.Question).IsNotNull();
+            await Assert.That(item.PrimaryAnchor!.Path).IsEqualTo("src/Api.cs");
         }
         finally
         {
@@ -668,7 +638,11 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Sample.cs"), "public class Sample { public void Run() { var x = 1; if (x > 0) { x++; } } }\n");
             var engine = new HygieneEngine(repo);
-            await Assert.That(engine.ListRules().Select(x => x.Rule.Id).ToArray()).IsEquivalentTo(new[] { "profile.dotnet.analysis.required", "profile.stylecop.prohibited", "style.braces.required", "style.accessibility.explicit", "format.csharp.roslyn", "style.qualification.this.unnecessary", "style.qualification.redundant", "style.object-creation.target-typed", "style.default.literal", "style.cast.redundant", "style.interpolation.redundant", "style.names.inferred", "style.usings.unused", "style.usings.organize", "style.modifiers.organize", "style.null-forgiving.redundant", "style.whitespace.blank-lines", "style.parentheses.redundant", "docs.summary.required", "docs.xml.consistent", "docs.text.sentence", "modernization.source-exception", "docs.summary.quality.review", "docs.summary.language.german.review", "readability.long-line.review", "readability.control-flow.visual-block", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review", "modernization.var-style", "modernization.expression-body", "modernization.collection-expression", "modernization.primary-constructor", "modernization.switch-expression", "modernization.conditional", "modernization.object-initializer", "modernization.readonly-field", "modernization.inline-declaration" });
+            string[] registered = engine.ListRules().Select(x => x.Rule.Id).ToArray();
+            await Assert.That(registered.Length).IsEqualTo(50);
+            await Assert.That(registered).Contains(AbstractionNecessityReviewRuleModule.RuleId);
+            await Assert.That(registered).Contains(CommentIntentQualityReviewRuleModule.RuleId);
+            await Assert.That(registered.Any(id => id is "architecture.boringness.review" or "readability.type-responsibility.review" or "tests.quality.review")).IsFalse();
             await Assert.That(engine.ListRules().All(x => x.Enabled)).IsTrue();
             CheckResult result = engine.Check([], false);
             await Assert.That(result.Findings.Select(x => x.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.required", "docs.summary.required", "readability.control-flow.visual-block" });
@@ -702,11 +676,11 @@ public sealed class LifecycleTests
             CheckResult first = engine.Check(["src/Fixture.cs"], false);
             ReviewBatch batch = first.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             await Assert.That(batch.PopulationCount).IsEqualTo(8);
-            await Assert.That(batch.SampleCount).IsLessThanOrEqualTo(5);
+            await Assert.That(batch.SampleCount).IsLessThanOrEqualTo(10);
             await Assert.That(batch.Mode).IsEqualTo("sample");
             await Assert.That(batch.ReviewerClass).IsEqualTo("implementer");
             await Assert.That(batch.Items.All(item => item.Id.StartsWith("RI-", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(batch.Questions.Select(q => q.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3" });
+            await Assert.That(batch.Questions.Count).IsEqualTo(1);
             CheckResult repeat = engine.Check(["src/Fixture.cs"], false);
             await Assert.That(repeat.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review").Items.Select(i => i.Symbol).ToArray()).IsEquivalentTo(batch.Items.Select(i => i.Symbol).ToArray());
             await Assert.That(repeat.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review").PopulationFingerprint).IsEqualTo(batch.PopulationFingerprint);
@@ -718,6 +692,7 @@ public sealed class LifecycleTests
             await Assert.That(expanded.Mode).IsEqualTo("expanded");
             await Assert.That(expanded.ReviewerClass).IsEqualTo("frontier");
             await Assert.That(expanded.Items.Count).IsEqualTo(8);
+            await Assert.That(expanded.Items.All(item => item.Evidence is { Count: > 0 })).IsTrue();
             await Assert.That(batch.Items.All(sample => expanded.Items.Any(item => item.Symbol == sample.Symbol))).IsTrue();
             await Assert.That(await File.ReadAllTextAsync(latestPath)).IsEqualTo(beforeExpand);
             bool oldRejected = false;
@@ -738,7 +713,7 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(file, five);
             ReviewBatch small = engine.Check(["src/Fixture.cs"], false).ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             await Assert.That(small.PopulationCount).IsEqualTo(5);
-            await Assert.That(small.SampleCount).IsLessThanOrEqualTo(5);
+            await Assert.That(small.SampleCount).IsLessThanOrEqualTo(10);
             await Assert.That(small.Items.Count).IsEqualTo(small.SampleCount);
 
             await File.WriteAllTextAsync(file, "public class NoSummaries { }");
@@ -779,67 +754,7 @@ public sealed class LifecycleTests
     }
 
     [Test]
-    public async Task SemanticReviewAcceptanceConsumesOnlyValidatedCurrentTicketsAtomically()
-    {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-review-accept-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(repo, "src"));
-        try
-        {
-            await Git(repo, "init", "-q");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            for (int i = 0; i < 32; i++)
-            {
-                await File.WriteAllTextAsync(Path.Combine(repo, "src", $"Fixture{i}.cs"), $"/// <summary>A useful domain description for API subject {i}.</summary>\npublic class Subject{i} {{ }}");
-            }
-            var engine = new HygieneEngine(repo);
-            CheckResult initialResult = engine.Check([], false, reviewAll: true);
-            ReviewBatch quality = initialResult.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
-            ReviewBatch boringness = initialResult.ReviewBatches.Single(b => b.RuleId == "architecture.boringness.review");
-            await Assert.That(quality.PopulationCount).IsEqualTo(32);
-            await Assert.That(quality.SampleCount).IsEqualTo(5);
-            await Assert.That(boringness.PopulationCount).IsEqualTo(32);
-            await Assert.That(boringness.SampleCount).IsEqualTo(5);
-            CheckResult repeatedResult = engine.Check([], false, reviewAll: true);
-            ReviewBatch repeated = repeatedResult.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
-            ReviewBatch boringnessRepeated = repeatedResult.ReviewBatches.Single(b => b.RuleId == "architecture.boringness.review");
-            await Assert.That(boringnessRepeated.Items.Select(item => item.Path).ToArray()).IsEquivalentTo(boringness.Items.Select(item => item.Path).ToArray());
-            string gateStatePath = Path.Combine(repo, ".hygiene", ".state", "gate-reviews.json");
-            bool invalidRejected = false;
-            try { _ = engine.AcceptReview(repeated.Handle, [repeated.Items[0].Id, "RI-999"]); } catch (ProductException) { invalidRejected = true; }
-            await Assert.That(invalidRejected).IsTrue();
-            await Assert.That(File.Exists(gateStatePath)).IsFalse();
-
-            ReviewAcceptance accepted = engine.AcceptReview(repeated.Handle, [repeated.Items[0].Id]);
-            await Assert.That(accepted.AcceptedCount).IsEqualTo(1);
-            string afterAccept = await File.ReadAllTextAsync(gateStatePath);
-            await Assert.That(afterAccept).Contains(repeated.Items[0].Symbol);
-            CheckResult afterPartialAcceptance = engine.Check([], false, reviewAll: true);
-            ReviewBatch reduced = afterPartialAcceptance.ReviewBatches.Single(b => b.RuleId == repeated.RuleId);
-            await Assert.That(reduced.SampleCount).IsEqualTo(4);
-            await Assert.That(reduced.Items.Any(x => x.Symbol == repeated.Items[0].Symbol)).IsFalse();
-            bool duplicateRejected = false;
-            try { _ = engine.AcceptReview(reduced.Handle, [repeated.Items[0].Id]); } catch (ProductException) { duplicateRejected = true; }
-            await Assert.That(duplicateRejected).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(gateStatePath)).IsEqualTo(afterAccept);
-
-            ReviewBatch boringnessCurrent = afterPartialAcceptance.ReviewBatches.Single(b => b.RuleId == "architecture.boringness.review");
-            ReviewAcceptance aggregateAccepted = engine.AcceptReview(boringnessCurrent.Handle, [boringnessCurrent.Items[0].Id]);
-            await Assert.That(aggregateAccepted.AcceptedCount).IsEqualTo(1);
-            afterAccept = await File.ReadAllTextAsync(gateStatePath);
-
-            string changedFile = Path.Combine(repo, "src", "Fixture0.cs");
-            string changed = (await File.ReadAllTextAsync(changedFile)).Replace("domain description", "changed domain description", StringComparison.Ordinal);
-            await File.WriteAllTextAsync(changedFile, changed);
-            bool staleRejected = false;
-            try { _ = engine.AcceptReview(reduced.Handle, [reduced.Items[0].Id]); } catch (ProductException e) when (e.Message.Contains("rerun hygiene check", StringComparison.Ordinal)) { staleRejected = true; }
-            await Assert.That(staleRejected).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(gateStatePath)).IsEqualTo(afterAccept);
-        }
-        finally { DeleteTree(repo); }
-    }
-
-    [Test]
-    public async Task SummaryQualityAndGermanReviewsAreIndependentFixedBatches()
+    public async Task PortfolioRulesRemainIndependentAndGermanPolicyCanBeDisabled()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-review-split-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "src"));
@@ -851,31 +766,63 @@ public sealed class LifecycleTests
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
             var engine = new HygieneEngine(repo);
             CheckResult both = engine.Check([], false);
-            await Assert.That(both.ReviewBatches.Where(b => !b.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "docs.summary.language.german.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            string[] portfolio = [AbstractionNecessityReviewRuleModule.RuleId, IndirectionValueReviewRuleModule.RuleId, ResponsibilityCohesionReviewRuleModule.RuleId,
+                BoundaryOwnershipReviewRuleModule.RuleId, AuthorityUniquenessReviewRuleModule.RuleId, LifecycleBindingReviewRuleModule.RuleId, MechanismExplicitnessReviewRuleModule.RuleId,
+                BehaviorErrorContractReviewRuleModule.RuleId, BehaviorValidationBoundaryReviewRuleModule.RuleId, BehaviorStateConsistencyReviewRuleModule.RuleId, BehaviorResourceOwnershipReviewRuleModule.RuleId,
+                TestAssertionEffectivenessReviewRuleModule.RuleId, TestChangeContractCoverageReviewRuleModule.RuleId, TestIsolationCouplingReviewRuleModule.RuleId,
+                DocumentationSummaryQualityReviewRuleModule.RuleId, DocumentationSummaryGermanReviewRuleModule.RuleId, CommentIntentQualityReviewRuleModule.RuleId];
+            await Assert.That(both.ReviewBatches.Select(b => b.RuleId).Intersect(portfolio, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()).IsEquivalentTo(portfolio.Order(StringComparer.Ordinal).ToArray());
             await Assert.That(both.ReviewBatches.Count(b => b.RuleId.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
             ReviewBatch quality = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.quality.review");
             ReviewBatch german = both.ReviewBatches.Single(b => b.RuleId == "docs.summary.language.german.review");
-            await Assert.That(quality.RuleVersion).IsEqualTo(6);
+            await Assert.That(quality.RuleVersion).IsEqualTo(7);
             await Assert.That(quality.Questions.Select(q => q.Text).Any(q => q.Contains("German", StringComparison.OrdinalIgnoreCase))).IsFalse();
-            await Assert.That(quality.Questions.Select(q => q.Id).ToArray()).IsEquivalentTo(new[] { "Q1", "Q2", "Q3" });
-            await Assert.That(german.RuleVersion).IsEqualTo(4);
-            await Assert.That(german.Questions.Single().Text).Contains("natural, comprehensible German");
+            await Assert.That(quality.Questions.Count).IsEqualTo(1);
+            await Assert.That(german.RuleVersion).IsEqualTo(5);
+            await Assert.That(german.Questions.Single().Text).Contains("natural, understandable German");
             await Assert.That(german.PopulationCount).IsEqualTo(quality.PopulationCount);
             await Assert.That(german.Items.All(i => quality.PopulationItems!.Any(p => p.Symbol == i.Symbol))).IsTrue();
             await Assert.That(german.PopulationItems!.Select(i => i.Summary).Any(summary => summary.Contains("fachlichen Wert", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(engine.ExpandReview("B-2").RuleId).IsEqualTo("docs.summary.language.german.review");
-            await Assert.That(engine.CreateReviewHandoff("B-2", Path.Combine(repo, "german-request.json"))).Contains("german-request.json");
+            await Assert.That(engine.ExpandReview("B-35").RuleId).IsEqualTo("docs.summary.language.german.review");
+            await Assert.That(engine.CreateReviewHandoff("B-35", Path.Combine(repo, "german-request.json"))).Contains("german-request.json");
 
             var disabledEngine = new HygieneEngine(repo);
             string gateStatePath = Path.Combine(repo, ".hygiene", ".state", "gate-reviews.json");
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
             disabledEngine.SetRule("docs.summary.language.german.review", false);
             CheckResult englishPolicy = disabledEngine.Check([], false);
-            await Assert.That(englishPolicy.ReviewBatches.Where(b => !b.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).Select(b => b.RuleId).ToArray()).IsEquivalentTo(new[] { "docs.summary.quality.review", "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+            await Assert.That(englishPolicy.ReviewBatches.Any(b => b.RuleId == DocumentationSummaryGermanReviewRuleModule.RuleId)).IsFalse();
             await Assert.That(englishPolicy.ReviewBatches.Count(b => b.RuleId.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(9);
             ReviewBatch qualityOnly = englishPolicy.ReviewBatches.Single(batch => batch.RuleId == "docs.summary.quality.review");
             await Assert.That(qualityOnly.PopulationFingerprint).IsEqualTo(quality.PopulationFingerprint);
             await Assert.That(File.Exists(gateStatePath)).IsFalse();
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task ExplicitExpansionReturnsLazyEvidenceInBoundedPages()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-review-pages-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(repo, "src"));
+        try
+        {
+            await Git(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            string source = string.Join("\n", Enumerable.Range(0, 55).Select(i => $"/// <summary>A useful caller contract for item {i}.</summary>\npublic class Subject{i} {{ }}"));
+            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
+            HygieneEngine engine = new(repo);
+            CheckResult check = engine.Check(["src/Fixture.cs"], false);
+            ReviewBatch quality = check.ReviewBatches.Single(batch => batch.RuleId == DocumentationSummaryQualityReviewRuleModule.RuleId);
+            ReviewBatch first = engine.ExpandReview(quality.Handle);
+            await Assert.That(first.PopulationCount).IsEqualTo(55);
+            await Assert.That(first.SampleCount).IsEqualTo(50);
+            await Assert.That(first.NextPageOffset).IsEqualTo(50);
+            await Assert.That(first.Items.All(item => item.Evidence is { Count: > 0 })).IsTrue();
+            ReviewBatch second = engine.ExpandReview(quality.Handle, first.NextPageOffset!.Value);
+            await Assert.That(second.SampleCount).IsEqualTo(5);
+            await Assert.That(second.NextPageOffset).IsNull();
+            await Assert.That(first.Items.Select(item => item.Symbol).Intersect(second.Items.Select(item => item.Symbol), StringComparer.Ordinal)).IsEmpty();
         }
         finally { DeleteTree(repo); }
     }
@@ -908,8 +855,8 @@ public sealed class LifecycleTests
             string aBefore = await File.ReadAllTextAsync(aPath);
             string bBefore = await File.ReadAllTextAsync(bPath);
             string unrelatedBefore = await File.ReadAllTextAsync(unrelatedPath);
-            string defaultPath = engine.CreateReviewHandoff("B-1");
-            string expectedId = "HR-" + batch.Handle.Split('/')[0][2..] + "-B1";
+            string defaultPath = engine.CreateReviewHandoff("B-34");
+            string expectedId = "HR-" + batch.Handle.Split('/')[0][2..] + "-B34";
             await Assert.That(Path.GetRelativePath(repo, defaultPath).Replace('\\', '/')).IsEqualTo(".hygiene/reviews/" + expectedId + "/request.json");
             await Assert.That(Regex.IsMatch(expectedId, "^HR-[A-Z0-9-]+$", RegexOptions.CultureInvariant)).IsTrue();
             await Assert.That(await RunGitExitCode(repo, "check-ignore", "--quiet", ".hygiene/reviews/" + expectedId + "/request.json")).IsEqualTo(1);
@@ -917,27 +864,28 @@ public sealed class LifecycleTests
             using (JsonDocument request = JsonDocument.Parse(await File.ReadAllTextAsync(defaultPath)))
             {
                 JsonElement root = request.RootElement;
-                await Assert.That(root.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
+                await Assert.That(root.GetProperty("schemaVersion").GetInt32()).IsEqualTo(2);
                 await Assert.That(root.GetProperty("kind").GetString()).IsEqualTo("semantic-review-request");
                 await Assert.That(root.GetProperty("handoffId").GetString()).IsEqualTo(expectedId);
                 await Assert.That(DateTimeOffset.TryParse(root.GetProperty("createdAtUtc").GetString(), out _)).IsTrue();
                 await Assert.That(root.GetProperty("source").GetProperty("runId").GetString()).IsEqualTo(batch.Handle.Split('/')[0]);
                 await Assert.That(root.GetProperty("source").GetProperty("batchHandle").GetString()).IsEqualTo(batch.Handle);
                 await Assert.That(root.GetProperty("rule").GetProperty("id").GetString()).IsEqualTo("docs.summary.quality.review");
-                await Assert.That(root.GetProperty("rule").GetProperty("version").GetInt32()).IsEqualTo(6);
+                await Assert.That(root.GetProperty("rule").GetProperty("version").GetInt32()).IsEqualTo(7);
                 await Assert.That(root.GetProperty("mode").GetString()).IsEqualTo("expanded");
                 await Assert.That(root.GetProperty("reviewerClass").GetString()).IsEqualTo("frontier");
                 await Assert.That(root.GetProperty("populationCount").GetInt32()).IsEqualTo(3);
                 await Assert.That(root.GetProperty("items").GetArrayLength()).IsEqualTo(3);
-                await Assert.That(root.GetProperty("questions").GetArrayLength()).IsEqualTo(3);
+                await Assert.That(root.GetProperty("questions").GetArrayLength()).IsEqualTo(1);
                 await Assert.That(root.GetProperty("items")[0].GetProperty("id").GetString()!.StartsWith("RI-", StringComparison.Ordinal)).IsTrue();
                 await Assert.That(root.GetProperty("sources").GetArrayLength()).IsEqualTo(2);
                 string[] sourcePaths = root.GetProperty("sources").EnumerateArray().Select(x => x.GetProperty("path").GetString()!).ToArray();
                 await Assert.That(sourcePaths).IsEquivalentTo(new[] { "src/A.cs", "src/B.cs" });
                 string embeddedA = root.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("path").GetString() == "src/A.cs").GetProperty("content").GetString()!;
-                await Assert.That(embeddedA).IsEqualTo(aSource);
+                await Assert.That(embeddedA.Contains("public class A { }", StringComparison.Ordinal)).IsTrue();
+                await Assert.That(embeddedA.Contains("public class A2 { }", StringComparison.Ordinal)).IsTrue();
                 string embeddedB = root.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("path").GetString() == "src/B.cs").GetProperty("content").GetString()!;
-                await Assert.That(embeddedB).IsEqualTo(bSource);
+                await Assert.That(embeddedB.Contains("public class B { }", StringComparison.Ordinal)).IsTrue();
                 await Assert.That(root.GetProperty("sources").EnumerateArray().Any(x => x.GetProperty("path").GetString() == "src/Unrelated.cs")).IsFalse();
             }
             string jsonText = await File.ReadAllTextAsync(defaultPath);

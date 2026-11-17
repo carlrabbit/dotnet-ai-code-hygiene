@@ -2,31 +2,40 @@
 
 ## Production model
 
-The six established semantic-review rules keep their finite, gate-local, risk-stratified selection. The nine M0023 modernization rules use a separate shared gate-local package budget. A gate is one explicit `dotnet hygiene check` opportunity over a repository, mode, resolved comparison base when present, current `HEAD` and worktree, reporting paths, rule version, and the rule's complete eligible population. Selection is deterministic for those inputs and uses no wall-clock or process-random input.
+The 17 general semantic-review rules share one deterministic gate budget. The nine modernization rules retain a separate shared package budget. A gate is one explicit `dotnet hygiene check` opportunity identified by repository, mode, resolved Git base/head/worktree, reporting paths, rule versions, and eligible populations. Ranking uses no wall-clock or process-random input.
 
-The selector ranks without replacement using SHA-256-derived stable keys over the gate, rule and algorithm versions, project-qualified subject identity, and full subject content fingerprint. Repository enumeration order does not affect ranking. A rule's selected items are already ranked; the host does not rank them a second time.
+Each distinct `(rule ID, project-qualified subject identity)` is one independently judged obligation. Several obligations that share a file, relationship, or presentation group each spend a slot. General selection is capped at ten obligations total. Modernization selection is separately capped at five packages total.
 
-## Gate admission and budgets
+## Admission, ranking, and budgets
 
-`dotnet hygiene check` always evaluates deterministic rules over its normal target scope and emits one batch for every enabled semantic-review rule. The autonomous entrypoint sends only selected items in its consolidated work order. Bare full-repository checks schedule no semantic review. `--changed` authorizes review only for current eligible C# paths changed relative to `HEAD`; `--base <ref>` resolves the merge base and includes committed and worktree changes; explicit paths request a bounded manual inspection of those targets. Documentation-only changes, clean gates, and gates with no rule-eligible candidates select zero items. `--review-all` explicitly authorizes a bounded full-repository inspection.
+- A bare full check, source-clean gate, or gate with no eligible candidates selects zero general semantic work.
+- For `--changed` and `--base`, obligations with a changed primary anchor rank first. Unchanged candidates are eligible only when a concrete related source anchor changed; at most two context-affected obligations may be selected. Unrelated background is never admitted.
+- Within direct and context strata, a deterministic rotating round-robin across nonempty enabled rule IDs prevents permanent first-rule priority; subjects within a rule have stable deterministic ranking.
+- Explicit paths and `--review-all` intentionally broaden candidate eligibility but still share the ten-obligation ceiling. They do not reserve context slots.
+- All enabled rules expose their eligible population counts, selected obligations, and unreviewed remainder. Grouping cannot hide separate judgments.
 
-Every rule has a fixed ceiling of five subjects. In an ordinary source-change gate, direct changed subjects take priority. If a context-affected unchanged subject exists in a touched source document, at most one slot is reserved for it and up to four slots go to direct subjects; remaining slots may be used for additional direct subjects. Without a context candidate, up to five direct subjects may be selected. Unrelated background subjects never fill an ordinary gate. Explicit paths and `--review-all` can select up to five without that reserve. A ceiling is not a quota: sparse and zero-work gates remain sparse or empty.
+Selection may be biased toward changed source and does not estimate defect probability, population quality, or defect-free status. Signals identify review opportunities, not proven defects.
 
-The nine modernization rules share one ceiling of five **packages total per ordinary gate**, across all nine rule IDs. Changed packages are preferred, and a deterministic round-robin across eligible rule populations prevents one family from permanently taking the budget. Broad explicit-path and `--review-all` inspections remain capped at five packages total. A package carries a bounded list of individually addressable occurrences plus the eligible occurrence total and unreviewed remainder; those per-occurrence details do not multiply the package budget. Exhaustive read-only audit bypasses both modernization bounds and inventories every eligible occurrence. The existing six rules retain their independent per-rule ceilings and do not spend the modernization budget.
+The nine modernization families retain five packages total per ordinary gate. Changed packages rank first with deterministic cross-family rotation. A package exposes a bounded list of individually identified occurrences plus eligible total and remainder; those occurrences do not multiply the five-package budget. Explicit-path and `--review-all` runs keep the same five-package ceiling. Exhaustive audit bypasses both budgets only after separate explicit authorization.
 
-This is selective inspection for engineering attention. Selection can be biased by the fixed priority policy and makes no calibrated defect-likelihood, defect-rate, population-coverage, or defect-free acceptance claim. Context ranking is exploratory and does not estimate population quality.
+## Acceptance, tickets, and legacy state
 
-## Accepted observations and tickets
+Only explicit caller acceptance writes accepted observations. Tickets bind the gate, algorithm/rule version, rule-subject identity, and material evidence fingerprint. Related source edits, rule-question/version changes, stale gates, malformed tickets, or tampering invalidate the decision. Accepted observations suppress only unchanged work for the same rule and subject. Partial acceptance never backfills the selected identities within the same gate. Stale accepted history is retained; acceptance of a changed fingerprint does not silently delete it.
 
-`dotnet hygiene review accept <batch> <item>...` or `--all` records accepted observations for the six established semantic-review rules. Modernization occurrences do not have durable local verdicts. The preferred outcome is a source edit; retaining one candidate requires a narrow, justified source annotation. The former `review decide` command returns migration guidance and does not write acceptance state.
+The obsolete `architecture.boringness.review`, `readability.type-responsibility.review`, and `tests.quality.review` identities are not migrated to the new portfolio. If old records occur in `.hygiene/.state/gate-reviews.json`, the tool refuses to treat them as approvals and reports an archival/removal step. Preserve a copy before editing that file. Old rule IDs in `.hygiene/config.json` likewise require preserving the file and removing retired toggles explicitly; no source or state is silently destroyed.
 
-Private latest-run tickets bind the current gate, rule and algorithm versions, complete eligible-population fingerprint, selected identity, and content fingerprint. Expand, handoff, and accept re-evaluate the stored scope and reject stale bases, populations, versions, tickets, or already accepted items. A repeated gate keeps the same selected identities; accepting part of its batch does not fill newly opened slots. An accepted subject with unchanged content is suppressed. A changed fingerprint can be selected again when a later gate makes it relevant.
+The normal accepted-observation store contains hashes and metadata, not raw source excerpts. Writes are atomic and reject concurrent state changes. Exhaustive audit reads all enabled semantic obligations in report-local work orders without mutating gate review state.
 
-Accepted observations are stored as versioned JSON in `.hygiene/.state/gate-reviews.json`. State records contain rule/version, subject identity, full content fingerprint, gate identity, and explicit acceptance time; source text is never stored. The state is bounded to 50,000 current subject observations and errors at capacity instead of silently pruning evidence. Missing state starts empty. Invalid or unsupported state fails without replacing it. Writes are atomic and reject concurrent state changes. Gate tickets remain private to latest-run state and never appear in check, expand, handoff, or acceptance JSON.
+## Gate surfaces
 
-## Rule ownership and compatibility
+```text
+dotnet hygiene check [paths...] [--changed | --base <git-ref> | --review-all]
+```
 
-Each rule owns its eligibility, questions, escalation class and condition. The shared mechanism owns only gate context, stable ranking, a five-item ceiling, private tickets, and accepted-observation persistence. Batches B-1 through B-3 remain unchanged; M0017 appends `readability.type-responsibility.review`/B-4, `tests.quality.review`/B-5, and `comments.intent.review`/B-6, each at v1. Mechanical rules remain exhaustive.
+Bare `check` runs deterministic rules over the full default source scope and selects zero general semantic work. `--changed` admits current eligible changed C# source. `--base` includes committed feature changes plus current staged, unstaged, and untracked changes while unchanged project context remains readable. Explicit paths are bounded manual inspection independent of Git diff. `--review-all` explicitly requests bounded full-repository semantic inspection. Invalid refs and incompatible target options fail as errors rather than widening scope silently. Deleted targets are not current candidates; rename destinations are deduplicated.
 
+## Expansion, handoff, and audit
 
-The CLI performs no model/provider invocation. Expansion and handoff still revalidate and expose the complete eligible population for their stored reporting scope; a zero normal batch does not erase the population used for escalation.
+`dotnet hygiene review expand <batch-handle>` and `review handoff` revalidate the stored gate and expose the corresponding complete eligible population. Source excerpts are assembled for selected work and explicit expansion/handoff only. Context limits and unavailable evidence are explicit.
+
+`dotnet hygiene --yolo-all` is a separate read-only exhaustive audit. It requires the affirmative task attestation described in `AUTONOMOUS-WORKFLOW.md`; it enumerates every enabled rule-subject/occurrence pair, including accepted or ordinarily suppressed observations. It changes neither source/Git state nor normal acceptance state.

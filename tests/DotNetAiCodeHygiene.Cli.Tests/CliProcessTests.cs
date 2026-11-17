@@ -65,7 +65,7 @@ public sealed class CliProcessTests
         ProcessResult result = await RunCliAsync("--version");
 
         await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.11.0");
+        await Assert.That(result.StandardOutput.Trim()).IsEqualTo("0.12.0");
         await Assert.That(result.StandardError).IsEmpty();
     }
 
@@ -85,26 +85,26 @@ public sealed class CliProcessTests
         Directory.CreateDirectory(Path.GetDirectoryName(competingShim)!);
         string manifest = Path.Combine(root, "repo", ".config", "dotnet-tools.json");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
-        await File.WriteAllTextAsync(manifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"dotnetaicodehygiene.tool\":{\"version\":\"0.11.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
+        await File.WriteAllTextAsync(manifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"dotnetaicodehygiene.tool\":{\"version\":\"0.12.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
         string nestedManifest = Path.Combine(nested, ".config", "dotnet-tools.json");
         Directory.CreateDirectory(Path.GetDirectoryName(nestedManifest)!);
-        await File.WriteAllTextAsync(nestedManifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"DOTNETAICODEHYGIENE.TOOL\":{\"version\":\"0.11.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
-        await File.WriteAllTextAsync(resolverEntry, "[{\"Version\":\"0.11.0\",\"PathToExecutable\":\"" + assembly.Replace("\\", "\\\\") + "\"}]");
+        await File.WriteAllTextAsync(nestedManifest, "{\"version\":1,\"isRoot\":true,\"tools\":{\"DOTNETAICODEHYGIENE.TOOL\":{\"version\":\"0.12.0\",\"commands\":[\"dotnet-hygiene\"]}}}");
+        await File.WriteAllTextAsync(resolverEntry, "[{\"Version\":\"0.12.0\",\"PathToExecutable\":\"" + assembly.Replace("\\", "\\\\") + "\"}]");
         try
         {
-            ToolInstallationScope local = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, cliHome);
+            ToolInstallationScope local = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.12.0", dotnet, assembly, cliHome);
             await Assert.That(local.ManifestPath).IsEqualTo(nestedManifest);
             await Assert.That(local.ToolPath).IsNull();
 
-            ToolInstallationScope ancestor = ToolInstallationScope.Resolve(Path.Combine(root, "repo"), "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, cliHome);
+            ToolInstallationScope ancestor = ToolInstallationScope.Resolve(Path.Combine(root, "repo"), "DotNetAiCodeHygiene.Tool", "0.12.0", dotnet, assembly, cliHome);
             await Assert.That(ancestor.ManifestPath).IsEqualTo(manifest);
 
-            ToolInstallationScope other = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", competingShim, assembly, cliHome);
+            ToolInstallationScope other = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.12.0", competingShim, assembly, cliHome);
             await Assert.That(other.ManifestPath).IsNull();
             await Assert.That(other.ToolPath).IsEqualTo(Path.GetDirectoryName(competingShim));
             await Assert.That(other.ShimPath).IsEqualTo(competingShim);
 
-            ToolInstallationScope unproven = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.11.0", dotnet, assembly, Path.Combine(root, "other-cli-home"));
+            ToolInstallationScope unproven = ToolInstallationScope.Resolve(nested, "DotNetAiCodeHygiene.Tool", "0.12.0", dotnet, assembly, Path.Combine(root, "other-cli-home"));
             await Assert.That(unproven.IsResolved).IsFalse();
         }
         finally { DeleteTree(root); }
@@ -285,10 +285,10 @@ public sealed class CliProcessTests
     [Test]
     public async Task BaselineVersionContractChangesWhenToolOrRuleVersionChanges()
     {
-        (string RuleId, int Version)[] rules = [("format.csharp.roslyn", 1), ("docs.summary.quality.review", 6)];
-        string current = Program.VersionContractSha256("0.11.0", rules);
+        (string RuleId, int Version)[] rules = [("format.csharp.roslyn", 1), ("docs.summary.quality.review", 7)];
+        string current = Program.VersionContractSha256("0.12.0", rules);
         string changedTool = Program.VersionContractSha256("0.10.1", rules);
-        string changedRule = Program.VersionContractSha256("0.11.0", [("format.csharp.roslyn", 2), ("docs.summary.quality.review", 6)]);
+        string changedRule = Program.VersionContractSha256("0.12.0", [("format.csharp.roslyn", 2), ("docs.summary.quality.review", 7)]);
 
         await Assert.That(changedTool).IsNotEqualTo(current);
         await Assert.That(changedRule).IsNotEqualTo(current);
@@ -359,11 +359,11 @@ public sealed class CliProcessTests
             await Assert.That(firstFinding.TryGetProperty("line", out _)).IsTrue();
             await Assert.That(firstFinding.TryGetProperty("column", out _)).IsTrue();
             await Assert.That(firstFinding.TryGetProperty("fingerprint", out _)).IsFalse();
-            JsonElement batchJson = json.RootElement.GetProperty("reviewBatches")[0];
+            JsonElement batchJson = json.RootElement.GetProperty("reviewBatches").EnumerateArray().Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
             await Assert.That(batchJson.GetProperty("reviewerClass").GetString()).IsEqualTo("implementer");
             await Assert.That(batchJson.GetProperty("mode").GetString()).IsEqualTo("sample");
             await Assert.That(batchJson.GetProperty("populationCount").GetInt32()).IsEqualTo(1);
-            await Assert.That(batchJson.GetProperty("sampleCount").GetInt32()).IsLessThanOrEqualTo(5);
+            await Assert.That(batchJson.GetProperty("sampleCount").GetInt32()).IsLessThanOrEqualTo(10);
             if (batchJson.GetProperty("sampleCount").GetInt32() > 0)
             {
                 await Assert.That(batchJson.GetProperty("items")[0].TryGetProperty("summary", out _)).IsTrue();
@@ -377,7 +377,7 @@ public sealed class CliProcessTests
             string latestPath = Path.Combine(repo, ".hygiene", ".state", "latest-run.json");
             string latestBeforeExplain = await File.ReadAllTextAsync(latestPath);
             string batchHandle = batchJson.GetProperty("handle").GetString()!;
-            ProcessResult expandedBare = await RunCliInAsync(repo, "review", "expand", "B-1", "--output", "json");
+            ProcessResult expandedBare = await RunCliInAsync(repo, "review", "expand", "B-34", "--output", "json");
             await Assert.That(expandedBare.ExitCode).IsEqualTo(0);
             using (JsonDocument expandedJson = JsonDocument.Parse(expandedBare.StandardOutput))
             {
@@ -457,16 +457,16 @@ public sealed class CliProcessTests
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "readability.control-flow.visual-block")).ExitCode).IsEqualTo(0);
             ProcessResult empty = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument noFindings = JsonDocument.Parse(empty.StandardOutput);
-            await Assert.That(noFindings.RootElement.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
+            await Assert.That(noFindings.RootElement.GetProperty("schemaVersion").GetInt32()).IsEqualTo(2);
             await Assert.That(noFindings.RootElement.GetProperty("runId").GetString()!.StartsWith("R-", StringComparison.Ordinal)).IsTrue();
             await Assert.That(noFindings.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(0);
             await Assert.That(noFindings.RootElement.GetProperty("ignoredCount").GetInt32()).IsEqualTo(0);
-            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(15);
+            await Assert.That(noFindings.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(26);
             await Assert.That((await RunCliInAsync(repo, "rules", "disable", "docs.summary.quality.review")).ExitCode).IsEqualTo(0);
             ProcessResult reviewDisabled = await RunCliInAsync(repo, "check", "--output", "json");
             using JsonDocument reviewDisabledJson = JsonDocument.Parse(reviewDisabled.StandardOutput);
-            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(14);
-            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches")[0].GetProperty("ruleId").GetString()).IsEqualTo("docs.summary.language.german.review");
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches").GetArrayLength()).IsEqualTo(25);
+            await Assert.That(reviewDisabledJson.RootElement.GetProperty("reviewBatches")[0].GetProperty("ruleId").GetString()).IsEqualTo("modernization.var-style");
             await Assert.That(reviewDisabledJson.RootElement.GetProperty("findings").GetArrayLength()).IsEqualTo(noFindings.RootElement.GetProperty("findings").GetArrayLength());
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
             await Assert.That((await RunCliInAsync(repo, "rules", "enable", "docs.summary.required")).ExitCode).IsEqualTo(0);
@@ -521,14 +521,14 @@ public sealed class CliProcessTests
             if (checkItem.ValueKind == JsonValueKind.Undefined) { throw new InvalidOperationException("Explicit-path gate did not select the positional-record subject."); }
             AssertPositionalReviewItem(checkItem);
 
-            ProcessResult expanded = await RunCliInAsync(repo, "review", "expand", "B-1", "--output", "json");
+            ProcessResult expanded = await RunCliInAsync(repo, "review", "expand", "B-34", "--output", "json");
             await Assert.That(expanded.ExitCode).IsEqualTo(0);
             using JsonDocument expandedJson = JsonDocument.Parse(expanded.StandardOutput);
             JsonElement expandedItem = expandedJson.RootElement.GetProperty("reviewBatch").GetProperty("items").EnumerateArray()
                 .Single(item => item.GetProperty("symbol").GetString() == "T:Person.Name");
             AssertPositionalReviewItem(expandedItem);
 
-            ProcessResult handoff = await RunCliInAsync(repo, "review", "handoff", "B-1");
+            ProcessResult handoff = await RunCliInAsync(repo, "review", "handoff", "B-34");
             if (handoff.ExitCode != 0) { throw new InvalidOperationException(handoff.StandardError); }
             await Assert.That(handoff.ExitCode).IsEqualTo(0);
             string handoffLine = handoff.StandardOutput.Split('\n').Single(line => line.TrimStart().StartsWith("Review handoff written: ", StringComparison.Ordinal));
@@ -588,16 +588,25 @@ public sealed class CliProcessTests
         Directory.CreateDirectory(Path.Combine(repo, "src"));
         try
         {
-            await RunProcessAsync("git", repo, "init", "-q");
+            await InitGitAsync(repo, "main");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             string source = string.Join("\n", Enumerable.Range(0, 32).Select(i => $"/// <summary>A useful API description for item {i}.</summary>\npublic class Subject{i} {{ }}"));
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), source);
+            await CommitAllAsync(repo, "initial review population");
+            ProcessResult bootstrap = await RunCliInAsync(repo, "bootstrap", "--output", "json");
+            await Assert.That(bootstrap.ExitCode).IsEqualTo(0);
+            string[] portfolioRules = ["architecture.abstraction.necessity", "architecture.indirection.value", "architecture.responsibility.cohesion", "architecture.boundary.ownership", "architecture.authority.uniqueness", "architecture.lifecycle.binding", "architecture.mechanism.explicitness", "behavior.error.contract", "behavior.validation.boundary", "behavior.state.consistency", "behavior.resource.ownership", "tests.assertion.effectiveness", "tests.change-contract.coverage", "tests.isolation.coupling", "docs.summary.language.german.review", "comments.intent.review"];
+            foreach (string ruleId in portfolioRules)
+            {
+                ProcessResult disabledRule = await RunCliInAsync(repo, "rules", "disable", ruleId);
+                await Assert.That(disabledRule.ExitCode).IsEqualTo(0);
+            }
             ProcessResult check = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
             await Assert.That(check.ExitCode).IsEqualTo(0);
             using JsonDocument checkedOutput = JsonDocument.Parse(check.StandardOutput);
             JsonElement quality = checkedOutput.RootElement.GetProperty("reviewBatches").EnumerateArray().Single(x => x.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
             await Assert.That(quality.GetProperty("populationCount").GetInt32()).IsEqualTo(32);
-            await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsEqualTo(5);
+            await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsEqualTo(10);
             string handle = quality.GetProperty("handle").GetString()!;
             string itemId = quality.GetProperty("items")[0].GetProperty("id").GetString()!;
             ProcessResult mixed = await RunCliInAsync(repo, "review", "accept", handle, itemId, "--all");
@@ -711,14 +720,14 @@ public sealed class CliProcessTests
             {
                 JsonElement quality = output.RootElement.GetProperty("reviewBatches").EnumerateArray().Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review");
                 await Assert.That(quality.GetProperty("populationCount").GetInt32()).IsEqualTo(2);
-                await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsGreaterThan(0);
-                await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsLessThanOrEqualTo(5);
+                await Assert.That(output.RootElement.GetProperty("reviewBatches").EnumerateArray().Where(batch => batch.GetProperty("ruleId").GetString()!.StartsWith("architecture.", StringComparison.Ordinal) || batch.GetProperty("ruleId").GetString()!.StartsWith("behavior.", StringComparison.Ordinal) || batch.GetProperty("ruleId").GetString()!.StartsWith("tests.", StringComparison.Ordinal) || batch.GetProperty("ruleId").GetString()!.StartsWith("docs.summary.", StringComparison.Ordinal) || batch.GetProperty("ruleId").GetString() == "comments.intent.review").Sum(batch => batch.GetProperty("sampleCount").GetInt32())).IsGreaterThan(0);
+                await Assert.That(quality.GetProperty("sampleCount").GetInt32()).IsLessThanOrEqualTo(10);
             }
             ProcessResult all = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
             await Assert.That(all.ExitCode).IsEqualTo(0);
             using (JsonDocument output = JsonDocument.Parse(all.StandardOutput))
             {
-                await Assert.That(output.RootElement.GetProperty("reviewBatches")[0].GetProperty("sampleCount").GetInt32()).IsGreaterThan(0);
+                await Assert.That(output.RootElement.GetProperty("reviewBatches").EnumerateArray().Sum(batch => batch.GetProperty("sampleCount").GetInt32())).IsGreaterThan(0);
             }
             ProcessResult badRef = await RunCliInAsync(repo, "check", "--base", "no-such-ref");
             await Assert.That(badRef.ExitCode).IsEqualTo(3);
@@ -744,8 +753,9 @@ public sealed class CliProcessTests
             ProcessResult check = await RunCliInAsync(repo, "check", "--review-all", "--output", "json");
             await Assert.That(check.ExitCode).IsEqualTo(0);
             using JsonDocument json = JsonDocument.Parse(check.StandardOutput);
-            string handle = json.RootElement.GetProperty("reviewBatches")[0].GetProperty("handle").GetString()!;
-            ProcessResult defaultHandoff = await RunCliInAsync(repo, "review", "handoff", "B-1");
+            string handle = json.RootElement.GetProperty("reviewBatches").EnumerateArray()
+                .Single(batch => batch.GetProperty("ruleId").GetString() == "docs.summary.quality.review").GetProperty("handle").GetString()!;
+            ProcessResult defaultHandoff = await RunCliInAsync(repo, "review", "handoff", "B-34");
             if (defaultHandoff.ExitCode != 0) { throw new InvalidOperationException(defaultHandoff.StandardError); }
             await Assert.That(defaultHandoff.ExitCode).IsEqualTo(0);
             await Assert.That(defaultHandoff.StandardOutput).Contains(".hygiene");
@@ -766,7 +776,7 @@ public sealed class CliProcessTests
 
             string stalePath = Path.Combine(external, "stale", "request.json");
             await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.cs"), "/// <summary>Eine geänderte verständliche Fixturebeschreibung.</summary>\npublic class Fixture { }\n");
-            ProcessResult stale = await RunCliInAsync(repo, "review", "handoff", "B-1", "--file", stalePath);
+            ProcessResult stale = await RunCliInAsync(repo, "review", "handoff", "B-34", "--file", stalePath);
             await Assert.That(stale.ExitCode).IsEqualTo(3);
             await Assert.That(stale.StandardError).Contains("rerun hygiene check");
             await Assert.That(File.Exists(stalePath)).IsFalse();
@@ -788,9 +798,9 @@ public sealed class CliProcessTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
         JsonElement rules = json.RootElement.GetProperty("rules");
-        await Assert.That(rules.GetArrayLength()).IsEqualTo(39);
-        await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(4).ToArray())
-            .IsEquivalentTo(new[] { "architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review", "comments.intent.review" });
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(50);
+        await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(17).ToArray())
+            .IsEquivalentTo(new[] { "architecture.abstraction.necessity", "architecture.indirection.value", "architecture.responsibility.cohesion", "architecture.boundary.ownership", "architecture.authority.uniqueness", "architecture.lifecycle.binding", "architecture.mechanism.explicitness", "behavior.error.contract", "behavior.validation.boundary", "behavior.state.consistency", "behavior.resource.ownership", "tests.assertion.effectiveness", "tests.change-contract.coverage", "tests.isolation.coupling", "docs.summary.quality.review", "docs.summary.language.german.review", "comments.intent.review" });
         await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).Count(id => id.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(10);
         JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
         await Assert.That(formatter.GetProperty("configurable").GetBoolean()).IsFalse();
@@ -813,7 +823,7 @@ public sealed class CliProcessTests
         ProcessResult help = await RunCliAsync("help", "--agent");
         await Assert.That(help.ExitCode).IsEqualTo(0);
         await Assert.That(help.StandardOutput).Contains("Workflow:");
-        foreach (string required in new[] { "Targets:", "--base", "--review-all", "Exit 0", "--output text|json", "non-mutating", "--changed", "check-only", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "planner", ".hygiene", "no model/provider", "dotnet hygiene" })
+        foreach (string required in new[] { "Targets:", "--base", "--review-all", "Exit 0", "--output text|json", "non-mutating", "--changed", "check-only", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "17 focused", ".hygiene", "no model/provider", "dotnet hygiene" })
         {
             await Assert.That(help.StandardOutput).Contains(required);
         }
@@ -1316,7 +1326,7 @@ public sealed class CliProcessTests
             await Assert.That(disabledDeterministic.GetProperty("evaluationKind").GetString()).IsEqualTo("disabled");
             await Assert.That(disabledDeterministic.GetProperty("deterministicFindings").ValueKind).IsEqualTo(JsonValueKind.Null);
             await Assert.That(disabledDeterministic.GetProperty("approximateApplicableCount").ValueKind).IsEqualTo(JsonValueKind.Null);
-            JsonElement zeroSemantic = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "tests.quality.review");
+            JsonElement zeroSemantic = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "behavior.resource.ownership");
             await Assert.That(zeroSemantic.GetProperty("eligible").GetInt32()).IsEqualTo(0);
             await Assert.That(zeroSemantic.GetProperty("measuredEvaluations").GetInt32()).IsEqualTo(0);
             JsonElement mandatory = reportRules.EnumerateArray().Single(rule => rule.GetProperty("id").GetString() == "profile.dotnet.analysis.required");

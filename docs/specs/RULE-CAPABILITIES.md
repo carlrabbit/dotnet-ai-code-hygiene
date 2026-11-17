@@ -451,51 +451,64 @@ With all new M0010 configurable rules enabled before M0024:
 
 A deliberate disable changes only the disabled rule's owned capabilities.
 
-## Canonical rule order after M0023
+## Canonical rule order after M0025
+
+The runtime registration order is:
 
 ```text
-1.  profile.dotnet.analysis.required          v2
-2.  profile.stylecop.prohibited               v1
-3.  style.braces.required                     v1
-4.  style.accessibility.explicit              v1
-5.  format.csharp.roslyn                      v1
-6.  style.qualification.this.unnecessary      v1
-7.  style.qualification.redundant              v1
-8.  style.object-creation.target-typed         v1
-9.  style.default.literal                    v1
-10. style.cast.redundant                      v1
-11. style.interpolation.redundant              v1
-12. style.names.inferred                     v1
-13. style.usings.unused                       v1
-14. style.usings.organize                     v1
-15. style.modifiers.organize                  v1
-16. style.null-forgiving.redundant            v1
-17. style.whitespace.blank-lines              v1
-18. style.parentheses.redundant               v1
-19. docs.summary.required                     v2
-20. docs.xml.consistent                       v1
-21. docs.text.sentence                        v1
-22. docs.summary.quality.review               v6
-23. docs.summary.language.german.review       v4
-24. readability.long-line.review              v1
-25. readability.control-flow.visual-block     v2
-26. architecture.boringness.review            v3
-27. readability.type-responsibility.review    v1
-28. tests.quality.review                      v1
-29. comments.intent.review                    v1
-30. modernization.var-style                  v1
-31. modernization.expression-body            v1
-32. modernization.collection-expression      v1
-33. modernization.primary-constructor         v1
-34. modernization.switch-expression           v1
-35. modernization.conditional                 v1
-36. modernization.object-initializer           v1
-37. modernization.readonly-field               v1
-38. modernization.inline-declaration           v1
+1.  profile.dotnet.analysis.required             v2
+2.  profile.stylecop.prohibited                  v1
+3.  style.braces.required                        v1
+4.  style.accessibility.explicit                 v1
+5.  format.csharp.roslyn                         v1
+6.  style.qualification.this.unnecessary         v1
+7.  style.qualification.redundant                v1
+8.  style.object-creation.target-typed           v1
+9.  style.default.literal                        v1
+10. style.cast.redundant                         v1
+11. style.interpolation.redundant                 v1
+12. style.names.inferred                         v1
+13. style.usings.unused                          v1
+14. style.usings.organize                        v1
+15. style.modifiers.organize                     v1
+16. style.null-forgiving.redundant                v1
+17. style.whitespace.blank-lines                 v1
+18. style.parentheses.redundant                  v1
+19. docs.summary.required                        v2
+20. docs.xml.consistent                          v1
+21. docs.text.sentence                           v1
+22. modernization.source-exception               v1
+23. modernization.var-style                      v1
+24. modernization.expression-body                v1
+25. modernization.collection-expression          v1
+26. modernization.primary-constructor            v1
+27. modernization.switch-expression              v1
+28. modernization.conditional                    v1
+29. modernization.object-initializer             v1
+30. modernization.readonly-field                  v1
+31. modernization.inline-declaration             v1
+32. readability.long-line.review                  v1
+33. readability.control-flow.visual-block         v2
+34. architecture.abstraction.necessity            v1
+35. architecture.indirection.value                v1
+36. architecture.responsibility.cohesion          v1
+37. architecture.boundary.ownership               v1
+38. architecture.authority.uniqueness             v1
+39. architecture.lifecycle.binding                v1
+40. architecture.mechanism.explicitness           v1
+41. behavior.error.contract                       v1
+42. behavior.validation.boundary                  v1
+43. behavior.state.consistency                    v1
+44. behavior.resource.ownership                    v1
+45. tests.assertion.effectiveness                  v1
+46. tests.change-contract.coverage                 v1
+47. tests.isolation.coupling                       v1
+48. docs.summary.quality.review                  v7
+49. docs.summary.language.german.review          v5
+50. comments.intent.review                       v2
 ```
 
-The relative order of all pre-M0011 rules remains unchanged. M0017 appends its semantic-review rules after the B-3 Architecture rule. M0023 added nine modernization review families; M0024 adds `modernization.source-exception` validation. The modernization populations and budgets remain specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
-
+M0025 replaces the prior omnibus BORINGness, type-responsibility, and test-quality contracts with 17 focused, independently toggleable semantic contracts. Their fixed candidate populations, questions, legitimate cases, source-backed subjects, escalation policies, and shared ten-obligation budget are specified in `docs/specs/SEMANTIC-REVIEWS.md` and `docs/specs/SAMPLING.md`.
 ## M0024 mechanical disposition inventory
 
 The following historical deterministic cleanup IDs remain catalog identifiers. SDK dispositions run in the batched formatter; review-only entries have no automatic rewrite. The removed per-rule Roslyn rewrite classes are not part of the runtime.

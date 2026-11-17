@@ -110,7 +110,7 @@ Required semantics:
 - `createdAtUtc` records artifact creation, not semantic acceptance.
 - `source.runId` and `source.batchHandle` tie the artifact to latest-run evidence.
 - `mode` is exactly `expanded`.
-- `reviewerClass` is the fixed escalated reviewer class owned by the rule: `planner` for `architecture.boringness.review` and `readability.type-responsibility.review`; `frontier` for summary rules, `tests.quality.review`, and `comments.intent.review`.
+- `reviewerClass` follows the fixed policy owned by each rule: architecture escalates unresolved material contract, ownership, interface, or design decisions to `planner`; behavior escalates missing or conflicting business/security/data-boundary policy to `planner`; test and documentation/comment questions escalate material uncertainty or an unestablished observable contract to `frontier`. Local corrections remain implementer-owned.
 - `populationCount` equals `items.length`.
 - `questions` are exactly the rule's fixed rubric.
 - `items` represent the complete revalidated eligible population.

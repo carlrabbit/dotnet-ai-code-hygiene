@@ -135,18 +135,20 @@ internal static class Program
         decide.Arguments.Add(decideHandle); decide.Arguments.Add(decideOccurrence); decide.Options.Add(verdict); decide.Options.Add(output);
         decide.SetAction(parse => Run(() => RenderModernizationDecision(new HygieneEngine().RecordModernizationDecision(
             parse.GetValue(decideHandle)!, parse.GetValue(decideOccurrence)!, parse.GetValue(verdict)!), parse.GetValue(output) ?? "text")));
-        var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand the latest run's complete eligible review population.");
-        expand.Arguments.Add(expandHandle); expand.Options.Add(output);
-        expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!), parse.GetValue(output) ?? "text")));
+        var expandHandle = new Argument<string>("batch-handle"); var expand = new Command("expand", "Expand one bounded page of the latest run's eligible review population.");
+        var expandOffset = new Option<int>("--offset") { DefaultValueFactory = _ => 0, Description = "Zero-based page offset; use the nextPageOffset from JSON output." };
+        expand.Arguments.Add(expandHandle); expand.Options.Add(expandOffset); expand.Options.Add(output);
+        expand.SetAction(parse => Run(() => RenderReview(new HygieneEngine().ExpandReview(parse.GetValue(expandHandle)!, parse.GetValue(expandOffset)), parse.GetValue(output) ?? "text")));
         var handoffHandle = new Argument<string>("batch-handle"); var handoffFile = new Option<string?>("--file");
+        var handoffOffset = new Option<int>("--offset") { DefaultValueFactory = _ => 0, Description = "Zero-based bounded-page offset; use nextPageOffset from JSON output." };
         var handoff = new Command("handoff", "Create a durable, transport-neutral frontier-review request.");
-        handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile); handoff.Options.Add(output);
+        handoff.Arguments.Add(handoffHandle); handoff.Options.Add(handoffFile); handoff.Options.Add(handoffOffset); handoff.Options.Add(output);
         handoff.SetAction(parse => Run(() =>
         {
-            string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile));
+            string path = new HygieneEngine().CreateReviewHandoff(parse.GetValue(handoffHandle)!, parse.GetValue(handoffFile), parse.GetValue(handoffOffset));
             SemanticReviewRequest request = JsonSerializer.Deserialize<SemanticReviewRequest>(File.ReadAllText(path), Json)
                 ?? throw new ProductException("Review handoff could not be read back for its completion report.");
-            var report = new { schemaVersion = 1, status = "escalation-required", lifecycle = "review-handoff", handoffPath = Path.GetRelativePath(new HygieneEngine().Root, path).Replace('\\', '/'), reviewerClass = request.ReviewerClass, rule = request.Rule.Id, batchHandle = request.Source.BatchHandle, itemCount = request.Items.Count, action = "The selected review work has been handed off for the designated reviewer judgment; keep it outstanding until the decision returns and rerun dotnet hygiene." };
+            var report = new { schemaVersion = 2, status = "escalation-required", lifecycle = "review-handoff", handoffPath = Path.GetRelativePath(new HygieneEngine().Root, path).Replace('\\', '/'), reviewerClass = request.ReviewerClass, rule = request.Rule.Id, batchHandle = request.Source.BatchHandle, itemCount = request.Items.Count, request.PageOffset, request.NextPageOffset, action = "The selected review work has been handed off for the designated reviewer judgment; keep it outstanding until the decision returns and rerun dotnet hygiene." };
             string handoffOutput = parse.GetValue(output) ?? "text";
             if (handoffOutput == "json") { Console.WriteLine(JsonSerializer.Serialize(report, Json)); }
             else if (handoffOutput == "text") { Console.WriteLine("Status: escalation-required"); Console.WriteLine(report.action); Console.WriteLine($"Review handoff written: {path}"); }
@@ -264,8 +266,8 @@ internal static class Program
         return 0;
     }
     private sealed record FormatObservation(string Project, string Status, string Output, IReadOnlyList<string> ChangedPaths);
-    private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewOccurrence>? Occurrences = null, int? OccurrencePopulationCount = null, int? OccurrencesRemainingCount = null);
-    private sealed record WorkOrderFile(string Path, string CurrentContentSha256, string CurrentContent, IReadOnlyList<WorkOrderItem> Items);
+    private sealed record WorkOrderItem(string RuleId, int RuleVersion, string BatchHandle, string ItemId, int Line, string Symbol, string Summary, string Declaration, IReadOnlyList<ReviewQuestion> Questions, ReviewEscalation Escalation, IReadOnlyList<ReviewOccurrence>? Occurrences = null, int? OccurrencePopulationCount = null, int? OccurrencesRemainingCount = null, string? ContextStatus = null, string? ObservedSignal = null, string? LegitimateCase = null, ReviewAnchor? PrimaryAnchor = null, IReadOnlyList<ReviewAnchor>? RelatedAnchors = null, IReadOnlyList<ReviewEvidenceExcerpt>? Evidence = null, IReadOnlyList<string>? MissingEvidence = null);
+    private sealed record WorkOrderFile(string Path, string CurrentContentSha256, IReadOnlyList<WorkOrderItem> Items);
     private sealed record AutonomousUpdateResult(int ExitCode, object? RevalidatedLifecycle, string Message, bool Handoff = false);
     private static object? releaseUpdateState;
     private static string ToolVersion => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
@@ -699,20 +701,31 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group =>
             {
-                string content = File.ReadAllText(Path.Combine(root, group.Key.Replace('/', Path.DirectorySeparatorChar)));
-                string[] checkedContexts = group.SelectMany(pair => pair.batch.SourceContents ?? [])
-                    .Where(source => source.Path == group.Key).Select(source => source.Content).Distinct(StringComparer.Ordinal).ToArray();
-                if (checkedContexts.Length != 1 || checkedContexts[0] != content)
+                string path = Path.GetFullPath(Path.Combine(root, group.Key.Replace('/', Path.DirectorySeparatorChar)));
+                string content = File.ReadAllText(path);
+                var evidenceByPath = group.SelectMany(pair => pair.item.Evidence ?? [])
+                    .GroupBy(excerpt => excerpt.Path, StringComparer.Ordinal).ToArray();
+                if (!evidenceByPath.Any(evidence => evidence.Key == group.Key))
+                { throw new ProductException($"Primary source evidence is missing for '{group.Key}'; rerun dotnet hygiene."); }
+                foreach (var evidenceGroup in evidenceByPath)
                 {
-                    throw new ProductException($"Source context changed while preparing the selected work order for '{group.Key}'; rerun dotnet hygiene.");
+                    string evidencePath = Path.GetFullPath(Path.Combine(root, evidenceGroup.Key.Replace('/', Path.DirectorySeparatorChar)));
+                    if (!evidencePath.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(evidencePath))
+                    { throw new ProductException($"Related source evidence is unavailable for '{evidenceGroup.Key}'; rerun dotnet hygiene."); }
+                    string evidenceContent = File.ReadAllText(evidencePath);
+                    string actualHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(evidenceContent)));
+                    if (evidenceGroup.Select(excerpt => excerpt.SourceSha256).Distinct(StringComparer.Ordinal).Count() != 1 || evidenceGroup.First().SourceSha256 != actualHash)
+                    { throw new ProductException($"Source context changed while preparing selected work for '{evidenceGroup.Key}'; rerun dotnet hygiene."); }
                 }
                 string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)));
                 WorkOrderItem[] items = group.Select(pair => new WorkOrderItem(
                     pair.batch.RuleId, pair.batch.RuleVersion, pair.batch.Handle, pair.item.Id, pair.item.Line, pair.item.Symbol,
                     pair.item.Summary, pair.item.Declaration, pair.batch.Questions, pair.batch.Escalation, pair.item.Occurrences,
-                    pair.item.OccurrencePopulationCount, pair.item.OccurrencesRemainingCount))
+                    pair.item.OccurrencePopulationCount, pair.item.OccurrencesRemainingCount, pair.item.ContextStatus,
+                    pair.item.ObservedSignal, pair.item.LegitimateCase, pair.item.PrimaryAnchor, pair.item.RelatedAnchors,
+                    pair.item.Evidence, pair.item.MissingEvidence))
                     .OrderBy(item => item.RuleId, StringComparer.Ordinal).ThenBy(item => item.ItemId, StringComparer.Ordinal).ToArray();
-                return new WorkOrderFile(group.Key, hash, content, items);
+                return new WorkOrderFile(group.Key, hash, items);
             })
             .ToArray();
     }
@@ -916,6 +929,17 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                     foreach (JsonElement item in file.GetProperty("items").EnumerateArray())
                     {
                         Console.WriteLine($"  {GetString(item, "ruleId")} {GetString(item, "batchHandle")} {GetString(item, "itemId")} {GetString(item, "declaration")}");
+                        Console.WriteLine($"    Context: {GetString(item, "contextStatus") ?? "unspecified"}; signal: {GetString(item, "observedSignal") ?? "unavailable"}");
+                        if (item.TryGetProperty("evidence", out JsonElement evidence) && evidence.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (JsonElement excerpt in evidence.EnumerateArray())
+                            {
+                                Console.WriteLine($"    Source: {GetString(excerpt, "project")}:{GetString(excerpt, "path")}:{GetString(excerpt, "startLine")}-{GetString(excerpt, "endLine")} {GetString(excerpt, "symbol")}");
+                                Console.WriteLine(GetString(excerpt, "text"));
+                            }
+                        }
+                        if (item.TryGetProperty("missingEvidence", out JsonElement missing) && missing.ValueKind == JsonValueKind.Array)
+                        { foreach (JsonElement omission in missing.EnumerateArray()) { Console.WriteLine($"    Missing context: {omission.GetString()}"); } }
                         foreach (JsonElement question in item.GetProperty("questions").EnumerateArray()) { Console.WriteLine($"    {GetString(question, "id")}: {GetString(question, "text")}"); }
                         JsonElement escalation = item.GetProperty("escalation");
                         Console.WriteLine($"    Escalate to {GetString(escalation, "reviewerClass")}: {GetString(escalation, "condition")}");
@@ -981,7 +1005,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         CheckResult r = engine.Check(paths, changed, baseRef: baseRef, reviewAll: reviewAll);
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = r.SchemaVersion, r.RunId, findings = r.Findings.Select(PublicFinding), r.IgnoredCount, reviewBatches = r.ReviewBatches.Select(PublicBatch) }, Json));
         }
         else if (output == "text")
         {
@@ -1025,9 +1049,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene format --changed; dotnet hygiene normalize --check; dotnet hygiene normalize --changed; dotnet hygiene review expand <batch>, dotnet hygiene review handoff <batch> --output json, dotnet hygiene review accept <batch> <item>.... Handoff returns escalation-required and keeps those items outstanding. Rewrite --changed selects staged, unstaged, and untracked C# paths and is always non-mutating. Format runs SDK whitespace; normalize runs the fixed SDK style diagnostic allowlist and whitespace. --review-all remains bounded.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene format --changed; dotnet hygiene normalize --check; dotnet hygiene normalize --changed; dotnet hygiene review expand <batch> [--offset <0,50,...>], dotnet hygiene review handoff <batch> [--offset <0,50,...>] --output json, dotnet hygiene review accept <batch> <item>.... Expansion and handoff return at most 50 obligations per page; JSON includes nextPageOffset. Handoff returns escalation-required and keeps those items outstanding. Rewrite --changed selects staged, unstaged, and untracked C# paths and is always non-mutating. Format runs SDK whitespace; normalize runs the fixed SDK style diagnostic allowlist and whitespace. --review-all remains bounded.
         Exhaustive audit: dotnet hygiene --yolo-all first asks whether the user explicitly tasked the calling agent. Proceed only with --attest-explicit-task; otherwise stop or pass --deny-explicit-task. A valid supported profile and accepted baseline are required; the audit will not create either. Continue with dotnet hygiene audit next --run <audit-dir>, record only external acceptable/problem/uncertain judgments with dotnet hygiene audit record --run <audit-dir> --file <judgments.json>, then create report.json and report.md with dotnet hygiene audit finish --run <audit-dir>. Problem/uncertain judgments require rationale. The audit is report-only: no source changes, formatting, normalization, normal acceptance, handoff, bootstrap, tool update, or provider call. Reports disclose that source changes during collection are not tracked. Source context stays in the chosen local audit directory.
-        The six established semantic-review rules select independently, up to five items each. The nine modernization families share one five-package budget. Modern syntax is preferred; retain an occurrence with a meaningful native pragma for an SDK-suppressible diagnostic or a narrow `// hygiene:retain modernization.<rule-id> -- <reason>` source comment for hygiene-only candidates. Previous local modernization verdicts are not approval and are not migrated. The agent must inspect every fixed question before acceptance or escalation. Negative or uncertain summary, test-quality, and comment-intent items go to the frontier; BORINGness and type-responsibility concerns go to the planner. Acceptance revalidates source identity; changed items become stale. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are not findings and sampling is not population certification.
+        The 17 focused architecture, behavior, test, summary-documentation and comment rules share at most ten independently judged rule-subject obligations per normal gate. Changed subjects have priority; at most two slots may go to genuinely context-affected subjects, and unrelated background work is not selected. Explicit paths and --review-all remain within the ten-slot limit. Each selected item includes its fixed question, source-backed signal, legitimate-case boundary, stable anchors and up to eight excerpts/24,000 UTF-8 bytes; missing or truncated context is explicit. Expansion and handoff can inspect larger populations in bounded pages. The nine modernization families retain their separate five-package budget. Modern syntax is preferred; retain an occurrence with a meaningful native pragma for an SDK-suppressible diagnostic or a narrow `// hygiene:retain modernization.<rule-id> -- <reason>` source comment for hygiene-only candidates. Previous local modernization verdicts are not approval and are not migrated. Each independent semantic question is judged on its own evidence; the CLI never decides semantic quality. Acceptance revalidates source identity; changed evidence becomes new work. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are opportunities, not findings or population certification.
         Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle or audit status. An incomplete audit report returns exit 5; exit 2 means invalid invocation, 3 authorization or unusable input/state/safety prerequisite, 4 missing required dependency. Normal review state is under .hygiene/.state; audit checkpoints are separate under .hygiene/audits. The CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;
     private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
@@ -1064,12 +1088,12 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
         return 0;
     }
     private static object PublicFinding(Finding f) => new { f.Id, f.Handle, f.RuleId, f.RuleVersion, f.Classification, f.Path, f.Line, f.Column, f.Symbol, f.Message, f.Suggestion };
-    private static object PublicBatch(ReviewBatch b) => new { b.Id, b.Handle, b.RuleId, b.RuleVersion, b.Mode, b.ReviewerClass, b.PopulationCount, b.SampleCount, b.Questions, b.Escalation, items = b.Items };
+    private static object PublicBatch(ReviewBatch b) => new { b.Id, b.Handle, b.RuleId, b.RuleVersion, b.Mode, b.ReviewerClass, b.PopulationCount, b.SampleCount, b.PageOffset, b.NextPageOffset, b.Questions, b.Escalation, items = b.Items };
     private static int RenderReview(ReviewBatch batch, string output)
     {
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, reviewBatch = PublicBatch(batch) }, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 2, reviewBatch = PublicBatch(batch) }, Json));
         }
         else if (output == "text")
         {
@@ -1106,9 +1130,17 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     private static void RenderBatchText(ReviewBatch b)
     {
         Console.WriteLine($"{b.Id} {b.RuleId} — {b.Mode} {b.SampleCount}/{b.PopulationCount} — reviewer: {b.ReviewerClass}");
+        if (b.Mode == "expanded") { Console.WriteLine($"  Page offset: {b.PageOffset}; next offset: {b.NextPageOffset?.ToString() ?? "none"}"); }
         foreach (ReviewItem item in b.Items)
         {
             Console.WriteLine($"  {item.Id} {item.Path}:{item.Line}:{item.Column} {item.Symbol} — {item.Summary}");
+            if (item.ContextStatus is not null) { Console.WriteLine($"    Context: {item.ContextStatus}; signal: {item.ObservedSignal ?? "unavailable"}"); }
+            foreach (ReviewEvidenceExcerpt excerpt in item.Evidence ?? [])
+            {
+                Console.WriteLine($"    Source: {excerpt.Project}:{excerpt.Path}:{excerpt.StartLine}-{excerpt.EndLine} {excerpt.Symbol}");
+                Console.WriteLine(excerpt.Text);
+            }
+            foreach (string missing in item.MissingEvidence ?? []) { Console.WriteLine($"    Missing context: {missing}"); }
             foreach (ReviewOccurrence occurrence in item.Occurrences ?? [])
             {
             Console.WriteLine($"    {occurrence.Id} {occurrence.Path}:{occurrence.Line} {occurrence.DiagnosticId}: {occurrence.PreviewTitle}");
@@ -1120,6 +1152,10 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             Console.WriteLine($"  {question.Id}: {question.Text}");
         }
 
+        if (b.Mode == "expanded" && b.NextPageOffset is int nextPage)
+        {
+            Console.WriteLine($"  Continue: dotnet hygiene review expand {b.Handle} --offset {nextPage}");
+        }
         if (b.Mode == "sample")
         {
             Console.WriteLine($"  Escalate: {b.Escalation.Condition} Run: dotnet hygiene review expand {b.Handle}");

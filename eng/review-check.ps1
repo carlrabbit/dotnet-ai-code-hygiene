@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('M0024')][string] $Milestone
+    [Parameter(Mandatory)][ValidateSet('M0024','M0025')][string] $Milestone
 )
 
 $ErrorActionPreference = 'Stop'
