@@ -219,47 +219,47 @@ Evidence cases distinguish genuinely separate execution paths. Each parent crite
 
 | ID | Parent | Required evidence case | Why independent proof matters |
 |---|---|---|---|
-| EC-01a | AC-01 | Interfaces/implementations, including one implementation | distinct symbol relationships from factories |
-| EC-01b | AC-01 | Factory/strategy abstraction discovery | separate construction/strategy representations |
-| EC-02a | AC-02 | Simple forwarding chain and alternate boundary | forwarding versus meaningful adapter context |
-| EC-04a | AC-04 | Cross-project external component access | cross-assembly/source graph path |
-| EC-05a | AC-05 | Configuration copied versus derived provenance | different state/authority representation |
-| EC-06a | AC-06 | Construction-time dependency | DI/constructor lifetime path |
-| EC-06b | AC-06 | Invocation/run-specific state | operation lifetime distinct from DI |
-| EC-07a | AC-07 | Explicit dynamic mechanisms and absence of reliable graph | truthfulness on reflection/dynamic paths |
-| EC-08a | AC-08 | Technical failure mapped to success/denial | distinct outcome mapping path |
-| EC-09a | AC-09 | Effective HTTP serializer/binder boundary and null/missing inputs | runtime binding not inferred from nullable syntax |
-| EC-10a | AC-10 | Stale async completion after context change | race/context path distinct from normal state updates |
-| EC-11a | AC-11 | Acquisition/cleanup across exceptions and cancellation | separate resource lifecycle exits |
-| EC-12a | AC-12 | Framework-resolved test with positive observable assertions | test-discovery plus assertion relationship |
-| EC-13a | AC-13 | Production change with related tests | test-to-production relation path |
-| EC-13b | AC-13 | Production change with no deterministically discovered related tests | unknown/partial context, not automatic missing-coverage verdict |
-| EC-14a | AC-14 | Fixture/double change with production seam | setup and dependency graph path |
-| EC-15a | AC-15 | Ordinary summary and positional-record `<param>` carrier | different Roslyn summary carriers |
-| EC-16a | AC-16 | Enabled and disabled German review participation | independent configuration path |
-| EC-17a | AC-17 | Ordinary, leading/trailing and excluded trivia | different source trivia paths |
-| EC-19a | AC-19 | In-project relation and stable primary reporting anchor | single-project identity and context |
-| EC-19b | AC-19 | Cross-project relation with partial or unresolved references | different graph, missing-context handling |
-| EC-20a | AC-20 | Complete bounded context package | ordinary evidence rendering |
-| EC-20b | AC-20 | Oversized or incomplete evidence package | explicit truncation and safety outcome |
-| EC-21a | AC-21 | Multiple rules hit the same source relationship | each obligation consumes budget; no silent dedupe |
-| EC-21b | AC-21 | More than ten eligible decisions across families | global cap and deterministic fairness |
-| EC-22a | AC-22 | Changed versus context-affected subject, plus zero-work gate | distinct admission/ranking paths |
-| EC-22b | AC-22 | Explicit paths and `--review-all` | separate intentional broad gate surfaces |
-| EC-23a | AC-23 | No selected candidates and bounded ordinary gate | lazy, no eager enrichment |
-| EC-23b | AC-23 | Expansion and exhaustive audit | explicit unbounded population and enrichment |
-| EC-24a | AC-24 | Related evidence edit invalidates prior accepted review | transitive fingerprint and stale tickets |
-| EC-24b | AC-24 | Same unchanged gate, partial acceptance and tampered ticket | no refill, no false acceptance |
-| EC-25a | AC-25 | Autonomous and manual CLI outputs | distinct user-facing routing |
-| EC-25b | AC-25 | Read-only audit and normal accepted-state isolation | distinct audit/normal state path |
-| EC-26a | AC-26 | SDK/modernization normal behavior and source exceptions | different rule family mechanics |
-| EC-26b | AC-26 | Git checkpoint and audit authorization/read-only invariant | different safety boundaries |
-| EC-27a | AC-27 | Old persisted accepted-review records vs new rule names | state migration boundary and no silent loss |
-| EC-28a | AC-28 | Packed tool installation and ordinary CLI review | real installed consumer boundary |
-| EC-28b | AC-28 | Installed audit and acceptance failure exits | distinct consumer failure paths |
-| EC-29a | AC-29 | Mechanical fixtures exercise eligibility and graph correctness | legitimate deterministic fixtures |
-| EC-29b | AC-29 | No synthetic labeled LLM verdict tests in default validation | negative validation-scope contract |
-| EC-30a | AC-30 | At least two source-bearing historical changes with actual source provenance | actual source workload, not invented semantic labels |
+| EC-01a | M0025ArchitectureRuleTests: interface implementation and consumer symbol anchors; PartialAbstractionKeepsTheChangedDeclarationAndOneSymbolDecision: changed later partial remains primary. | Interfaces/implementations, including one implementation | complete |
+| EC-01b | M0025ArchitectureRuleTests: factory return contract, resolved implementation and consumer anchors. | Factory/strategy abstraction discovery | complete |
+| EC-02a | M0025ArchitectureRuleTests: compiler-resolved caller, intermediary and callee chain anchors. | Simple forwarding chain and alternate boundary | complete |
+| EC-04a | M0025ArchitectureRuleTests cross-project provider-contract anchor; installed consumer cross-project review. | Cross-project external component access | complete |
+| EC-05a | M0025ArchitectureRuleTests: direct RHS state provenance, with transitive-flow limitation. | Configuration copied versus derived provenance | complete |
+| EC-06a | M0025ArchitectureRuleTests: constructor dependency type/source relationship anchor. | Construction-time dependency | complete |
+| EC-06b | M0025ArchitectureRuleTests: resolved DI registration and invocation/run-state relationship evidence. | Invocation/run-specific state | complete |
+| EC-07a | M0025ArchitectureRuleTests: dynamic/reflection candidate and explicit unresolved graph limitation. | Explicit dynamic mechanisms and absence of reliable graph | complete |
+| EC-08a | M0025BehaviorRuleTests: catch/fallback and ?? throw candidates; ordinary ?? excluded. | Technical failure mapped to success/denial | complete |
+| EC-09a | M0025BehaviorRuleTests: real ASP.NET HttpPost/FromBody and Required symbols, DTO relationship anchor, and explicit unknown effective runtime binder/options. | Effective HTTP serializer/binder boundary and null/missing inputs | complete |
+| EC-10a | M0025BehaviorRuleTests: await count, resolved mutable state write/owner anchor, and scheduler limitation. | Stale async completion after context change | complete |
+| EC-11a | M0025BehaviorRuleTests: event subscription and same-owner acquisition/release anchors; arithmetic +=/-= excluded. | Acquisition/cleanup across exceptions and cancellation | complete |
+| EC-12a | M0025TestDocumentationRuleTests: framework-resolved test methods with observable assertion and reference evidence. | Framework-resolved test with positive observable assertions | complete |
+| EC-13a | M0025TestDocumentationRuleTests: exact changed-symbol test reference distinguished from sibling and containing-type-only references. | Production change with related tests | complete |
+| EC-13b | M0025TestDocumentationRuleTests: changed production method with no direct test edge and explicit integration/contract coverage limitation. | Production change with no deterministically discovered related tests | complete |
+| EC-14a | M0025TestDocumentationRuleTests: FakeStore compiler-resolved IStore seam anchor; recognized test-framework setup calls. | Fixture/double change with production seam | complete |
+| EC-15a | M0025TestDocumentationRuleTests: ordinary API summary and positional-record property carrier. | Ordinary summary and positional-record `<param>` carrier | complete |
+| EC-16a | LifecycleTests.PortfolioRulesRemainIndependentAndGermanPolicyCanBeDisabled: shared population and independent disable behavior. | Enabled and disabled German review participation | complete |
+| EC-17a | M0025TestDocumentationRuleTests: ordinary comment candidates and exclusion of directives, disabled trivia, XML docs and literals. | Ordinary, leading/trailing and excluded trivia | complete |
+| EC-19a | M0025ArchitectureRuleTests: changed-side primary anchor, implementation/consumer edges, later partial and project-qualified identity. | In-project relation and stable primary reporting anchor | complete |
+| EC-19b | M0025ArchitectureRuleTests and installed consumer: cross-project provider edge; unresolved/dynamic paths remain explicit limitations. | Cross-project relation with partial or unresolved references | complete |
+| EC-20a | M0025SharedSemanticBudgetTests.MissingPrimarySourceIsUnavailableAndNecessaryMethodBodyIsIncluded plus selected related-source package. | Complete bounded context package | complete |
+| EC-20b | M0025SharedSemanticBudgetTests: full serialized UTF-8 bound, Unicode, many anchors, eight-excerpt cap, missing and truncation metadata. | Oversized or incomplete evidence package | complete |
+| EC-21a | M0025SharedSemanticBudgetTests: duplicate path relationships remain independent rule-subject obligations. | Multiple rules hit the same source relationship | complete |
+| EC-21b | M0025SharedSemanticBudgetTests.SharedBudgetCountsEachRuleSubjectAndDoesNotRefillAfterPartialAcceptance: ten-slot ceiling and stable rotation. | More than ten eligible decisions across families | complete |
+| EC-22a | M0025SharedSemanticBudgetTests.RelatedContextIsLimitedToTwoAndComesAfterChangedSubjects plus closed/zero-work analysis counter. | Changed versus context-affected subject, plus zero-work gate | complete |
+| EC-22b | LifecycleTests.CheckBaseAndReviewAllAreExplicitGateModesWithProcessErrors and explicit-path CLI assertions. | Explicit paths and `--review-all` | complete |
+| EC-23a | M0025ArchitectureRuleTests.ClosedAndZeroWorkGatesSkipRelationshipEnrichmentUntilWorkIsSelected: candidate discovery, zero selection, zero relationship scans. | No selected candidates and bounded ordinary gate | complete |
+| EC-23b | LifecycleTests expansion paging and exhaustive-audit tests; explicit expansion selects/enriches and audit preserves normal state. | Expansion and exhaustive audit | complete |
+| EC-24a | M0025RelationshipAcceptanceTests.AcceptedProductionTestRelationshipInvalidatesWhenLateAssertionChanges and related-method edit regression. | Related evidence edit invalidates prior accepted review | complete |
+| EC-24b | M0025SharedSemanticBudgetTests partial acceptance/no refill; current-ticket tamper and stale-ticket CLI cases. | Same unchanged gate, partial acceptance and tampered ticket | complete |
+| EC-25a | Core/CLI process coverage for check, accept, expand and handoff; exact installed-consumer relationship and budget scenarios. | Autonomous and manual CLI outputs | complete |
+| EC-25b | LifecycleTests/CLI exhaustive-audit authorization, resume, and normal accepted-state isolation cases. | Read-only audit and normal accepted-state isolation | complete |
+| EC-26a | Core and CLI SDK formatter/profile-v3, modernization population and source-local exception cases. | SDK/modernization normal behavior and source exceptions | complete |
+| EC-26b | CLI Git checkpoint and authenticated read-only exhaustive audit process scenarios. | Git checkpoint and audit authorization/read-only invariant | complete |
+| EC-27a | LifecycleTests legacy-state preservation/refusal plus installed v2-to-v3 migration; no retired acceptance translation. | Old persisted accepted-review records vs new rule names | complete |
+| EC-28a | Exact 0.12.0 package in local NuGet feed and isolated dotnet-hygiene consumer installation. | Packed tool installation and ordinary CLI review | complete |
+| EC-28b | Installed-consumer audit/acceptance failure and protected-source/state hash checks. | Installed audit and acceptance failure exits | complete |
+| EC-29a | Compiled M0025 architecture, behavior, test/docs, evidence, acceptance, identity and budget fixtures. | Mechanical fixtures exercise eligibility and graph correctness | complete |
+| EC-29b | Default deterministic suite contains no synthetic semantic-good/bad labels, LLM verdicts or consensus thresholds. | No synthetic labeled LLM verdict tests in default validation | complete |
+| EC-30a | Current implementation read-only in-process census on both source SHAs; counts, overlap, context sufficiency, timing and provenance recorded below. | At least two source-bearing historical changes with actual source provenance | complete |
 
 ## Validation
 
@@ -337,54 +337,54 @@ The implementer reads this milestone and the seeded ledger, verifies exact ID se
 | AC-30 | Read-only in-process census on source-bearing commits f128195ee4e99590c47e31939e0aed932613d679 and 400f140b6764c560fe9f4d96437d8b8a6b73243d; VAL-07. | VAL-07 | complete |
 | DOC-01 | README, architecture, engineering, terminology, operative specs, CLI help reconciled; README policy and self-host receipts. | VAL-04/05 | complete |
 | REV-01 | Pending authorized independent reviewer decision; reviewer evidence not self-authored. | VAL-08 | pending independent review |
-| EC-01a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-01b | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-02a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-04a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-05a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-06a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-06b | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-07a | M0025ArchitectureRuleTests.ArchitectureRulesDiscoverTheirMechanicalSignalsIndependently; VAL-01. | VAL-01–07 | complete |
-| EC-08a | M0025BehaviorRuleTests.BehaviorRulesExposeMechanicalChangedSourceSubjectsAndSingleQuestions; VAL-01. | VAL-01–07 | complete |
-| EC-09a | M0025BehaviorRuleTests.BehaviorRulesExposeMechanicalChangedSourceSubjectsAndSingleQuestions; VAL-01. | VAL-01–07 | complete |
-| EC-10a | M0025BehaviorRuleTests.BehaviorRulesExposeMechanicalChangedSourceSubjectsAndSingleQuestions; VAL-01. | VAL-01–07 | complete |
-| EC-11a | M0025BehaviorRuleTests.BehaviorRulesExposeMechanicalChangedSourceSubjectsAndSingleQuestions; VAL-01. | VAL-01–07 | complete |
-| EC-12a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-13a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-13b | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-14a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-15a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-16a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-17a | M0025TestDocumentationRuleTests.TestAndDocumentationRulesExposeTheirMechanicalPopulations; VAL-01. | VAL-01–07 | complete |
-| EC-19a | Architecture fixture in-project relation and primary anchor; VAL-02. | VAL-01–07 | complete |
-| EC-19b | Architecture cross-project relation fixture and installed-consumer evidence; VAL-02/06. | VAL-01–07 | complete |
-| EC-20a | SelectedEvidenceIsBoundedAndReportsMissingOrTruncatedAnchors available-context branch; VAL-02. | VAL-01–07 | complete |
-| EC-20b | SelectedEvidenceIsBoundedAndReportsMissingOrTruncatedAnchors partial/truncated/missing-source branch; VAL-02. | VAL-01–07 | complete |
-| EC-21a | SharedBudgetCountsEachRuleSubjectAndDoesNotRefillAfterPartialAcceptance same-source obligations; VAL-03. | VAL-01–07 | complete |
-| EC-21b | SharedBudgetCountsEachRuleSubjectAndDoesNotRefillAfterPartialAcceptance ten-obligation ceiling; VAL-03. | VAL-01–07 | complete |
-| EC-22a | RelatedContextIsLimitedToTwoAndComesAfterChangedSubjects and closed-gate fixture; VAL-03. | VAL-01–07 | complete |
-| EC-22b | CheckBaseAndReviewAllAreExplicitGateModesWithProcessErrors and explicit-path assertions; VAL-03. | VAL-01–07 | complete |
-| EC-23a | SessionFactsAreLazyAndSharedWithinTheSession and zero-selected gate fixture; VAL-02. | VAL-01–07 | complete |
-| EC-23b | Lifecycle expansion-page tests and GateLocalReviewTests exhaustive audit snapshot; VAL-02. | VAL-01–07 | complete |
-| EC-24a | ChangedMergeBaseRejectsOldExpansionHandoffAndAcceptanceWithSamePopulation; VAL-03. | VAL-01–07 | complete |
-| EC-24b | SharedBudgetCountsEachRuleSubjectAndDoesNotRefillAfterPartialAcceptance and tampered/stale-ticket cases; VAL-03. | VAL-01–07 | complete |
-| EC-25a | CLI help, check, accept, expand, handoff and installed tool scenarios; VAL-04/06. | VAL-01–07 | complete |
-| EC-25b | ExhaustiveAuditRequiresAttestationResumesJudgmentsAndPreservesNormalState; VAL-04. | VAL-01–07 | complete |
-| EC-26a | RoslynModernizationAnalyzerTests, profile and source-exception regressions; VAL-04. | VAL-01–07 | complete |
-| EC-26b | CLI Git checkpoint and authenticated read-only audit scenarios; VAL-04/06. | VAL-01–07 | complete |
-| EC-27a | M0024 migration test and installed v2-to-v3 migration/refusal scenarios; VAL-03/06. | VAL-01–07 | complete |
-| EC-28a | Exact 0.12.0 package invoked through isolated dotnet-hygiene shim; VAL-06. | VAL-01–07 | complete |
-| EC-28b | Installed acceptance failure, audit and state-protection scenarios; VAL-06. | VAL-01–07 | complete |
-| EC-29a | Compiled M0025 architecture, behavior, test/docs, relationship and budget fixtures; VAL-01/02/03. | VAL-01–07 | complete |
-| EC-29b | Default deterministic suite has no synthetic LLM verdict labels or grade assertions; VAL-01. | VAL-01–07 | complete |
-| EC-30a | Two source-bearing historical SHAs; per-rule counts, overlap, selected context and runtime recorded in ledger; VAL-07. | VAL-01–07 | complete |
-| VAL-01 | core-tests receipt: 104/104 passed on Windows/.NET 11.0.100-rc.3.26522.148. | Core rule suite | complete |
+| EC-01a | M0025ArchitectureRuleTests: interface implementation and consumer symbol anchors; PartialAbstractionKeepsTheChangedDeclarationAndOneSymbolDecision: changed later partial remains primary. | VAL-01–07 | complete |
+| EC-01b | M0025ArchitectureRuleTests: factory return contract, resolved implementation and consumer anchors. | VAL-01–07 | complete |
+| EC-02a | M0025ArchitectureRuleTests: compiler-resolved caller, intermediary and callee chain anchors. | VAL-01–07 | complete |
+| EC-04a | M0025ArchitectureRuleTests cross-project provider-contract anchor; installed consumer cross-project review. | VAL-01–07 | complete |
+| EC-05a | M0025ArchitectureRuleTests: direct RHS state provenance, with transitive-flow limitation. | VAL-01–07 | complete |
+| EC-06a | M0025ArchitectureRuleTests: constructor dependency type/source relationship anchor. | VAL-01–07 | complete |
+| EC-06b | M0025ArchitectureRuleTests: resolved DI registration and invocation/run-state relationship evidence. | VAL-01–07 | complete |
+| EC-07a | M0025ArchitectureRuleTests: dynamic/reflection candidate and explicit unresolved graph limitation. | VAL-01–07 | complete |
+| EC-08a | M0025BehaviorRuleTests: catch/fallback and ?? throw candidates; ordinary ?? excluded. | VAL-01–07 | complete |
+| EC-09a | M0025BehaviorRuleTests: real ASP.NET HttpPost/FromBody and Required symbols, DTO relationship anchor, and explicit unknown effective runtime binder/options. | VAL-01–07 | complete |
+| EC-10a | M0025BehaviorRuleTests: await count, resolved mutable state write/owner anchor, and scheduler limitation. | VAL-01–07 | complete |
+| EC-11a | M0025BehaviorRuleTests: event subscription and same-owner acquisition/release anchors; arithmetic +=/-= excluded. | VAL-01–07 | complete |
+| EC-12a | M0025TestDocumentationRuleTests: framework-resolved test methods with observable assertion and reference evidence. | VAL-01–07 | complete |
+| EC-13a | M0025TestDocumentationRuleTests: exact changed-symbol test reference distinguished from sibling and containing-type-only references. | VAL-01–07 | complete |
+| EC-13b | M0025TestDocumentationRuleTests: changed production method with no direct test edge and explicit integration/contract coverage limitation. | VAL-01–07 | complete |
+| EC-14a | M0025TestDocumentationRuleTests: FakeStore compiler-resolved IStore seam anchor; recognized test-framework setup calls. | VAL-01–07 | complete |
+| EC-15a | M0025TestDocumentationRuleTests: ordinary API summary and positional-record property carrier. | VAL-01–07 | complete |
+| EC-16a | LifecycleTests.PortfolioRulesRemainIndependentAndGermanPolicyCanBeDisabled: shared population and independent disable behavior. | VAL-01–07 | complete |
+| EC-17a | M0025TestDocumentationRuleTests: ordinary comment candidates and exclusion of directives, disabled trivia, XML docs and literals. | VAL-01–07 | complete |
+| EC-19a | M0025ArchitectureRuleTests: changed-side primary anchor, implementation/consumer edges, later partial and project-qualified identity. | VAL-01–07 | complete |
+| EC-19b | M0025ArchitectureRuleTests and installed consumer: cross-project provider edge; unresolved/dynamic paths remain explicit limitations. | VAL-01–07 | complete |
+| EC-20a | M0025SharedSemanticBudgetTests.MissingPrimarySourceIsUnavailableAndNecessaryMethodBodyIsIncluded plus selected related-source package. | VAL-01–07 | complete |
+| EC-20b | M0025SharedSemanticBudgetTests: full serialized UTF-8 bound, Unicode, many anchors, eight-excerpt cap, missing and truncation metadata. | VAL-01–07 | complete |
+| EC-21a | M0025SharedSemanticBudgetTests: duplicate path relationships remain independent rule-subject obligations. | VAL-01–07 | complete |
+| EC-21b | M0025SharedSemanticBudgetTests.SharedBudgetCountsEachRuleSubjectAndDoesNotRefillAfterPartialAcceptance: ten-slot ceiling and stable rotation. | VAL-01–07 | complete |
+| EC-22a | M0025SharedSemanticBudgetTests.RelatedContextIsLimitedToTwoAndComesAfterChangedSubjects plus closed/zero-work analysis counter. | VAL-01–07 | complete |
+| EC-22b | LifecycleTests.CheckBaseAndReviewAllAreExplicitGateModesWithProcessErrors and explicit-path CLI assertions. | VAL-01–07 | complete |
+| EC-23a | M0025ArchitectureRuleTests.ClosedAndZeroWorkGatesSkipRelationshipEnrichmentUntilWorkIsSelected: candidate discovery, zero selection, zero relationship scans. | VAL-01–07 | complete |
+| EC-23b | LifecycleTests expansion paging and exhaustive-audit tests; explicit expansion selects/enriches and audit preserves normal state. | VAL-01–07 | complete |
+| EC-24a | M0025RelationshipAcceptanceTests.AcceptedProductionTestRelationshipInvalidatesWhenLateAssertionChanges and related-method edit regression. | VAL-01–07 | complete |
+| EC-24b | M0025SharedSemanticBudgetTests partial acceptance/no refill; current-ticket tamper and stale-ticket CLI cases. | VAL-01–07 | complete |
+| EC-25a | Core/CLI process coverage for check, accept, expand and handoff; exact installed-consumer relationship and budget scenarios. | VAL-01–07 | complete |
+| EC-25b | LifecycleTests/CLI exhaustive-audit authorization, resume, and normal accepted-state isolation cases. | VAL-01–07 | complete |
+| EC-26a | Core and CLI SDK formatter/profile-v3, modernization population and source-local exception cases. | VAL-01–07 | complete |
+| EC-26b | CLI Git checkpoint and authenticated read-only exhaustive audit process scenarios. | VAL-01–07 | complete |
+| EC-27a | LifecycleTests legacy-state preservation/refusal plus installed v2-to-v3 migration; no retired acceptance translation. | VAL-01–07 | complete |
+| EC-28a | Exact 0.12.0 package in local NuGet feed and isolated dotnet-hygiene consumer installation. | VAL-01–07 | complete |
+| EC-28b | Installed-consumer audit/acceptance failure and protected-source/state hash checks. | VAL-01–07 | complete |
+| EC-29a | Compiled M0025 architecture, behavior, test/docs, evidence, acceptance, identity and budget fixtures. | VAL-01–07 | complete |
+| EC-29b | Default deterministic suite contains no synthetic semantic-good/bad labels, LLM verdicts or consensus thresholds. | VAL-01–07 | complete |
+| EC-30a | Current implementation read-only in-process census on both source SHAs; counts, overlap, context sufficiency, timing and provenance recorded below. | VAL-01–07 | complete |
+| VAL-01 | Current core-tests receipt: 111/111 passed on Windows/.NET 11.0.100-rc.3.26522.148, 300.17 s. | Core rule suite | complete |
 | VAL-02 | Current Core/CLI receipts: cross-project relations, bounded evidence, lazy work and page expansion passed. | Core/CLI | complete |
 | VAL-03 | Current Core/CLI receipts: shared budget, gate priority, acceptance, invalidation and legacy-state scenarios passed. | Core/CLI | complete |
-| VAL-04 | CLI 36/36; README and self-host receipts; audit authorization and modernization/profile regressions passed. | CLI/repository | complete |
-| VAL-05 | Canonical ./eng/validate.ps1 -Verify passed, reusing all seven current fingerprint-matched receipts. | aggregate | complete |
-| VAL-06 | Package SHA-256 ed742a42f0fc65396ae0a4d5c5395d699c0288bbb408d8643579c79ee3d15565; shim SHA-256 4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da; installed consumer passed. | installed consumer | complete |
-| VAL-07 | In-process read-only census on f128195ee4e99590c47e31939e0aed932613d679 and 400f140b6764c560fe9f4d96437d8b8a6b73243d; detail in ledger. | real source snapshots | complete |
+| VAL-04 | Current CLI 36/36; README policy receipt reused as current; repository self-host passed in 205.688 s. | CLI/repository | complete |
+| VAL-05 | Canonical ./eng/validate.ps1 -Verify passed; all seven fingerprint-matched receipts reused, zero additional executions. | aggregate | complete |
+| VAL-06 | Exact local 0.12.0 package SHA-256 d6dfbe0ade48bc080c2920c68bcea357cd056e618495e4a45b15facebff64532; installed shim SHA-256 4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da; installed-consumer receipt passed. | installed consumer | complete |
+| VAL-07 | Read-only census on f128195ee4e99590c47e31939e0aed932613d679 and 400f140b6764c560fe9f4d96437d8b8a6b73243d: 1,415/1,605 candidates, 75/88 multi-rule overlaps, 6/10 selected evidence packages available, 149.333/151.607 s; detail and limitations in ledger. | real source snapshots | complete |
 | VAL-08 | Wait for authorized independent reviewer, then run ./eng/review-check.ps1 -Milestone M0025. | human review | pending |
 
 ## Escalation Boundary

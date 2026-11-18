@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace DotNetAiCodeHygiene.Core;
@@ -6,7 +7,8 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed record ReviewSubject(string Identity, string Content, ReviewItem Item, GateTicket? GateTicket = null,
     bool DirectChange = false, bool RelatedChange = false, IReadOnlyList<ReviewAnchor>? RelatedAnchors = null,
     string? ObservedSignal = null, string? LegitimateCase = null, ReviewAnchor? PrimaryAnchor = null,
-    string? RelatedEvidenceFingerprint = null);
+    string? RelatedEvidenceFingerprint = null, Func<RuleContext, ReviewSubject, ReviewSubject>? Enrich = null,
+    string? EvidenceLimitation = null);
 
 internal sealed record RuleModuleResult(
     IReadOnlyList<Finding> Findings,
@@ -28,12 +30,15 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
 {
     private readonly Dictionary<(string RuleId, DocumentId DocumentId), Dictionary<string, int>> occurrenceCounts = [];
     private readonly Lazy<GateLocalReviewStore> gateReviewStore = new(() => new GateLocalReviewStore(session.Root), LazyThreadSafetyMode.ExecutionAndPublication);
+    private int relationshipAnalysisCount;
 
     internal RepositorySession Session { get; } = session;
     internal bool ExhaustiveAudit { get; } = exhaustiveAudit;
     internal IReadOnlyList<Document> ReportingDocuments { get; } = reportingDocuments;
     internal GateSelectionContext Gate { get; } = gate ?? new GateSelectionContext("", "closed", new HashSet<string>(StringComparer.Ordinal), new Dictionary<string, HashSet<int>>(StringComparer.Ordinal));
     internal GateLocalReviewStore GateReviewStore => gateReviewStore.Value;
+    internal int RelationshipAnalysisCount => relationshipAnalysisCount;
+    internal void RecordRelationshipAnalysis() => Interlocked.Increment(ref relationshipAnalysisCount);
     internal bool HasChangedLine(string path, int first, int last) => Gate.ChangedLines.TryGetValue(path, out HashSet<int>? lines) && lines.Any(line => line >= first && line <= last);
     internal IReadOnlyList<ReviewSubject> SelectGate(Rule rule, IReadOnlyList<ReviewSubject> population) =>
         ExhaustiveAudit ? population : Gate.ExpandRuleId == rule.Id
@@ -57,14 +62,23 @@ internal sealed class RuleContext(RepositorySession session, IReadOnlyList<Docum
     {
         if (anchors is null || anchors.Count == 0) { return ""; }
         var parts = new List<string>();
-        foreach (ReviewAnchor anchor in anchors.OrderBy(value => value.Project, StringComparer.Ordinal).ThenBy(value => value.Path, StringComparer.Ordinal).ThenBy(value => value.Line))
+        foreach (ReviewAnchor anchor in anchors.Distinct().OrderBy(value => value.Project, StringComparer.Ordinal).ThenBy(value => value.Path, StringComparer.Ordinal).ThenBy(value => value.Line))
         {
-            string? source = SourceContent(anchor.Path);
-            if (source is null) { parts.Add(anchor.Path + "\0unavailable\0" + anchor.Line); continue; }
-            string[] lines = source.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-            int center = Math.Clamp(anchor.Line - 1, 0, Math.Max(0, lines.Length - 1));
-            int first = Math.Max(0, center - 3), last = Math.Min(lines.Length - 1, center + 3);
-            parts.Add(anchor.Project + "\0" + anchor.Path + "\0" + anchor.Line + "\0" + GateLocalReviewStore.Fingerprint(string.Join("\n", lines[first..(last + 1)])));
+            RecordRelationshipAnalysis();
+            Document? document = Session.Projects.SelectMany(project => project.Documents).FirstOrDefault(candidate =>
+                string.Equals(RelativePath(candidate), anchor.Path.Replace('\\', '/'), StringComparison.Ordinal));
+            if (document is null) { parts.Add(anchor.Project + "\0" + anchor.Path + "\0unavailable"); continue; }
+            SyntaxNode root = Root(document);
+            SourceText text = Text(document);
+            int line = Math.Clamp(anchor.Line - 1, 0, Math.Max(0, text.Lines.Count - 1));
+            SyntaxNode? tokenNode = root.FindToken(text.Lines[line].Start).Parent;
+            SyntaxNode? declaration = tokenNode?.AncestorsAndSelf().FirstOrDefault(node => node is MemberDeclarationSyntax or LocalFunctionStatementSyntax or AccessorDeclarationSyntax);
+            if (declaration is null)
+            {
+                declaration = tokenNode?.AncestorsAndSelf().FirstOrDefault(node => node is BaseTypeDeclarationSyntax or EnumMemberDeclarationSyntax);
+            }
+            string evidence = declaration is null ? "unavailable" : declaration.ToFullString();
+            parts.Add(anchor.Project + "\0" + anchor.Path + "\0" + anchor.Symbol + "\0" + GateLocalReviewStore.Fingerprint(evidence));
         }
         return GateLocalReviewStore.Fingerprint(string.Join("\n", parts));
     }

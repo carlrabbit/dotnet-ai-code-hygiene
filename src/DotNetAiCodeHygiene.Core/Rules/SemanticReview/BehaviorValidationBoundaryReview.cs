@@ -7,7 +7,7 @@ internal sealed class BehaviorValidationBoundaryReviewRuleModule : ISemanticRevi
 {
     internal const string RuleId = "behavior.validation.boundary";
     private const string Question = "Is the actual invariant enforced where untrusted data enters without redundant interior checks or unjustified assumptions?";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "review-batch", "review-batch", "Review changed input and validation boundaries with explicit binding evidence.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Review changed input and validation boundaries with explicit binding evidence.", true);
     private static readonly ReviewQuestion[] RuleQuestions = [new("Q1", Question)];
     private const string EscalationText = "Escalate a missing or conflicting business, security, or data-boundary contract to the planner. Runtime binder or serializer behavior that cannot be established from loaded source remains uncertain.";
     private static readonly HashSet<string> BoundaryAttributes = new(StringComparer.Ordinal)
@@ -38,7 +38,28 @@ internal sealed class BehaviorValidationBoundaryReviewRuleModule : ISemanticRevi
             foreach (SyntaxNode node in root.DescendantNodes().Where(candidate => IsInputSignal(candidate, model)).OrderBy(candidate => candidate.SpanStart))
             {
                 ISymbol? owner = BehaviorReviewSupport.DeclaredOwner(context, document, node);
-                subjects.Add(BehaviorReviewSupport.Create(context, document, node, owner, "input/validation boundary", "Compiler nullability alone is not runtime JSON validation; actual configured binders matter.", ordinals));
+                ReviewSubject subject = BehaviorReviewSupport.Create(context, document, node, owner, "input/validation boundary", "Compiler nullability alone is not runtime JSON validation; actual configured binders matter.", ordinals);
+                ISymbol?[] relatedSymbols = node switch
+                {
+                    ParameterSyntax parameter => [owner, model.GetTypeInfo(parameter.Type!).Type],
+                    MethodDeclarationSyntax method => [owner, .. method.ParameterList.Parameters.Select(parameter => model.GetTypeInfo(parameter.Type!).Type)],
+                    InvocationExpressionSyntax invocation => new ISymbol?[] { model.GetSymbolInfo(invocation).Symbol, owner }
+                        .Concat((model.GetSymbolInfo(invocation).Symbol as IMethodSymbol)?.TypeArguments.Cast<ISymbol?>() ?? []).ToArray(),
+                    _ => [owner]
+                };
+                string exactSignal = node switch
+                {
+                    ParameterSyntax parameter => "Compiler-resolved boundary attribute(s): " + string.Join(", ", model.GetDeclaredSymbol(parameter)?.GetAttributes().Select(attribute => attribute.AttributeClass?.ToDisplayString()).Where(name => name is not null) ?? []),
+                    MethodDeclarationSyntax method => "Compiler-resolved endpoint attribute(s): " + string.Join(", ", model.GetDeclaredSymbol(method)?.GetAttributes().Select(attribute => attribute.AttributeClass?.ToDisplayString()).Where(name => name is not null) ?? []),
+                    InvocationExpressionSyntax invocation => "Compiler-resolved input/binder/serializer method: " + model.GetSymbolInfo(invocation).Symbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    _ => "Compiler-resolved input boundary signal"
+                };
+                subjects.Add(subject with { ObservedSignal = exactSignal + "; effective runtime binder/serializer configuration is not inferred from this source signal.",
+                    Enrich = (_, selected) => selected with
+                    {
+                        RelatedAnchors = ReviewRelationshipFacts.RelatedSymbols(context, relatedSymbols, "boundary-owner-dto-or-serializer-source-declaration"),
+                        EvidenceLimitation = "Effective runtime binder, serializer options, and validation registration were not established from the source boundary signal."
+                    } });
             }
             if (subjects.Any(subject => subject.Item.Path == path)) { sources.TryAdd(path, context.Text(document).ToString()); }
         }
@@ -55,12 +76,22 @@ internal sealed class BehaviorValidationBoundaryReviewRuleModule : ISemanticRevi
         if (node is MethodDeclarationSyntax method && method.AttributeLists.Count > 0)
         {
             ISymbol? symbol = model.GetDeclaredSymbol(method);
-            if (symbol?.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() is "Microsoft.AspNetCore.Mvc.HttpGetAttribute" or "Microsoft.AspNetCore.Mvc.HttpPostAttribute" or "Microsoft.AspNetCore.Mvc.HttpPutAttribute" or "Microsoft.AspNetCore.Mvc.HttpPatchAttribute" or "Microsoft.AspNetCore.Mvc.HttpDeleteAttribute") == true) { return true; }
+            if (symbol?.GetAttributes().Any(attribute => IsHttpBoundaryAttribute(attribute.AttributeClass)) == true) { return true; }
         }
-        if (node is InvocationExpressionSyntax invocation)
+        if (node is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol called)
         {
-            string name = invocation.Expression switch { MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText, IdentifierNameSyntax identifier => identifier.Identifier.ValueText, _ => "" };
-            return name is "Deserialize" or "TryValidateModel" or "Validate" or "Bind";
+            string containingType = called.ContainingType.ToDisplayString();
+            return called.Name switch
+            {
+                "Deserialize" => IsFrameworkType(called.ContainingType, "System.Text.Json.JsonSerializer", "System.Text.Json") ||
+                    IsFrameworkType(called.ContainingType, "Newtonsoft.Json.JsonConvert", "Newtonsoft.Json") ||
+                    IsFrameworkType(called.ContainingType, "System.Xml.Serialization.XmlSerializer", "System.Xml.XmlSerializer"),
+                "Validate" => IsFrameworkType(called.ContainingType, "System.ComponentModel.DataAnnotations.Validator", "System.ComponentModel.Annotations"),
+                "TryValidateModel" or "TryUpdateModelAsync" => IsFrameworkType(called.ContainingType, "Microsoft.AspNetCore.Mvc.ControllerBase", "Microsoft.AspNetCore.Mvc.Core"),
+                "Bind" => containingType.StartsWith("Microsoft.AspNetCore.Mvc.ModelBinding.", StringComparison.Ordinal) &&
+                    called.ContainingAssembly.Identity.Name == "Microsoft.AspNetCore.Mvc.Core",
+                _ => false
+            };
         }
         return false;
     }
@@ -69,7 +100,26 @@ internal sealed class BehaviorValidationBoundaryReviewRuleModule : ISemanticRevi
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
         {
-            if (BoundaryAttributes.Contains(current.ToDisplayString())) { return true; }
+            if (!BoundaryAttributes.Contains(current.ToDisplayString())) { continue; }
+            string expectedAssembly = current.ToDisplayString().StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal)
+                ? "Microsoft.AspNetCore.Mvc.Core" : "System.ComponentModel.Annotations";
+            return current.ContainingAssembly.Identity.Name == expectedAssembly;
+        }
+        return false;
+    }
+
+    private static bool IsFrameworkType(INamedTypeSymbol type, string fullName, string assembly) =>
+        type.ToDisplayString() == fullName && type.ContainingAssembly.Identity.Name == assembly;
+
+    private static bool IsHttpBoundaryAttribute(INamedTypeSymbol? type)
+    {
+        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
+            if (current.ToDisplayString() is "Microsoft.AspNetCore.Mvc.HttpGetAttribute" or "Microsoft.AspNetCore.Mvc.HttpPostAttribute" or
+                "Microsoft.AspNetCore.Mvc.HttpPutAttribute" or "Microsoft.AspNetCore.Mvc.HttpPatchAttribute" or "Microsoft.AspNetCore.Mvc.HttpDeleteAttribute")
+            {
+                return current.ContainingAssembly.Identity.Name == "Microsoft.AspNetCore.Mvc.Core";
+            }
         }
         return false;
     }

@@ -7,7 +7,7 @@ internal sealed class BehaviorStateConsistencyReviewRuleModule : ISemanticReview
 {
     internal const string RuleId = "behavior.state.consistency";
     private const string Question = "Could stale results or state updates apply to the wrong active context?";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "review-batch", "review-batch", "Review changed asynchronous and mutable state transitions for context-sensitive updates.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Review changed asynchronous and mutable state transitions for context-sensitive updates.", true);
     private static readonly ReviewQuestion[] RuleQuestions = [new("Q1", Question)];
     private const string EscalationText = "Escalate a missing or conflicting business, security, or data-boundary state contract to the planner. Unsupported runtime scheduling or callback context remains uncertain.";
     public Rule Descriptor => RuleDescriptor;
@@ -40,7 +40,20 @@ internal sealed class BehaviorStateConsistencyReviewRuleModule : ISemanticReview
                     && method.DescendantNodes().Any(IsStateMutation);
                 if (!asyncState && !eventCallback && !(contextualName && method.DescendantNodes().Any(IsStateMutation))) { continue; }
                 ISymbol? owner = model.GetDeclaredSymbol(method);
-                subjects.Add(BehaviorReviewSupport.Create(context, document, method, owner, "asynchronous/state transition", "Sequential code or isolated concurrent operations need no extra cancellation machinery.", ordinals));
+                ReviewSubject subject = BehaviorReviewSupport.Create(context, document, method, owner, "asynchronous/state transition", "Sequential code or isolated concurrent operations need no extra cancellation machinery.", ordinals);
+                AssignmentExpressionSyntax[] writes = method.DescendantNodes().OfType<AssignmentExpressionSyntax>().Where(IsStateMutation).ToArray();
+                ISymbol[] stateTargets = writes.Select(write => model.GetSymbolInfo(write.Left).Symbol).Where(symbol => symbol is not null).Cast<ISymbol>()
+                    .Distinct(SymbolEqualityComparer.Default).ToArray();
+                ReviewAnchor[] transitions = stateTargets.SelectMany(target => ReviewRelationshipFacts.Declarations(context, target, "mutated-state-owner"))
+                    .Concat(writes.Select(write => ReviewRelationshipFacts.Anchor(context, context.Tree(document), write.Span,
+                        model.GetSymbolInfo(write.Left).Symbol, "state-transition-write"))).Distinct().ToArray();
+                string stateSignal = "Asynchronous/context-sensitive method; compiler-resolved state target(s): " +
+                    (stateTargets.Length == 0 ? "none resolved" : string.Join(", ", stateTargets.Select(target => target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).Order(StringComparer.Ordinal))) +
+                    "; mechanically observed trigger: " + (asyncState ? "async+await+state mutation" : eventCallback ? "EventArgs callback+state mutation" : "context-like method name+state mutation") +
+                    "; await count=" + method.DescendantNodes().OfType<AwaitExpressionSyntax>().Count() + ". Scheduler behavior is not inferred.";
+                subjects.Add(subject with { RelatedAnchors = transitions, ObservedSignal = stateSignal,
+                    Content = subject.Content + "\0transition:" + string.Join("\0", writes.Select(write => write.WithoutTrivia().ToFullString())),
+                    EvidenceLimitation = stateTargets.Length == 0 ? "No compiler-resolved mutable state target was found in the selected transition; runtime context/state remains unknown." : null });
             }
             if (subjects.Any(subject => subject.Item.Path == path)) { sources.TryAdd(path, context.Text(document).ToString()); }
         }

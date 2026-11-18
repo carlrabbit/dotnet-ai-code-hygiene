@@ -51,7 +51,11 @@ Check and rewrite commands use the same repository/session substrate rather than
 
 Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
 
-Gate-local semantic selection is a separate lazy `RuleContext` service. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. `GateLocalReviewStore` records only explicit accepted observations.
+Gate-local semantic selection is a separate lazy `RuleContext` service. Rule modules discover mechanically eligible subjects and minimum stable selection data first. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. Selected subjects then resolve cross-file relationships and assemble detailed source evidence; ordinary closed or zero-work gates do not run unrelated relationship analysis. Expansion and authorized exhaustive audit use the same rule-owned enrichment path within their declared scopes. `GateLocalReviewStore` records only explicit accepted observations.
+
+Relationship-based subjects keep a project-qualified identity and the changed reporting declaration as their primary anchor. Compiler-resolved related declarations remain separate anchors with their relationship basis stated explicitly; unresolved dynamic or external paths remain limitations. Acceptance fingerprints cover the relevant primary and selected related source declarations, together with the rule question/version, rather than a small line window or an arbitrary repository-wide digest.
+
+Evidence is assembled per selected judgment obligation. The complete serialized work item is limited to eight source excerpts and 24,000 UTF-8 bytes; anchor summaries and truncation metadata are included in that same bound. If necessary source is absent, unresolved, omitted by the bound, or truncated, the item reports partial or unavailable context with the reason.
 
 ## Reporting scope versus readable context
 

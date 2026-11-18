@@ -11,7 +11,7 @@ internal sealed record GateReviewState(int SchemaVersion, GateReviewObservation[
 /// <summary>Deterministic, gate-local selection and explicit accepted-review evidence.</summary>
 internal sealed class GateLocalReviewStore
 {
-    internal const int AlgorithmVersion = 3;
+    internal const int AlgorithmVersion = 4;
     private const int MaximumObservations = 50_000;
     private static readonly JsonSerializerOptions StateJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private readonly string path;
@@ -75,9 +75,7 @@ internal sealed class GateLocalReviewStore
         var materialized = populations.OrderBy(p => p.Rule.Id, StringComparer.Ordinal)
             .Select(p => (p.Rule, Subjects: p.Population.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
                 .Select(s => (Subject: s, Fingerprint: CandidateFingerprint(s))).ToArray())).ToArray();
-        string populationIdentity = Hash(string.Join("\n", materialized.SelectMany(p => p.Subjects.Select(s => p.Rule.Id + "\0" + p.Rule.Version + "\0" + s.Subject.Identity + "\0" + s.Fingerprint))
-            .Order(StringComparer.Ordinal)));
-        string sharedGate = Hash(gateId + "\0general-semantic-budget-v1\0" + populationIdentity);
+        string sharedGate = SharedGateIdentity(gateId, materialized);
         var empty = materialized.ToDictionary(p => p.Rule.Id, _ => (IReadOnlyList<ReviewSubject>)Array.Empty<ReviewSubject>(), StringComparer.Ordinal);
         if (mode == "closed" || limit <= 0) { return empty; }
         bool broad = mode is "all" or "paths";
@@ -121,6 +119,36 @@ internal sealed class GateLocalReviewStore
                 .Select(x => x.Subject with { GateTicket = Ticket(sharedGate, population.Rule, x.Subject.Identity, x.Fingerprint) }).ToArray();
             return (IReadOnlyList<ReviewSubject>)candidates;
         }, StringComparer.Ordinal);
+    }
+
+    internal IReadOnlyDictionary<string, IReadOnlyList<ReviewSubject>> FinalizeSharedSelected(string gateId,
+        IReadOnlyList<(Rule Rule, IReadOnlyList<ReviewSubject> Population)> populations,
+        IReadOnlyDictionary<string, IReadOnlyList<ReviewSubject>> selected)
+    {
+        var materialized = populations.OrderBy(p => p.Rule.Id, StringComparer.Ordinal)
+            .Select(p => (p.Rule, Subjects: p.Population.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
+                .Select(s => (Subject: s, Fingerprint: CandidateFingerprint(s))).ToArray())).ToArray();
+        string sharedGate = SharedGateIdentity(gateId, materialized);
+        return selected.ToDictionary(pair => pair.Key, pair =>
+        {
+            var population = materialized.Single(p => p.Rule.Id == pair.Key);
+            return (IReadOnlyList<ReviewSubject>)pair.Value.Select(subject =>
+            {
+                string fingerprint = CandidateFingerprint(subject);
+                if (observations.Any(o => o.RuleId == population.Rule.Id && o.RuleVersion == population.Rule.Version &&
+                    o.SubjectId == subject.Identity && o.Fingerprint == fingerprint)) { return null; }
+                GateTicket ticket = Ticket(sharedGate, population.Rule, subject.Identity, fingerprint);
+                return subject with { GateTicket = ticket };
+            }).Where(subject => subject is not null).Cast<ReviewSubject>().ToArray();
+        }, StringComparer.Ordinal);
+    }
+
+    private static string SharedGateIdentity(string gateId,
+        (Rule Rule, (ReviewSubject Subject, string Fingerprint)[] Subjects)[] materialized)
+    {
+        string populationIdentity = Hash(string.Join("\n", materialized.SelectMany(p => p.Subjects.Select(s =>
+            p.Rule.Id + "\0" + p.Rule.Version + "\0" + s.Subject.Identity + "\0" + s.Fingerprint)).Order(StringComparer.Ordinal)));
+        return Hash(gateId + "\0general-semantic-budget-v2\0" + populationIdentity);
     }
 
     internal bool Accept(string gateId, Rule rule, ReviewSubject subject)

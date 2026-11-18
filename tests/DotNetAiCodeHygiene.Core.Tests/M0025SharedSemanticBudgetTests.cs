@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using DotNetAiCodeHygiene.Core;
 
 namespace DotNetAiCodeHygiene.Core.Tests;
@@ -77,12 +78,48 @@ public sealed class M0025SharedSemanticBudgetTests
         await Assert.That(truncated.Evidence!.Count).IsEqualTo(1);
         await Assert.That(truncated.MissingEvidence!.Any(reason => reason.Contains("truncated", StringComparison.Ordinal))).IsTrue();
         await Assert.That(truncated.MissingEvidence!.Any(reason => reason.Contains("source unavailable", StringComparison.Ordinal))).IsTrue();
+        await Assert.That(truncated.RelatedAnchors!.Select(anchor => anchor.Path).ToArray()).IsEquivalentTo(new[] { "Missing.cs" });
         int utf8Bytes = Encoding.UTF8.GetByteCount(truncated.Question!) + Encoding.UTF8.GetByteCount(truncated.LegitimateCase!) +
             Encoding.UTF8.GetByteCount(truncated.ObservedSignal!) + Encoding.UTF8.GetByteCount(truncated.Declaration) +
             Encoding.UTF8.GetByteCount(truncated.Symbol) + Encoding.UTF8.GetByteCount(truncated.Path) +
             truncated.Evidence.Sum(excerpt => Encoding.UTF8.GetByteCount(excerpt.Project + excerpt.Path + excerpt.Symbol + excerpt.Text));
         await Assert.That(utf8Bytes).IsLessThanOrEqualTo(ReviewEvidenceBuilder.MaximumUtf8Bytes);
-        await Assert.That(sourcesResult.Single().Content).IsNotEqualTo(text);
+        await Assert.That(sourcesResult.Length).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CompleteSerializedEvidenceIsBoundedAcrossUnicodeAndManyRelatedAnchors()
+    {
+        string method = "public void Verify()\n{\n" + string.Concat(Enumerable.Range(0, 160).Select(index => $"    Assert.Equal({index}, Value{index}()); // 例示\n")) + "}\n";
+        var source = new Dictionary<string, string>(StringComparer.Ordinal) { ["Test.cs"] = "class Tests {\n" + method + "}\n" };
+        ReviewAnchor primary = new("Tests.csproj", "Test.cs", 1, 1, "Tests.Verify", "primary test subject");
+        ReviewAnchor[] related = Enumerable.Range(0, 40).Select(index => new ReviewAnchor("P.csproj", $"Related/{index}.cs", 1, 1,
+            "Related" + index + new string('界', 80), "related anchor" + new string('é', 120))).ToArray();
+        ReviewItem item = new("RI-1", "Test.cs", 1, 1, "Tests.Verify", "review", "declaration");
+        (ReviewItem built, _) = ReviewEvidenceBuilder.Build(item, primary, related, source,
+            "Does this hold?", "An integration test can be valid.", "Compiler-resolved test method.");
+        byte[] serialized = JsonSerializer.SerializeToUtf8Bytes(built);
+        await Assert.That(serialized.Length).IsLessThanOrEqualTo(ReviewEvidenceBuilder.MaximumUtf8Bytes);
+        await Assert.That(built.Evidence!.Count).IsLessThanOrEqualTo(ReviewEvidenceBuilder.MaximumExcerpts);
+        await Assert.That(built.ContextStatus).IsEqualTo("partial");
+        await Assert.That(built.MissingEvidence!.Count).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task MissingPrimarySourceIsUnavailableAndNecessaryMethodBodyIsIncluded()
+    {
+        string method = "class Tests {\n    public void Verify() {\n" + string.Concat(Enumerable.Range(0, 100).Select(index => $"        int assertion{index} = {index};\n")) +
+            "        Assert.Equal(17, actual); // MATERIAL_LATE_ASSERTION\n    }\n}\n";
+        var available = new Dictionary<string, string>(StringComparer.Ordinal) { ["Tests.cs"] = method };
+        ReviewAnchor primary = new("Tests.csproj", "Tests.cs", 2, 5, "Tests.Verify", "primary");
+        ReviewItem item = new("RI-1", "Tests.cs", 2, 5, "Tests.Verify", "review", "declaration");
+        (ReviewItem built, _) = ReviewEvidenceBuilder.Build(item, primary, [], available, "Question", "Legitimate", "Signal");
+        await Assert.That(built.ContextStatus).IsEqualTo("available");
+        await Assert.That(built.Evidence!.Single().Text).Contains("MATERIAL_LATE_ASSERTION");
+
+        (ReviewItem missing, _) = ReviewEvidenceBuilder.Build(item, primary, [], new Dictionary<string, string>(), "Question", "Legitimate", "Signal");
+        await Assert.That(missing.ContextStatus).IsEqualTo("unavailable");
+        await Assert.That(missing.MissingEvidence!.Single()).Contains("source unavailable");
     }
 
     private static string[] SelectedIdentities(IReadOnlyDictionary<string, IReadOnlyList<ReviewSubject>> selection) =>

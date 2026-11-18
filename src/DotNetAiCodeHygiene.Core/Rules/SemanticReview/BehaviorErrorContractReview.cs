@@ -8,7 +8,7 @@ internal sealed class BehaviorErrorContractReviewRuleModule : ISemanticReviewRul
 {
     internal const string RuleId = "behavior.error.contract";
     private const string Question = "Can a failure be misrepresented as success, denial or a different business outcome?";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "review-batch", "review-batch", "Review changed failure-to-outcome paths using compiler-backed source signals.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Review changed failure-to-outcome paths using compiler-backed source signals.", true);
     private static readonly ReviewQuestion[] RuleQuestions = [new("Q1", Question)];
     private const string EscalationText = "Escalate only when a missing or conflicting business, security, or data-boundary contract requires a policy decision. If runtime context is unavailable, report uncertainty rather than inventing an outcome.";
     public Rule Descriptor => RuleDescriptor;
@@ -28,7 +28,7 @@ internal sealed class BehaviorErrorContractReviewRuleModule : ISemanticReviewRul
             SemanticModel model = context.SemanticModel(document);
             string path = context.RelativePath(document);
             var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (SyntaxNode node in root.DescendantNodes().Where(IsFailureOutcomeSignal).OrderBy(node => node.SpanStart))
+            foreach (SyntaxNode node in root.DescendantNodes().Where(candidate => IsFailureOutcomeSignal(candidate, model)).OrderBy(node => node.SpanStart))
             {
                 // A catch/filter, fallback arm, conversion or retry is a review trigger,
                 // not evidence that its behavior is wrong.
@@ -40,26 +40,40 @@ internal sealed class BehaviorErrorContractReviewRuleModule : ISemanticReviewRul
         return new RuleModuleResult([], subjects, sources) with { SelectedReviewSubjects = [], ReviewerClass = "implementer" };
     }
 
-    private static bool IsFailureOutcomeSignal(SyntaxNode node) => node switch
+    private static bool IsFailureOutcomeSignal(SyntaxNode node, SemanticModel model) => node switch
     {
         CatchClauseSyntax => true,
         ThrowExpressionSyntax => true,
         CatchFilterClauseSyntax => true,
         ConditionalExpressionSyntax conditional => conditional.WhenTrue is ThrowExpressionSyntax || conditional.WhenFalse is ThrowExpressionSyntax,
-        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.CoalesceExpression) => true,
-        InvocationExpressionSyntax invocation => IsOutcomeConversionOrRetry(invocation),
+        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.CoalesceExpression) && IsObservableFallback(binary, model) => true,
+        InvocationExpressionSyntax invocation => IsOutcomeConversionOrRetry(invocation, model),
         _ => false
     };
 
-    private static bool IsOutcomeConversionOrRetry(InvocationExpressionSyntax invocation)
+    private static bool IsObservableFallback(BinaryExpressionSyntax binary, SemanticModel model) => binary.Right is ThrowExpressionSyntax ||
+        binary.Right.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Any(invocation =>
+            model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && LooksLikeFailureOutcome(method.ReturnType));
+
+    private static bool IsOutcomeConversionOrRetry(InvocationExpressionSyntax invocation, SemanticModel model)
     {
-        string name = invocation.Expression switch
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method) { return false; }
+        bool named = method.Name is "Retry" or "RetryAsync" or "Fallback" or "FallbackAsync" or "ToResult" or "ToError" or "ToFailure" or "FromException" or "MapError" or "MapFailure" or "HandleException";
+        if (!named) { return false; }
+        bool exceptionContext = invocation.Ancestors().Any(node => node is CatchClauseSyntax or ThrowStatementSyntax or ThrowExpressionSyntax);
+        bool failureInput = method.Parameters.Any(parameter => LooksLikeFailureOutcome(parameter.Type)) ||
+            invocation.ArgumentList.Arguments.Any(argument => LooksLikeFailureOutcome(model.GetTypeInfo(argument.Expression).Type));
+        return exceptionContext || failureInput || LooksLikeFailureOutcome(method.ReturnType) || LooksLikeFailureOutcome(method.ContainingType);
+    }
+
+    private static bool LooksLikeFailureOutcome(ITypeSymbol? type)
+    {
+        for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
         {
-            MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
-            IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
-            GenericNameSyntax generic => generic.Identifier.ValueText,
-            _ => ""
-        };
-        return name is "Retry" or "RetryAsync" or "Fallback" or "FallbackAsync" or "ToResult" or "ToError" or "ToFailure" or "FromException" or "MapError" or "MapFailure" or "HandleException";
+            if (current.Name.Contains("Exception", StringComparison.OrdinalIgnoreCase) || current.Name.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
+                current.Name.Contains("Failure", StringComparison.OrdinalIgnoreCase) || current.Name.Contains("Result", StringComparison.OrdinalIgnoreCase) ||
+                current.Name.Contains("Problem", StringComparison.OrdinalIgnoreCase)) { return true; }
+        }
+        return false;
     }
 }

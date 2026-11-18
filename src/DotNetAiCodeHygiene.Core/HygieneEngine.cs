@@ -242,7 +242,8 @@ public sealed class HygieneEngine
         string run = "R-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5))[..8];
         for (int i = 0; i < active.Length; i++) { string id = "F-" + (i + 1); active[i] = active[i] with { Id = id, Handle = run + "/" + id }; }
         int ignored = candidates.Count - active.Length;
-        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions, createTickets: createReviewTickets && !exhaustiveAudit);
+        SemanticReviewMaterialization review = RuleCatalog.SemanticReviewRunner.BuildBatches(run, executions,
+            createTickets: createReviewTickets && !exhaustiveAudit, includeSourceContents: exhaustiveAudit || expandRuleId is not null);
         ticketSink?.AddRange(review.Tickets);
         ReviewBatch[] batches = review.Batches;
         var result = new CheckResult(2, run, active, ignored, batches);
@@ -263,7 +264,7 @@ public sealed class HygieneEngine
         return result;
     }
 
-    internal static ReviewBatchMaterialization BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, IReadOnlyList<ReviewSubject> selectedSubjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition, string escalatedReviewerClass, string reviewerClass, bool createTickets = true)
+    internal static ReviewBatchMaterialization BuildReviewBatch(string run, Rule rule, int batchNumber, IReadOnlyList<ReviewSubject> subjects, IReadOnlyList<ReviewSubject> selectedSubjects, Dictionary<string, string> sourceContents, IReadOnlyList<ReviewQuestion> questions, string escalationCondition, string escalatedReviewerClass, string reviewerClass, bool createTickets = true, bool includeSourceContents = false)
     {
         var ordered = subjects.GroupBy(s => s.Identity, StringComparer.Ordinal).Select(g => g.First())
             .OrderBy(s => s.Item.Path, StringComparer.Ordinal).ThenBy(s => s.Item.Line).ThenBy(s => s.Identity, StringComparer.Ordinal)
@@ -280,7 +281,8 @@ public sealed class HygieneEngine
             ReviewItem item = s.Item with { Id = "RI-" + (index + 1), Question = question, LegitimateCase = s.Subject.LegitimateCase,
                 ObservedSignal = s.Subject.ObservedSignal, PrimaryAnchor = primary, RelatedAnchors = related };
             if (!selected) { return item; }
-            return ReviewEvidenceBuilder.Build(item, primary, related, sourceContents, question, s.Subject.LegitimateCase, s.Subject.ObservedSignal).Item;
+            return ReviewEvidenceBuilder.Build(item, primary, related, sourceContents, question, s.Subject.LegitimateCase, s.Subject.ObservedSignal,
+                s.Subject.EvidenceLimitation).Item;
         }
         ReviewItem[] all = ordered.Select((s, i) => CreateItem(s, i, false)).ToArray();
         var ids = ordered.Select((s, i) => (s.Identity, Id: "RI-" + (i + 1))).ToDictionary(x => x.Identity, x => x.Id, StringComparer.Ordinal);
@@ -288,10 +290,15 @@ public sealed class HygieneEngine
         {
             int index = Array.FindIndex(ordered, candidate => candidate.Identity == s.Identity);
             if (index < 0) { throw new ProductException("A rule selected review work outside its eligible population."); }
-            return CreateItem(ordered[index], index, true);
+            var candidate = ordered[index];
+            return CreateItem((s, candidate.Identity, candidate.Content, candidate.Item, candidate.ContentFingerprint), index, true);
         }).ToArray();
-        ReviewSource[] sources = sample.SelectMany(item => item.Evidence ?? []).GroupBy(excerpt => excerpt.Path, StringComparer.Ordinal)
-            .Select(group => new ReviewSource(group.Key, string.Join("\n\n", group.Select(excerpt => excerpt.Text)))).ToArray();
+        // Ordinary selected items keep context in their per-obligation bounded package.
+        // Explicit expansion/handoff and exhaustive audit may also materialize supporting
+        // source files for the caller's declared broader review scope.
+        ReviewSource[] sources = includeSourceContents
+            ? sourceContents.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new ReviewSource(pair.Key, pair.Value)).ToArray()
+            : [];
         string batchId = "B-" + batchNumber;
         var batch = new ReviewBatch(batchId, run + "/" + batchId, rule.Id, rule.Version, "sample", reviewerClass, ordered.Length, sample.Length, questions,
             new ReviewEscalation(escalationCondition, "dotnet hygiene review expand " + run + "/" + batchId, escalatedReviewerClass), sample, population, all, sources);

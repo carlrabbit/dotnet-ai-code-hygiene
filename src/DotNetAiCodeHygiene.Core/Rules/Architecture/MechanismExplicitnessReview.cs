@@ -32,7 +32,7 @@ internal sealed class MechanismExplicitnessReviewRuleModule : ISemanticReviewRul
                     _ => false
                 };
                 ISymbol? method = node is InvocationExpressionSyntax invocation ? model.GetSymbolInfo(invocation).Symbol : null;
-                bool reflection = method is IMethodSymbol m && (MechanismMembers.Contains(m.Name) && (m.ContainingType.ToDisplayString().StartsWith("System.Reflection.", StringComparison.Ordinal) || m.ContainingType.ToDisplayString() is "System.Type" or "System.Activator" || m.Name is "GetService" or "GetRequiredService" or "GetServices") || m.ContainingType.ToDisplayString() == "System.Activator");
+                bool reflection = method is IMethodSymbol m && IsExplicitMechanism(m);
                 if (!dynamicType && !reflection) { continue; }
                 var span = node.Span; var pos = tree.GetLineSpan(span).StartLinePosition; ISymbol? anchor = method ?? model.GetDeclaredSymbol(node.Parent ?? node);
                 string symbolName = anchor?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? node.ToString();
@@ -48,5 +48,16 @@ internal sealed class MechanismExplicitnessReviewRuleModule : ISemanticReviewRul
             if (subjects.Any(x => x.Item.Path == path)) { sources[path] = source; }
         }
         return new RuleModuleResult([], subjects, sources) with { SelectedReviewSubjects = [] };
+    }
+
+    private static bool IsExplicitMechanism(IMethodSymbol method)
+    {
+        string type = method.ContainingType.ToDisplayString();
+        string assembly = method.ContainingAssembly.Identity.Name;
+        if ((assembly is "System.Reflection" or "System.Runtime") && type.StartsWith("System.Reflection.", StringComparison.Ordinal) && MechanismMembers.Contains(method.Name)) { return true; }
+        if (assembly == "System.Runtime" && (type is "System.Type" or "System.Activator") && MechanismMembers.Contains(method.Name)) { return true; }
+        return method.ContainingAssembly.Identity.Name == "Microsoft.Extensions.DependencyInjection.Abstractions" &&
+            method.ContainingNamespace.ToDisplayString().StartsWith("Microsoft.Extensions.DependencyInjection", StringComparison.Ordinal) &&
+            method.Name is "GetService" or "GetRequiredService" or "GetServices";
     }
 }

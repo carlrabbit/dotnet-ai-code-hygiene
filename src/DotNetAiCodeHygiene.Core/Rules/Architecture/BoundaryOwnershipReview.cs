@@ -50,7 +50,7 @@ internal sealed class BoundaryOwnershipReviewRuleModule : ISemanticReviewRuleMod
                         string targetRelative = context.Session.Relative(targetPath);
                         var targetPos = targetLocation.GetLineSpan().StartLinePosition;
                         related = [new ReviewAnchor(context.ProjectIdentity(targetProject!), targetRelative, targetPos.Line + 1, targetPos.Character + 1,
-                            target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "resolved provider implementation")];
+                            target.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "compiler-resolved-provider-contract-or-symbol")];
                     }
                 }
                 subjects.Add(new(id, node.WithoutLeadingTrivia().ToFullString() + "\0" + targetInfo, item,

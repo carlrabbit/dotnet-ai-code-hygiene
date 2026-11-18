@@ -7,7 +7,7 @@ namespace DotNetAiCodeHygiene.Core;
 internal sealed class IndirectionValueReviewRuleModule : ISemanticReviewRuleModule
 {
     internal const string RuleId = "architecture.indirection.value";
-    private static readonly Rule RuleDescriptor = new(RuleId, 1, "review-batch", "review-batch", "Review changed forwarding methods and delegation chains for owned behavior.", true);
+    private static readonly Rule RuleDescriptor = new(RuleId, 2, "review-batch", "review-batch", "Review changed forwarding methods and delegation chains for owned behavior.", true);
     private static readonly ReviewQuestion[] RuleQuestions = [new("Q1", "Does the intermediary own meaningful transformation, policy, integration or isolation?")];
     public Rule Descriptor => RuleDescriptor; public int BatchNumber => 21; public IReadOnlyList<ReviewQuestion> Questions => RuleQuestions;
     public string EscalationCondition => "Escalate only when a material ownership or boundary decision cannot be resolved from current authority.";
@@ -25,17 +25,32 @@ internal sealed class IndirectionValueReviewRuleModule : ISemanticReviewRuleModu
                 if (symbol is null || !IsForwarder(method)) { continue; }
                 InvocationExpressionSyntax? call = ForwardedInvocation(method);
                 if (call is null) { continue; }
-                ISymbol? target = model.GetSymbolInfo(call).Symbol;
+                IMethodSymbol? target = model.GetSymbolInfo(call).Symbol as IMethodSymbol;
                 string relation = target?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "unresolved call target";
                 string key = context.ProjectIdentity(document) + "\0" + path + "\0" + symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 var line = tree.GetLineSpan(method.Span).StartLinePosition;
                 const string signal = "Method body contains one invocation and no other executable statement";
                 const string legitimate = "A cross-boundary adapter or authorization boundary can legitimately forward.";
                 var item = new ReviewItem("", path, line.Line + 1, line.Character + 1, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "Candidate signal: " + signal + ". Callee: " + relation, symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
-                subjects.Add(new(key, method.WithoutLeadingTrivia().ToFullString() + "\0callee:" + relation, item,
+                string content = method.WithoutLeadingTrivia().ToFullString() + "\0callee:" + relation;
+                subjects.Add(new(key, content, item,
                     DirectChange: context.HasChangedLine(path, line.Line + 1, tree.GetLineSpan(method.Span).EndLinePosition.Line + 1),
                     ObservedSignal: signal + "; resolved callee: " + relation, LegitimateCase: legitimate,
-                    PrimaryAnchor: new(context.ProjectIdentity(document), path, line.Line + 1, line.Character + 1, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "primary changed/reporting method")));
+                    PrimaryAnchor: new(context.ProjectIdentity(document), path, line.Line + 1, line.Character + 1, symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), "changed-intermediary-method"),
+                    Enrich: (_, selected) => Enrich(selected, symbol, target)));
+
+                ReviewSubject Enrich(ReviewSubject subject, ISymbol intermediary, IMethodSymbol? resolvedCallee)
+                {
+                    var related = new List<ReviewAnchor>();
+                    related.AddRange(ReviewRelationshipFacts.Callers(context, (IMethodSymbol)intermediary));
+                    if (resolvedCallee is not null) { related.AddRange(ReviewRelationshipFacts.Declarations(context, resolvedCallee, "compiler-resolved-callee-of-intermediary")); }
+                    return subject with { RelatedAnchors = related.Distinct().ToArray(),
+                        ObservedSignal = signal + "; intermediary identity: " + intermediary.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) +
+                            "; callee: " + (resolvedCallee?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "unresolved; no callee relationship asserted") +
+                            "; caller relationship: " + (related.Any(anchor => anchor.Relation == "compiler-resolved-caller-of-intermediary") ? "resolved" : "none resolved"),
+                        EvidenceLimitation = resolvedCallee is null || !related.Any(anchor => anchor.Relation == "compiler-resolved-caller-of-intermediary")
+                            ? "Caller/intermediary/callee chain is incomplete in loaded source context; unresolved or external call paths are not inferred." : null };
+                }
             }
             if (subjects.Any(x => x.Item.Path == path)) { sources[path] = source; }
         }
