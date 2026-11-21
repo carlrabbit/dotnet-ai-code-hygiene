@@ -71,5 +71,5 @@ These terms describe the preserved M0009–M0015 statistical sampler and legacy 
 ## Current semantic-review terms
 
 - **Gate:** one explicit check opportunity identified by repository, inspection mode, Git base/head and worktree, reporting paths, rule version, and eligible population.
-- **Gate-local selection:** deterministic ranking of changed and context-affected subjects under a fixed per-rule ceiling; it is potentially biased selective inspection, not a population-quality estimate.
+- **Gate-local selection:** deterministic ranking of changed and context-affected subjects under one shared ten-obligation ceiling across the 17 general semantic rules, with at most two context-affected obligations; it is potentially biased selective inspection, not a population-quality estimate. Modernization uses its separate five-package ceiling.
 - **Accepted observation:** a subject/rule/content-fingerprint record written only after explicit caller acceptance of the fixed review contract.

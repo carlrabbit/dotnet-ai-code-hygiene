@@ -387,8 +387,8 @@ public sealed class RoslynModernizationAnalyzerTests
             ReviewBatch[] modernization = result.ReviewBatches.Where(batch => batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).ToArray();
             ReviewBatch[] established = result.ReviewBatches.Where(batch => !batch.RuleId.StartsWith("modernization.", StringComparison.Ordinal)).ToArray();
             await Assert.That(modernization.Sum(batch => batch.SampleCount)).IsLessThanOrEqualTo(5);
-            await Assert.That(established.Length).IsEqualTo(6);
-            await Assert.That(established.All(batch => batch.SampleCount <= 5)).IsTrue();
+            await Assert.That(established.Length).IsEqualTo(17);
+            await Assert.That(established.Sum(batch => batch.SampleCount)).IsLessThanOrEqualTo(10);
             string[] eligibleRuleIds = modernization.Where(batch => batch.PopulationCount > 0).Select(batch => batch.RuleId).ToArray();
             await Assert.That(eligibleRuleIds.Length).IsGreaterThanOrEqualTo(2);
             await Assert.That(eligibleRuleIds.Contains("modernization.var-style", StringComparer.Ordinal)).IsTrue();

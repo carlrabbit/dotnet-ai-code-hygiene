@@ -169,3 +169,12 @@ Adds an explicitly authorized full-repository hygiene audit (dotnet hygiene --yo
 
 Primary milestone: docs/milestones/M0019-exhaustive-read-only-hygiene-audit.md.
 Planning-seeded ledger: .execution/M0019-exhaustive-read-only-hygiene-audit.md.
+
+## M0025 — Semantic Rule Portfolio and Relationship-Based Review Work
+**State:** ready; implementation execution in progress
+**Mode:** AI-executed, human-reviewed
+
+Replaces three omnibus semantic-review contracts with 17 focused rules and adds source-backed relationships, bounded evidence packages, a shared ten-obligation general-review budget, and lazy context enrichment. The nine modernization families retain their separate five-package budget.
+
+Primary milestone: `docs/milestones/M0025-semantic-rule-portfolio.md`.
+Planning-seeded ledger: `.execution/M0025-semantic-rule-portfolio.md`.

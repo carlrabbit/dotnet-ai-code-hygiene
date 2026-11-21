@@ -27,7 +27,7 @@ gate-local semantic review/handoff
 - Commands may choose whether to execute available remediation.
 - Mandatory profile rules cannot be disabled or ignored.
 - Configurable source/review rules retain enable/disable behavior.
-- The six established semantic-review rules use independent gate-local selection; M0023 modernization reviews share a five-package budget across nine rule-owned families.
+- The 17 focused general semantic-review rules share one ten-obligation gate budget (including at most two context-affected obligations); the nine modernization families retain a separate five-package budget.
 - The engine does not dynamically resolve contradictions between arbitrary third-party analyzers.
 
 ## Public CLI
@@ -131,21 +131,21 @@ Semantic documentation review is specified separately in `docs/specs/SEMANTIC-RE
 18. comments.intent.review                    v1
 ```
 
-This M0016 catalog snapshot is historical. M0017 appended three semantic-review rules; M0023 added cleanup identifiers and nine modernization review rules; M0024 moved mechanical execution to the SDK and added source-exception validation. The current canonical 39-rule order and dispositions are in `docs/specs/RULE-CAPABILITIES.md`.
+This M0016 catalog snapshot is historical. M0017 appended semantic-review rules; M0023 added cleanup identifiers and nine modernization review rules; M0024 moved mechanical execution to the SDK and added source-exception validation. M0025 replaces the omnibus semantic rules with 17 focused contracts. The current canonical catalog and dispositions are in `docs/specs/RULE-CAPABILITIES.md`.
 
 The full rule capability contract remains `docs/specs/RULE-CAPABILITIES.md`.
 
 ## Package/version
 
-M0018 product/package version is:
+M0025 targets product/package version:
 
 ```text
-0.11.0
+0.12.0
 ```
 
 The package exposes the canonical `dotnet hygiene` namespace through `ToolCommandName=dotnet-hygiene`; the legacy bare `hygiene` command is not supported. Automatic release updates must resolve the invoking tool installation safely, including ancestor local-tool manifests, and must not select another installation found on `PATH`. Baseline approval is an external caller assertion bound to the inspected report hash and current repository/policy snapshot; a profile marker alone is not approval.
 
-Installed-tool Tier-4 validation remains required because M0016 changes public rule versions and adds `check --base` and `check --review-all`.
+Installed-tool validation remains required for M0025 because its rule catalog, review work orders, persisted acceptance semantics, and CLI behavior change.
 
 ## Exit semantics
 

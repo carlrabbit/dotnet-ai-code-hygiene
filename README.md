@@ -1,11 +1,11 @@
 # dotnet-ai-code-hygiene
 
-`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The current package version is `0.11.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
+`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The M0025 target package version is `0.12.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
 
-The `0.11.0` package is validated from a local feed; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
+The next local package target is `0.12.0`; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 
 ```powershell
-dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.11.0
+dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.12.0
 dotnet hygiene --version
 ```
 
@@ -37,7 +37,7 @@ dotnet hygiene review accept <batch-handle> --all
 
 Accept only items whose fixed questions you inspected and answered positively. Leave negative or uncertain items unaccepted and use the rule's escalation guidance. Rerun `dotnet hygiene` after source changes. `complete` means the selected gate obligations were processed; it does not certify the full repository population as defect-free. A successful command execution is not itself a complete gate.
 
-The six established semantic-review rules keep independent, bounded gate-local selection. The nine modernization rules share one five-package budget across all families; each selected package exposes bounded occurrences and reports its remainder. Prefer modern syntax; a retained hygiene-only candidate requires `// hygiene:retain modernization.<rule-id> -- <reason>` immediately before its declaration or statement. `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
+The 17 focused general semantic-review rules share a gate budget of at most ten distinct rule-subject obligations, including at most two context-affected obligations. Each obligation is independently judged, and a candidate signal is not proof of a defect. The nine modernization rules retain their separate five-package budget across all families; each selected package exposes bounded occurrences and reports its remainder. Prefer modern syntax; a retained hygiene-only candidate requires `// hygiene:retain modernization.<rule-id> -- <reason>` immediately before its declaration or statement. `--review-all` remains bounded. Visual-block findings are review candidates, not automatic defects or formatter instructions.
 
 ## Manual Inspection and Debugging
 
@@ -80,7 +80,7 @@ On each autonomous run, the entrypoint checks configured NuGet sources for a new
 You can also update explicitly from the same trusted package source:
 
 ```powershell
-dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.11.0
+dotnet tool update --global DotNetAiCodeHygiene.Tool --version 0.12.0
 dotnet hygiene --version
 dotnet hygiene
 ```
