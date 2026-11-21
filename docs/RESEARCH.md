@@ -14,6 +14,7 @@ Do not treat research as a specification. When planning resolves a material choi
 
 ## Current planning context
 
+- [AI-WORKBENCH-DIRECTION.md](research/AI-WORKBENCH-DIRECTION.md) — 2026-11-21 workbench pivot: independent executable capabilities in one monorepo, opinionated Autoformat, external-agent Autoreview, shared local SQLite index and optional future service; planning intent pending authority promotion.
 - docs/research/PRODUCT-DIRECTION.md — product thesis, design principles, likely evolution, and milestone-selection criteria.
 - docs/research/HUMAN-CONSUMABILITY.md — human-in-the-loop constraints, BORING-code direction, and review/catch-up pressure.
 - docs/research/RULE-APPLICATION-ARCHITECTURE.md — current rule-application shape, scaling concerns, and candidate pipeline direction.
