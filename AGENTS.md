@@ -11,7 +11,7 @@ For implementation work, read in this order:
 
 The milestone defines scope and acceptance; the ledger records execution and evidence. Repository-local authority is sufficient. Do not require an external guide repository or planning conversation to reconstruct the project contract.
 
-Use repository-defined `eng/` commands for declared project validation gates. Choose focused checks for development feedback when appropriate. Do not invent commands, claim aggregate success from partial logs, or treat investigative runs as acceptance evidence unless the milestone says they are a gate.
+The repository is a workbench monorepo with independent `dotnet autoformat` and transitional `dotnet hygiene` executables. Use `DotNetAiWorkbench.slnx` as the root solution. Choose focused checks for development feedback when appropriate. Do not invent commands, claim aggregate success from partial logs, or treat investigative runs as acceptance evidence unless the milestone says they are a gate.
 
 ## Coordination metadata
 

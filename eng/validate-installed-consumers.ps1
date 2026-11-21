@@ -2,26 +2,27 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 $package = Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.12.0.nupkg
 $packageSha256 = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-$tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('hygiene-m0025-consumer-' + [guid]::NewGuid().ToString('N'))
+$tierRoot = Join-Path ([IO.Path]::GetTempPath()) ('workbench-m0026-consumer-' + [guid]::NewGuid().ToString('N'))
 $feed = Join-Path $tierRoot 'feed'
 $toolPath = Join-Path $tierRoot 'tools'
+$autoToolPath = Join-Path $tierRoot 'autoformat-tools'
 $consumer = Join-Path $tierRoot 'consumer'
 $migration = Join-Path $tierRoot 'migration'
 $relationshipConsumer = Join-Path $tierRoot 'relationship-consumer'
 $cache = Join-Path $tierRoot 'nuget-cache'
 $report = Join-Path $tierRoot 'audit'
-New-Item -ItemType Directory -Force $feed, $toolPath, $consumer, $migration, $relationshipConsumer, $cache | Out-Null
+New-Item -ItemType Directory -Force $feed, $toolPath, $autoToolPath, $consumer, $migration, $relationshipConsumer, $cache | Out-Null
 Copy-Item -LiteralPath $package.FullName -Destination $feed
 if ((Get-FileHash -LiteralPath (Join-Path $feed $package.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $packageSha256) { throw 'The isolated feed package differs from the package just packed.' }
 $nugetConfig = Join-Path $tierRoot 'NuGet.config'
 @"
 <?xml version="1.0" encoding="utf-8"?>
-<configuration><packageSources><clear /><add key="CurrentRun" value="$feed" /><add key="NuGetOfficial" value="https://api.nuget.org/v3/index.json" /></packageSources><packageSourceMapping><packageSource key="CurrentRun"><package pattern="DotNetAiCodeHygiene.Tool" /></packageSource><packageSource key="NuGetOfficial"><package pattern="*" /></packageSource></packageSourceMapping></configuration>
+<configuration><packageSources><clear /><add key="CurrentRun" value="$feed" /><add key="NuGetOfficial" value="https://api.nuget.org/v3/index.json" /></packageSources><packageSourceMapping><packageSource key="CurrentRun"><package pattern="DotNetAiCodeHygiene.Tool" /><package pattern="DotNetAiWorkbench.Autoformat.Tool" /></packageSource><packageSource key="NuGetOfficial"><package pattern="*" /></packageSource></packageSourceMapping></configuration>
 "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
 $oldPath = $env:PATH
 $oldPackages = $env:NUGET_PACKAGES
 $oldSkipUpdate = $env:DOTNET_HYGIENE_SKIP_UPDATE
-$env:PATH = $toolPath + [IO.Path]::PathSeparator + $env:PATH
+$env:PATH = $autoToolPath + [IO.Path]::PathSeparator + $toolPath + [IO.Path]::PathSeparator + $env:PATH
 $env:NUGET_PACKAGES = $cache
 $env:DOTNET_HYGIENE_SKIP_UPDATE = '1'
 try {
@@ -32,6 +33,16 @@ try {
     $installedShimSha256 = (Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash.ToLowerInvariant()
     $installedVersion = dotnet hygiene --version
     if ($LASTEXITCODE -ne 0 -or ($installedVersion -join '').Trim() -ne '0.12.0') { throw 'The installed command did not report package version 0.12.0.' }
+
+    $autoPackage = Get-Item .\artifacts\packages\DotNetAiWorkbench.Autoformat.Tool.0.1.0.nupkg
+    $autoPackageSha256 = (Get-FileHash -LiteralPath $autoPackage.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    Copy-Item -LiteralPath $autoPackage.FullName -Destination $feed
+    if ((Get-FileHash -LiteralPath (Join-Path $feed $autoPackage.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $autoPackageSha256) { throw 'The isolated Autoformat feed package differs from the current package.' }
+    dotnet tool install DotNetAiWorkbench.Autoformat.Tool --tool-path $autoToolPath --configfile $nugetConfig --version 0.1.0
+    if ($LASTEXITCODE -ne 0) { throw "Isolated exact Autoformat install failed ($LASTEXITCODE)." }
+    $autoShim = Join-Path $autoToolPath 'dotnet-autoformat.exe'
+    if (-not (Test-Path -LiteralPath $autoShim)) { throw 'The independent dotnet-autoformat apphost is missing.' }
+    $autoShimSha256 = (Get-FileHash -LiteralPath $autoShim -Algorithm SHA256).Hash.ToLowerInvariant()
 
     Push-Location $consumer
     try {
@@ -186,8 +197,13 @@ public class Closing
         if (@($migrationResult.migrationNotes | Where-Object { $_ -match 'style\.braces\.required|style\.usings\.unused' }).Count -ne 2 -or -not ($migrationResult.migrationNotes | Where-Object { $_ -match 'external baseline approval' })) { throw 'Installed profile migration failed to report removed mechanical toggles and approval requirement.' }
         $migratedConfig = Get-Content -Raw .hygiene\config.json
         if ($migratedConfig -notmatch 'readability.long-line.review' -or $migratedConfig -match 'style\.braces\.required|style\.usings\.unused') { throw 'Profile migration did not preserve semantic toggles or remove retired mechanical toggles.' }
+        $editorBeforeAutoformatAdoption = Get-Content -LiteralPath .editorconfig -Raw
+        $adoption = dotnet autoformat init --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $adoption.status -ne 'ready' -or -not $adoption.adoptedExistingHygienePolicy) { throw 'Autoformat did not adopt the existing hygiene-managed mechanical policy.' }
         $migratedEditor = Get-Content -Raw .editorconfig
-        if ($migratedEditor -match '<!-- hygiene profile:' -or $migratedEditor -notmatch '(?m)^# hygiene profile:begin' -or $migratedEditor -notmatch 'consumer-owned text') { throw 'Profile migration did not replace malformed legacy boundaries and preserve unrelated content.' }
+        if ($migratedEditor -match '<!-- hygiene profile:' -or $migratedEditor -notmatch '(?m)^# hygiene profile:begin' -or $migratedEditor -notmatch 'consumer-owned text' -or $migratedEditor -notmatch '(?m)^# autoformat profile:begin' -or $migratedEditor -notmatch 'dotnet_diagnostic.IDE0011.severity = error') { throw 'Autoformat adoption did not transfer mechanical ownership while preserving hygiene review settings and unrelated content.' }
+        $hygieneSection = $migratedEditor.Substring($migratedEditor.IndexOf('# hygiene profile:begin'), $migratedEditor.IndexOf('# hygiene profile:end') - $migratedEditor.IndexOf('# hygiene profile:begin'))
+        if ($hygieneSection.Contains('dotnet_diagnostic.IDE0011.severity')) { throw 'The transitional hygiene block still owns an overlapping mechanical option.' }
     }
     finally { Pop-Location }
 
@@ -245,13 +261,100 @@ public class Closing
     }
     finally { Pop-Location }
 
+    $legacyConsumerPath = $env:PATH
+    $env:PATH = $autoToolPath + [IO.Path]::PathSeparator + $oldPath
+    if ((dotnet autoformat --version | Out-String).Trim() -ne '0.1.0') { throw 'The installed Autoformat command did not report version 0.1.0.' }
+    $autoHelp = dotnet autoformat --help | Out-String
+    if ($LASTEXITCODE -ne 0 -or $autoHelp -notmatch 'format' -or $autoHelp -notmatch 'normalize' -or $autoHelp -notmatch 'init') { throw 'Installed Autoformat help did not describe its supported command surface.' }
+    $autoConsumer = Join-Path $tierRoot 'autoformat-consumer'
+    New-Item -ItemType Directory -Force $autoConsumer | Out-Null
+    Push-Location $autoConsumer
+    try {
+        git init -q -b main; git config user.email autoformat-m0026@example.invalid; git config user.name 'M0026 Autoformat Consumer'
+        Set-Content -NoNewline -Path .gitignore "**/bin/`n**/obj/`n"
+        New-Item -ItemType Directory -Force Second | Out-Null
+        Set-Content -NoNewline -Path Consumer.csproj '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup><ItemGroup><Compile Remove="Second/**/*.cs" /></ItemGroup></Project>'
+        Set-Content -NoNewline -Path Second\Second.csproj '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>'
+        Set-Content -NoNewline -Path Second\Second.cs 'public class Second{public object Value=new object();}'
+        Set-Content -NoNewline -Path Sample.cs 'using System; public class Sample{public object Value=new object();}'
+        Set-Content -NoNewline -Path FormatOnly.cs 'public class FormatOnly{public object Value=new object();}'
+        Set-Content -NoNewline -Path Consumer.slnx '<Solution><Project Path="Consumer.csproj" /><Project Path="Second/Second.csproj" /></Solution>'
+        dotnet restore .\Consumer.slnx --configfile $nugetConfig | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Autoformat consumer restore failed.' }
+        git add -A; git commit -m 'consumer source baseline' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not commit Autoformat consumer source baseline.' }
+        $beforePolicyRun = Get-Content Sample.cs -Raw
+        $missingPolicy = dotnet autoformat normalize --check --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 2 -or $missingPolicy -notmatch 'dotnet autoformat init' -or (Get-Content Sample.cs -Raw) -cne $beforePolicyRun) { throw 'Autoformat source run did not fail safely with an actionable init instruction.' }
+        $init = dotnet autoformat init --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $init.status -ne 'initialized') { throw 'Independent Autoformat init failed.' }
+        $policy = Get-Content .editorconfig -Raw
+        if ($policy -notmatch '# autoformat profile:begin' -or (Test-Path .hygiene)) { throw 'Autoformat init did not create only the independent mechanical policy.' }
+        $policyHash = (Get-FileHash -LiteralPath .editorconfig -Algorithm SHA256).Hash
+        $repeatInit = dotnet autoformat init --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $repeatInit.status -ne 'ready' -or (Get-FileHash -LiteralPath .editorconfig -Algorithm SHA256).Hash -ne $policyHash) { throw 'Autoformat init was not idempotent.' }
+        git add .editorconfig; git commit -m 'initialize Autoformat policy' | Out-Null
+
+        $formatBefore = Get-Content FormatOnly.cs -Raw
+        $formatCheck = dotnet autoformat format FormatOnly.cs --check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $formatCheck.checkOnly -or $formatCheck.selectedPaths.Count -ne 1 -or $formatCheck.selectedPaths[0] -ne 'FormatOnly.cs' -or $formatCheck.changedPaths -notcontains 'FormatOnly.cs' -or (Get-Content FormatOnly.cs -Raw) -cne $formatBefore) { throw 'Installed whitespace-only format check did not report the explicit file without writing.' }
+        dotnet autoformat format FormatOnly.cs --output json | Out-Null
+        if ($LASTEXITCODE -ne 0 -or (Get-Content FormatOnly.cs -Raw) -notmatch 'Value = new object\(\)') { throw 'Whitespace-only format unexpectedly applied SDK style fixes or failed to format.' }
+        git add FormatOnly.cs; git commit -m 'format whitespace fixture' | Out-Null
+
+        Set-Content -NoNewline -Path Sample.cs 'using System; public class Sample{public object Value=new object();}'
+        git add Sample.cs; git commit -m 'normalize fixture' | Out-Null
+        $before = Get-Content Sample.cs -Raw
+        $checked = dotnet autoformat normalize --check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $checked.checkOnly -or $checked.changedPaths -notcontains 'Sample.cs' -or (Get-Content Sample.cs -Raw) -cne $before) { throw 'Installed Autoformat check-only changed source or returned an invalid report.' }
+        $pathCheck = dotnet autoformat normalize Sample.cs --check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $pathCheck.selectedPaths.Count -ne 1 -or $pathCheck.selectedPaths[0] -ne 'Sample.cs') { throw 'Explicit path selection did not narrow Autoformat targets.' }
+        $unscopedCheck = dotnet autoformat normalize --check --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $unscopedCheck.selectedPaths -notcontains 'Second/Second.cs' -or $unscopedCheck.targetCount -lt 3) { throw 'Unscoped Autoformat did not cover both SDK projects in the solution.' }
+        dotnet autoformat | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Installed Autoformat default normalize mode failed.' }
+        $normalized = Get-Content Sample.cs -Raw
+        if ($normalized -ceq $before -or $normalized -notmatch 'Value = new\(\);') { throw 'Installed Autoformat default did not apply the approved SDK normalization.' }
+        if ((Get-Content Second\Second.cs -Raw) -notmatch 'Value = new\(\);') { throw 'Unscoped Autoformat did not normalize the second SDK project.' }
+        git add Sample.cs FormatOnly.cs Second\Second.cs; git commit -m 'normalized fixture' | Out-Null
+        dotnet autoformat normalize | Out-Null
+        if ($LASTEXITCODE -ne 0 -or (git status --porcelain).Length -ne 0) { throw 'Installed Autoformat normalization was not idempotent.' }
+
+        Set-Content -NoNewline -Path Staged.cs 'public class Staged { public int Value = default(int); }'
+        git add Staged.cs
+        Set-Content -NoNewline -Path Sample.cs 'using System; public class Sample{public object Value=new object();}'
+        Set-Content -NoNewline -Path Untracked.cs 'public class Untracked { public int Value = default(int); }'
+        $dirtyFiles = @('Sample.cs','Staged.cs','Untracked.cs')
+        $beforeChanged = @{}; foreach ($file in $dirtyFiles) { $beforeChanged[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash }
+        $changedRun = dotnet autoformat --changed --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $changedRun.checkOnly -or @($changedRun.selectedPaths | Where-Object { $_ -in $dirtyFiles }).Count -ne 3) { throw 'Autoformat --changed did not select staged, unstaged, and untracked C# paths read-only.' }
+        foreach ($file in $dirtyFiles) { if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Autoformat --changed modified '$file'." } }
+        $dirtyMutation = dotnet autoformat normalize --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 2 -or $dirtyMutation -notmatch 'clean Git worktree') { throw 'Autoformat mutation did not reject the dirty checkpoint.' }
+        foreach ($file in $dirtyFiles) { if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Rejected mutation changed '$file'." } }
+        git checkout -- Sample.cs; git reset -- Staged.cs | Out-Null; Remove-Item -LiteralPath Staged.cs,Untracked.cs
+
+        $nested = Join-Path $autoConsumer 'nested'; New-Item -ItemType Directory -Force $nested | Out-Null
+        Set-Content -NoNewline -Path (Join-Path $nested '.editorconfig') "[*.cs]`ncsharp_style_implicit_object_creation_when_type_is_apparent = false`n"
+        $nestedBefore = Get-Content Sample.cs -Raw
+        $nestedConflict = dotnet autoformat format --check --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 2 -or $nestedConflict -notmatch 'Conflicting mechanical setting' -or (Get-Content Sample.cs -Raw) -cne $nestedBefore) { throw 'Nested mechanical policy conflict was not reported safely.' }
+        Remove-Item -LiteralPath $nested -Recurse -Force
+
+        Add-Content .editorconfig '# autoformat profile:begin'
+        $malformedBefore = Get-Content .editorconfig -Raw
+        $malformed = dotnet autoformat init --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 2 -or $malformed -notmatch 'Malformed or incomplete|Duplicate managed policy markers' -or (Get-Content .editorconfig -Raw) -cne $malformedBefore) { throw 'Malformed policy markers were not rejected without overwriting configuration.' }
+        git checkout -- .editorconfig
+    }
+    finally { Pop-Location; $env:PATH = $legacyConsumerPath }
     $version = (& dotnet --version).Trim()
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 3; milestone = 'M0025'; package = $package.Name; packageSha256 = $packageSha256; installedShimSha256 = $installedShimSha256; installedCommand = 'dotnet-hygiene'; installedVersion = '0.12.0'; sdk = $version; git = $gitVersion; scenarios = @('bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration', 'cross-project-related-evidence', 'shared-semantic-budget', 'same-gate-acceptance-without-refill', 'attested-exhaustive-read-only-audit') } |
+    [pscustomobject]@{ schemaVersion = 4; milestone = 'M0026'; package = $package.Name; packageSha256 = $packageSha256; installedShimSha256 = $installedShimSha256; autoformatPackage = $autoPackage.Name; autoformatPackageSha256 = $autoPackageSha256; autoformatShimSha256 = $autoShimSha256; installedCommand = 'dotnet-autoformat'; installedVersion = '0.1.0'; legacyCommand = 'dotnet-hygiene'; legacyVersion = '0.12.0'; sdk = $version; git = $gitVersion; scenarios = @('autoformat-independent-installed-consumer-init-check-normalize-idempotence','autoformat-help-explicit-format-default-and-path-selection','autoformat-staged-unstaged-untracked-check-only-and-dirty-rejection','autoformat-fresh-init-idempotence-nested-conflict-and-malformed-marker-safety','autoformat-adoption-of-hygiene-managed-policy','bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration', 'cross-project-related-evidence', 'shared-semantic-budget', 'same-gate-acceptance-without-refill', 'attested-exhaustive-read-only-audit') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
-    Write-Output "Installed-consumer M0025 evidence passed; package SHA-256 $packageSha256."
+    Write-Output "Installed-consumer M0026 dual-tool evidence passed; package SHA-256 $packageSha256."
 }
 finally {
     $env:PATH = $oldPath
@@ -260,7 +363,7 @@ finally {
     $resolvedTier = [IO.Path]::GetFullPath($tierRoot)
     $resolvedTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
     if (-not $resolvedTemp.EndsWith([IO.Path]::DirectorySeparatorChar)) { $resolvedTemp += [IO.Path]::DirectorySeparatorChar }
-    if ($resolvedTier.StartsWith($resolvedTemp, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path -Leaf $resolvedTier) -like 'hygiene-m0025-consumer-*' -and (Test-Path -LiteralPath $resolvedTier)) {
+    if ($resolvedTier.StartsWith($resolvedTemp, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path -Leaf $resolvedTier) -like 'workbench-m0026-consumer-*' -and (Test-Path -LiteralPath $resolvedTier)) {
         Remove-Item -LiteralPath $resolvedTier -Recurse -Force
     }
 }

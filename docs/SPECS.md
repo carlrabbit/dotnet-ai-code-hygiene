@@ -2,7 +2,7 @@
 
 ## Product role
 
-`dotnet-ai-code-hygiene` is an opinionated installed .NET developer tool for coding agents.
+`dotnet-ai-code-hygiene` is the historical repository identity for a .NET AI Workbench monorepo. It ships independent `dotnet autoformat` and transitional `dotnet hygiene` tools.
 
 It owns a supported hygiene policy rather than attempting compatibility with arbitrary analyzer stacks.
 

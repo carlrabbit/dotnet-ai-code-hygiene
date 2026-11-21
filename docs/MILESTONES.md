@@ -171,10 +171,20 @@ Primary milestone: docs/milestones/M0019-exhaustive-read-only-hygiene-audit.md.
 Planning-seeded ledger: .execution/M0019-exhaustive-read-only-hygiene-audit.md.
 
 ## M0025 — Semantic Rule Portfolio and Relationship-Based Review Work
-**State:** ready; implementation execution in progress
+**State:** implementation merged in PR #28 on 2026-11-21; review/closure evidence remains in the milestone and review record
 **Mode:** AI-executed, human-reviewed
 
 Replaces three omnibus semantic-review contracts with 17 focused rules and adds source-backed relationships, bounded evidence packages, a shared ten-obligation general-review budget, and lazy context enrichment. The nine modernization families retain their separate five-package budget.
 
 Primary milestone: `docs/milestones/M0025-semantic-rule-portfolio.md`.
 Planning-seeded ledger: `.execution/M0025-semantic-rule-portfolio.md`.
+
+
+## M0026 — Workbench Monorepo Foundation and Standalone Autoformat Extraction
+**State:** implementation in progress on `planning/m0026-workbench-autoformat-extraction`
+**Mode:** AI-executed, human-reviewed
+
+Introduces a one-repository workbench solution and independently packed `dotnet autoformat` CLI with the existing fixed .NET 11 SDK formatter policy. The legacy `dotnet hygiene` executable remains operational as a transitional review host, delegating mechanical formatting to the new Autoformat engine. SQLite indexing, a standalone Autoreview executable, IPC/HTTP, plugins and additional XML/Razor canonicalizers are separate future workstreams.
+
+Primary milestone: `docs/milestones/M0026-workbench-monorepo-autoformat-extraction.md`.
+Planning-seeded ledger: `.execution/M0026-workbench-monorepo-autoformat-extraction.md`.
