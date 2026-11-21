@@ -1,10 +1,10 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using System.Xml.Linq;
 
 namespace DotNetAiCodeHygiene.Core;
@@ -27,21 +27,7 @@ public sealed class ProfileManager
     private readonly Action<int>? afterReplace;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private static readonly string Marker = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 3\n}\n";
-    private static readonly (string Key, string Value)[] MechanicalOptions =
-    [
-        ("indent_style", "space"), ("indent_size", "4"), ("dotnet_sort_system_directives_first", "true"),
-        ("dotnet_separate_import_directive_groups", "false"), ("csharp_prefer_braces", "true"),
-        ("csharp_preferred_modifier_order", "public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async"),
-        ("dotnet_style_require_accessibility_modifiers", "always"), ("csharp_style_implicit_object_creation_when_type_is_apparent", "true"),
-        ("csharp_prefer_simple_default_expression", "true"), ("dotnet_style_coalesce_expression", "true"),
-        ("dotnet_style_prefer_inferred_tuple_names", "true"),
-        ("dotnet_style_prefer_inferred_anonymous_type_member_names", "true"),
-        ("dotnet_diagnostic.IDE0005.severity", "warning"), ("dotnet_diagnostic.IDE0004.severity", "warning"),
-        ("dotnet_diagnostic.IDE0011.severity", "error"), ("dotnet_diagnostic.IDE0034.severity", "warning"),
-        ("dotnet_diagnostic.IDE0036.severity", "warning"), ("dotnet_diagnostic.IDE0040.severity", "error"),
-        ("dotnet_diagnostic.IDE0037.severity", "warning"),
-        ("dotnet_diagnostic.IDE0090.severity", "warning")
-    ];
+    private static IReadOnlyList<(string Key, string Value)> MechanicalOptions => DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.MechanicalOptions;
     private static readonly string[] FixedMechanicalRuleIds = RuleCatalog.Modules
         .OfType<FixedMechanicalRuleModule>().Select(module => module.Descriptor.Id)
         .Append(BracesStyleRuleModule.RuleId).Append(AccessibilityStyleRuleModule.RuleId)

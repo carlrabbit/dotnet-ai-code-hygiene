@@ -10,7 +10,7 @@ $germanRule = $portfolioRules | Where-Object id -eq 'docs.summary.language.germa
 $portfolioBatches = @($selfCheck.reviewBatches | Where-Object { $_.ruleId -in $portfolioIds })
 if ($portfolioRules.Count -ne 17 -or $germanRule.enabled -ne $false -or (@($portfolioBatches | ForEach-Object { $_.sampleCount } | Measure-Object -Sum).Sum -gt 10)) { throw 'Repository self-host check did not expose the 17-rule portfolio, disabled German policy, and shared ten-obligation ceiling.' }
 if (@($selfCheck.reviewBatches | Where-Object { $_.ruleId -in @('architecture.boringness.review','readability.type-responsibility.review','tests.quality.review') }).Count -ne 0) { throw 'Repository self-host check exposed retired semantic rule identities.' }
-Write-Output 'Repository M0025 self-host behavior passed.'
+Write-Output 'Workbench M0026 self-host behavior passed.'
 $diffBase = (& git merge-base HEAD origin/main | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $diffBase) { throw 'Could not identify origin/main merge base for the repository diff check.' }
 git diff --check $diffBase --

@@ -3,31 +3,26 @@
 ## System shape
 
 ```text
-CLI command
--> command policy / rule-set selection
--> RepositorySession
-   -> repository root + target resolution
-   -> Git/change context
-   -> SDK project discovery
-   -> one Roslyn/MSBuild workspace
-   -> project/document assignment
-   -> lazy syntax/semantic/compilation access
-   -> lazy session facts
+DotNetAiWorkbench.slnx
+├── dotnet autoformat -> Autoformat engine -> SDK project/Git services
+└── dotnet hygiene (transitional) -> review/profile host -> Autoformat engine
 
-check/bootstrap/update
+legacy check/bootstrap/update
 -> explicit RuleCatalog
 -> independent in-process rule modules
 -> host result materialization
 -> ignore/filter/order/persistence
 
-format/normalize
--> fixed v3 SDK formatting profile
--> batched dotnet format style + whitespace passes
+Autoformat format/normalize
+-> fixed dotnet-11 v3 mechanical policy
+-> approved SDK style pass, then whitespace
 -> clean Git checkpoint / HEAD and index verification
 -> explicit incomplete report on failure; agent-owned recovery
 ```
 
-The architecture deliberately separates **module independence** from **process independence**. Check/bootstrap/update rules run in-process over one command-scoped substrate. Standard mechanical cleanup is delegated to the supported SDK CLI using the repository's fixed profile; historical rule IDs remain policy/reporting identifiers, not per-rule rewriter processes.
+The GitHub repository name is historical; the root solution is the workbench monorepo. Autoformat is independently executable and has no reference to legacy hygiene, review, audit or index code. Transitional hygiene delegates formatting to the Autoformat engine.
+
+The workbench solution is `DotNetAiWorkbench.slnx`; the historical GitHub repository name remains unchanged. `dotnet autoformat` is independently executable and has no reference to hygiene/review code. Transitional `dotnet hygiene` delegates formatting to the Autoformat engine. The architecture deliberately separates **module independence** from **process independence**. Check/bootstrap/update rules run in-process over one command-scoped substrate. Standard mechanical cleanup is delegated to the supported SDK CLI using the repository's fixed profile; historical rule IDs remain policy/reporting identifiers, not per-rule rewriter processes.
 
 ## Repository session
 
@@ -218,7 +213,7 @@ RewriteEngine
   report SDK-reported or observed changed paths
 ```
 
-`format` runs SDK whitespace formatting. `normalize` runs only the fixed approved style diagnostics, then whitespace. The autonomous gate runs normalize across all eligible project sources independently of the bounded changed-file semantic review gate.
+`dotnet autoformat format` runs SDK whitespace formatting. `dotnet autoformat normalize` runs only the fixed approved style diagnostics, then whitespace. The autonomous gate runs normalize across all eligible project sources independently of the bounded changed-file semantic review gate.
 
 Mutating operations use a clean Git checkpoint and leave an inspectable worktree on failure:
 

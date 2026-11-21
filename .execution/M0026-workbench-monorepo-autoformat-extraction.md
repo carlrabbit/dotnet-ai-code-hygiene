@@ -8,52 +8,52 @@ This file is **operational implementation state**, not product authority. Planni
 
 | ID | Type | Obligation | Work package(s) | Implementation evidence | Validation evidence | Status |
 |---|---|---|---|---|---|---|
-| AC-01 | acceptance | The repository builds as one workbench monorepo solution with both a separately named Autoformat engine/executable and the retained legacy hygiene engine/executable; no other Git repository, plugin host, daemon or SQLite index is introduced. | | | | todo |
-| AC-02 | acceptance | Autoformat engine and CLI have no compile-time or runtime dependency on legacy hygiene, semantic review, review acceptance/audit state, or an index service; legacy hygiene may depend on the Autoformat engine, never the reverse. | | | | todo |
-| AC-03 | acceptance | A freshly packed `DotNetAiWorkbench.Autoformat.Tool` version `0.1.0` installs in an isolated `dotnet tool` consumer and exposes `dotnet autoformat` independently of any installed `dotnet hygiene` shim. | | | | todo |
-| AC-04 | acceptance | The installed Autoformat CLI supports the specified default, `format`, `normalize`, and `init` commands, explicit path arguments, `--check`, `--changed`, `--output text\|json`, and ordinary help/version behavior with truthful results and actionable invalid-input diagnostics. | | | | todo |
-| AC-05 | acceptance | Autoformat default/`normalize` performs the existing approved .NET 11 SDK style diagnostic set then whitespace, whereas `format` performs whitespace only; check-only operations verify the same policy without source writes. | | | | todo |
-| AC-06 | acceptance | Autoformat target selection preserves full eligible project coverage for unscoped runs, narrower explicit path selection, and staged/unstaged/untracked `--changed` read-only selection across supported multi-project repositories. | | | | todo |
-| AC-07 | acceptance | Autoformat mutating runs enforce the established clean Git/known HEAD checkpoint and HEAD/index stability contract, never commit/reset/clean/rollback automatically, and report partial changes on phase failure or concurrent modification without masking recovery work. | | | | todo |
-| AC-08 | acceptance | Autoformat `init` establishes/validates the fixed mechanical `.editorconfig` policy without creating `.hygiene` review/baseline state, preserves unrelated configuration, reports conflicts, and is idempotent; existing hygiene-managed mechanical policy has a safe non-destructive adoption path. | | | | todo |
-| AC-09 | acceptance | The mechanical policy and SDK formatter orchestration have one implementation/ownership location; the old hygiene entrypoint delegates its former formatting and normalization behavior to it rather than retaining a second, diverging formatter. | | | | todo |
-| AC-10 | acceptance | The still-supported transitional `dotnet hygiene` workflow retains M0025 review discovery, bounded selection, handoff, acceptance and explicit exhaustive read-only audit behavior; extraction does not trigger implicit semantic review from Autoformat. | | | | todo |
-| AC-11 | acceptance | Existing accepted review records, audit artifacts, suppression/retain comments, and user-authored project/source files are preserved; Autoformat neither reads them as authorization nor rewrites/deletes them. | | | | todo |
-| AC-12 | acceptance | Autoformat produces zero source diff on a second successful normalize run against the same compliant project, and source changes are limited to the approved SDK fixes/formatting without unapproved structural/semantic transformations. | | | | todo |
-| AC-13 | acceptance | A real isolated installed-tool consumer proves Autoformat on fresh SDK-style Git projects, and a separate existing-hygiene installed-tool consumer proves the transitional review/formatter boundary using artifacts from the current branch. | | | | todo |
-| AC-14 | acceptance | The monorepo validation plan/receipts cover both executable surfaces, their focused tests, packaging and self-host gate; stale/missing stage evidence is rejected and current evidence is reusable at completion. | | | | todo |
-| AC-15 | acceptance | No new automatic XML documentation/content canonicalizer, Razor/project file relocation policy, Autoreview executable, persistent index, IPC/HTTP service, semantic rule portfolio redesign, or public NuGet publishing is introduced in M0026. | | | | todo |
-| AC-16 | acceptance | Public documentation and in-repository architecture/specification authority accurately describe the workbench identity, Autoformat invocation/profile ownership, transitional hygiene boundary, packaging and supported scope without claiming deferred capabilities. | | | | todo |
-| AC-17 | acceptance | The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap. | | | | todo |
-| ART-01 | artifact | The current Autoformat 0.1.0 NuGet tool artifact is packed from this branch and its identity/version/command metadata are recorded; the existing hygiene package retains its own release identity. | | | | todo |
-| REV-01 | review | An independent reviewer examines the executable/module boundary, safety, real installed consumers and acceptance evidence; approval is recorded in `.review/REV-M0026-COMPLETION.md` and passes the milestone-scoped review check. | | | | todo |
+| AC-01 | acceptance | The repository builds as one workbench monorepo solution with both a separately named Autoformat engine/executable and the retained legacy hygiene engine/executable; no other Git repository, plugin host, daemon or SQLite index is introduced. | WP-01 | `DotNetAiWorkbench.slnx`; named Autoformat and hygiene engine/CLI projects; no new service/index project or extra repository. | VAL-01: Release solution build passed; `.execution/validation/solution.json`. | complete |
+| AC-02 | acceptance | Autoformat engine and CLI have no compile-time or runtime dependency on legacy hygiene, semantic review, review acceptance/audit state, or an index service; legacy hygiene may depend on the Autoformat engine, never the reverse. | WP-01 | Autoformat CLI references Autoformat.Core; Autoformat.Core has no Hygiene project reference; legacy Hygiene.Core references Autoformat.Core. | VAL-01 reference graph; `.execution/validation/solution.json`. | complete |
+| AC-03 | acceptance | A freshly packed `DotNetAiWorkbench.Autoformat.Tool` version `0.1.0` installs in an isolated `dotnet tool` consumer and exposes `dotnet autoformat` independently of any installed `dotnet hygiene` shim. | WP-02, WP-04 | Fresh local package installs into separate Autoformat-only tool path; reports 0.1.0 and runs with no hygiene shim on PATH. | VAL-04 provenance records both package/shim hashes and installed command/version. | complete |
+| AC-04 | acceptance | The installed Autoformat CLI supports the specified default, `format`, `normalize`, and `init` commands, explicit path arguments, `--check`, `--changed`, `--output text\|json`, and ordinary help/version behavior with truthful results and actionable invalid-input diagnostics. | WP-02 | Installed consumer exercises default, format, normalize, init, explicit file, check, changed, JSON/text, help/version and actionable failures. | VAL-02 3/3 Autoformat tests; VAL-04 dual-tool consumer provenance. | complete |
+| AC-05 | acceptance | Autoformat default/`normalize` performs the existing approved .NET 11 SDK style diagnostic set then whitespace, whereas `format` performs whitespace only; check-only operations verify the same policy without source writes. | WP-02 | Installed format test preserves `new object()` while normalize applies IDE0090 and whitespace; check-only preserves file bytes in both modes. | VAL-02 and VAL-04; consumer provenance current. | complete |
+| AC-06 | acceptance | Autoformat target selection preserves full eligible project coverage for unscoped runs, narrower explicit path selection, and staged/unstaged/untracked `--changed` read-only selection across supported multi-project repositories. | WP-02 | Installed `.slnx` consumer checks all 3 source files across 2 projects; explicit file narrows; staged/unstaged/untracked --changed is read-only. | VAL-04 consumer provenance; legacy overlap/unsupported target regressions in Core suite. | complete |
+| AC-07 | acceptance | Autoformat mutating runs enforce the established clean Git/known HEAD checkpoint and HEAD/index stability contract, never commit/reset/clean/rollback automatically, and report partial changes on phase failure or concurrent modification without masking recovery work. | WP-02 | Dirty mutating run refuses before writes; injected SDK failure test retains and reports partial Sample.cs edit. No commit/reset/rollback call in engine. | VAL-02 3/3; VAL-04 clean checkpoint consumer. | complete |
+| AC-08 | acceptance | Autoformat `init` establishes/validates the fixed mechanical `.editorconfig` policy without creating `.hygiene` review/baseline state, preserves unrelated configuration, reports conflicts, and is idempotent; existing hygiene-managed mechanical policy has a safe non-destructive adoption path. | WP-02 | Fresh init creates only Autoformat block and is idempotent; hygiene marker adoption leaves .editorconfig hash unchanged; nested conflicts and duplicate markers refuse. | VAL-04 fresh/adoption/conflict/malformed consumer scenarios; current provenance. | complete |
+| AC-09 | acceptance | The mechanical policy and SDK formatter orchestration have one implementation/ownership location; the old hygiene entrypoint delegates its former formatting and normalization behavior to it rather than retaining a second, diverging formatter. | WP-02, WP-03 | `AutoformatPolicy` and Autoformat RewriteEngine own policy/invocation; legacy RewriteEngine delegates and ProfileManager consumes shared policy. | VAL-01 build; VAL-03 111 Core and 36 CLI tests passed. | complete |
+| AC-10 | acceptance | The still-supported transitional `dotnet hygiene` workflow retains M0025 review discovery, bounded selection, handoff, acceptance and explicit exhaustive read-only audit behavior; extraction does not trigger implicit semantic review from Autoformat. | WP-03 | M0025 review discovery, budget, handoff, acceptance, exhaustive audit/resume remain in legacy core and installed hygiene consumer scenarios. | VAL-03 Core/CLI suites; VAL-04 installed hygiene audit and relationship consumer. | complete |
+| AC-11 | acceptance | Existing accepted review records, audit artifacts, suppression/retain comments, and user-authored project/source files are preserved; Autoformat neither reads them as authorization nor rewrites/deletes them. | WP-02, WP-03 | Autoformat has no review-state dependency; read-only checks/changed/conflict preserve source bytes; audit consumer hashes protected source/index/profile/review state. | VAL-02 failure-state test and VAL-03/04 preservation regressions. | complete |
+| AC-12 | acceptance | Autoformat produces zero source diff on a second successful normalize run against the same compliant project, and source changes are limited to the approved SDK fixes/formatting without unapproved structural/semantic transformations. | WP-02 | Fresh installed consumer commits normalize result and confirms second default normalize is diff-free; approved SDK tests retain source exceptions and compile. | VAL-02; VAL-03 111/36; VAL-04 exact-package consumer. | complete |
+| AC-13 | acceptance | A real isolated installed-tool consumer proves Autoformat on fresh SDK-style Git projects, and a separate existing-hygiene installed-tool consumer proves the transitional review/formatter boundary using artifacts from the current branch. | WP-04 | Same branch packs and installs independent Autoformat and legacy hygiene shims into isolated consumer paths/repositories. | VAL-04 installed-consumers receipt and schema-4 provenance. | complete |
+| AC-14 | acceptance | The monorepo validation plan/receipts cover both executable surfaces, their focused tests, packaging and self-host gate; stale/missing stage evidence is rejected and current evidence is reusable at completion. | WP-04 | Declared plan includes solution, Autoformat/Core/CLI tests, README, dual pack, installed consumers, self-host and verifier; stale/missing evidence probes run against the complete receipt set. | VAL-05 self-host, stale/missing rejection probes and final `-Verify`. | complete |
+| AC-15 | acceptance | No new automatic XML documentation/content canonicalizer, Razor/project file relocation policy, Autoreview executable, persistent index, IPC/HTTP service, semantic rule portfolio redesign, or public NuGet publishing is introduced in M0026. | WP-01, WP-05 | Diff/source inventory contains no Autoreview executable, SQLite/index, service, XML/Razor canonicalizer, publishing or workflow additions. | VAL-01 solution inventory and VAL-06 scope review. | complete |
+| AC-16 | acceptance | Public documentation and in-repository architecture/specification authority accurately describe the workbench identity, Autoformat invocation/profile ownership, transitional hygiene boundary, packaging and supported scope without claiming deferred capabilities. | WP-05 | README, public docs, operative architecture/specs/agent help describe Autoformat policy and transitional hygiene scope; installed help verified. | VAL-04 help; VAL-06 documentation diff review. | complete |
+| AC-17 | acceptance | The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap. | WP-03, WP-04 | Installed hygiene fresh bootstrap, explicit acceptance, v2-to-v3 migration, accepted review state/audit and update-scope unit coverage. | VAL-03 and VAL-04 current installed-consumer provenance. | complete |
+| ART-01 | artifact | The current Autoformat 0.1.0 NuGet tool artifact is packed from this branch and its identity/version/command metadata are recorded; the existing hygiene package retains its own release identity. | WP-02, WP-04 | `DotNetAiWorkbench.Autoformat.Tool` 0.1.0 and `DotNetAiCodeHygiene.Tool` 0.12.0 packed locally; metadata proven by installed shim. | VAL-04 provenance: Autoformat package SHA-256 `71e632c99ffd4d75b6d1d24c5b82a1f8371b1cd00b74ed07ad7cfc468998b93b`; Hygiene `67cf0535cf170a2a567b89bc339aafd6cf87706e376fbbaa51a14ac10c4cdf8c`. | complete |
+| REV-01 | review | An independent reviewer examines the executable/module boundary, safety, real installed consumers and acceptance evidence; approval is recorded in `.review/REV-M0026-COMPLETION.md` and passes the milestone-scoped review check. | WP-05 | `.review/REV-M0026-COMPLETION.md` prepared with decision/reviewer pending; implementer has not self-approved. | VAL-07 intentionally pending authorized independent review. | pending |
 
 ## Evidence Case Registry
 
 | ID | Parent obligation | Required evidence case | Validation gate(s) | Evidence | Status |
 |---|---|---|---|---|---|
-| EC-04a | AC-04 | Installed entrypoint dispatch and output for default/format/normalize/help/version | VAL-04 | | todo |
-| EC-04b | AC-04 | Installed `init` and error/JSON reporting | VAL-02, VAL-04 | | todo |
-| EC-05a | AC-05 | Mutating SDK style-plus-whitespace versus whitespace-only results | VAL-02, VAL-04 | | todo |
-| EC-05b | AC-05 | Check-only same-policy diagnostics across both modes | VAL-02, VAL-04 | | todo |
-| EC-06a | AC-06 | Unscoped multi-project/solution complete eligibility | VAL-02 | | todo |
-| EC-06b | AC-06 | Explicit files/projects and unsupported/ambiguous targets | VAL-02 | | todo |
-| EC-06c | AC-06 | `--changed` staged, unstaged and untracked paths; no mutation | VAL-02 | | todo |
-| EC-07a | AC-07 | Dirty/unknown Git checkpoint rejected before mutation | VAL-02 | | todo |
-| EC-07b | AC-07 | SDK phase failure or concurrent HEAD/index mutation leaves truthful incomplete report | VAL-02 | | todo |
-| EC-08a | AC-08 | Fresh project init writes only owned mechanical policy and rerun is no-op | VAL-02, VAL-04 | | todo |
-| EC-08b | AC-08 | Existing hygiene-managed profile/config adoption retains effective policy and external ownership | VAL-02, VAL-04 | | todo |
-| EC-08c | AC-08 | Conflicting nested/editorconfig configuration and malformed markers fail safely | VAL-02 | | todo |
-| EC-10a | AC-10 | Transitional regular change-gate review selection, acceptance, handoff | VAL-03 | | todo |
-| EC-10b | AC-10 | Authorized exhaustive read-only audit and resume | VAL-03 | | todo |
-| EC-12a | AC-12 | Second mutating normalize/format pass is diff-free on representative eligible source | VAL-02 | | todo |
-| EC-12b | AC-12 | Compiled source after approved rewrites, including source-local modernization exceptions | VAL-02, VAL-03 | | todo |
-| EC-13a | AC-13 | Fresh packed/installed Autoformat consumer, not an in-project invocation | VAL-04 | | todo |
-| EC-13b | AC-13 | Fresh packed/installed legacy hygiene consumer against the same branch | VAL-04 | | todo |
-| EC-14a | AC-14 | Both executable/test/package stages present and bound to current inputs | VAL-05 | | todo |
-| EC-14b | AC-14 | Verifier rejects stale/missing receipts after new-tool changes and accepts complete current set | VAL-05 | | todo |
-| EC-17a | AC-17 | Existing initialized hygiene consumer updates and retains valid baseline decision semantics | VAL-03, VAL-04 | | todo |
-| EC-17b | AC-17 | Fresh hygiene bootstrap, explicit acceptance and invoking-tool update-scope behavior | VAL-03, VAL-04 | | todo |
+| EC-04a | AC-04 | Installed entrypoint dispatch and output for default/format/normalize/help/version | VAL-04 | VAL-04: isolated installed shim dispatch; provenance covers default/format/normalize/help/version outputs. | complete |
+| EC-04b | AC-04 | Installed `init` and error/JSON reporting | VAL-02, VAL-04 | VAL-04: init JSON, policy-missing actionable error, adoption JSON and invalid config diagnostics. | complete |
+| EC-05a | AC-05 | Mutating SDK style-plus-whitespace versus whitespace-only results | VAL-02, VAL-04 | VAL-04: whitespace-only format preserves explicit construction; default/normalize applies IDE0090 then whitespace. | complete |
+| EC-05b | AC-05 | Check-only same-policy diagnostics across both modes | VAL-02, VAL-04 | VAL-04: format and normalize --check report changed paths and leave file hashes unchanged. | complete |
+| EC-06a | AC-06 | Unscoped multi-project/solution complete eligibility | VAL-02 | VAL-04: `Consumer.slnx` unscoped check selected all 3 eligible files including `Second/Second.cs`; mutating normalize updated both projects. | complete |
+| EC-06b | AC-06 | Explicit files/projects and unsupported/ambiguous targets | VAL-02 | VAL-04 explicit `Sample.cs` target narrows selection; VAL-03 Core `RewriteTargetsMatchCheckForOverlapChangedAndUnprojectedFiles` covers unsupported/overlap behavior on delegated engine. | complete |
+| EC-06c | AC-06 | `--changed` staged, unstaged and untracked paths; no mutation | VAL-02 | VAL-04 staged, unstaged and untracked C# files all selected in check-only mode; before/after SHA-256 values equal. | complete |
+| EC-07a | AC-07 | Dirty/unknown Git checkpoint rejected before mutation | VAL-02 | VAL-04 dirty mutating normalize rejected with clean-worktree diagnostic and unchanged source; check-only remains permitted. | complete |
+| EC-07b | AC-07 | SDK phase failure or concurrent HEAD/index mutation leaves truthful incomplete report | VAL-02 | VAL-02 `FailedSdkPhaseReportsPartialEditsWithoutRollingThemBack` forces style-phase exit 17 after edit and asserts truthful incomplete path report and retained edit. | complete |
+| EC-08a | AC-08 | Fresh project init writes only owned mechanical policy and rerun is no-op | VAL-02, VAL-04 | VAL-04 fresh init writes managed mechanical block without `.hygiene`; repeat init reports ready and preserves editorconfig hash. | complete |
+| EC-08b | AC-08 | Existing hygiene-managed profile/config adoption retains effective policy and external ownership | VAL-02, VAL-04 | VAL-04 hygiene-managed v2 profile migration then Autoformat init reports adoption and preserves `.editorconfig` hash/unrelated text. | complete |
+| EC-08c | AC-08 | Conflicting nested/editorconfig configuration and malformed markers fail safely | VAL-02 | VAL-04 nested setting conflict and duplicate Autoformat marker are rejected; config bytes remain unchanged. | complete |
+| EC-10a | AC-10 | Transitional regular change-gate review selection, acceptance, handoff | VAL-03 | VAL-03 full Core/CLI review discovery, bounded selection, acceptance and handoff suites; VAL-04 installed cross-project acceptance without refill. | complete |
+| EC-10b | AC-10 | Authorized exhaustive read-only audit and resume | VAL-03 | VAL-03 exhaustive audit/read-only/resume process tests; VAL-04 installed attested audit checks protected-file hashes. | complete |
+| EC-12a | AC-12 | Second mutating normalize/format pass is diff-free on representative eligible source | VAL-02 | VAL-04 second default normalize after clean checkpoint leaves `git status --porcelain` empty. | complete |
+| EC-12b | AC-12 | Compiled source after approved rewrites, including source-local modernization exceptions | VAL-02, VAL-03 | VAL-02 injected failure safety; VAL-03 SDK rewrite/modernization exception and CLI source tests (111/36 passed). | complete |
+| EC-13a | AC-13 | Fresh packed/installed Autoformat consumer, not an in-project invocation | VAL-04 | VAL-04 fresh Autoformat-only installed path and independent `.slnx` SDK consumer; provenance records exact package/shim hashes. | complete |
+| EC-13b | AC-13 | Fresh packed/installed legacy hygiene consumer against the same branch | VAL-04 | VAL-04 same-branch exact Hygiene 0.12.0 package installed independently; bootstrap/review/acceptance/audit scenarios passed. | complete |
+| EC-14a | AC-14 | Both executable/test/package stages present and bound to current inputs | VAL-05 | VAL-05 plan declares all 8 stages; current solution, Autoformat/Core/CLI, README, pack and installed-consumer receipts recorded. | complete |
+| EC-14b | AC-14 | Verifier rejects stale/missing receipts after new-tool changes and accepts complete current set | VAL-05 | `eng/test-validation-final-verification.ps1` and `eng/test-validation-test-outputs.ps1` reject corrupted/missing evidence and restore the complete current set; final `./eng/validate.ps1 -Verify` passes. | complete |
+| EC-17a | AC-17 | Existing initialized hygiene consumer updates and retains valid baseline decision semantics | VAL-03, VAL-04 | VAL-03 existing baseline lifecycle/migration regressions; VAL-04 existing initialized consumer update and retained acceptance behavior. | complete |
+| EC-17b | AC-17 | Fresh hygiene bootstrap, explicit acceptance and invoking-tool update-scope behavior | VAL-03, VAL-04 | VAL-03 ToolInstallationScope ancestor/local/PATH identity tests and baseline lifecycle; VAL-04 fresh bootstrap and explicit baseline acceptance. | complete |
 
 A parent obligation with explicit evidence cases is not done until every applicable child case is proved. Obligations without cases require direct criterion-specific evidence.
 
@@ -61,17 +61,22 @@ A parent obligation with explicit evidence cases is not done until every applica
 
 _Implementation-owned. Derive bounded coherent packages from the live repository and map each seeded obligation; do not substitute a package summary for any AC/EC._
 
+| WP-01 | Workbench solution and project identity | AC-01, AC-02, AC-15 | DotNetAiWorkbench.slnx plus reference graph; build inspection |
+| WP-02 | Independent Autoformat engine/CLI, fixed policy init, source selection and Git mutation safety | AC-03 through AC-09, AC-11, AC-12, EC-04a, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, EC-12a, EC-12b, ART-01 | Core and installed consumer fixtures |
+| WP-03 | Transitional hygiene formatter adapter and review lifecycle preservation | AC-09, AC-10, AC-11, AC-17, EC-10a, EC-10b, EC-12b, EC-17a, EC-17b | Existing Core/CLI suites and legacy installed consumer |
+| WP-04 | Dual-product validation topology, package identities and installed consumers | AC-03, AC-13, AC-14, EC-13a, EC-13b, EC-14a, EC-14b, EC-17a, EC-17b, ART-01 | Current package hashes, installed invocations and resumable receipts |
+| WP-05 | Operative documentation, independent review preparation and final reconciliation | AC-15, AC-16, REV-01 | Docs/help inspection, complete gate receipts, pending reviewer evidence |
 ## Validation Gates
 
 | ID | Required validation | Target/locus | Proves evidence units | Status | Evidence |
 |---|---|---|---|---|---|
-| VAL-01 | `dotnet build DotNetAiWorkbench.slnx -c Release` and focused dependency/reference inspection | Source architecture and solution build; Local Windows 11 + .NET 11 + Git/PowerShell | AC-01, AC-02, AC-09, AC-15 | todo | |
-| VAL-02 | `./eng/validate.ps1 -Shard autoformat-tests` (new declared stage) | Focused Autoformat source/CLI integration fixtures; Local Windows 11 + .NET 11 SDK + Git | AC-04, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, AC-11, EC-12a, EC-12b | todo | |
-| VAL-03 | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | Existing hygiene Core and CLI regression; Local Windows 11 + .NET 11 SDK + Git | AC-09, EC-10a, EC-10b, AC-11, EC-12b, EC-17a, EC-17b | todo | |
-| VAL-04 | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | Two exact-current packed/installed tools in isolated SDK-style consumer repositories; Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, EC-17a, EC-17b, ART-01 | todo | |
-| VAL-05 | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | Monorepo aggregate validation, self-host and receipt freshness; Local Windows 11 + .NET 11 + Git/PowerShell | EC-14a, EC-14b, AC-14, AC-16 | todo | |
-| VAL-06 | Direct docs/spec diff review plus installed `--help` | Current architecture/specs/README/help and explicit deferrals; Repository files + installed help | AC-04, AC-15, AC-16 | todo | |
-| VAL-07 | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | Independent milestone-scoped completion review; Project owner/authorized delegate, Windows host evidence | REV-01 | todo | |
+| VAL-01 | `dotnet build DotNetAiWorkbench.slnx -c Release` and focused dependency/reference inspection | Source architecture and solution build; Local Windows 11 + .NET 11 + Git/PowerShell | AC-01, AC-02, AC-09, AC-15 | complete | `dotnet build DotNetAiWorkbench.slnx -c Release`; project reference graph reviewed; solution receipt current. |
+| VAL-02 | `./eng/validate.ps1 -Shard autoformat-tests` (new declared stage) | Focused Autoformat source/CLI integration fixtures; Local Windows 11 + .NET 11 SDK + Git | AC-04, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, AC-11, EC-12a, EC-12b | complete | 3/3 Autoformat tests passed; `.execution/validation/autoformat-tests.json`. |
+| VAL-03 | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | Existing hygiene Core and CLI regression; Local Windows 11 + .NET 11 SDK + Git | AC-09, EC-10a, EC-10b, AC-11, EC-12b, EC-17a, EC-17b | complete | Core 111/111 and CLI 36/36 passed; `.execution/validation/core-tests.json`, `cli-tests.json`. |
+| VAL-04 | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | Two exact-current packed/installed tools in isolated SDK-style consumer repositories; Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, EC-17a, EC-17b, ART-01 | complete | Dual installed consumer passed; `.execution/validation/installed-consumers.json` and `consumer-provenance.json` package/shim SHA-256 values. |
+| VAL-05 | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | Monorepo aggregate validation, self-host and receipt freshness; Local Windows 11 + .NET 11 + Git/PowerShell | EC-14a, EC-14b, AC-14, AC-16 | complete | Current `.execution/validation/self-host.json`; final `-Verify` accepts every declared stage; stale/missing probes pass and restore receipts. |
+| VAL-06 | Direct docs/spec diff review plus installed `--help` | Current architecture/specs/README/help and explicit deferrals; Repository files + installed help | AC-04, AC-15, AC-16 | complete | Operative doc/spec diff and installed Autoformat help reviewed; explicit deferred feature scan recorded. |
+| VAL-07 | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | Independent milestone-scoped completion review; Project owner/authorized delegate, Windows host evidence | REV-01 | pending | Human independent completion review remains blocking; review record stays pending by instruction. |
 
 `VAL-04` is exact-current dual installed-tool validation. `VAL-07` requires independent human approval. Use affected focused feedback while implementing; after packaging and product boundaries stabilize, establish current consumer/self-host receipts and verify the full required plan. No exploratory result or partial suite is aggregate acceptance evidence.
 
@@ -79,25 +84,25 @@ _Implementation-owned. Derive bounded coherent packages from the live repository
 
 _Implementation-owned._
 
-Last completed work package:
+Last completed work package: WP-01 through WP-05 implementation and validation evidence reconciliation.
 
-Current work package:
+Current work package: Awaiting independent REV-M0026-COMPLETION review.
 
-Next concrete action:
+Next concrete action: reviewer examines the implementation PR and records an independent decision; do not self-approve.
 
-Known agent-resolvable gaps:
+Known agent-resolvable gaps: none; implementation and current validation evidence are complete.
 
-External blockers or planning escalations:
+External blockers or planning escalations: required project owner or authorized delegate review remains outstanding.
 
 ## Final Reconciliation
 
-- [ ] Reread the primary milestone from disk and enumerate its obligation IDs.
-- [ ] Verify exact set equality with the obligation registry (AC-01 through AC-17, ART-01, REV-01).
-- [ ] Verify exact set equality with the twenty-two required evidence-case IDs.
-- [ ] Verify no planner-owned obligation/evidence case was omitted, merged, renamed or summarized away.
-- [ ] Reconcile every obligation with implementation evidence and every evidence case with actual behavioral proof.
-- [ ] Confirm each validation gate exercises only what it claims to prove and runs at the specified real locus.
-- [ ] Downgrade stale, partial, indirect or unsupported completion assertions.
-- [ ] Verify current receipts and freshness/installed output identities at the completion boundary.
+- [x] Reread the primary milestone from disk and enumerate its obligation IDs.
+- [x] Verify exact set equality with the obligation registry (AC-01 through AC-17, ART-01, REV-01).
+- [x] Verify exact set equality with the twenty-two required evidence-case IDs.
+- [x] Verify no planner-owned obligation/evidence case was omitted, merged, renamed or summarized away.
+- [x] Reconcile every obligation with implementation evidence and every evidence case with actual behavioral proof; REV-01 remains explicitly pending.
+- [x] Confirm each validation gate exercises only what it claims to prove and runs at the specified real locus.
+- [x] Downgrade stale, partial, indirect or unsupported completion assertions.
+- [x] Verify current receipts and freshness/installed output identities at the completion boundary.
 - [ ] Confirm no agent-resolvable gap remains, no deferred feature was inadvertently implemented, and required independent review is recorded.
-- [ ] Execute the completion audit and write compact durable evidence in the milestone's `Completion Evidence` section.
+- [ ] Execute the completion audit and write compact durable evidence in the milestone's `Completion Evidence` section after independent approval.

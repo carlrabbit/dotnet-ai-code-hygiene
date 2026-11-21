@@ -4,6 +4,10 @@
 
 The repository is English. `.hygiene/config.json` disables only `docs.summary.language.german.review`; generic summary-quality review, required summaries, and visual control-flow separation remain enabled. The German policy remains fixed and available to consuming repositories that choose to enable it.
 
+## Workbench monorepo
+
+The root solution is `DotNetAiWorkbench.slnx` and includes independent `DotNetAiWorkbench.Autoformat.Core`/CLI plus the transitional hygiene Core/CLI. Autoformat owns the SDK formatter and mechanical policy; hygiene depends on it for formatting. The repository name remains historical. No index, service, Autoreview executable or additional XML/Razor canonicalizer is in scope.
+
 ## Baseline
 
 ```text
