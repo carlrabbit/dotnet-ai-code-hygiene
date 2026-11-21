@@ -27,7 +27,6 @@ public sealed class ProfileManager
     private readonly Action<int>? afterReplace;
     private readonly JsonSerializerOptions json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private static readonly string Marker = "{\n  \"schemaVersion\": 1,\n  \"profile\": \"dotnet-11\",\n  \"version\": 3\n}\n";
-    private static IReadOnlyList<(string Key, string Value)> MechanicalOptions => DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.MechanicalOptions;
     private static readonly string[] FixedMechanicalRuleIds = RuleCatalog.Modules
         .OfType<FixedMechanicalRuleModule>().Select(module => module.Descriptor.Id)
         .Append(BracesStyleRuleModule.RuleId).Append(AccessibilityStyleRuleModule.RuleId)
@@ -92,7 +91,10 @@ public sealed class ProfileManager
     {
         string[] disabled = ReadDisabledRules();
         IEnumerable<ProfileFinding> findings = AnalyzeRequiredProfile().Concat(AnalyzeStyleCop())
-            .Concat(AnalyzeEditorConfigRule(ProfileAnalysisRuleModule.RuleId, MechanicalOptions.Select(option => KeyValuePair.Create(option.Key, option.Value)).ToArray()));
+            .Concat(DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.AnalyzeEffectiveMechanicalSettings(root)
+                .Select(finding => new ProfileFinding(ProfileAnalysisRuleModule.RuleId, finding.Path,
+                    ProfileAnalysisRuleModule.EditorSettingMismatch(finding.Key, DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.MechanicalOptions.First(option => option.Key == finding.Key).Value, finding.Actual),
+                    ProfileAnalysisRuleModule.EditorSettingSuggestion(finding.Key, DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.MechanicalOptions.First(option => option.Key == finding.Key).Value))));
         foreach (IEditorConfigProjectionRule module in RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>())
         {
             IRuleModule rule = (IRuleModule)module;
@@ -478,25 +480,63 @@ public sealed class ProfileManager
 
         string editorPath = P(".editorconfig"), directoryPropsPath = P("Directory.Build.props");
         string configPath = P(".hygiene/config.json");
+        string profilePath = P(".hygiene/profile.json");
+        string? priorProfile = File.Exists(profilePath) ? File.ReadAllText(profilePath) : null;
         string editor = File.Exists(editorPath) ? File.ReadAllText(editorPath) : "root = true\n";
+        bool hadDirectoryProps = File.Exists(directoryPropsPath);
         string props = File.Exists(directoryPropsPath) ? File.ReadAllText(directoryPropsPath) : "<Project>\n</Project>\n";
-        string nextEditor = ReconcileEditor(editor, disabled);
+        _ = ReconcileEditor(editor, disabled);
         string nextProps = ReconcileImport(props);
         string? priorConfig = File.Exists(configPath) ? File.ReadAllText(configPath) : null;
         string? nextConfig = priorConfig is null ? null : ReconcileConfig(priorConfig, out _);
+        bool hadEditor = File.Exists(editorPath);
+        byte[] editorBeforeAutoformat = hadEditor ? File.ReadAllBytes(editorPath) : [];
+        bool autoformatInitialized = DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.EnsureInitializedForHygiene(root);
+        byte[] editorAfterAutoformat = File.ReadAllBytes(editorPath);
+        editor = File.Exists(editorPath) ? File.ReadAllText(editorPath) : "root = true\n";
+        string nextEditor = ReconcileEditor(editor, disabled);
         string[] removedMechanical = priorConfig is null ? [] : GetDisabledMechanicalRules(priorConfig);
         string[] migrationNotes = removedMechanical.Select(id => $"Removed former mechanical rule toggle '{id}'; the v3 profile now owns this behavior.")
             .Concat(requireMarker && priorVersion < 3 ? ["Profile policy changed to v3; the established external baseline approval is required before the autonomous gate can run."] : [])
             .ToArray();
         var changes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [P(".hygiene/profile.json")] = Marker,
+            [profilePath] = Marker,
             [P(".hygiene/profile/Hygiene.props")] = Props,
             [editorPath] = nextEditor,
             [directoryPropsPath] = nextProps
         };
         if (nextConfig is not null) { changes[configPath] = nextConfig; }
-        string[] changed = Commit(changes);
+        string[] changed;
+        try
+        {
+            var expected = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [editorPath] = editor,
+                [directoryPropsPath] = hadDirectoryProps ? props : null,
+                [profilePath] = priorProfile
+            };
+            if (priorConfig is not null)
+            {
+                expected[configPath] = priorConfig;
+            }
+            changed = Commit(changes, expected);
+        }
+        catch
+        {
+            if (autoformatInitialized && File.Exists(editorPath) && editorAfterAutoformat.AsSpan().SequenceEqual(File.ReadAllBytes(editorPath)))
+            {
+                if (hadEditor)
+                {
+                    File.WriteAllBytes(editorPath, editorBeforeAutoformat);
+                }
+                else
+                {
+                    File.Delete(editorPath);
+                }
+            }
+            throw;
+        }
         var findings = Analyze();
         return new(command, findings.Count, findings, changed.Select(Rel).Order(StringComparer.Ordinal).ToArray(), migrationNotes);
     }
@@ -581,29 +621,13 @@ public sealed class ProfileManager
 
     private string ReconcileEditor(string text, IReadOnlyCollection<string> disabledRuleIds)
     {
-        string clean = RemoveManaged(text, Start, End);
-        string[] lines = clean.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        bool rootSeen = false;
-        for (int i = 0; i < lines.Length; i++)
+        string effectiveStart = text.Contains(Start, StringComparison.Ordinal) ? Start : LegacyStart;
+        string effectiveEnd = effectiveStart == LegacyStart ? LegacyEnd : End;
+        int start = text.IndexOf(effectiveStart, StringComparison.Ordinal), endStart = text.IndexOf(effectiveEnd, StringComparison.Ordinal);
+        if ((start < 0) != (endStart < 0) || (start >= 0 && (endStart < start || start != text.LastIndexOf(effectiveStart, StringComparison.Ordinal) || endStart != text.LastIndexOf(effectiveEnd, StringComparison.Ordinal))))
         {
-            int equals = lines[i].IndexOf('=');
-            if (equals < 0 || !lines[i][..equals].Trim().Equals("root", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (!rootSeen) { lines[i] = lines[i][..(equals + 1)] + " true"; rootSeen = true; }
-            else
-            {
-                lines[i] = "";
-            }
+            throw new ProductException("Conflicting or incomplete hygiene-managed section; repair its boundary markers before retrying.");
         }
-        clean = string.Join("\n", lines);
-        if (!rootSeen)
-        {
-            clean = "root = true\n" + clean;
-        }
-
         string[] projectionLines = RuleCatalog.Modules.OfType<IEditorConfigProjectionRule>()
             .Where(module => !FixedMechanicalRuleIds.Contains(((IRuleModule)module).Descriptor.Id, StringComparer.Ordinal)
                 && !disabledRuleIds.Contains(((IRuleModule)module).Descriptor.Id, StringComparer.Ordinal))
@@ -611,9 +635,22 @@ public sealed class ProfileManager
                 .Concat(module.EditorConfigEntries.Select(entry => entry.Key + " = " + entry.Value))
                 .Append(""))
             .ToArray();
-        projectionLines = [.. projectionLines, .. MechanicalOptions.Select(option => option.Key + " = " + option.Value)];
         string projection = string.Join("\n", new[] { Start, "[*.cs]" }.Concat(projectionLines).Append(End));
-        return clean.TrimEnd() + "\n\n" + projection + "\n";
+        string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        projection = projection.Replace("\n", newline, StringComparison.Ordinal);
+        if (start >= 0)
+        {
+            int end = endStart + effectiveEnd.Length;
+            return text[..start] + projection + text[end..];
+        }
+
+        bool rootSeen = text.Split(["\r\n", "\n"], StringSplitOptions.None).Any(line => line.Trim().StartsWith("root", StringComparison.OrdinalIgnoreCase) && line.Contains('=') && line[(line.IndexOf('=') + 1)..].Trim().Equals("true", StringComparison.OrdinalIgnoreCase));
+        if (!rootSeen)
+        {
+            text = "root = true" + newline + text;
+        }
+        string separator = text.Length == 0 || text.EndsWith(newline, StringComparison.Ordinal) ? "" : newline;
+        return text + separator + (text.Length > 0 ? newline : "") + projection + newline;
     }
     private static string ReconcileImport(string text)
     {

@@ -179,6 +179,8 @@ Profile mutation and source rewrite semantics remain independently regression-co
 
 Tier 4 must invoke the installed `dotnet hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. Historical package versions above record their original milestone evidence; the current M0025 consumer gate installs the exact 0.12.0 package and exercises its changed portfolio and review lifecycle.
 
+M0026 adds product-owned gates: run `./eng/autoformat/validate.ps1` for Autoformat build, tests, package and isolated exact-current installed-consumer checks; run `./eng/hygiene/validate.ps1` for the transitional Hygiene build, Core/CLI suites, package and isolated Hygiene consumer. The Hygiene gate compiles against Autoformat.Core but does not execute Autoformat's installed-consumer scenarios. `./eng/validate.ps1` remains the repository aggregate and receipt coordinator. Its input fingerprints are product-scoped; Hygiene includes the shared Autoformat engine inputs, so Hygiene-only changes preserve Autoformat receipts while Autoformat.Core changes invalidate both gates.
+
 ## Validation workflow
 
 Validation has four distinct uses; the required evidence comes from the active milestone, not from a single default depth:

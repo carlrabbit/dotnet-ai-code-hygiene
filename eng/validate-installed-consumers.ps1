@@ -197,11 +197,13 @@ public class Closing
         if (@($migrationResult.migrationNotes | Where-Object { $_ -match 'style\.braces\.required|style\.usings\.unused' }).Count -ne 2 -or -not ($migrationResult.migrationNotes | Where-Object { $_ -match 'external baseline approval' })) { throw 'Installed profile migration failed to report removed mechanical toggles and approval requirement.' }
         $migratedConfig = Get-Content -Raw .hygiene\config.json
         if ($migratedConfig -notmatch 'readability.long-line.review' -or $migratedConfig -match 'style\.braces\.required|style\.usings\.unused') { throw 'Profile migration did not preserve semantic toggles or remove retired mechanical toggles.' }
-        $editorBeforeAutoformatAdoption = (Get-FileHash -LiteralPath .editorconfig -Algorithm SHA256).Hash
+        $editorBeforeAutoformatAdoption = Get-Content -LiteralPath .editorconfig -Raw
         $adoption = dotnet autoformat init --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $adoption.status -ne 'ready' -or -not $adoption.adoptedExistingHygienePolicy -or (Get-FileHash -LiteralPath .editorconfig -Algorithm SHA256).Hash -ne $editorBeforeAutoformatAdoption) { throw 'Autoformat did not safely adopt the existing hygiene-managed mechanical policy.' }
+        if ($LASTEXITCODE -ne 0 -or $adoption.status -ne 'ready' -or -not $adoption.adoptedExistingHygienePolicy) { throw 'Autoformat did not adopt the existing hygiene-managed mechanical policy.' }
         $migratedEditor = Get-Content -Raw .editorconfig
-        if ($migratedEditor -match '<!-- hygiene profile:' -or $migratedEditor -notmatch '(?m)^# hygiene profile:begin' -or $migratedEditor -notmatch 'consumer-owned text') { throw 'Profile migration did not replace malformed legacy boundaries and preserve unrelated content.' }
+        if ($migratedEditor -match '<!-- hygiene profile:' -or $migratedEditor -notmatch '(?m)^# hygiene profile:begin' -or $migratedEditor -notmatch 'consumer-owned text' -or $migratedEditor -notmatch '(?m)^# autoformat profile:begin' -or $migratedEditor -notmatch 'dotnet_diagnostic.IDE0011.severity = error') { throw 'Autoformat adoption did not transfer mechanical ownership while preserving hygiene review settings and unrelated content.' }
+        $hygieneSection = $migratedEditor.Substring($migratedEditor.IndexOf('# hygiene profile:begin'), $migratedEditor.IndexOf('# hygiene profile:end') - $migratedEditor.IndexOf('# hygiene profile:begin'))
+        if ($hygieneSection.Contains('dotnet_diagnostic.IDE0011.severity')) { throw 'The transitional hygiene block still owns an overlapping mechanical option.' }
     }
     finally { Pop-Location }
 

@@ -59,27 +59,16 @@ static int Initialize(string output)
     ValidateOutput(output);
     string repo = FindRoot(), path = Path.Combine(repo, ".editorconfig");
     string before = File.Exists(path) ? File.ReadAllText(path) : "";
-    bool hasAutoStart = before.Contains("# autoformat profile:begin", StringComparison.Ordinal);
-    bool hasAutoEnd = before.Contains("# autoformat profile:end", StringComparison.Ordinal);
+    bool hasAutoStart = before.Contains(AutoformatPolicy.StartMarker, StringComparison.Ordinal);
     bool hasHygieneStart = before.Contains("# hygiene profile:begin", StringComparison.Ordinal);
-    bool hasHygieneEnd = before.Contains("# hygiene profile:end", StringComparison.Ordinal);
-    if (hasAutoStart != hasAutoEnd || hasHygieneStart != hasHygieneEnd)
-    {
-        throw new ProductException("Malformed or incomplete managed EditorConfig markers; repair .editorconfig before initialization.");
-    }
-
-    if ((hasAutoStart && (before.IndexOf("# autoformat profile:begin", StringComparison.Ordinal) != before.LastIndexOf("# autoformat profile:begin", StringComparison.Ordinal) || before.IndexOf("# autoformat profile:end", StringComparison.Ordinal) != before.LastIndexOf("# autoformat profile:end", StringComparison.Ordinal))) ||
-        (hasHygieneStart && (before.IndexOf("# hygiene profile:begin", StringComparison.Ordinal) != before.LastIndexOf("# hygiene profile:begin", StringComparison.Ordinal) || before.IndexOf("# hygiene profile:end", StringComparison.Ordinal) != before.LastIndexOf("# hygiene profile:end", StringComparison.Ordinal))))
-    {
-        throw new ProductException("Duplicate managed policy markers; repair .editorconfig before initialization.");
-    }
-
+    bool changed = AutoformatPolicy.EnsureInitialized(repo);
+    EnsurePolicy(repo);
     if (hasAutoStart || hasHygieneStart)
     {
         EnsurePolicy(repo);
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { status = "ready", adoptedExistingHygienePolicy = hasHygieneStart, changedPaths = Array.Empty<string>() }));
+            Console.WriteLine(JsonSerializer.Serialize(new { status = "ready", adoptedExistingHygienePolicy = hasHygieneStart, changedPaths = changed ? new[] { ".editorconfig" } : Array.Empty<string>() }));
         }
         else
         {
@@ -89,11 +78,6 @@ static int Initialize(string output)
         return 0;
     }
 
-    EnsureNoConflictingOverrides(repo, null);
-    string block = AutoformatPolicy.BuildEditorConfigBlock("# autoformat profile:begin", "# autoformat profile:end");
-    string after = before.TrimEnd() + "\n\n" + block + "\n";
-    File.WriteAllText(path, after, new System.Text.UTF8Encoding(false));
-    EnsurePolicy(repo);
     if (output == "json")
     {
         Console.WriteLine(JsonSerializer.Serialize(new { status = "initialized", changedPaths = new[] { ".editorconfig" } }));
@@ -109,8 +93,8 @@ static void EnsurePolicy(string repo)
 {
     string path = Path.Combine(repo, ".editorconfig");
     string text = File.Exists(path) ? File.ReadAllText(path) : "";
-    string start = text.Contains("# autoformat profile:begin", StringComparison.Ordinal) ? "# autoformat profile:begin" : "# hygiene profile:begin";
-    string end = start.StartsWith("# autoformat", StringComparison.Ordinal) ? "# autoformat profile:end" : "# hygiene profile:end";
+    string start = AutoformatPolicy.StartMarker;
+    string end = AutoformatPolicy.EndMarker;
     int a = text.IndexOf(start, StringComparison.Ordinal), b = text.IndexOf(end, StringComparison.Ordinal);
     if (a < 0 || b < a)
     {
@@ -130,72 +114,7 @@ static void EnsurePolicy(string repo)
             throw new ProductException($"The managed SDK formatting policy is missing or has drifted at '{key}'. Repair .editorconfig or rerun 'dotnet hygiene update' before formatting.");
         }
     }
-    EnsureNoConflictingOverrides(repo, (start, end));
-}
-static void EnsureNoConflictingOverrides(string repo, (string Start, string End)? rootManagedMarkers)
-{
-    var expected = AutoformatPolicy.MechanicalOptions.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-    foreach (string config in EnumerateEditorConfigs(repo))
-    {
-        string text = File.ReadAllText(config);
-        bool isRoot = string.Equals(config, Path.Combine(repo, ".editorconfig"), StringComparison.OrdinalIgnoreCase);
-        bool inManaged = false;
-        string section = "*";
-        foreach (string raw in text.Split(["\r\n", "\n"], StringSplitOptions.None))
-        {
-            string line = raw.Trim();
-            if (isRoot && rootManagedMarkers is not null)
-            {
-                if (line == rootManagedMarkers.Value.Start) { inManaged = true; continue; }
-                if (line == rootManagedMarkers.Value.End) { inManaged = false; continue; }
-                if (inManaged)
-                {
-                    continue;
-                }
-            }
-            if (line.StartsWith('[') && line.EndsWith(']')) { section = line[1..^1]; continue; }
-            int equals = line.IndexOf('=');
-            if (equals <= 0 || line.StartsWith('#') || line.StartsWith(';'))
-            {
-                continue;
-            }
-
-            string key = line[..equals].Trim(), value = line[(equals + 1)..].Trim();
-            if (!expected.TryGetValue(key, out string? required) || !SectionMaySelectCSharp(section))
-            {
-                continue;
-            }
-
-            if (!value.Equals(required, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ProductException($"Conflicting mechanical setting in '{Path.GetRelativePath(repo, config).Replace('\\', '/')}': {key} = {value}. Resolve this authored override before running Autoformat.");
-            }
-        }
-    }
-}
-static bool SectionMaySelectCSharp(string section) => section is "*" or "**" || section.Contains(".cs", StringComparison.OrdinalIgnoreCase) || section.Contains("*.{", StringComparison.Ordinal);
-static IEnumerable<string> EnumerateEditorConfigs(string repo)
-{
-    var pending = new Stack<string>();
-    pending.Push(repo);
-    while (pending.Count > 0)
-    {
-        string directory = pending.Pop();
-        string config = Path.Combine(directory, ".editorconfig");
-        if (File.Exists(config))
-        {
-            yield return config;
-        }
-
-        foreach (string child in Directory.EnumerateDirectories(directory))
-        {
-            string name = Path.GetFileName(child);
-            if (name is not (".git" or ".hygiene" or "bin" or "obj") && (File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0)
-            {
-                pending.Push(child);
-            }
-        }
-    }
+    AutoformatPolicy.ValidateEffectiveMechanicalSettings(repo);
 }
 static void ValidateOutput(string output)
 {

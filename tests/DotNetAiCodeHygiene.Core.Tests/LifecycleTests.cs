@@ -264,6 +264,37 @@ public sealed class LifecycleTests
     }
 
     [Test]
+    public async Task AutoformatAndHygieneInitializationWorkInEitherOrder()
+    {
+        foreach (bool autoformatFirst in new[] { true, false })
+        {
+            string repo = Path.Combine(Path.GetTempPath(), "hygiene-autoformat-order-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(repo);
+            try
+            {
+                await RunGitExitCode(repo, "init", "-q");
+                if (autoformatFirst)
+                {
+                    DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.EnsureInitialized(repo);
+                }
+                new ProfileManager(repo).Bootstrap();
+                if (!autoformatFirst)
+                {
+                    DotNetAiWorkbench.Autoformat.Core.AutoformatPolicy.EnsureInitialized(repo);
+                }
+                new ProfileManager(repo).Update();
+                string config = await File.ReadAllTextAsync(Path.Combine(repo, ".editorconfig"));
+                await Assert.That(config).Contains("# autoformat profile:begin");
+                await Assert.That(config).Contains("# hygiene profile:begin");
+                int hygieneStart = config.IndexOf("# hygiene profile:begin", StringComparison.Ordinal);
+                int hygieneEnd = config.IndexOf("# hygiene profile:end", hygieneStart, StringComparison.Ordinal);
+                await Assert.That(config[hygieneStart..hygieneEnd]).DoesNotContain("dotnet_diagnostic.IDE0011.severity");
+            }
+            finally { DeleteTree(repo); }
+        }
+    }
+
+    [Test]
     public async Task ProfileBootstrapFaultRollsBackTheWholeProfileInstallation()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-profile-rollback-" + Guid.NewGuid().ToString("N"));

@@ -1,16 +1,12 @@
 $script:ValidationRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $script:ReceiptRoot = Join-Path $script:ValidationRoot '.execution\validation'
-$script:ReceiptVersion = 1
+$script:ReceiptVersion = 2
 
 $script:ValidationStages = @(
-    [pscustomobject]@{ Id = 'solution'; Command = '[cold] dotnet clean .\DotNetAiWorkbench.slnx; dotnet restore .\DotNetAiWorkbench.slnx; dotnet build .\DotNetAiWorkbench.slnx --configuration Release --no-restore'; DependsOn = @(); Inputs = @('global.json','.editorconfig','Directory.Build.props','DotNetAiWorkbench.slnx','src/**','tests/**'); Outputs = @('src/**/bin/Release/**/*.dll','tests/**/bin/Release/**/*') },
-    [pscustomobject]@{ Id = 'autoformat-tests'; Command = 'dotnet test .\tests\DotNetAiWorkbench.Autoformat.Tests\DotNetAiWorkbench.Autoformat.Tests.csproj --configuration Release --no-build --show-slowest-tests 10'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiWorkbench.Autoformat.Tests/**','src/DotNetAiWorkbench.Autoformat.Core/**','src/DotNetAiWorkbench.Autoformat.Cli/**'); Outputs = @('TestResults/DotNetAiWorkbench.Autoformat.Tests-*-report.html') },
-    [pscustomobject]@{ Id = 'core-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Core.Tests\DotNetAiCodeHygiene.Core.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Core.Tests/**','src/DotNetAiCodeHygiene.Core/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Core.Tests-*-report.html') },
-    [pscustomobject]@{ Id = 'cli-tests'; Command = 'dotnet test .\tests\DotNetAiCodeHygiene.Cli.Tests\DotNetAiCodeHygiene.Cli.Tests.csproj --configuration Release --no-build --show-slowest-tests 10 [--treenode-filter <filter>]'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','tests/DotNetAiCodeHygiene.Cli.Tests/**','src/**'); Outputs = @('TestResults/DotNetAiCodeHygiene.Cli.Tests-*-report.html') },
+    [pscustomobject]@{ Id = 'autoformat-tool'; Command = '& .\eng\autoformat\validate.ps1'; DependsOn = @(); Inputs = @('global.json','.editorconfig','Directory.Build.props','Directory.Packages.props','src/DotNetAiWorkbench.Autoformat.Core/**','src/DotNetAiWorkbench.Autoformat.Cli/**','tests/DotNetAiWorkbench.Autoformat.Tests/**','eng/autoformat/**'); Outputs = @('artifacts/packages/DotNetAiWorkbench.Autoformat.Tool.0.1.0.nupkg','.execution/validation/autoformat-consumer-provenance.json') },
+    [pscustomobject]@{ Id = 'hygiene-tool'; Command = '& .\eng\hygiene\validate.ps1'; DependsOn = @(); Inputs = @('global.json','.editorconfig','Directory.Build.props','Directory.Packages.props','src/DotNetAiWorkbench.Autoformat.Core/**','src/DotNetAiCodeHygiene.Core/**','src/DotNetAiCodeHygiene.Cli/**','tests/DotNetAiCodeHygiene.Core.Tests/**','tests/DotNetAiCodeHygiene.Cli.Tests/**','eng/hygiene/**'); Outputs = @('artifacts/packages/DotNetAiCodeHygiene.Tool.0.12.0.nupkg','.execution/validation/hygiene-consumer-provenance.json') },
     [pscustomobject]@{ Id = 'readme-policy'; Command = 'Check README lifecycle headings and required installed-tool examples'; DependsOn = @(); Inputs = @('README.md'); Outputs = @() },
-    [pscustomobject]@{ Id = 'pack-current'; Command = 'dotnet pack both current tool projects --configuration Release --no-build'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**'); Outputs = @('artifacts/packages/DotNetAiCodeHygiene.Tool.0.12.0.nupkg','artifacts/packages/DotNetAiWorkbench.Autoformat.Tool.0.1.0.nupkg') },
-    [pscustomobject]@{ Id = 'installed-consumers'; Command = '& .\eng\validate-installed-consumers.ps1'; DependsOn = @('pack-current'); Inputs = @('global.json','.editorconfig','Directory.Build.props','src/**','eng/validate-installed-consumers.ps1'); Outputs = @('.execution/validation/consumer-provenance.json') },
-    [pscustomobject]@{ Id = 'self-host'; Command = '& .\eng\validate-self-host.ps1'; DependsOn = @('solution'); Inputs = @('global.json','.editorconfig','.gitignore','AGENTS.md','Directory.Build.props','Directory.Packages.props','DotNetAiWorkbench.slnx','README.md','.hygiene/**','docs/**','src/**','tests/**','eng/validate-self-host.ps1'); Outputs = @() }
+    [pscustomobject]@{ Id = 'self-host'; Command = '& .\eng\validate-self-host.ps1'; DependsOn = @('autoformat-tool','hygiene-tool'); Inputs = @('.gitignore','AGENTS.md','Directory.Build.props','Directory.Packages.props','DotNetAiWorkbench.slnx','README.md','.hygiene/**','docs/**','src/**','tests/**','eng/validate-self-host.ps1'); Outputs = @() }
 )
 
 function Get-StageReceiptPath([string] $Id) { Join-Path $script:ReceiptRoot ($Id + '.json') }
@@ -19,7 +15,7 @@ function Get-StageFiles($Stage) {
     $found = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($pattern in @($Stage.Inputs) + @('eng/validate.ps1','eng/ValidationStages.ps1')) {
         if ($pattern.Contains('**')) {
-            $prefix = $pattern.Split('/')[0]
+            $prefix = $pattern.Substring(0, $pattern.IndexOf('**')).TrimEnd('/')
             $base = Join-Path $script:ValidationRoot $prefix
             if (Test-Path -LiteralPath $base) {
                 Get-ChildItem -LiteralPath $base -File -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/](bin|obj|TestResults|artifacts)[\\/]' -and $_.FullName -notmatch '[\\/]\.hygiene[\\/]\.state[\\/]' } | ForEach-Object { [void]$found.Add($_.FullName) }
@@ -46,14 +42,14 @@ function Get-InputDigest($Stage) {
 }
 
 function Get-RepositoryDeltaDigest {
-    $base = (& git merge-base HEAD origin/main 2>&1 | Out-String).Trim()
+    $base = (& git merge-base HEAD origin/main 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $base) { throw 'Could not identify origin/main merge base for repository working-tree validation.' }
-    $delta = (& git diff --binary --no-ext-diff $base -- 2>&1 | Out-String)
+    $delta = (& git diff --binary --no-ext-diff $base -- 2>$null | Out-String)
     if ($LASTEXITCODE -ne 0) { throw 'Could not fingerprint the repository change set.' }
     $parts = [System.Collections.Generic.List[string]]::new()
     $parts.Add("base`0$base")
     $parts.Add("diff`0$delta")
-    $untracked = @(& git ls-files --others --exclude-standard)
+    $untracked = @(& git ls-files --others --exclude-standard 2>$null)
     if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate untracked repository inputs.' }
     foreach ($relative in $untracked | Sort-Object -Unique) {
         $path = Join-Path $script:ValidationRoot $relative
@@ -153,16 +149,7 @@ function Assert-Prerequisites($Stage) {
 
 function Invoke-StageCommand($Stage, [string] $Filter) {
     switch ($Stage.Id) {
-        'solution' {
-            if ($env:DOTNET_HYGIENE_VALIDATION_COLD -eq '1') {
-                dotnet clean .\DotNetAiWorkbench.slnx --configuration Release
-                if ($LASTEXITCODE -ne 0) { throw "dotnet clean failed with exit code $LASTEXITCODE." }
-            }
-            dotnet restore .\DotNetAiWorkbench.slnx
-            if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE." }
-            dotnet build .\DotNetAiWorkbench.slnx --configuration Release --no-restore
-            if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE." }
-        }
+        { $_ -in @('autoformat-tool','hygiene-tool') } { & (Join-Path $script:ValidationRoot ($Stage.Id -eq 'autoformat-tool' ? 'eng/autoformat/validate.ps1' : 'eng/hygiene/validate.ps1')); if ($LASTEXITCODE -ne 0) { throw "$($Stage.Id) failed ($LASTEXITCODE)." } }
         'autoformat-tests' { $args = @('test','.\tests\DotNetAiWorkbench.Autoformat.Tests\DotNetAiWorkbench.Autoformat.Tests.csproj','--configuration','Release','--no-build','--show-slowest-tests','10'); & dotnet @args; if ($LASTEXITCODE -ne 0) { throw "Autoformat tests failed with exit code $LASTEXITCODE." } }
         'core-tests' {
             $args = @('test','.\tests\DotNetAiCodeHygiene.Core.Tests\DotNetAiCodeHygiene.Core.Tests.csproj','--configuration','Release','--no-build','--show-slowest-tests','10')
@@ -181,13 +168,6 @@ function Invoke-StageCommand($Stage, [string] $Filter) {
             foreach ($heading in @('## First Bootstrap','## Run on Gates','## Manual Inspection and Debugging','## Exhaustive read-only audit','## Updating to a New Release')) { if (-not $readmeText.Contains($heading)) { throw "README is missing required lifecycle section '$heading'." } }
             foreach ($example in @('dotnet hygiene --version','dotnet hygiene check --base origin/main','dotnet hygiene review handoff','dotnet hygiene baseline accept --approver','--report-sha256','--yolo-all --attest-explicit-task','dotnet hygiene audit next --run','dotnet hygiene audit record --run','dotnet hygiene audit finish --run')) { if (-not $readmeText.Contains($example)) { throw "README is missing required lifecycle example '$example'." } }
         }
-        'pack-current' {
-            dotnet pack .\src\DotNetAiCodeHygiene.Cli\DotNetAiCodeHygiene.Cli.csproj --configuration Release --no-build
-            if ($LASTEXITCODE -ne 0) { throw "dotnet pack hygiene failed with exit code $LASTEXITCODE." }
-            dotnet pack .\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj --configuration Release --no-build
-            if ($LASTEXITCODE -ne 0) { throw "dotnet pack Autoformat failed with exit code $LASTEXITCODE." }
-            foreach ($package in @((Get-Item .\artifacts\packages\DotNetAiCodeHygiene.Tool.0.12.0.nupkg),(Get-Item .\artifacts\packages\DotNetAiWorkbench.Autoformat.Tool.0.1.0.nupkg))) { Write-Output ("Current package {0} SHA-256: {1}" -f $package.Name,(Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash) }
-        }        'installed-consumers' { & .\eng\validate-installed-consumers.ps1; if ($LASTEXITCODE -ne 0) { throw "Installed-consumer validation failed with exit code $LASTEXITCODE." } }
         'self-host' { & .\eng\validate-self-host.ps1; if ($LASTEXITCODE -ne 0) { throw "Self-host validation failed with exit code $LASTEXITCODE." } }
         default { throw "Unknown validation stage '$($Stage.Id)'." }
     }
@@ -202,7 +182,7 @@ function Write-StageReceipt($Stage, [DateTimeOffset] $Started, [double] $Elapsed
         return
     }
     $outputInventory = @(Get-OutputInventory $Stage)
-    if ($Stage.Id -in @('solution','autoformat-tests','core-tests','cli-tests','pack-current','installed-consumers') -and $outputInventory.Count -eq 0) { throw "Stage '$($Stage.Id)' produced none of its required output artifacts; no success receipt was written." }
+    if ($Stage.Id -in @('autoformat-tool','hygiene-tool') -and $outputInventory.Count -eq 0) { throw "Stage '$($Stage.Id)' produced none of its required package artifacts; no success receipt was written." }
     $receipt = [ordered]@{
         schemaVersion = $script:ReceiptVersion; id = $Stage.Id; status = 'passed'; fingerprint = $expected.hash
         inputDigest = $endInputDigest; command = $Stage.Command; dependencies = @($Stage.DependsOn)
@@ -231,7 +211,7 @@ function Invoke-ValidationStages {
     $plan = @($script:ValidationStages | ForEach-Object { [pscustomobject]@{ id=$_.Id; command=$_.Command; dependencies=@($_.DependsOn); expectedReceipt=(Get-StageReceiptPath $_.Id); expectedOutputs=@($_.Outputs) } })
     if ($PlanJson) { [pscustomobject]@{ schemaVersion=1; sequentialOnly=$true; stages=$plan } | ConvertTo-Json -Depth 12; return }
     if ($Shard -and -not ($script:ValidationStages.Id -contains $Shard)) { throw "Unknown validation shard '$Shard'. Use -PlanJson to list stable stage IDs." }
-    if ($TestFilter -and $Shard -notin @('core-tests','cli-tests')) { throw '-TestFilter is available only with -Shard core-tests or -Shard cli-tests.' }
+    if ($TestFilter) { throw 'Focused filters are not supported by tool aggregate stages; invoke the project test command directly.' }
     New-Item -ItemType Directory -Force -Path $script:ReceiptRoot | Out-Null
     $lockPath = Join-Path $script:ReceiptRoot 'execution.lock'
     $lock = $null
