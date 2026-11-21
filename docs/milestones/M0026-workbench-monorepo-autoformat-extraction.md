@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Lifecycle state | **ready** (planning handoff; implementation not started) |
-| Mode | `ai-executed-human-reviewed`, coherent architectural migration |
+| Workflow / execution mode | `engineering-migration` planning; `ai-executed-human-reviewed` implementation, coherent architectural migration |
 | Guide applicability resolved by planning | Agentic Project Guides 0.9.3; repository-wide `base` + `cli-tool` |
 | Repository role/maturity | developer-tool, greenfield/pre-1.0 |
 | Baseline implementation model | project-configured **GPT-5.6 Luna** |
@@ -131,6 +131,20 @@ The implementation updates `docs/ARCHITECTURE.md`, relevant `docs/specs/`, `docs
 
 Follow the project’s separate broad documentation-sync policy; do not rewrite all historical milestones or perform unrelated glossary churn. The future workbench index and Autoreview projects will receive separate planning decisions, profiles and milestones when ready.
 
+## Migration Classification and Likely Affected Areas
+
+| Classification | Work boundary |
+|---|---|
+| **Required** | Workbench solution includes both tools; independent Autoformat engine/CLI/package; one-way formatter ownership; new tool initialization; full validation and installed-consumer tests. |
+| **Required preservation** | Existing `dotnet hygiene` executable, semantic rules, source-local exceptions, review/baseline state and audit protocol. |
+| **Conditional** | Extract a small shared workspace/project/Git library only when concrete dependencies warrant it; avoid speculative layering. |
+| **Conditional** | One-time mechanical EditorConfig marker migration for consumers carrying the old hygiene-owned block; preserve non-owned content and existing effective policy. |
+| **Deprecated/transitional** | Mixed hygiene formatter implementation and command ownership, as superseded by the Autoformat engine; old command dispatch may remain as an adapter. |
+| **Manual review** | Human authorization for completion of this cross-cutting migration, not ongoing approval of every future change. |
+| **No-op/deferred** | SQLite index, Autoreview executable, HTTP/IPC service, plugins, XML/Razor canonicalizers and broad research/docs synchronization. |
+
+Likely affected areas, not an exhaustive edit allowlist: root `.slnx`, `src/DotNetAiCodeHygiene.Cli/` and `Core/`, new `src/*Autoformat*/` projects, `tests/`, `eng/validate.ps1` and installed-consumer scripts, root `.editorconfig` profile integration, README/agent help, operative architecture/specifications and M0026 review record. Packaging/consumer integration must use local artifact feeds and isolated executable invocation; running tests against a global tool is not acceptable.
+
 ## Baseline Executor Readiness and Decision Preservation
 
 All material product decisions needed for this extraction are fixed above: one monorepo, independent executable/package, one-way legacy adapter, CLI shape, existing SDK allowlist, init/config ownership, mutation safety, legacy review preservation, blocked deferred work, installed-tool validation and release scope. The baseline model can choose local C# types, layout, migration implementation, test structure and bounded execution work packages without deciding the product architecture.
@@ -164,6 +178,7 @@ The milestone does **not** rely on PR #29 research as implementation authority. 
 - **AC-14** — The monorepo validation plan/receipts cover both executable surfaces, their focused tests, packaging and self-host gate; stale/missing stage evidence is rejected and current evidence is reusable at completion.
 - **AC-15** — No new automatic XML documentation/content canonicalizer, Razor/project file relocation policy, Autoreview executable, persistent index, IPC/HTTP service, semantic rule portfolio redesign, or public NuGet publishing is introduced in M0026.
 - **AC-16** — Public documentation and in-repository architecture/specification authority accurately describe the workbench identity, Autoformat invocation/profile ownership, transitional hygiene boundary, packaging and supported scope without claiming deferred capabilities.
+- **AC-17** — The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap.
 
 ## Additional Completion Obligations
 
@@ -194,6 +209,8 @@ The milestone does **not** rely on PR #29 research as implementation authority. 
 | EC-13b | AC-13 | Fresh packed/installed legacy hygiene consumer against the same branch | Preservation of transitional separate distribution surface. |
 | EC-14a | AC-14 | Both executable/test/package stages present and bound to current inputs | Coverage of a second product's artifacts is new. |
 | EC-14b | AC-14 | Verifier rejects stale/missing receipts after new-tool changes and accepts complete current set | Evidence freshness behavior differs from successful run. |
+| EC-17a | AC-17 | Existing initialized hygiene consumer updates and retains valid baseline decision semantics | Update/adoption of migrated mechanical policy differs from fresh bootstrap. |
+| EC-17b | AC-17 | Fresh hygiene bootstrap, explicit acceptance and invoking-tool update-scope behavior | New baseline lifecycle and update scope take different paths from retained accepted state. |
 
 Non-cased acceptance obligations require individual evidence without additional `EC-*` fragmentation. The ledger below is a one-for-one projection of obligations/evidence cases, not a second implementation contract.
 
@@ -203,8 +220,8 @@ Non-cased acceptance obligations require individual evidence without additional 
 |---|---|---|---|---|---|---|
 | VAL-01 | Tier 1/2 | Source architecture and solution build | Local Windows 11 + .NET 11 + Git/PowerShell | `dotnet build DotNetAiWorkbench.slnx -c Release` and focused dependency/reference inspection | AC-01, AC-02, AC-09, AC-15 | Build output, independent references and module-boundary evidence |
 | VAL-02 | Tier 1/2 | Focused Autoformat source/CLI integration fixtures | Local Windows 11 + .NET 11 SDK + Git | `./eng/validate.ps1 -Shard autoformat-tests` (new declared stage) | AC-04, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, AC-11, EC-12a, EC-12b | Machine-verifiable fixtures and current receipt for the new stage |
-| VAL-03 | Tier 1/2 | Existing hygiene Core and CLI regression | Local Windows 11 + .NET 11 SDK + Git | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | AC-09, EC-10a, EC-10b, AC-11, EC-12b | Separate current existing Core/CLI receipts and behavioral regressions |
-| VAL-04 | Tier 4 | Two exact-current packed/installed tools in isolated SDK-style consumer repositories | Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, ART-01 | Package hashes, isolated install paths/shim invocations, source diffs and consumer receipts |
+| VAL-03 | Tier 1/2 | Existing hygiene Core and CLI regression | Local Windows 11 + .NET 11 SDK + Git | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | AC-09, EC-10a, EC-10b, AC-11, EC-12b, EC-17a, EC-17b | Separate current existing Core/CLI receipts and behavioral regressions |
+| VAL-04 | Tier 4 | Two exact-current packed/installed tools in isolated SDK-style consumer repositories | Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, EC-17a, EC-17b, ART-01 | Package hashes, isolated install paths/shim invocations, source diffs and consumer receipts |
 | VAL-05 | Tier 2/4 | Monorepo aggregate validation, self-host and receipt freshness | Local Windows 11 + .NET 11 + Git/PowerShell | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | EC-14a, EC-14b, AC-14, AC-16 | Current staged receipts and accepted aggregate verification; self-host evidence |
 | VAL-06 | Documentation | Current architecture/specs/README/help and explicit deferrals | Repository files + installed help | Direct docs/spec diff review plus installed `--help` | AC-04, AC-15, AC-16 | Referenced operative docs and actual command output |
 | VAL-07 | Human | Independent milestone-scoped completion review | Project owner/authorized delegate, Windows host evidence | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | REV-01 | Approved review record, rationale and decision evidence; gate is blocking |
