@@ -27,7 +27,7 @@ This file is **operational implementation state**, not product authority. Planni
 | AC-17 | acceptance | The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap. | WP-03, WP-04 | Core lifecycle tests cover existing-profile migration, accepted baseline semantics and invoking-tool scope; exact-current Hygiene consumer covers fresh bootstrap, explicit approval, update/check, semantic review and delegated format. | VAL-03 current suites and VAL-08 exact-current Hygiene consumer provenance. | complete |
 | AC-18 | acceptance | Repository-level engineering validation remains an aggregate coordinator, while Autoformat and transitional hygiene each have independently invocable project-owned build/test, pack and exact-current installed-consumer validation paths; change-aware receipt dependencies preserve accurate cross-tool coupling without forcing unrelated tool stages to execute. | WP-04 | Independent `eng/autoformat/validate.ps1` and `eng/hygiene/validate.ps1` entrypoints and consumer scripts; aggregate coordinates two independent gates plus README/self-host. Tool-specific inputs are scoped; Hygiene fingerprints the shared Autoformat.Core dependency. | VAL-08 plan inspection, independent product receipts, source-scope mutation probes and final aggregate verification. | complete |
 | ART-01 | artifact | The current Autoformat 0.1.0 NuGet tool artifact is packed from this branch and its identity/version/command metadata are recorded; the existing hygiene package retains its own release identity. | WP-02, WP-04 | `DotNetAiWorkbench.Autoformat.Tool` 0.1.0 and `DotNetAiCodeHygiene.Tool` 0.12.0 packed locally; installed shims report their distinct command/version identities. | VAL-08 provenance: Autoformat package SHA-256 `ad962ab1c8f018d5f7b6ab35ec84fac24664ef1dd75b6709f36238d32568f88e`; Hygiene package SHA-256 `5a9a2a67a5e2d0089f9889d21f256b1376d94c4f85a91d45c3d9ff6964656115`. | complete |
-| REV-01 | review | An independent reviewer examines the executable/module boundary, safety, real installed consumers and acceptance evidence; approval is recorded in `.review/REV-M0026-COMPLETION.md` and passes the milestone-scoped review check. | WP-05 | `.review/REV-M0026-COMPLETION.md` prepared with decision/reviewer pending; implementer has not self-approved. | VAL-07 intentionally pending authorized independent review. | pending |
+| REV-01 | review | An independent reviewer examines the executable/module boundary, safety, real installed consumers and acceptance evidence; approval is recorded in `.review/REV-M0026-COMPLETION.md` and passes the milestone-scoped review check. | WP-05 | `.review/REV-M0026-COMPLETION.md` records approval by project owner `carlrabbit` on 2026-11-21; the implementation author did not approve the review. | VAL-07 milestone-scoped review check passed after the recorded independent approval. | complete |
 
 ## Evidence Case Registry
 
@@ -74,7 +74,7 @@ _Implementation-owned. Derive bounded coherent packages from the live repository
 | WP-02 | Independent Autoformat engine/CLI, fixed policy init, source selection and Git mutation safety | AC-03 through AC-09, AC-11, AC-12, EC-04a, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, EC-12a, EC-12b, ART-01 | Core and installed consumer fixtures |
 | WP-03 | Transitional hygiene formatter adapter and review lifecycle preservation | AC-09, AC-10, AC-11, AC-17, EC-10a, EC-10b, EC-12b, EC-17a, EC-17b | Existing Core/CLI suites and legacy installed consumer |
 | WP-04 | Dual-product validation topology, package identities and installed consumers | AC-03, AC-13, AC-14, AC-18, EC-13a, EC-13b, EC-14a, EC-14b, EC-17a, EC-17b, EC-18a, EC-18b, EC-18c, ART-01 | Product-specific package hashes, independent installed invocations and change-aware aggregate receipts |
-| WP-05 | Operative documentation, independent review preparation and final reconciliation | AC-15, AC-16, REV-01 | Docs/help inspection, complete gate receipts, pending reviewer evidence |
+| WP-05 | Operative documentation, independent review and final reconciliation | AC-15, AC-16, REV-01 | Docs/help inspection, complete gate receipts, approved independent review record |
 ## Validation Gates
 
 | ID | Required validation | Target/locus | Proves evidence units | Status | Evidence |
@@ -85,24 +85,24 @@ _Implementation-owned. Derive bounded coherent packages from the live repository
 | VAL-04 | Both tool-owned installed-consumer portions of `./eng/autoformat/validate.ps1` and `./eng/hygiene/validate.ps1` | Exact-current packages in separate isolated SDK-style Git consumer repositories; Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feeds and tool paths | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, EC-17a, EC-17b, ART-01 | complete | `.execution/validation/autoformat-consumer-provenance.json`: Autoformat 0.1.0 package `ad962ab1c8f018d5f7b6ab35ec84fac24664ef1dd75b6709f36238d32568f88e`, shim `c25a818dfe1ff8aaed8edb47dd56bf93d7e5f1ab7c2e2b1e0e55a4d5d2c30fde`. `.execution/validation/hygiene-consumer-provenance.json`: Hygiene 0.12.0 package `5a9a2a67a5e2d0089f9889d21f256b1376d94c4f85a91d45c3d9ff6964656115`, shim `4e1f1df3d5c811e751a9be0ead0419f6c8cbbb8640b1dd851513bf454e61f6da`. |
 | VAL-05 | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | Monorepo aggregate validation, self-host and receipt freshness; Local Windows 11 + .NET 11 + Git/PowerShell | EC-14a, EC-14b, AC-14, AC-16 | complete | Aggregate plan declares the two independent product gates, README policy and dependent self-host. Current receipts and both regressions passed: altered evidence rejected/restored set accepted; Hygiene-only fingerprints preserve Autoformat and shared Autoformat.Core changes invalidate both. |
 | VAL-06 | Direct docs/spec diff review plus installed `--help` | Current architecture/specs/README/help and explicit deferrals; Repository files + installed help | AC-04, AC-15, AC-16 | complete | Reviewed README, `docs/SPECS.md`, `docs/ARCHITECTURE.md`, engineering and public guidance plus installed product help. Scope scan found no Autoreview, SQLite/index, service, XML/Razor canonicalization, semantic portfolio redesign or publishing. |
-| VAL-07 | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | Independent milestone-scoped completion review; Project owner/authorized delegate, Windows host evidence | REV-01 | pending | Human independent completion review remains blocking; review record stays pending by instruction. |
+| VAL-07 | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | Independent milestone-scoped completion review; Project owner/authorized delegate, Windows host evidence | REV-01 | complete | `./eng/review-check.ps1 -Milestone M0026` passed for approval recorded by project owner `carlrabbit` on 2026-11-21. |
 | VAL-08 | Invoke `./eng/autoformat/validate.ps1` and `./eng/hygiene/validate.ps1` independently for each tool's build/test/pack/installed-consumer acceptance; inspect root `./eng/validate.ps1 -PlanJson`; verify current aggregate with `./eng/validate.ps1 -Verify` | Tool-scoped build/test/pack/installed-consumer entrypoints and aggregate freshness; Windows 11 + .NET 11 + Git/PowerShell; isolated local NuGet feeds and tool paths | EC-18a, EC-18b, EC-18c, AC-18 | complete | Both product entrypoints passed through their current aggregate gates. Product-owned consumers installed exact-current artifacts and wrote provenance; product-scope mutation and final verification regressions passed. Current aggregate receipt verification is recorded after the final ledger update. |
 
-`VAL-04` is exact-current dual installed-tool validation. `VAL-07` requires independent human approval. Use affected focused feedback while implementing; after packaging and product boundaries stabilize, establish current consumer/self-host receipts and verify the full required plan. No exploratory result or partial suite is aggregate acceptance evidence.
+`VAL-04` is exact-current dual installed-tool validation. `VAL-07` records the independent human approval. Use affected focused feedback while implementing; after packaging and product boundaries stabilize, establish current consumer/self-host receipts and verify the full required plan. No exploratory result or partial suite is aggregate acceptance evidence.
 
 ## Resume Point
 
 _Implementation-owned._
 
-Last completed work package: WP-01 through WP-05 implementation and validation evidence reconciliation.
+Last completed work package: WP-01 through WP-05 implementation, independent review and validation evidence reconciliation.
 
-Current work package: PR #31 correction cycle on mechanical policy safety, per-tool engineering and acceptance evidence.
+Current work package: none; M0026 implementation and independent review are complete.
 
-Next concrete action: implement corrections and targeted proof, verify current gate receipts, then request independent review; do not self-approve.
+Next concrete action: none; completion evidence is recorded below and in the milestone authority.
 
-Known agent-resolvable gaps: duplicate/ineffective policy handling, dirty init overwrite safety, individual engineering paths and evidence mapping.
+Known agent-resolvable gaps: none.
 
-External blockers or planning escalations: required project owner or authorized delegate review remains outstanding.
+External blockers or planning escalations: none.
 
 ## Final Reconciliation
 
@@ -110,9 +110,9 @@ External blockers or planning escalations: required project owner or authorized 
 - [x] Verify exact set equality with the obligation registry (AC-01 through AC-18, ART-01, REV-01).
 - [x] Verify exact set equality with the twenty-five required evidence-case IDs.
 - [x] Verify no planner-owned obligation/evidence case was omitted, merged, renamed or summarized away.
-- [x] Reconcile every obligation with implementation evidence and every evidence case with actual behavioral proof; REV-01 remains pending.
+- [x] Reconcile every obligation with implementation evidence and every evidence case with actual behavioral proof; REV-01 is independently approved.
 - [x] Confirm each validation gate exercises only what it claims to prove and runs at the specified real locus.
 - [x] Downgrade stale, partial, indirect or unsupported completion assertions.
 - [x] Verify current receipts and freshness/installed output identities at the completion boundary.
-- [x] Confirm no agent-resolvable gap remains and no deferred feature was inadvertently implemented; required independent review remains outstanding.
-- [ ] Execute the completion audit and write compact durable evidence in the milestone's `Completion Evidence` section after independent approval.
+- [x] Confirm no agent-resolvable gap remains, no deferred feature was inadvertently implemented, and required independent review is recorded.
+- [x] Execute the completion audit and write compact durable evidence in the milestone's `Completion Evidence` section after independent approval.
