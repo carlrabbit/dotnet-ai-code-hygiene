@@ -798,13 +798,11 @@ public sealed class CliProcessTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         using JsonDocument json = JsonDocument.Parse(result.StandardOutput);
         JsonElement rules = json.RootElement.GetProperty("rules");
-        await Assert.That(rules.GetArrayLength()).IsEqualTo(50);
+        await Assert.That(rules.GetArrayLength()).IsEqualTo(32);
         await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).TakeLast(17).ToArray())
             .IsEquivalentTo(new[] { "architecture.abstraction.necessity", "architecture.indirection.value", "architecture.responsibility.cohesion", "architecture.boundary.ownership", "architecture.authority.uniqueness", "architecture.lifecycle.binding", "architecture.mechanism.explicitness", "behavior.error.contract", "behavior.validation.boundary", "behavior.state.consistency", "behavior.resource.ownership", "tests.assertion.effectiveness", "tests.change-contract.coverage", "tests.isolation.coupling", "docs.summary.quality.review", "docs.summary.language.german.review", "comments.intent.review" });
         await Assert.That(rules.EnumerateArray().Select(x => x.GetProperty("id").GetString()!).Count(id => id.StartsWith("modernization.", StringComparison.Ordinal))).IsEqualTo(10);
-        JsonElement formatter = rules.EnumerateArray().Single(x => x.GetProperty("id").GetString() == "format.csharp.roslyn");
-        await Assert.That(formatter.GetProperty("configurable").GetBoolean()).IsFalse();
-        await Assert.That(formatter.GetProperty("capabilities").GetProperty("format").GetBoolean()).IsFalse();
+        await Assert.That(rules.EnumerateArray().Any(x => x.GetProperty("id").GetString() is "format.csharp.roslyn" or "style.braces.required" or "readability.long-line.review" or "readability.control-flow.visual-block")).IsFalse();
         JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray().Single(x => x.GetProperty("id").GetString() == "docs.summary.quality.review");
         await Assert.That(rule.GetProperty("outputKind").GetString()).IsEqualTo("review-batch");
         await Assert.That(rule.GetProperty("classification").GetString()).IsEqualTo("review-batch");
@@ -907,7 +905,7 @@ public sealed class CliProcessTests
             await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
             using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
             string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
-            await Assert.That(string.Join(",", normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()))).IsEqualTo("format.csharp.sdk.whitespace,sdk.IDE0005,sdk.IDE0011,sdk.IDE0036,sdk.IDE0040,sdk.IDE0090,sdk.IDE0034,sdk.IDE0004,sdk.IDE0037");
+            await Assert.That(normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()!).ToArray()).IsEquivalentTo(AutoformatRuleIds());
             await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
             await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
             ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");
@@ -952,7 +950,7 @@ public sealed class CliProcessTests
             ProcessResult disabledNormalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
             await Assert.That(disabledNormalizeCheck.ExitCode).IsEqualTo(0);
             using JsonDocument disabledNormalizeJson = JsonDocument.Parse(disabledNormalizeCheck.StandardOutput);
-            await Assert.That(disabledNormalizeJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()!).ToArray()).IsEquivalentTo(["format.csharp.sdk.whitespace", "sdk.IDE0005", "sdk.IDE0011", "sdk.IDE0036", "sdk.IDE0040", "sdk.IDE0090", "sdk.IDE0034", "sdk.IDE0004", "sdk.IDE0037"]);
+            await Assert.That(disabledNormalizeJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()!).ToArray()).IsEquivalentTo(AutoformatRuleIds());
             await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeDisabledNormalize)).IsTrue();
 
             ProcessResult conflictingTargets = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--changed");
@@ -1587,6 +1585,15 @@ public sealed class CliProcessTests
     }
 
     private static async Task RunGitRawAsync(string root, params string[] args) => _ = await GitTextAsync(root, args);
+
+    private static string[] AutoformatRuleIds() =>
+    [
+        "canonicalize.csharp", "modernization.var-style", "modernization.expression-body", "modernization.collection-expression",
+        "modernization.primary-constructor", "modernization.switch-expression", "modernization.conditional", "modernization.object-initializer",
+        "modernization.readonly-field", "modernization.inline-declaration", "readability.visual-block", "readability.parameters",
+        "readability.long-line", "readability.comments", "format.csharp.sdk.whitespace", "sdk.IDE0005", "sdk.IDE0011", "sdk.IDE0036",
+        "sdk.IDE0040", "sdk.IDE0090", "sdk.IDE0034", "sdk.IDE0004", "sdk.IDE0037"
+    ];
 
     private static string GetCliAssemblyPath()
     {

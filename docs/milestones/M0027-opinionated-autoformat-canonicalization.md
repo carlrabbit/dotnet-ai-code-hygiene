@@ -1,7 +1,7 @@
 # M0027 — Opinionated Autoformat Canonicalization
 
 **ID:** M0027  
-**State:** ready  
+**State:** complete
 **Type:** feature / refactoring  
 **Planning methodology:** Agentic Project Guides 1.0.0-rc.1 (agent-scale milestones; risk-proportionate milestone validation)  
 **Implementation baseline:** repository `main` after M0026, commit `1c735172666c9ec3b11c396c29dead0953aa4484` or a descendant  
@@ -128,4 +128,8 @@ The implementation agent must directly update operative documentation affected b
 
 ## Completion note (filled after implementation)
 
-Pending. Record the delivered canonicalization behavior, focused checks actually run and their results, known limitations, and release checks deferred. Do not fabricate evidence or certify downstream code correctness.
+Delivered an Autoformat-owned Roslyn syntax canonicalizer for all nine modernization families, source-local `autoformat:retain` annotations, vertical parameter declarations, syntax-aware wrapping, visual-block spacing and redundant blank-line normalization. Collection expressions are intentionally emitted for eligible list/array constructions without preserving concrete `List<T>` assumptions. The formatter reports supported phases, canonicalization identities and residual long-line notices; it does not compile transformed projects or require semantic equivalence. Hygiene policy adoption and duplicate mechanical/readability formatter catalog entries were removed while semantic-review modules remain.
+
+Focused verification: `dotnet test tests/DotNetAiWorkbench.Autoformat.Tests/DotNetAiWorkbench.Autoformat.Tests.csproj -c Release --no-restore` passed (12/12), including syntax parsing, source exception/comment handling, long collection wrapping, C# 11 grammar gating, engine normalization and second-pass stability. Autoformat CLI/Core and Hygiene CLI affected-project builds passed during implementation. The installed tool, aggregate/self-host qualification, real-repository processing and full Hygiene suites were not run; these remain release checks.
+
+Known limits: transformations deliberately cover recognizable syntax shapes rather than every semantic candidate. Explicit-type inference covers common literals and arrays; collection expressions cover array/list initializer forms; primary constructors require constructor bodies consisting of direct field assignment; switch expressions cover one-return-per-arm switches; conditionals cover paired returns or same-target assignments; object-initializer conversion covers a single simple assignment following construction; readonly inference is source-file assignment based; inline declaration handles a one-use uninitialized `out` local. Long-line wrapping handles recognized syntax boundaries and reports remaining non-comment lines beyond 120 characters. Comments within uncertain rewrite shapes cause that rewrite to be skipped. The resulting consumer code may require agent-owned repair.

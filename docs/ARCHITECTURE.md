@@ -14,21 +14,21 @@ legacy check/bootstrap/update
 -> ignore/filter/order/persistence
 
 Autoformat format/normalize
--> fixed dotnet-11 v3 mechanical policy
+-> C# syntax/readability canonicalizer (normalize only)
 -> approved SDK style pass, then whitespace
 -> clean Git checkpoint / HEAD and index verification
 -> explicit incomplete report on failure; agent-owned recovery
 ```
 
-The GitHub repository name is historical; the root solution is the workbench monorepo. Autoformat is independently executable and has no reference to legacy hygiene, review, audit or index code. Transitional hygiene delegates formatting to the Autoformat engine.
+The GitHub repository name is historical; the root solution is the workbench monorepo. Autoformat is independently executable and has no reference to Hygiene profile, review, audit or index code. Transitional Hygiene delegates formatting to Autoformat and retains its semantic-review capabilities.
 
-The workbench solution is `DotNetAiWorkbench.slnx`; the historical GitHub repository name remains unchanged. `dotnet autoformat` is independently executable and has no reference to hygiene/review code. Transitional `dotnet hygiene` delegates formatting to the Autoformat engine. The architecture deliberately separates **module independence** from **process independence**. Check/bootstrap/update rules run in-process over one command-scoped substrate. Standard mechanical cleanup is delegated to the supported SDK CLI using the repository's fixed profile; historical rule IDs remain policy/reporting identifiers, not per-rule rewriter processes.
+The workbench solution is `DotNetAiWorkbench.slnx`; the historical GitHub repository name remains unchanged. `dotnet autoformat` owns its fixed mechanical policy and source transforms. `dotnet hygiene` delegates formatting to Autoformat and keeps its independent profile/lifecycle and semantic-review host. The Autoformat command session contains only target discovery, SDK project context, source syntax and Git checkpoint operations; it does not construct compilations or semantic-review facts.
 
 ## Repository session
 
 `RepositorySession` is the command-scoped owner of expensive and reusable repository context.
 
-The session owns or coordinates:
+The Hygiene session owns or coordinates:
 
 ```text
 repository root
@@ -42,9 +42,9 @@ compilations / semantic models
 lazy shared facts
 ```
 
-Check and rewrite commands use the same repository/session substrate rather than maintaining independent target/project/workspace implementations.
+Hygiene review commands use their own session substrate. Autoformat maintains a narrower repository session with project/document mapping, source syntax and Git checkpoint operations only.
 
-Expensive context is lazy and cached only for the lifetime of the command session. Supporting a capability must not make every invocation eagerly pay for it. There is currently no durable analysis cache.
+Hygiene review context is lazy and cached only for the lifetime of its command session. Autoformat does not request compilations, semantic models, review facts or relationship analysis. Neither product uses a durable analysis cache.
 
 Gate-local semantic selection is a separate lazy `RuleContext` service. Rule modules discover mechanically eligible subjects and minimum stable selection data first. The shared selector receives deterministic Git gate context, ranks each rule's eligible population, and attaches private tickets to selected items. Selected subjects then resolve cross-file relationships and assemble detailed source evidence; ordinary closed or zero-work gates do not run unrelated relationship analysis. Expansion and authorized exhaustive audit use the same rule-owned enrichment path within their declared scopes. `GateLocalReviewStore` records only explicit accepted observations.
 
@@ -197,23 +197,21 @@ bootstrap/update
 
 Profile lifecycle/remediation infrastructure may remain shared. Rule-specific diagnostic text remains owned by the corresponding profile rule even when shared inspection code emits the underlying condition.
 
-Profile v3 owns mandatory analysis infrastructure and the fixed SDK formatting profile. It validates effective EditorConfig settings for eligible project sources; mechanical settings are not optional per-rule projections. Profile ownership and StyleCop prohibition are governed by `docs/specs/PROFILE.md`.
+The Hygiene profile owns mandatory analysis infrastructure and StyleCop prohibition. Autoformat independently owns the fixed mechanical `.editorconfig` block and validates its effective settings; Hygiene does not project or adopt mechanical rule settings.
 
 ## Rewrite architecture
 
-The SDK owns standard C# formatting and allowlisted style fixes. The stable rule catalog records disposition without instantiating a custom rewrite per ID.
-
-Conceptually:
+The SDK supplies whitespace formatting and allowlisted style fixes. Autoformat's syntax canonicalizer directly handles the selected modernization and readability policies.
 
 ```text
 RewriteEngine
-  resolve eligible project sources
-  batch complete solution/project coverage
-  invoke supported dotnet format CLI phases
-  report SDK-reported or observed changed paths
+  resolve eligible SDK project source
+  source-only syntax/readability canonicalization (normalize)
+  invoke approved dotnet format style/whitespace phases
+  report syntax proposals, SDK changes, paths and notices
 ```
 
-`dotnet autoformat format` runs SDK whitespace formatting. `dotnet autoformat normalize` runs only the fixed approved style diagnostics, then whitespace. The autonomous gate runs normalize across all eligible project sources independently of the bounded changed-file semantic review gate.
+`dotnet autoformat format` runs SDK whitespace formatting only. `dotnet autoformat normalize` applies all nine opinionated modernization families, source-local exceptions, readability layout, approved SDK style diagnostics and SDK whitespace. It does not request target compilations, run builds/tests or require equivalence; the implementing agent repairs build consequences. Check-only reports proposed syntax edits and SDK changes without writing source or policy state.
 
 Mutating operations use a clean Git checkpoint and leave an inspectable worktree on failure:
 

@@ -1,23 +1,19 @@
-# Readability Rules
+# Autoformat Readability Canonicalization
 
-Readability rules may identify deterministic patterns for review. A match is not automatically a defect. `format` and `normalize` do not apply semantic readability changes.
+These policies run during default normalization. They are deterministic layout rules, not semantic-review findings.
 
-## `readability.long-line.review`
+## Visual blocks
 
-Version: `1`  
-Classification: review-candidate  
-Configurable: yes
+Within a block, insert a blank line at a boundary between ordinary linear statements and control-flow statements. Existing blank boundaries remain. Leading comments stay attached to the statement they describe; `else`, `catch`, `finally`, directives, documentation trivia and related clauses are not separated. Nested blocks use the same rule.
 
-A physical C# source line longer than 200 UTF-16 code units produces one deterministic review candidate. Lines at or below 200 do not. The rule asks whether the line hides multiple concepts or structures that should be made visible or named. Length alone does not prove a defect, so it never wraps a line mechanically.
+## Parameter declarations
 
-## `readability.control-flow.visual-block`
+Methods and comparable declarations with three or more parameters use one parameter per line. Two-parameter declarations also wrap when the parameter list exceeds the line target. The source newline style is preserved.
 
-Version: `2`
-Classification: review-candidate
-Configurable: yes
+## Long lines
 
-Within a block, inspect each statement after the first. The rule applies when the current statement is an `if`, `switch`, `for`, `foreach`, `foreach` with variable, `while`, `do`, `try`, `using`, or `lock`, and the immediately previous statement is not control-flow and is not a local function. It reports when the current control-flow statement has no blank line after the previous statement and before the first leading comment for the control-flow statement, or before the statement when there is no such comment. An existing blank line in that boundary suppresses the candidate. No candidate is produced for a first statement, a control-flow statement following another control-flow statement, or a control-flow statement following a local function. Comments documenting the control-flow statement stay attached to it.
+120 characters is a soft target. The formatter adds line breaks at recognized syntax boundaries in long invocation lists, collection expressions, initializers, compound boolean expressions and fluent member chains. It does not split names, literals, comments, directives or XML prose. If no recognized syntax boundary can be used, the line remains intact and Autoformat reports the count of remaining overlong lines.
 
-The match is an inspection signal, not proof of poor readability. Review conceptual grouping and choose whether to leave code unchanged, add whitespace, or restructure it. It has no automatic formatter or fixer; `format` and `normalize` do not alter it.
+## Comments and whitespace
 
-Type responsibility is reviewed through the focused `architecture.responsibility.cohesion` contract. Its source-backed subject, fixed question, legitimate cases, and escalation policy are defined in `docs/specs/SEMANTIC-REVIEWS.md`.
+The SDK whitespace phase formats indentation for code and ordinary leading comments while preserving comment text, strings and source newline style. Custom syntax transformations skip comment-bearing constructs when preserving trivia is uncertain. Visual-block rules add the required boundary at statement transitions; otherwise, whitespace-only runs of excess blank lines are reduced to one blank line. Comment and directive trivia is left intact.

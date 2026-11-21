@@ -6,7 +6,7 @@ The repository is English. `.hygiene/config.json` disables only `docs.summary.la
 
 ## Workbench monorepo
 
-The root solution is `DotNetAiWorkbench.slnx` and includes independent `DotNetAiWorkbench.Autoformat.Core`/CLI plus the transitional hygiene Core/CLI. Autoformat owns the SDK formatter and mechanical policy; hygiene depends on it for formatting. The repository name remains historical. No index, service, Autoreview executable or additional XML/Razor canonicalizer is in scope.
+The root solution is `DotNetAiWorkbench.slnx` and includes independent `DotNetAiWorkbench.Autoformat.Core`/CLI plus the transitional hygiene Core/CLI. Autoformat owns the mechanical policy, C# canonicalizer and SDK formatting phases; Hygiene depends on Autoformat for formatting while retaining semantic review. Ordinary Autoformat development feedback is `./eng/autoformat/validate.ps1` (affected build and focused tests). Package and installed-consumer qualification is explicitly deferred to `./eng/autoformat/validate-release.ps1`.
 
 ## Baseline
 
@@ -179,7 +179,7 @@ Profile mutation and source rewrite semantics remain independently regression-co
 
 Tier 4 must invoke the installed `dotnet hygiene` command and exercise representative bootstrap/update/check/rules/review and format/normalize behavior from the current build artifact. Historical package versions above record their original milestone evidence; the current M0025 consumer gate installs the exact 0.12.0 package and exercises its changed portfolio and review lifecycle.
 
-M0026 adds product-owned gates: run `./eng/autoformat/validate.ps1` for Autoformat build, tests, package and isolated exact-current installed-consumer checks; run `./eng/hygiene/validate.ps1` for the transitional Hygiene build, Core/CLI suites, package and isolated Hygiene consumer. The Hygiene gate compiles against Autoformat.Core but does not execute Autoformat's installed-consumer scenarios. `./eng/validate.ps1` remains the repository aggregate and receipt coordinator. Its input fingerprints are product-scoped; Hygiene includes the shared Autoformat engine inputs, so Hygiene-only changes preserve Autoformat receipts while Autoformat.Core changes invalidate both gates.
+M0027 keeps ordinary Autoformat feedback inexpensive: `./eng/autoformat/validate.ps1` builds the Autoformat CLI and runs its focused test project. `./eng/autoformat/validate-release.ps1` retains package and installed-consumer qualification for release work; it is not an implementation milestone gate. Hygiene and aggregate validation scripts remain available for their own declared purposes.
 
 ## Validation workflow
 

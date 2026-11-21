@@ -1,6 +1,6 @@
 root = true
 
-# hygiene profile:begin
+# autoformat profile:begin
 [*.cs]
 indent_style = space
 indent_size = 4
@@ -22,4 +22,4 @@ dotnet_diagnostic.IDE0034.severity = warning
 dotnet_diagnostic.IDE0036.severity = warning
 dotnet_diagnostic.IDE0037.severity = warning
 dotnet_diagnostic.IDE0090.severity = warning
-# hygiene profile:end
+# autoformat profile:end

@@ -12,8 +12,8 @@ internal sealed class ProfileAnalysisRuleModule : IRuleModule
     internal const string ArtifactSuggestion = "Run hygiene update to reconcile hygiene-owned profile state.";
     internal const string ImportMissing = "The root hygiene profile import is missing or drifted.";
     internal const string ImportSuggestion = "Run hygiene update to reconcile the managed import.";
-    internal const string EditorBlockMissing = "The root hygiene profile EditorConfig block is missing or drifted.";
-    internal const string EditorBlockSuggestion = "Run hygiene update to reconcile the managed section.";
+    internal const string EditorBlockMissing = "The root Autoformat mechanical EditorConfig block is missing.";
+    internal const string EditorBlockSuggestion = "Run dotnet autoformat init to establish the owned mechanical policy.";
     internal const string WarningPromotionSuggestion = "Remove the global warning-promotion setting.";
     internal const string BuildParseFailure = "Build configuration could not be parsed for profile analysis.";
     internal const string BuildParseSuggestion = "Repair the project XML.";

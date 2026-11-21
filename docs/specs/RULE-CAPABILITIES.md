@@ -1,5 +1,11 @@
 # Rule Capabilities and Policy Projection
 
+## M0027 current boundary
+
+`dotnet hygiene rules` now describes Hygiene deterministic and semantic-review capabilities only. Autoformat's fixed canonicalization IDs live in the Autoformat engine/report and do not appear as no-op Hygiene catalog rows. Formatter-only profile projections, the placeholder `FixedMechanicalRuleModule` entries, and the old visual-block/long-line review-only catalog entries have been retired. The remaining modernization review functions are preserved as Hygiene review capabilities; Autoformat applies its own eligible canonicalizations during normalize.
+
+Autoformat owns the root mechanical `.editorconfig` block. Hygiene initializes the ordinary Autoformat policy service when establishing its own profile but does not project, adopt, or require a Hygiene-owned mechanical block. All M0024 disposition tables and earlier capability prose below are historical snapshots and do not constrain M0027 Autoformat behavior.
+
 ## M0024 current execution authority
 
 The supported profile is `dotnet-11` v3. Standard formatting and approved style fixes run in batched SDK `dotnet format` invocations over the complete eligible project population. The committed root `.editorconfig` and required MSBuild profile provide effective settings. Ordinary mutation requires a clean Git worktree/index and known `HEAD`; the CLI does not commit or roll back. Source-owned pragma and `hygiene:retain` exceptions replace durable modernization verdict state. Every historical cleanup ID and its current SDK, specialized, or review-only disposition is listed in the M0024 disposition table near the end of this document.
