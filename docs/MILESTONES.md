@@ -181,7 +181,7 @@ Planning-seeded ledger: `.execution/M0025-semantic-rule-portfolio.md`.
 
 
 ## M0026 — Workbench Monorepo Foundation and Standalone Autoformat Extraction
-**State:** ready; implementation not started
+**State:** implementation in progress on `planning/m0026-workbench-autoformat-extraction`
 **Mode:** AI-executed, human-reviewed
 
 Introduces a one-repository workbench solution and independently packed `dotnet autoformat` CLI with the existing fixed .NET 11 SDK formatter policy. The legacy `dotnet hygiene` executable remains operational as a transitional review host, delegating mechanical formatting to the new Autoformat engine. SQLite indexing, a standalone Autoreview executable, IPC/HTTP, plugins and additional XML/Razor canonicalizers are separate future workstreams.

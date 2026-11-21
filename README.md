@@ -1,6 +1,6 @@
-# dotnet-ai-code-hygiene
+# .NET AI Workbench
 
-`DotNetAiCodeHygiene.Tool` is a model-independent .NET hygiene tool for coding agents. Its supported command is `dotnet hygiene`; the executable does not call an AI model or provider. The M0025 target package version is `0.12.0`. Supported consumers use Windows 11 and the .NET 11 SDK line.
+This repository keeps the historical GitHub name `carlrabbit/dotnet-ai-code-hygiene` and now builds the `DotNetAiWorkbench.slnx` monorepo. It ships two separate tools: independent `dotnet autoformat` (`DotNetAiWorkbench.Autoformat.Tool` 0.1.0) and transitional `dotnet hygiene` (`DotNetAiCodeHygiene.Tool` 0.12.0). Autoformat runs the fixed SDK mechanical policy without invoking review or creating `.hygiene` state. Hygiene retains M0025 review and lifecycle behavior and delegates formatting to Autoformat. Supported consumers use Windows 11 and the .NET 11 SDK line. No public feed publication is claimed.
 
 The next local package target is `0.12.0`; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 
@@ -9,6 +9,20 @@ dotnet tool install --global DotNetAiCodeHygiene.Tool --version 0.12.0
 dotnet hygiene --version
 ```
 
+
+## Independent Autoformat
+
+Install the standalone formatter from a trusted source after it is available there:
+
+```powershell
+dotnet tool install --global DotNetAiWorkbench.Autoformat.Tool --version 0.1.0
+dotnet autoformat init
+dotnet autoformat --check
+dotnet autoformat format src/Example.cs --check
+dotnet autoformat normalize --changed --output json
+```
+
+`init` establishes or validates the fixed .NET 11 mechanical EditorConfig policy. Default mode and `normalize` apply the approved SDK style fixes and then whitespace; `format` applies whitespace only. `--changed` selects staged, unstaged and untracked C# files and always checks without writing. Autoformat requires an initialized supported policy for source operations, but does not require hygiene baseline approval or read/write hygiene review state. A dirty Git checkpoint blocks mutating runs; inspect partial changes after formatter failures. If initialization reports conflicting or malformed policy, resolve the `.editorconfig` ownership conflict without deleting unrelated settings.
 ## First Bootstrap
 
 In a Git repository with a known, clean `HEAD`, ask an implementation agent to run `dotnet hygiene` and follow the emitted steps. On first use, the tool assesses existing project formatting without changing source, installs the `dotnet-11` v3 profile, and runs batched SDK `dotnet format` style and whitespace passes over eligible repository C# projects. It writes a baseline report under `.hygiene/reports/` with changed paths and observed validation. The report remains **approval-required** until an authorized external approver reviews and accepts the baseline. The tool cannot determine who has that authority.

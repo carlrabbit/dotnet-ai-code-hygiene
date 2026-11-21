@@ -19,7 +19,7 @@
 | Environment authority | Existing SDK/Git/PowerShell/NuGet, restore and isolated temp Git worktrees/feeds/tool paths permitted; **no** persistent provisioning, admin, new CI/workflows, service creation, credentials or repo rename |
 | Focused validation | New Autoformat tests plus existing Core/CLI focused shards on Windows 11 |
 | Repository / consumer validation | Extended resumable `eng/validate.ps1` plan and two exact-current installed-tool surfaces, at final evidence boundary |
-| Human review | **blocking**, independent milestone-completion review, `REV-M0026-COMPLETION` |
+| Human review | **approved** by project owner `carlrabbit` on 2026-11-21; `REV-M0026-COMPLETION` recorded and check passed |
 | Documentation sync | Directly contradicted authority and consumer help now; unrelated historical documentation sync deferred |
 
 ## Goal
@@ -179,6 +179,7 @@ The milestone does **not** rely on PR #29 research as implementation authority. 
 - **AC-15** — No new automatic XML documentation/content canonicalizer, Razor/project file relocation policy, Autoreview executable, persistent index, IPC/HTTP service, semantic rule portfolio redesign, or public NuGet publishing is introduced in M0026.
 - **AC-16** — Public documentation and in-repository architecture/specification authority accurately describe the workbench identity, Autoformat invocation/profile ownership, transitional hygiene boundary, packaging and supported scope without claiming deferred capabilities.
 - **AC-17** — The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap.
+- **AC-18** — Repository-level engineering validation remains an aggregate coordinator, while Autoformat and transitional hygiene each have independently invocable project-owned build/test, pack and exact-current installed-consumer validation paths; change-aware receipt dependencies preserve accurate cross-tool coupling without forcing unrelated tool stages to execute.
 
 ## Additional Completion Obligations
 
@@ -211,6 +212,9 @@ The milestone does **not** rely on PR #29 research as implementation authority. 
 | EC-14b | AC-14 | Verifier rejects stale/missing receipts after new-tool changes and accepts complete current set | Evidence freshness behavior differs from successful run. |
 | EC-17a | AC-17 | Existing initialized hygiene consumer updates and retains valid baseline decision semantics | Update/adoption of migrated mechanical policy differs from fresh bootstrap. |
 | EC-17b | AC-17 | Fresh hygiene bootstrap, explicit acceptance and invoking-tool update-scope behavior | New baseline lifecycle and update scope take different paths from retained accepted state. |
+| EC-18a | AC-18 | Autoformat-focused build/test, package and installed-consumer validation runs without invoking hygiene-only tests or installed-consumer scenarios. | Independent tool development must not require the other tool's acceptance run. |
+| EC-18b | AC-18 | Hygiene-focused build/test, package and installed-consumer validation runs with its real Autoformat library dependency but without executing the standalone Autoformat installed-consumer scenarios. | Legitimate shared code dependency must remain while independent consumer execution is retained. |
+| EC-18c | AC-18 | Repository aggregate runs both tool gates; changing only hygiene inputs leaves valid Autoformat-only receipts reusable, while changing shared Autoformat engine inputs invalidates dependent hygiene receipts. | Aggregate completeness and precise freshness have distinct change directions. |
 
 Non-cased acceptance obligations require individual evidence without additional `EC-*` fragmentation. The ledger below is a one-for-one projection of obligations/evidence cases, not a second implementation contract.
 
@@ -225,10 +229,29 @@ Non-cased acceptance obligations require individual evidence without additional 
 | VAL-05 | Tier 2/4 | Monorepo aggregate validation, self-host and receipt freshness | Local Windows 11 + .NET 11 + Git/PowerShell | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | EC-14a, EC-14b, AC-14, AC-16 | Current staged receipts and accepted aggregate verification; self-host evidence |
 | VAL-06 | Documentation | Current architecture/specs/README/help and explicit deferrals | Repository files + installed help | Direct docs/spec diff review plus installed `--help` | AC-04, AC-15, AC-16 | Referenced operative docs and actual command output |
 | VAL-07 | Human | Independent milestone-scoped completion review | Project owner/authorized delegate, Windows host evidence | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | REV-01 | Approved review record, rationale and decision evidence; gate is blocking |
+| VAL-08 | Tier 2/4 | Tool-scoped build/test/pack/installed-consumer entrypoints and aggregate freshness | Windows 11 + .NET 11 + Git/PowerShell; isolated local NuGet feeds and tool paths | Invoke `./eng/autoformat/validate.ps1` and `./eng/hygiene/validate.ps1` independently for each tool's build/test/pack/installed-consumer acceptance; inspect root `./eng/validate.ps1 -PlanJson`; verify current aggregate with `./eng/validate.ps1 -Verify` | EC-18a, EC-18b, EC-18c, AC-18 | Independent invocation logs, exact-current package/shim hashes, receipts showing unrelated-only changes reused and shared changes invalidated |
 
-Each required gate is run against the **current implementation inputs**. `VAL-04` must inspect the new package at the installed tool boundary, not infer correctness from an internal method invocation. `VAL-05` aggregates only current receipts; it cannot by itself certify behavior absent from the actual scenarios. A stable implementation state triggers expensive package/self-host acceptance; after later changes only invalidated stages must be rerun. `VAL-07` is blocking and remains outstanding until an authorized independent human review is recorded.
+Each required gate is run against the **current implementation inputs**. `VAL-04` must inspect the new package at the installed tool boundary, not infer correctness from an internal method invocation. `VAL-05` aggregates only current receipts; it cannot by itself certify behavior absent from the actual scenarios. A stable implementation state triggers expensive package/self-host acceptance; after later changes only invalidated stages must be rerun. `VAL-07` was blocking until the authorized independent human approval recorded below; the milestone review check passed.
 
 Existing SDK/Git/NuGet/PowerShell, restoring dependencies and disposable temp consumer repositories are authorized. Persistent machine SDK provisioning, admin access, new GitHub Actions/workflows or remote infrastructure changes are **not** authorized. If no eligible Windows 11/.NET 11 test host is available, preserve the implementation/evidence state and mark the affected gate **BLOCKED**; do not invent equivalent Linux/CI evidence or claim milestone completion.
+
+## M0026 Review Clarification — 2026-11-21 (authoritative correction scope)
+
+The independent implementation review of PR #31 identified mechanical-policy and engineering-boundary gaps. These are **corrections to this ready milestone**, not a new Autoformat feature portfolio or permission to redesign its CLI.
+
+**Mechanical policy ownership and effective configuration (AC-08, AC-09, AC-17).**
+The mechanical EditorConfig policy has one actual owner: Autoformat. Sharing only an option array while the hygiene profile independently constructs, owns or re-creates an entire mechanical block is insufficient. Transitional hygiene may delegate the mechanical policy portion to Autoformat, while remaining the owner of *its distinct* analyzer/profile, baseline approval and semantic-review requirements. In a consumer initialized via either tool, calling the other must not create conflicting duplicate managed blocks or silently replace user-owned configuration. Policy checks must validate the **effective settings of eligible C# sources**, not merely the existence of expected key/value strings somewhere in a block. Handle duplicate keys, later root overrides and applicable nested configuration, and do not fail for an unrelated nested EditorConfig that affects no supported C# source. Follow the existing SDK/Roslyn-effective-policy approach where available; a new comprehensive parser is not required.
+
+**Initialization safety (AC-07, AC-08, AC-11).**
+`dotnet autoformat init` is a mutating configuration operation. Reject ambiguous/dirty managed-state overwrites and concurrent changes; preserve unrelated text/bytes where possible, including existing whitespace, and write configuration safely rather than unconditionally overwriting with `File.WriteAllText`. Support fresh initialization and safe adoption/coexistence with the preexisting hygiene profile without inventing a second approval policy. A dry-run formatter must not write configuration. An installed consumer scenario must prove dirty/conflicting initialization fails without lost edits; another must prove compatible existing policy is retained and hygiene bootstrap/update does not duplicate mechanical ownership.
+
+**Engineering-script ownership (AC-14, AC-18).**
+The top-level `eng/` entrypoint owns **repository-wide orchestration**: root solution/integration validation, current receipt verification, cross-tool changes and aggregate completeness. Autoformat and hygiene must each own a **separately invocable validation/packaging/installed-consumer path** under a clear tool-specific script boundary (entrypoints `eng/autoformat/validate.ps1` and `eng/hygiene/validate.ps1`; internal stage names, switches and implementation ergonomics remain local choices). Shared validation primitives may remain under root `eng/`; do not clone the framework merely for separate script files. A tool-only change should not force unrelated tool tests, pack and installed-consumer checks, while a shared-library change must invalidate actual dependents. Neither tool-specific path should silently rely on a globally installed shim. The repo aggregate invokes/coordinates tool-specific evidence; it does not contain both long consumer scenarios as one indivisible stage. The current `eng/validate.ps1 -PlanJson` / shard / `-Verify` interface can be retained, with independent stages and accurate dependency fingerprints. Command naming/polish, a generalized workbench build framework and further tool decomposition are deferred.
+
+**Evidence reconciliation (AC-07, AC-08, AC-09, AC-14, AC-16, AC-17, AC-18).**
+Reported prior green receipts remain historical **observations**, not proof for unexercised cases. Map proof to the actual executing case: the original 3 Autoformat source tests could not establish all previously assigned VAL-02 behaviors; many are real installed-consumer VAL-04 evidence. The correction added focused deterministic scenarios for duplicate and later effective-policy overrides, unrelated nested EditorConfig, dirty/conflicting initialization, both initialization orders, and concurrent HEAD/index mutation. The ledger now maps each claim to its executing scenario. Independent REV-01 approval and its passing review check are recorded in Completion Evidence.
+
+The correction must keep the existing separate executables and packages, existing SDK diagnostic allowlist, existing legacy review semantics, and the no-index/no-IPC/no-Autoreview milestone limit. The product command UX can be iterated **after** accepting this split.
 
 ## Human Review
 
@@ -254,7 +277,13 @@ The implementation agent reads this milestone and the planning-seeded ledger, cr
 
 ## Completion Evidence
 
-_Implementation-owned. Fill only after the completion audit, every applicable AC/EC and ART obligation is proven, all required gate evidence is current and independent review approves. Retain a durable AC/EC-to-proof mapping; do not write implementation progress here._
+### Completion audit — 2026-11-21
+
+- Independent review `REV-M0026-COMPLETION` approved by project owner `carlrabbit` on 2026-11-21; `./eng/review-check.ps1 -Milestone M0026` passed.
+- AC-01 through AC-18, all 25 individual EC cases, and ART-01 are reconciled with scenario-specific proof in `.execution/M0026-workbench-monorepo-autoformat-extraction.md`; no planner-owned identifiers were omitted or merged.
+- The committed implementation is PR #31, commit `0f1800e` at review time. Exact-current package/shim hashes and separate installed-consumer scenario evidence are in `.execution/validation/autoformat-consumer-provenance.json` and `.execution/validation/hygiene-consumer-provenance.json`.
+- Release solution build passed; Autoformat tests passed 6/6; Hygiene Core passed 112/112 and CLI passed 36/36. The four-stage aggregate has current receipts, and final `./eng/validate.ps1 -Verify` passed.
+- Receipt regressions rejected altered and missing stage evidence; input-scope regression confirmed Hygiene-only changes preserve Autoformat evidence and shared Autoformat.Core changes invalidate both dependent tool gates.
 
 ## Escalation Boundary
 

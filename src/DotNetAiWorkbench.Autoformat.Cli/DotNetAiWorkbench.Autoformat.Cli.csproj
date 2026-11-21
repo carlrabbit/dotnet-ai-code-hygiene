@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><AssemblyName>DotNetAiWorkbench.Autoformat.Cli</AssemblyName><RootNamespace>DotNetAiWorkbench.Autoformat.Cli</RootNamespace>
+    <Version>0.1.0</Version><InformationalVersion>$(Version)</InformationalVersion><IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <PackageId>DotNetAiWorkbench.Autoformat.Tool</PackageId><PackAsTool>true</PackAsTool><ToolCommandName>dotnet-autoformat</ToolCommandName>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath><Description>Independent .NET SDK source formatter.</Description>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="System.CommandLine" Version="2.0.0" /><ProjectReference Include="..\DotNetAiWorkbench.Autoformat.Core\DotNetAiWorkbench.Autoformat.Core.csproj" /></ItemGroup>
+</Project>
