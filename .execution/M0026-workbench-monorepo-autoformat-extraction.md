@@ -24,6 +24,7 @@ This file is **operational implementation state**, not product authority. Planni
 | AC-14 | acceptance | The monorepo validation plan/receipts cover both executable surfaces, their focused tests, packaging and self-host gate; stale/missing stage evidence is rejected and current evidence is reusable at completion. | | | | todo |
 | AC-15 | acceptance | No new automatic XML documentation/content canonicalizer, Razor/project file relocation policy, Autoreview executable, persistent index, IPC/HTTP service, semantic rule portfolio redesign, or public NuGet publishing is introduced in M0026. | | | | todo |
 | AC-16 | acceptance | Public documentation and in-repository architecture/specification authority accurately describe the workbench identity, Autoformat invocation/profile ownership, transitional hygiene boundary, packaging and supported scope without claiming deferred capabilities. | | | | todo |
+| AC-17 | acceptance | The transitional `dotnet hygiene` bootstrap/update/baseline-approval and installed-tool update-scope lifecycle remains truthful and usable with the extracted mechanical policy, including existing initialized consumers and fresh bootstrap. | | | | todo |
 | ART-01 | artifact | The current Autoformat 0.1.0 NuGet tool artifact is packed from this branch and its identity/version/command metadata are recorded; the existing hygiene package retains its own release identity. | | | | todo |
 | REV-01 | review | An independent reviewer examines the executable/module boundary, safety, real installed consumers and acceptance evidence; approval is recorded in `.review/REV-M0026-COMPLETION.md` and passes the milestone-scoped review check. | | | | todo |
 
@@ -51,6 +52,8 @@ This file is **operational implementation state**, not product authority. Planni
 | EC-13b | AC-13 | Fresh packed/installed legacy hygiene consumer against the same branch | VAL-04 | | todo |
 | EC-14a | AC-14 | Both executable/test/package stages present and bound to current inputs | VAL-05 | | todo |
 | EC-14b | AC-14 | Verifier rejects stale/missing receipts after new-tool changes and accepts complete current set | VAL-05 | | todo |
+| EC-17a | AC-17 | Existing initialized hygiene consumer updates and retains valid baseline decision semantics | VAL-03, VAL-04 | | todo |
+| EC-17b | AC-17 | Fresh hygiene bootstrap, explicit acceptance and invoking-tool update-scope behavior | VAL-03, VAL-04 | | todo |
 
 A parent obligation with explicit evidence cases is not done until every applicable child case is proved. Obligations without cases require direct criterion-specific evidence.
 
@@ -64,8 +67,8 @@ _Implementation-owned. Derive bounded coherent packages from the live repository
 |---|---|---|---|---|---|
 | VAL-01 | `dotnet build DotNetAiWorkbench.slnx -c Release` and focused dependency/reference inspection | Source architecture and solution build; Local Windows 11 + .NET 11 + Git/PowerShell | AC-01, AC-02, AC-09, AC-15 | todo | |
 | VAL-02 | `./eng/validate.ps1 -Shard autoformat-tests` (new declared stage) | Focused Autoformat source/CLI integration fixtures; Local Windows 11 + .NET 11 SDK + Git | AC-04, EC-04b, EC-05a, EC-05b, EC-06a, EC-06b, EC-06c, EC-07a, EC-07b, EC-08a, EC-08b, EC-08c, AC-11, EC-12a, EC-12b | todo | |
-| VAL-03 | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | Existing hygiene Core and CLI regression; Local Windows 11 + .NET 11 SDK + Git | AC-09, EC-10a, EC-10b, AC-11, EC-12b | todo | |
-| VAL-04 | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | Two exact-current packed/installed tools in isolated SDK-style consumer repositories; Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, ART-01 | todo | |
+| VAL-03 | `./eng/validate.ps1 -Shard core-tests` and `./eng/validate.ps1 -Shard cli-tests` | Existing hygiene Core and CLI regression; Local Windows 11 + .NET 11 SDK + Git | AC-09, EC-10a, EC-10b, AC-11, EC-12b, EC-17a, EC-17b | todo | |
+| VAL-04 | `./eng/validate.ps1 -Shard installed-consumers` (extended to both current artifacts) | Two exact-current packed/installed tools in isolated SDK-style consumer repositories; Local Windows 11 + .NET 11 + Git; isolated temporary NuGet feed and tool paths | AC-03, EC-04a, EC-04b, EC-05a, EC-05b, EC-08a, EC-08b, EC-13a, EC-13b, EC-17a, EC-17b, ART-01 | todo | |
 | VAL-05 | `./eng/validate.ps1 -Shard self-host`; `./eng/validate.ps1 -Verify` after all declared stages current; inspect `-PlanJson` | Monorepo aggregate validation, self-host and receipt freshness; Local Windows 11 + .NET 11 + Git/PowerShell | EC-14a, EC-14b, AC-14, AC-16 | todo | |
 | VAL-06 | Direct docs/spec diff review plus installed `--help` | Current architecture/specs/README/help and explicit deferrals; Repository files + installed help | AC-04, AC-15, AC-16 | todo | |
 | VAL-07 | `./eng/review-check.ps1 -Milestone M0026` (extend allowed milestone set) | Independent milestone-scoped completion review; Project owner/authorized delegate, Windows host evidence | REV-01 | todo | |
@@ -89,8 +92,8 @@ External blockers or planning escalations:
 ## Final Reconciliation
 
 - [ ] Reread the primary milestone from disk and enumerate its obligation IDs.
-- [ ] Verify exact set equality with the obligation registry (AC-01 through AC-16, ART-01, REV-01).
-- [ ] Verify exact set equality with the twenty required evidence-case IDs.
+- [ ] Verify exact set equality with the obligation registry (AC-01 through AC-17, ART-01, REV-01).
+- [ ] Verify exact set equality with the twenty-two required evidence-case IDs.
 - [ ] Verify no planner-owned obligation/evidence case was omitted, merged, renamed or summarized away.
 - [ ] Reconcile every obligation with implementation evidence and every evidence case with actual behavioral proof.
 - [ ] Confirm each validation gate exercises only what it claims to prove and runs at the specified real locus.
