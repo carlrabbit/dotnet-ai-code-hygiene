@@ -4,7 +4,7 @@
 
 **Milestone:** `docs/milestones/M0027-opinionated-autoformat-canonicalization.md`
 **Implementation branch:** `codex/m0027-opinionated-autoformat-canonicalization`
-**Last updated:** 2026-11-22 (implementation complete)
+**Last updated:** 2026-11-22 (implementation PR opened)
 
 ## Completed work
 
@@ -21,6 +21,6 @@
 - Installed-tool/package qualification, aggregate/self-host checks, real-repository processing and full Hygiene suites remain deferred release checks.
 - Known syntax-shape coverage limits are listed in the milestone completion note. Consumer projects may need agent-owned repair after canonicalization.
 
-## Next action
+## Handoff
 
-Review and commit the implementation branch, push it, and open the implementation PR against `planning/m0027-opinionated-autoformat-canonicalization` while planning PR #32 remains open.
+Commit `4c31408` was pushed to `codex/m0027-opinionated-autoformat-canonicalization`; implementation PR [#33](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/33) targets `planning/m0027-opinionated-autoformat-canonicalization` while planning PR #32 remains open.
