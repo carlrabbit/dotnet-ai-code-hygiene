@@ -124,7 +124,7 @@ Use **80/19/1 as a design heuristic, not a measured coverage quota**: canonicali
 
 The implementation agent must directly update operative documentation affected by the new policy; historical planning files can remain unchanged. No compatibility or migration support is required for unused pre-1.0 consumer state; do not silently discard unrelated user-owned content. No machine provisioning, credential changes, CI/workflow changes, public publishing, or mutation of non-disposable external repositories is authorized. Disposable source fixtures and temporary Git repositories are authorized.
 
-**Progress bookkeeping is optional.** Do not create a mandatory `.execution/M0027-*.md`, proof matrix, evidence-case registry, or receipt cache. A short work-in-progress note is acceptable if needed to resume a genuinely interrupted agent.
+**Lightweight resume ledger:** `.execution/M0027-opinionated-autoformat-canonicalization.md` is supplied because this coherent, multi-family milestone may be long-running or interrupted. Use it as **optional operational progress state**: update meaningful completed work, current defects, useful focused checks and the next resume action at checkpoints. It never overrides this milestone, and neither completion nor review requires criterion-by-criterion reconciliation, a proof matrix, evidence-case registry or receipt cache. Do not expand it into validation bureaucracy.
 
 ## Completion note (filled after implementation)
 
