@@ -87,6 +87,16 @@ The implementation agent needs `AGENTS.md`, `docs/ENGINEERING.md`, `docs/PROJECT
 
 Planning authorizes workbench source/tests/docs on a separate implementation branch based on the **exact accepted planning commit**, plus disposable YADG checkouts and append-only raw-output commits to the **existing** Draft PR #22. It does **not** authorize merging that target PR, source repairs in YADG, permanent host provisioning, CI changes, installed global tools or upstream-guide changes. If the planning PR is merged by squash/rebase before pickup, reconcile the merged planning contract and materially relevant source divergence per the pinned guide's handoff model.
 
-## Completion note (implementer fills after delivery)
+## Completion note
 
-Record concise delivered changes, the focused checks actually run and their results, YADG timing/build and output revision, confirmed unresolved limitations, and release qualification deferred. Reconcile all seven seeded obligations before declaring `COMPLETE`; no evidence-case register, one-test-per-criterion matrix or mandatory comprehensive suite.
+**State:** implementation complete on `implementation/m0030-autoformat-correctness-check-performance`, based at the exact planning commit `f1b4c9d1804ce11a3102451dd2ffcdd2706a9567`. The implementation PR targets the existing `planning/m0030-autoformat-correctness-check-performance` branch.
+
+Implemented valid rank-only array declaration type synthesis; solution-preserving check-only shadow batching; positional record/signature indentation for file-scoped namespaces; whitespace-only blank-line compaction across member boundaries; and deterministic source-to-source boundaries for all nine modernization families. `format` remains SDK whitespace-only. Updated the Autoformat rewrite specification and recorded the experiment in `docs/research/M0030-autoformat-yadg-revalidation.md`.
+
+The affected Autoformat CLI Release build succeeded with two SDK `IDE0005` documentation-file warnings. All 27 `CanonicalizerTests` passed, including the array, solution batch, record indentation, and excess blank-line regressions. No broader suite or release qualification was run.
+
+The final YADG run used baseline `dafa75ab7f4032d8ac85599f7a7c951fec49f6d1`, policy commit `3e92361417315fa09cdd0808066ef3b77f795b68`, SDK `11.0.100-rc.3.26522.148`, and Git `2.56.0.windows.4`. Timings and changed counts are in the report: first normalize 81.632s (33/36 changed), second normalize 50.533s (0/36), normalize check 60.078s (0/36), format check 20.496s (0/36), no-restore check 44.889s (0/36), and one-file check 39.786s (0/1). Check-only source remained unchanged. The raw delta was appended to YADG Draft PR #22 as `f6eea796487418f7679f763d52f632962e2d5794`; original policy and first formatter commits remain intact, and PR #22 remains open and DO NOT MERGE.
+
+The sole `dotnet build Yadg.slnx` did not pass: target projects compiled, then the integration-test project failed at `M0019FocusedTests.cs:345` with `CS8600` for nullable `current.Parent` assigned to non-nullable `DirectoryInfo current`. The baseline has the same source statement, so this is an existing YADG defect. No target tests were run. Full and no-restore check timings improved materially versus prior observations; single-file check was 3.749 seconds slower than its historical observation. No other new defect was confirmed by the focused build. Release qualification, installed-tool checks, and target tests remain deferred.
+
+All seven seeded obligations are reconciled above and in the execution ledger. No evidence-case register, one-test-per-criterion matrix or comprehensive suite was added.

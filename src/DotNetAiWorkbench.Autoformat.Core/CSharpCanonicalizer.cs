@@ -165,7 +165,7 @@ internal static class CSharpCanonicalizer
                 {
                     ObjectCreationExpressionSyntax creation => creation.Type,
                     ImplicitObjectCreationExpressionSyntax creation => null,
-                    ArrayCreationExpressionSyntax array => SyntaxFactory.ArrayType(array.Type.ElementType, array.Type.RankSpecifiers),
+                    ArrayCreationExpressionSyntax array => ArrayTypeWithoutSizes(array.Type),
                     ImplicitArrayCreationExpressionSyntax array => InferArrayType(array.Initializer),
                     CollectionExpressionSyntax collection => InferCollectionType(collection),
                     LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression) => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.StringKeyword)),
@@ -594,6 +594,13 @@ internal static class CSharpCanonicalizer
             };
             return element is null ? null : SyntaxFactory.ArrayType(element, SyntaxFactory.SingletonList(SyntaxFactory.ArrayRankSpecifier(SyntaxFactory.SingletonSeparatedList<ExpressionSyntax>(SyntaxFactory.OmittedArraySizeExpression()))));
         }
+
+        private static ArrayTypeSyntax ArrayTypeWithoutSizes(ArrayTypeSyntax source)
+        {
+            return source.WithRankSpecifiers(SyntaxFactory.List(source.RankSpecifiers.Select(rank =>
+                rank.WithSizes(SyntaxFactory.SeparatedList<ExpressionSyntax>(
+                    Enumerable.Repeat<ExpressionSyntax>(SyntaxFactory.OmittedArraySizeExpression(), rank.Sizes.Count))))));
+        }
         private static TypeSyntax? InferCollectionType(CollectionExpressionSyntax collection)
         {
             if (collection.Elements.Count == 0 || collection.Elements[0] is not ExpressionElementSyntax first)
@@ -620,6 +627,76 @@ internal static class CSharpCanonicalizer
 
     private sealed class LayoutRewriter(string newline) : CSharpSyntaxRewriter
     {
+        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
+        {
+            node = (ClassDeclarationSyntax)base.VisitClassDeclaration(node)!;
+            return node.WithMembers(CompactMemberBoundaries(node.Members));
+        }
+
+        public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
+        {
+            node = (StructDeclarationSyntax)base.VisitStructDeclaration(node)!;
+            return node.WithMembers(CompactMemberBoundaries(node.Members));
+        }
+
+        public override SyntaxNode? VisitInterfaceDeclaration(InterfaceDeclarationSyntax node)
+        {
+            node = (InterfaceDeclarationSyntax)base.VisitInterfaceDeclaration(node)!;
+            return node.WithMembers(CompactMemberBoundaries(node.Members));
+        }
+
+        public override SyntaxNode? VisitRecordDeclaration(RecordDeclarationSyntax node)
+        {
+            node = (RecordDeclarationSyntax)base.VisitRecordDeclaration(node)!;
+            return node.WithMembers(CompactMemberBoundaries(node.Members));
+        }
+
+        private static SyntaxList<MemberDeclarationSyntax> CompactMemberBoundaries(SyntaxList<MemberDeclarationSyntax> members)
+        {
+            for (int index = 1; index < members.Count; index++)
+            {
+                MemberDeclarationSyntax previous = members[index - 1];
+                MemberDeclarationSyntax current = members[index];
+                if (Retained(current, "readability.comments")) { continue; }
+                SyntaxTriviaList previousTrailing = previous.GetTrailingTrivia();
+                SyntaxTriviaList currentLeading = current.GetLeadingTrivia();
+                if (previousTrailing.Any(item => !item.IsKind(SyntaxKind.EndOfLineTrivia) && !item.IsKind(SyntaxKind.WhitespaceTrivia)))
+                {
+                    continue;
+                }
+
+                int allowedEndings = Math.Max(0, 2 - previousTrailing.Count(item => item.IsKind(SyntaxKind.EndOfLineTrivia)));
+                int currentEndings = 0;
+                bool atLeadingWhitespace = true;
+                var limitedLeading = new List<SyntaxTrivia>();
+                foreach (SyntaxTrivia item in currentLeading)
+                {
+                    if (atLeadingWhitespace && (item.IsKind(SyntaxKind.EndOfLineTrivia) || item.IsKind(SyntaxKind.WhitespaceTrivia)))
+                    {
+                        if (item.IsKind(SyntaxKind.EndOfLineTrivia) && currentEndings++ >= allowedEndings) { continue; }
+                        limitedLeading.Add(item);
+                        continue;
+                    }
+
+                    atLeadingWhitespace = false;
+                    limitedLeading.Add(item);
+                }
+                if (currentEndings > allowedEndings)
+                {
+                    members = members.Replace(current, current.WithLeadingTrivia(SyntaxFactory.TriviaList(limitedLeading)));
+                }
+            }
+            return members;
+        }
+
+        public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
+        {
+            node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node)!;
+            return Retained(node, "readability.comments")
+                ? node
+                : node.WithLeadingTrivia(BlankLineRewriter.CompactWhitespaceOnly(node.GetLeadingTrivia()));
+        }
+
         public override SyntaxNode? VisitParameterList(ParameterListSyntax node)
         {
             node = (ParameterListSyntax)base.VisitParameterList(node)!;
@@ -629,7 +706,12 @@ internal static class CSharpCanonicalizer
                 return node;
             }
 
-            string indentation = new(' ', IndentDepth(node) * 4);
+            int enclosingDepth = IndentDepth(node) - node.Ancestors().Count(ancestor => ancestor is FileScopedNamespaceDeclarationSyntax);
+            if (node.Parent is TypeDeclarationSyntax)
+            {
+                enclosingDepth--;
+            }
+            string indentation = new(' ', Math.Max(0, enclosingDepth) * 4);
             string parameterIndentation = indentation + "    ";
             node = node.WithOpenParenToken(node.OpenParenToken.WithTrailingTrivia(NewLineIndent(parameterIndentation)));
             SeparatedSyntaxList<ParameterSyntax> parameters = node.Parameters;
@@ -810,10 +892,10 @@ internal static class CSharpCanonicalizer
                 return token;
             }
 
-            return token.WithLeadingTrivia(Compact(token.LeadingTrivia)).WithTrailingTrivia(Compact(token.TrailingTrivia));
+            return token.WithLeadingTrivia(CompactWhitespaceOnly(token.LeadingTrivia)).WithTrailingTrivia(CompactWhitespaceOnly(token.TrailingTrivia));
         }
 
-        private static SyntaxTriviaList Compact(SyntaxTriviaList trivia)
+        internal static SyntaxTriviaList CompactWhitespaceOnly(SyntaxTriviaList trivia)
         {
             if (trivia.Any(item => !item.IsKind(SyntaxKind.EndOfLineTrivia) && !item.IsKind(SyntaxKind.WhitespaceTrivia)))
             {

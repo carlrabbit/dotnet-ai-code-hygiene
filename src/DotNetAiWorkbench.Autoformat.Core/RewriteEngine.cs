@@ -240,7 +240,24 @@ public sealed class RewriteEngine
     {
         string[] rootSettings = [".editorconfig", ".globalconfig", "global.json", "NuGet.Config", "nuget.config",
             "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props"];
+        string[] solutions = Directory.EnumerateFiles(root, "*.sln*", SearchOption.TopDirectoryOnly)
+            .Where(path => Path.GetExtension(path) is ".sln" or ".slnx").ToArray();
+        foreach (string solution in solutions)
+        {
+            File.Copy(solution, Path.Combine(shadowRoot, Path.GetFileName(solution)), overwrite: true);
+        }
+
         var pending = new Stack<string>(projectFiles);
+        foreach (string solution in solutions)
+        {
+            (int exit, string output) = RunSimple("sln", solution, "list");
+            if (exit != 0) { continue; }
+            foreach (string project in output.Split(new[] { (char)13, (char)10 }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => line.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
+            {
+                pending.Push(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, project.Trim())));
+            }
+        }
         var copiedProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var copiedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (pending.Count > 0)
