@@ -15,18 +15,18 @@ public sealed class RewriteEngine
     public static IReadOnlyList<string> ApprovedDiagnostics => AutoformatPolicy.ApprovedDiagnostics;
     private readonly string root;
     private readonly bool requireCleanCheckpoint;
-    private readonly Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)>? phaseRunner;
+    private readonly Func<string, string, string[], string[], bool, bool, string, (int ExitCode, string Output)>? phaseRunner;
 
     public RewriteEngine(string? cwd = null, bool requireCleanCheckpoint = true)
     {
         root = RepositorySession.FindRoot(cwd);
         this.requireCleanCheckpoint = requireCleanCheckpoint;
     }
-    public RewriteEngine(string? cwd, Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)> phaseRunner)
+    public RewriteEngine(string? cwd, Func<string, string, string[], string[], bool, bool, string, (int ExitCode, string Output)> phaseRunner)
         : this(cwd, requireCleanCheckpoint: false) => this.phaseRunner = phaseRunner;
     public string Root => root;
 
-    public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
+    public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly, bool noRestore = false)
     {
         if (command is not ("format" or "normalize")) { throw new ArgumentException("Unknown rewrite command."); }
         checkOnly |= changed;
@@ -49,7 +49,7 @@ public sealed class RewriteEngine
         // otherwise disagree with verify-only reports from an intermediate phase.
         if (checkOnly && command == "normalize")
         {
-            return PreviewNormalization(session, eligible, assigned, selectedRules);
+            return PreviewNormalization(session, eligible, assigned, selectedRules, noRestore);
         }
 
         var bytes = eligible.ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
@@ -116,7 +116,7 @@ public sealed class RewriteEngine
                 {
                     string phaseReport = CreatePhaseReportDirectory(reportDirectory, "style", batchIndex++);
                     reportDirectories.Add(phaseReport);
-                    (styleExit, string output) = RunPhase(workspace, "style", files, diagnostics, checkOnly, phaseReport);
+                    (styleExit, string output) = RunPhase(workspace, "style", files, diagnostics, checkOnly, noRestore, phaseReport);
                     log += output;
                     if (styleExit != 0 && !(checkOnly && styleExit == 2)) { throw Failure("style", styleExit, output, eligible, bytes); }
                 }
@@ -125,7 +125,7 @@ public sealed class RewriteEngine
             {
                 string phaseReport = CreatePhaseReportDirectory(reportDirectory, "whitespace", batchIndex++);
                 reportDirectories.Add(phaseReport);
-                (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, phaseReport);
+                (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, noRestore, phaseReport);
                 log += output;
                 if (whitespaceExit != 0 && !(checkOnly && whitespaceExit == 2)) { throw Failure("whitespace", whitespaceExit, output, eligible, bytes); }
             }
@@ -205,7 +205,7 @@ public sealed class RewriteEngine
     }
 
     private RewriteResult PreviewNormalization(RepositorySession session, string[] eligible,
-        Dictionary<string, (Project Project, Document Document)> assigned, string[] selectedRules)
+        Dictionary<string, (Project Project, Document Document)> assigned, string[] selectedRules, bool noRestore)
     {
         string shadowRoot = Path.Combine(Path.GetTempPath(), "autoformat-preview-" + Guid.NewGuid().ToString("N"));
         try
@@ -213,7 +213,7 @@ public sealed class RewriteEngine
             Directory.CreateDirectory(shadowRoot);
             Directory.CreateDirectory(Path.Combine(shadowRoot, ".git"));
             CopyPreviewWorkspace(shadowRoot, assigned.Values.Select(value => value.Project.FilePath!)
-                .Distinct(StringComparer.OrdinalIgnoreCase));
+                .Distinct(StringComparer.OrdinalIgnoreCase), copyRestoreArtifacts: noRestore);
 
             string[] shadowTargets = eligible
                 .Select(path => Path.Combine(shadowRoot, Path.GetRelativePath(root, path)))
@@ -221,7 +221,7 @@ public sealed class RewriteEngine
             var preview = phaseRunner is null
                 ? new RewriteEngine(shadowRoot, requireCleanCheckpoint: false)
                 : new RewriteEngine(shadowRoot, phaseRunner);
-            RewriteResult result = preview.Rewrite("normalize", shadowTargets, changed: false, checkOnly: false);
+            RewriteResult result = preview.Rewrite("normalize", shadowTargets, changed: false, checkOnly: false, noRestore: noRestore);
             return result with
             {
                 CheckOnly = true,
@@ -236,7 +236,7 @@ public sealed class RewriteEngine
         }
     }
 
-    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles)
+    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles, bool copyRestoreArtifacts)
     {
         string[] rootSettings = [".editorconfig", ".globalconfig", "global.json", "NuGet.Config", "nuget.config",
             "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props"];
@@ -254,7 +254,7 @@ public sealed class RewriteEngine
             string projectDirectory = Path.GetDirectoryName(projectFile)!;
             string relativeProjectDirectory = Path.GetRelativePath(root, projectDirectory);
             string shadowDirectory = Path.GetFullPath(Path.Combine(shadowRoot, relativeProjectDirectory));
-            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories);
+            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories, copyRestoreArtifacts);
 
             string? ancestor = projectDirectory;
             while (ancestor is not null && (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)
@@ -290,7 +290,7 @@ public sealed class RewriteEngine
         }
     }
 
-    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories)
+    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories, bool copyRestoreArtifacts)
     {
         if (!copiedDirectories.Add(source)) { return; }
         Directory.CreateDirectory(destination);
@@ -302,8 +302,9 @@ public sealed class RewriteEngine
         foreach (string directory in Directory.EnumerateDirectories(source))
         {
             string name = Path.GetFileName(directory);
-            if (name is ".git" or ".execution" or ".review" or ".vs" or "bin" or "TestResults" or "node_modules") { continue; }
-            CopyProjectDirectory(directory, Path.Combine(destination, name), copiedDirectories);
+            if (name is ".git" or ".execution" or ".review" or ".vs" or "bin" or "TestResults" or "node_modules"
+                || name == "obj" && !copyRestoreArtifacts) { continue; }
+            CopyProjectDirectory(directory, Path.Combine(destination, name), copiedDirectories, copyRestoreArtifacts);
         }
     }
 
@@ -321,14 +322,14 @@ public sealed class RewriteEngine
         return new ProductException($"dotnet format {phase} failed with exit code {exitCode}; formatting is incomplete and edits remain inspectable. Inspect/recover these paths explicitly: {string.Join(", ", partial)}. {output.Trim()}");
     }
 
-    private (int ExitCode, string Output) RunPhase(string workspace, string phase, string[] files, string[] diagnostics, bool checkOnly, string reportDirectory)
+    private (int ExitCode, string Output) RunPhase(string workspace, string phase, string[] files, string[] diagnostics, bool checkOnly, bool noRestore, string reportDirectory)
     {
-        if (phaseRunner is not null) { return phaseRunner(workspace, phase, files, diagnostics, checkOnly, reportDirectory); }
+        if (phaseRunner is not null) { return phaseRunner(workspace, phase, files, diagnostics, checkOnly, noRestore, reportDirectory); }
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
         start.ArgumentList.Add("format");
         start.ArgumentList.Add(workspace);
         start.ArgumentList.Add(phase);
-        start.ArgumentList.Add("--no-restore");
+        if (noRestore) { start.ArgumentList.Add("--no-restore"); }
         start.ArgumentList.Add("--report");
         start.ArgumentList.Add(reportDirectory);
         foreach (string file in files)

@@ -1,5 +1,10 @@
 # Agent Instructions
 
+## Task routing
+
+- Planning, research curation, guide maintenance or migration, release preparation, and documentation synchronization start at `.guide/system/README.md` and load only the applicable prompt and guidance.
+- Ordinary implementation starts with the ready milestone or task, its planner-seeded `.execution/<milestone-id>.md` ledger when present, referenced project authority, and relevant source/tests. Do not require implementers to load the guide snapshot or planning-only metadata.
+
 ## Default implementation path
 
 For implementation work, read in this order:

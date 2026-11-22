@@ -12,7 +12,7 @@ Methods and comparable declarations with three or more parameters use a complete
 
 ## Long lines
 
-120 characters is a soft target. The formatter adds line breaks at recognized syntax boundaries in long invocation lists, collection expressions, initializers, compound boolean expressions and fluent member chains. It does not split names, literals, comments, directives or XML prose. If no recognized syntax boundary can be used, the line remains intact and Autoformat reports the count of remaining overlong lines.
+120 characters is a soft target. The formatter adds line breaks at recognized syntax boundaries in long invocation argument lists, collection expressions, initializers and compound boolean expressions. It keeps a receiver and its member-access operator together; long arguments may wrap without forcing a break before `.`. Existing multiline fluent member chains are retained, and an expression/member-access boundary is never given a new empty line. The formatter does not split names, literals, comments, directives or XML prose. If no recognized syntax boundary can be used, the line remains intact and Autoformat reports the count of remaining overlong lines.
 
 ## Comments and whitespace
 

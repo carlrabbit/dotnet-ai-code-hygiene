@@ -2,33 +2,32 @@
   "schemaVersion": 2,
   "guideSystem": {
     "repository": "carlrabbit/agentic-project-guides",
-    "version": "0.9.3"
+    "version": "1.0.0",
+    "tag": "v1.0.0",
+    "revision": "6d1ca180d6573decb5c71d96bb6383e2073d342b",
+    "localPath": ".guide/system"
   },
   "appliedProfiles": [
     {
       "id": "base",
-      "version": "0.9.3",
+      "version": "1.0.0",
       "scopes": [
-        {
-          "kind": "repository"
-        }
+        { "kind": "repository" }
       ]
     },
     {
       "id": "cli-tool",
-      "version": "0.9.3",
+      "version": "1.0.0",
       "scopes": [
-        {
-          "kind": "repository"
-        }
+        { "kind": "repository" }
       ]
     }
   ],
-  "repositoryRole": "developer-tool",
-  "maturityStage": "greenfield",
+  "repositoryRole": "capability-provider",
+  "maturityStage": "implementation-ready",
   "executionModel": {
-    "baselineImplementationModel": "GPT-5.6 Luna",
-    "defaultImplementationMode": "ai-executed-human-reviewed",
+    "baselineImplementationModel": "ai-executed",
+    "defaultImplementationMode": "ai-executed",
     "documentationSync": "separate-pass",
     "releaseReadiness": "separate-pass",
     "humanReview": "milestone-scoped"
@@ -36,26 +35,17 @@
   "engineeringCommands": {
     "canonicalInterface": "eng",
     "implementation": "repository-specific",
-    "supportedLaunchers": [
-      "PowerShell"
-    ],
-    "testedPlatforms": [
-      "Windows 11"
-    ]
+    "supportedLaunchers": ["PowerShell"],
+    "testedPlatforms": ["Windows 11"]
   },
   "activeDocumentationLayers": [
     "engineering",
     "milestones",
-    "specs",
-    "architecture",
-    "research",
-    "terminology",
-    "public-docs"
+    "specs"
   ],
   "inactiveDocumentationLayers": [
     "tbps",
     "issue-templates",
-    "repository-guide-copies",
-    "github-actions"
+    "unmanaged-guide-copies"
   ]
 }

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "guideSystem": {
+    "repository": "carlrabbit/agentic-project-guides",
+    "version": "1.0.0",
+    "tag": "v1.0.0",
+    "revision": "<full-peeled-commit-sha>",
+    "localPath": ".guide/system"
+  },
+  "appliedProfiles": [
+    {
+      "id": "base",
+      "version": "1.0.0",
+      "scopes": [
+        {
+          "kind": "repository"
+        }
+      ]
+    }
+  ],
+  "repositoryRole": "capability-provider",
+  "maturityStage": "implementation-ready",
+  "executionModel": {
+    "baselineImplementationModel": "<select-project-baseline-model>",
+    "defaultImplementationMode": "ai-executed",
+    "documentationSync": "separate-pass",
+    "releaseReadiness": "separate-pass",
+    "humanReview": "milestone-scoped"
+  },
+  "engineeringCommands": {
+    "canonicalInterface": "eng",
+    "implementation": "repository-specific",
+    "supportedLaunchers": [],
+    "testedPlatforms": []
+  },
+  "activeDocumentationLayers": [
+    "engineering",
+    "milestones",
+    "specs"
+  ],
+  "inactiveDocumentationLayers": [
+    "tbps",
+    "issue-templates",
+    "unmanaged-guide-copies"
+  ]
+}
