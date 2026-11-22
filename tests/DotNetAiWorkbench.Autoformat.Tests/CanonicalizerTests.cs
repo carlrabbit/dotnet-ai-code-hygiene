@@ -174,6 +174,7 @@ public class CanonicalizerTests
     public async Task CollectionExpressionsRequireARecognizedTargetTypeContext()
     {
         const string source = """
+            using System;
             using System.Collections.Generic;
             class Sample {
               IReadOnlyList<int> Property { get; } = new List<int> { 1, 2 };
@@ -188,6 +189,15 @@ public class CanonicalizerTests
                 var inferred = new[] { 9, 10 };
                 List<int> concrete = new List<int> { 11, 12 };
                 IReadOnlyList<int> collectionInterface = new List<int> { 13, 14 };
+              }
+              IEnumerable<int> Outer() {
+                object Local() { return new[] { 1, 2 }; }
+                IEnumerable<int> LocalItems() { return new[] { 3, 4 }; }
+                Func<object> callback = () => { return new[] { 5, 6 }; };
+                _ = Local();
+                _ = LocalItems();
+                _ = callback();
+                return new[] { 7, 8 };
               }
             }
             """;
@@ -204,6 +214,10 @@ public class CanonicalizerTests
         await Assert.That(result).Contains("IReadOnlyList<int> Items() =>[5, 6]");
         await Assert.That(result).Contains("List<int> concrete = [11, 12]");
         await Assert.That(result).Contains("IReadOnlyList<int> collectionInterface = [13, 14]");
+        await Assert.That(result).Contains("object Local() { return new[] { 1, 2 }; }");
+        await Assert.That(result).Contains("IEnumerable<int> LocalItems() { return [3, 4]; }");
+        await Assert.That(result).Contains("Func<object> callback = () => { return new[] { 5, 6 }; }");
+        await Assert.That(result).Contains("return [7, 8];");
     }
 
     [Test]

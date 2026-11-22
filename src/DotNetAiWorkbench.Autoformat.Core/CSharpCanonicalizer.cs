@@ -277,14 +277,15 @@ internal static class CSharpCanonicalizer
                 return property.Type;
             }
 
-            if (node.Parent is ReturnStatementSyntax && node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is MethodDeclarationSyntax method)
+            if (node.Parent is ReturnStatementSyntax)
             {
-                return method.ReturnType;
-            }
-
-            if (node.Parent is ReturnStatementSyntax && node.FirstAncestorOrSelf<LocalFunctionStatementSyntax>() is LocalFunctionStatementSyntax localFunction)
-            {
-                return localFunction.ReturnType;
+                SyntaxNode? returnOwner = node.Ancestors().FirstOrDefault(IsReturnOwnerBoundary);
+                return returnOwner switch
+                {
+                    LocalFunctionStatementSyntax localFunction => localFunction.ReturnType,
+                    MethodDeclarationSyntax method => method.ReturnType,
+                    _ => null
+                };
             }
 
             if (node.Parent is ArrowExpressionClauseSyntax { Parent: MethodDeclarationSyntax expressionMethod })
@@ -304,6 +305,9 @@ internal static class CSharpCanonicalizer
 
             return null;
         }
+
+        private static bool IsReturnOwnerBoundary(SyntaxNode node) => node is LocalFunctionStatementSyntax
+            or MethodDeclarationSyntax or AnonymousFunctionExpressionSyntax;
 
         private static SimpleNameSyntax? TryGetSimpleTypeName(TypeSyntax type) => type switch
         {
