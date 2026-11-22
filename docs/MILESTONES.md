@@ -200,10 +200,10 @@ Execution ledger: `.execution/M0028-guide-100-autoformat-field-exploration.md`.
 Exploration report: `docs/research/M0028-autoformat-dotnet-nuget-content-exploration.md`.
 
 ## M0029 — SDK Restore Integration and Autoformat Revalidation
-**State:** complete; corrected import handling and one-pass convergence; target Draft PR #14 remains DO NOT MERGE after three diagnostic-build `CS9176` failures
+**State:** complete; SDK restore, one-pass convergence and collection-expression eligibility corrected; target Draft PR #14 remains DO NOT MERGE for separate review
 **Mode:** AI-executed; no mandatory human acceptance gate
 
-Enabled SDK-native restore by default with explicit `--no-restore` opt-in and corrected a compact-flow normalization interaction that broke one-pass stability. The repeated disposable NuGet-content experiment preserved required NuGet imports and converged, but its raw output still fails a focused diagnostic build on generated collection expressions. The output is available for inspection in [target Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14); original Draft PR #13 remains unchanged. No target tests or release qualification were run.
+Enabled SDK-native restore by default with explicit `--no-restore` opt-in, corrected a compact-flow normalization interaction, and restricted collection-expression conversion to recognized target-type contexts. The initial NuGet-content experiment exposed three `CS9176` failures; the amended run preserved the original output commits, appended the unmodified correction delta to existing [target Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14), and passed the focused diagnostic build with one-pass convergence and required imports intact. PR #14 remains DO NOT MERGE for separate review; original Draft PR #13 remains unchanged. No target tests or release qualification were run.
 
 Primary milestone: `docs/milestones/M0029-sdk-restore-and-autoformat-revalidation.md`.
 Execution ledger: `.execution/M0029-sdk-restore-and-autoformat-revalidation.md`.

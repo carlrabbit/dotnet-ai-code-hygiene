@@ -1,41 +1,35 @@
 # M0029 — Autoformat NuGet-content revalidation
 
-**Result:** The SDK-native restore path retained the required NuGet imports and the corrected formatter converged in one pass. The raw output still has unresolved compile failures; the target PR is for inspection only and must not be merged.
+**Amended result:** The collection-expression eligibility correction retained the three previously invalid array creation forms. The regenerated target output builds successfully, converges after one pass, and remains published as an unaccepted, DO NOT MERGE Draft PR for inspection.
 
-## Question and scope
+## Scope and provenance
 
-Does Autoformat's default SDK restore preserve required imports while removing genuinely unused imports, and does one normalization reach a fixed point on the same NuGet-content revision used by M0028? This was a disposable source exploration, not release qualification. No target tests, package publication, Native AOT, or installed-tool qualification were run.
+The experiment compares formatter output on the same target baseline, `carlrabbit/dotnet-nuget-content` `main` at `25b28310c7de04426de02e4ac8037b32ed9dbd9e`. Workbench implementation began at amended planning commit `a9b2846578171298bb459a17282160e919ece213`. The formatter source for the corrected rerun is workbench commit [`68f3d7de6a63f48f2d49f5cb178a0a4a80b3c9c0`](https://github.com/carlrabbit/dotnet-ai-code-hygiene/commit/68f3d7de6a63f48f2d49f5cb178a0a4a80b3c9c0). Toolchain: .NET SDK `11.0.100-rc.3.26522.148`, Git `2.56.0.windows.4`.
 
-## Provenance and commands
+The existing [target Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14) remains open and marked **DO NOT MERGE**. It retains policy commit `ac183618012c474821b6f6ac2cc9f2b55a5d325f` and the initial output commit `08781f4d3ae7e71bde39bc1e6af9271355ce6b12`, followed by corrected raw-output delta commit [`2edddf2740e09c36bdb1fef879c3fec6ddbb9516`](https://github.com/carlrabbit/dotnet-nuget-content/commit/2edddf2740e09c36bdb1fef879c3fec6ddbb9516). The regenerated complete output snapshot in the fresh disposable checkout is commit `84ab6a63d89f46b932f2c83b9cfe6c7b8610de57`; comparing it with the previous PR #14 snapshot changed only five files (17 insertions, 14 deletions). The original [M0028 Draft PR #13](https://github.com/carlrabbit/dotnet-nuget-content/pull/13) was not modified.
 
-- Workbench base: accepted M0029 planning commit `1b722047fd06487c542fbd5332a44f22e9201559`.
-- Corrected formatter source: workbench commit [`0fadcdef0516bfd6a2ffa631079adc4115744fe7`](https://github.com/carlrabbit/dotnet-ai-code-hygiene/commit/0fadcdef0516bfd6a2ffa631079adc4115744fe7).
-- Target base: `main` at `25b28310c7de04426de02e4ac8037b32ed9dbd9e`, checked out in a fresh disposable clone.
-- Target experiment: policy commit `ac183618012c474821b6f6ac2cc9f2b55a5d325f`, followed by raw formatter output commit `08781f4d3ae7e71bde39bc1e6af9271355ce6b12`.
-- Toolchain: .NET SDK `11.0.100-rc.3.26522.148`; Git `2.56.0.windows.4`.
-- New [Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14) targets `main`, is marked **DO NOT MERGE**, and contains only those two commits. The original [Draft PR #13](https://github.com/carlrabbit/dotnet-nuget-content/pull/13) was left untouched.
+## Experiment history
 
-The corrected source was run directly from the workbench checkout:
+### Initial M0029 output
+
+The first M0029 run used formatter source `0fadcdef0516bfd6a2ffa631079adc4115744fe7` and created target output commit `08781f4d3ae7e71bde39bc1e6af9271355ce6b12`. It retained required NuGet imports and reached one-pass convergence, but a focused build failed at three generated collection expressions with `CS9176`: two `foreach` sources in `Program.cs` and one in `ProjectWorkspace.cs` had no target type. This initial output is preserved as the parent snapshot in PR #14, not overwritten.
+
+### Amended collection-expression rerun
+
+A fresh disposable worktree was checked out at the same target baseline and given the existing Autoformat policy from commit `ac183618012c474821b6f6ac2cc9f2b55a5d325f` (local setup commit in that scratch worktree: `40eea5ff28274f0d072597f27d4142e3634a64bd`). The corrected CLI was built from the workbench source commit above and run directly:
 
 ```text
-dotnet run -c Release --no-build --project C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj -- init
-dotnet run -c Release --no-build --project C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj -- normalize --output json
-dotnet run -c Release --no-build --project C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj -- normalize --output json
-dotnet run -c Release --no-build --project C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj -- normalize --check --output json
-dotnet run -c Release --no-build --project C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\DotNetAiWorkbench.Autoformat.Cli.csproj -- format --check --output json
-dotnet build src\DotNetNugetContent\DotNetNugetContent.csproj
+dotnet C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\bin\Release\net11.0\DotNetAiWorkbench.Autoformat.Cli.dll normalize --output json
+dotnet build src\DotnetNugetContent\DotNetNugetContent.csproj
+dotnet C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\bin\Release\net11.0\DotNetAiWorkbench.Autoformat.Cli.dll normalize --output json
+dotnet C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\bin\Release\net11.0\DotNetAiWorkbench.Autoformat.Cli.dll normalize --check --output json
+dotnet C:\src\dotnet-ai-code-hygiene\src\DotNetAiWorkbench.Autoformat.Cli\bin\Release\net11.0\DotNetAiWorkbench.Autoformat.Cli.dll format --check --output json
 ```
 
-Autoformat invoked SDK phases as `dotnet format <workspace> style|whitespace --report <report-dir> --include <selected-paths>` (and `--diagnostics IDE0005` for the style phase); the default omitted `--no-restore`. The one mutating normalization selected all 9 C# files under target `src` and `tests`.
+The first pass changed the 9 selected C# files; its unmodified generated output was snapshot commit `84ab6a63d89f46b932f2c83b9cfe6c7b8610de57`. The actual second mutating pass reported `changedCount: 0`. `normalize --check` and `format --check` each reported `changedCount: 0`. All three observed `foreach` sources remain `new[] { ... }`; required `NuGet.Versioning`, `NuGet.Frameworks`, and `NuGet.Packaging` imports remain.
 
-## Observations
+**Observed diagnostic result:** `dotnet build src\DotnetNugetContent\DotNetNugetContent.csproj` succeeded with 0 warnings and 0 errors (restore reported all projects up-to-date). The three `CS9176` failures from the initial M0029 result no longer occur. No other build failure was observed. This focused build only checks the known defect; target tests, full Hygiene suites, package/release qualification, Native AOT, installed-tool qualification, and broad compatibility were not evaluated.
 
-- Policy initialization was committed before formatting, establishing a clean checkpoint. One normalization changed all 9 selected files (2,555 insertions, 549 deletions). The second mutating pass had no diff.
-- Both `normalize --check` and `format --check` reported 0 changed files on the canonical result.
-- `NuGet.Versioning`, `NuGet.Frameworks`, and `NuGet.Packaging` imports required by the application remained in the output. A focused real SDK-project test also showed implicit restore preserving a required NuGet import and removing an unused `System.Text.Json` import.
-- **Observed defect:** the rewritten target diagnostic build failed with three `CS9176` errors, at two collection expressions in `Program.cs` and one in `ProjectWorkspace.cs`, because they had no target type. The same focused build at the recorded baseline succeeded. These failures are in formatter-generated modernizations, not missing-import diagnostics, and were not repaired by hand.
-- M0028 PR #13's output removed required NuGet imports and then accumulated 48 blank lines on another normalization. M0029 retained the imports and reached a one-pass fixed point, but exposed the collection-expression compile failures. The generated source is unmodified in PR #14.
+## Interpretation and limitations
 
-## Interpretation and follow-up
-
-The observed import result supports the inference that allowing SDK-native restore supplies the dependency context that was missing in M0028; this does not establish that all downstream project shapes are safe. The compile errors show that one-pass stability and import preservation do not certify semantic validity. Review the specific collection-expression modernization behavior and its syntax eligibility before considering any production use. Re-run this comparison if the SDK version, IDE0005 integration, or relevant modernization eligibility changes. No conclusion about semantic equivalence or broad consumer compatibility is claimed.
+The direct-target syntax allowlist prevented collection-expression conversion for `foreach` sources and comparable untyped uses, while typed variables, properties, returns, concrete `List<T>`, and eligible collection-interface targets still modernized in the deterministic canonicalizer regression. This establishes the requested syntax-level eligibility behavior for covered forms; it does not claim semantic equivalence or compatibility for every consumer shape. PR #14 remains experimental and should receive separate review before any production use.
