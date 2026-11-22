@@ -59,6 +59,7 @@ public sealed class RewriteEngine
         string log = "";
         var canonicalChanges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var notices = new List<string>();
+        var retainedCommentIndentation = new Dictionary<string, IReadOnlyList<CSharpCanonicalizer.RetainedCommentIndentation>>(StringComparer.OrdinalIgnoreCase);
         try
         {
             if (command == "normalize")
@@ -73,6 +74,8 @@ public sealed class RewriteEngine
                         source = reader.ReadToEnd();
                         sourceEncoding = reader.CurrentEncoding;
                     }
+                    retainedCommentIndentation[path] = CSharpCanonicalizer.CaptureRetainedCommentIndentation(source);
+
                     bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
                     string normalized = CSharpCanonicalizer.Normalize(source, assigned[path].Project.ParseOptions as Microsoft.CodeAnalysis.CSharp.CSharpParseOptions, out IReadOnlyList<string> fileNotices);
                     notices.AddRange(fileNotices.Select(message => session.Relative(path) + ": " + message));
@@ -86,6 +89,15 @@ public sealed class RewriteEngine
                             File.WriteAllBytes(path, encoded);
                         }
                     }
+                }
+            }
+            else
+            {
+                foreach (string path in eligible)
+                {
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    using var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true);
+                    retainedCommentIndentation[path] = CSharpCanonicalizer.CaptureRetainedCommentIndentation(reader.ReadToEnd());
                 }
             }
             IReadOnlyList<(string Workspace, string[] Files)> batches = FindBatches(session, assigned);
@@ -107,6 +119,61 @@ public sealed class RewriteEngine
                 (whitespaceExit, string output) = RunPhase(workspace, "whitespace", files, [], checkOnly, phaseReport);
                 log += output;
                 if (whitespaceExit != 0 && !(checkOnly && whitespaceExit == 2)) { throw Failure("whitespace", whitespaceExit, output, eligible, bytes); }
+            }
+
+            // Reapply only syntax layout after SDK whitespace so the SDK formatter cannot undo
+            // opinionated layouts such as a complete vertical parameter list.
+            if (command == "normalize" && !checkOnly)
+            {
+                foreach (string path in eligible)
+                {
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    string source;
+                    System.Text.Encoding sourceEncoding;
+                    using (var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true))
+                    {
+                        source = reader.ReadToEnd();
+                        sourceEncoding = reader.CurrentEncoding;
+                    }
+
+                    bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
+                    string normalized = CSharpCanonicalizer.NormalizeLayout(source, out IReadOnlyList<string> fileNotices);
+                    notices.AddRange(fileNotices.Select(message => session.Relative(path) + ": " + message));
+                    if (!string.Equals(source, normalized, StringComparison.Ordinal))
+                    {
+                        byte[] body = sourceEncoding.GetBytes(normalized);
+                        byte[] encoded = hadBom ? sourceEncoding.GetPreamble().Concat(body).ToArray() : body;
+                        File.WriteAllBytes(path, encoded);
+                    }
+                }
+            }
+
+            if (!checkOnly)
+            {
+                foreach (string path in eligible)
+                {
+                    if (retainedCommentIndentation[path].Count == 0)
+                    {
+                        continue;
+                    }
+
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    string source;
+                    System.Text.Encoding sourceEncoding;
+                    using (var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true))
+                    {
+                        source = reader.ReadToEnd();
+                        sourceEncoding = reader.CurrentEncoding;
+                    }
+
+                    string restored = CSharpCanonicalizer.RestoreRetainedCommentIndentation(source, retainedCommentIndentation[path]);
+                    if (!string.Equals(source, restored, StringComparison.Ordinal))
+                    {
+                        bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
+                        byte[] body = sourceEncoding.GetBytes(restored);
+                        File.WriteAllBytes(path, hadBom ? sourceEncoding.GetPreamble().Concat(body).ToArray() : body);
+                    }
+                }
             }
 
             string[] changedPaths = checkOnly

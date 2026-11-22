@@ -15,7 +15,8 @@ legacy check/bootstrap/update
 
 Autoformat format/normalize
 -> C# syntax/readability canonicalizer (normalize only)
--> approved SDK style pass, then whitespace
+-> approved SDK style pass, then whitespace (normalize only)
+-> syntax layout stabilization (normalize only)
 -> clean Git checkpoint / HEAD and index verification
 -> explicit incomplete report on failure; agent-owned recovery
 ```
@@ -208,10 +209,11 @@ RewriteEngine
   resolve eligible SDK project source
   source-only syntax/readability canonicalization (normalize)
   invoke approved dotnet format style/whitespace phases
+  reapply syntax layout rules after SDK whitespace (normalize)
   report syntax proposals, SDK changes, paths and notices
 ```
 
-`dotnet autoformat format` runs SDK whitespace formatting only. `dotnet autoformat normalize` applies all nine opinionated modernization families, source-local exceptions, readability layout, approved SDK style diagnostics and SDK whitespace. It does not request target compilations, run builds/tests or require equivalence; the implementing agent repairs build consequences. Check-only reports proposed syntax edits and SDK changes without writing source or policy state.
+`dotnet autoformat format` runs SDK whitespace formatting only. `dotnet autoformat normalize` applies all nine opinionated modernization families and readability rules, runs SDK style/whitespace, then reapplies syntax layout rules so SDK whitespace cannot undo canonical layouts. It does not request target compilations, run builds/tests or require equivalence; the implementing agent repairs build consequences. Check-only reports proposed syntax edits and SDK changes without writing source or policy state.
 
 Mutating operations use a clean Git checkpoint and leave an inspectable worktree on failure:
 

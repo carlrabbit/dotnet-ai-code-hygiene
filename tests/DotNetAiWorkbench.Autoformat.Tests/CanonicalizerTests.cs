@@ -14,7 +14,8 @@ public class CanonicalizerTests
         string project = Path.Combine(root, "Fixture.csproj");
         string sourcePath = Path.Combine(root, "Sample.cs");
         await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-        await File.WriteAllTextAsync(sourcePath, "using System.Collections.Generic; class Sample { int _value; Sample(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items() { return new List<int> { 1, 2, 3 }; } }");
+        string fixtureSource = "using System.Collections.Generic;\nclass Sample { int _value; Sample(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items() { return new List<int> { 1, 2, 3 }; } void Process(int first, string second, bool third) { }\n // autoformat:retain readability.comments -- keep the annotated member's layout\n void KeepComments() {\n // keep this comment's indentation\n Call();\n CallAgain();\n }\n}";
+        await File.WriteAllTextAsync(sourcePath, fixtureSource);
         using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
         {
             await restore.WaitForExitAsync();
@@ -28,9 +29,15 @@ public class CanonicalizerTests
         await Assert.That(normalized).Contains("class Sample(int value)");
         await Assert.That(normalized).Contains("IReadOnlyList<int> Items() => [1,");
         await Assert.That(normalized).Contains("readonly int _value");
+        string normalizedLines = normalized.Replace("\r\n", "\n", StringComparison.Ordinal);
+        await Assert.That(normalizedLines).Contains("void Process(\n        int first,\n        string second,\n        bool third\n    )");
+        await Assert.That(normalizedLines).Contains("\n // autoformat:retain readability.comments -- keep the annotated member's layout\n");
+        await Assert.That(normalizedLines).Contains("void KeepComments()");
+        await Assert.That(normalizedLines).Contains("\n // keep this comment's indentation\n");
         RewriteResult second = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: false);
+        string normalizedSecond = await File.ReadAllTextAsync(sourcePath);
+        await Assert.That(normalizedSecond).IsEqualTo(normalized);
         await Assert.That(second.ChangedCount).IsEqualTo(0);
-        await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(normalized);
     }
 
     [Test]
@@ -81,6 +88,93 @@ public class CanonicalizerTests
         await Assert.That(first).Contains("int Value() { return 1; }");
         await Assert.That(first.Replace(" ", "", StringComparison.Ordinal)).Contains("intOther()=>2;");
         await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task PreservesCommentsOnBlockBodiesInsteadOfDroppingThemIntoExpressionBodies()
+    {
+        const string source = "class Sample { int Value() { // keep method rationale\nreturn 1; } int Property { get { /* keep getter rationale */ return 2; } } }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("// keep method rationale");
+        await Assert.That(result).Contains("/* keep getter rationale */");
+        await Assert.That(result).Contains("int Value() {");
+        await Assert.That(result).Contains("get {");
+    }
+
+    [Test]
+    public async Task KeepsTargetTypedObjectInitializersAndConvertsExplicitListInitializers()
+    {
+        const string source = "class Customer { public string Name { get; set; } = \"\"; public int Age { get; set; } } class Sample { Customer customer = new() { Name = \"Alice\", Age = 35 }; IReadOnlyList<int> values = new List<int> { 1, 2 }; List<int> concrete = new() { 3, 4 }; }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("Customer customer = new() { Name = \"Alice\", Age = 35 }");
+        await Assert.That(result).Contains("IReadOnlyList<int> values = [1, 2]");
+        await Assert.That(result).Contains("List<int> concrete = [3, 4]");
+        await Assert.That(CSharpSyntaxTree.ParseText(result).GetDiagnostics().Any(diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)).IsFalse();
+    }
+
+    [Test]
+    public async Task FormatsTheWholeParameterListVerticallyAndConverges()
+    {
+        const string source = "class Sample {\n    public void Process(Customer customer, ProcessingOptions options, CancellationToken cancellationToken) { }\n}";
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        await Assert.That(first).Contains("Process(\n        Customer customer,\n        ProcessingOptions options,\n        CancellationToken cancellationToken\n    )");
+        await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task InlinesOutDeclarationAndAllowsFollowingUse()
+    {
+        const string source = "class Sample { void Run(string input) { int result; TryParse(input, out result); Console.WriteLine(result); } }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("TryParse(input, out int result);");
+        await Assert.That(result).Contains("Console.WriteLine(result);");
+    }
+
+    [Test]
+    public async Task ResolvesRetainsFromOwningConstructAcrossModernizationAndLayoutRules()
+    {
+        const string source = "class Sample {\n// autoformat:retain modernization.collection-expression -- keep chosen list construction\nIReadOnlyList<int> Values = new List<int> { 1, 2, 3 };\n// autoformat:retain readability.parameters -- preserve compact declaration\nvoid Keep(int one, int two, int three) { }\nvoid Wrap(int one, int two, int three) { }\nvoid Run() { int answer = 1;\n// autoformat:retain readability.visual-block -- keep adjacent statements\nif (answer > 0) { answer++; }\n// autoformat:retain modernization.inline-declaration -- retain explicit local\nint result;\nTry(out result);\n} }";
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        await Assert.That(first).Contains("Values = new List<int> { 1, 2, 3 }");
+        await Assert.That(first).Contains("Keep(int one, int two, int three)");
+        await Assert.That(first).Contains("Wrap(\n");
+        await Assert.That(first).Contains("answer = 1;\n// autoformat:retain readability.visual-block -- keep adjacent statements\nif");
+        await Assert.That(first).Contains("int result;");
+        await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task RetainedLongLineAndBlankSpacingStayLocalToTheirRule()
+    {
+        string longArgument = new string('x', 130);
+        string source = "class Sample {\nvoid Run() {\n// autoformat:retain readability.long-line -- keep this diagnostic invocation intact\nCall(\"" + longArgument + "\");\n}\n// autoformat:retain readability.comments -- preserve authored spacing\nvoid Keep() {\n\n\nCall();\nCallAgain();\n}\n}";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("Call(\"" + longArgument + "\")");
+        await Assert.That(result).Contains("void Keep() {\n\n\nCall();");
+        await Assert.That(result).Contains("Call();");
+    }
+
+    [Test]
+    public async Task RestoresOnlyRetainedMemberCommentIndentationAfterSdkWhitespace()
+    {
+        const string source = "class Sample {\n // autoformat:retain readability.comments -- preserve comment indentation\n void Keep() {\n // preserve this comment\n Call();\n CallAgain();\n }\n}";
+        IReadOnlyList<CSharpCanonicalizer.RetainedCommentIndentation> retained = CSharpCanonicalizer.CaptureRetainedCommentIndentation(source);
+        await Assert.That(retained.Count).IsEqualTo(2);
+        string sdkFormatted = source.Replace("\n // autoformat", "\n    // autoformat", StringComparison.Ordinal)
+            .Replace("\n // preserve this comment", "\n        // preserve this comment", StringComparison.Ordinal);
+        await Assert.That(CSharpCanonicalizer.RestoreRetainedCommentIndentation(sdkFormatted, retained)).IsEqualTo(source);
+    }
+
+    [Test]
+    public async Task ConvertsSwitchAssignmentsToSwitchExpressions()
+    {
+        const string source = "class Sample { int Pick(int value) { int result; switch (value) { case 0: result = 10; break; default: result = 20; break; } return result; } }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("result = value switch");
+        await Assert.That(result).Contains("0 => 10");
+        await Assert.That(result).Contains("_ => 20");
     }
 
     [Test]

@@ -8,6 +8,8 @@ namespace DotNetAiWorkbench.Autoformat.Core;
 /// <summary>Opinionated, source-only C# canonicalizations. This deliberately does not compile consumer projects.</summary>
 internal static class CSharpCanonicalizer
 {
+    internal readonly record struct RetainedCommentIndentation(string Text, string Indentation);
+
     internal static readonly string[] Rules =
     [
         "modernization.var-style", "modernization.expression-body", "modernization.collection-expression",
@@ -19,7 +21,6 @@ internal static class CSharpCanonicalizer
     internal static string Normalize(string source, CSharpParseOptions? parseOptions, out IReadOnlyList<string> notices)
     {
         var messages = new List<string>();
-        string newline = source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         parseOptions ??= new CSharpParseOptions(LanguageVersion.Default);
         var tree = CSharpSyntaxTree.ParseText(source, parseOptions);
         SyntaxNode root = tree.GetRoot();
@@ -27,18 +28,78 @@ internal static class CSharpCanonicalizer
         bool supportsCSharp12 = parseOptions.LanguageVersion >= LanguageVersion.CSharp12;
         SyntaxNode rewritten = new CanonicalRewriter(supportsCSharp12).Visit(root)!;
         rewritten = new CanonicalRewriter(supportsCSharp12).Visit(rewritten)!;
-        rewritten = new LayoutRewriter(newline).Visit(rewritten)!;
+        string result = NormalizeLayout(rewritten.ToFullString(), out IReadOnlyList<string> layoutNotices);
+        messages.AddRange(layoutNotices);
+        notices = messages.Distinct(StringComparer.Ordinal).ToArray();
+        return result;
+    }
+
+    internal static string NormalizeLayout(string source, out IReadOnlyList<string> notices)
+    {
+        string newline = source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        SyntaxNode root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        SyntaxNode rewritten = new LayoutRewriter(newline).Visit(root)!;
         rewritten = new BlankLineRewriter().Visit(rewritten)!;
         string result = rewritten.ToFullString();
         int remainingLongLines = Microsoft.CodeAnalysis.Text.SourceText.From(result).Lines
             .Count(line => line.Span.Length > 120 && !result[line.Start..line.End].TrimStart().StartsWith("//", StringComparison.Ordinal));
-        if (remainingLongLines > 0)
-        {
-            messages.Add($"{remainingLongLines} source line(s) remain over the 120-character soft target where no supported syntax wrapping boundary was applied.");
-        }
-        notices = messages.Distinct(StringComparer.Ordinal).ToArray();
+        notices = remainingLongLines > 0
+            ? [$"{remainingLongLines} source line(s) remain over the 120-character soft target where no supported syntax wrapping boundary was applied."]
+            : [];
         return result;
     }
+
+    internal static IReadOnlyList<RetainedCommentIndentation> CaptureRetainedCommentIndentation(string source)
+    {
+        SyntaxNode root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        return root.DescendantTrivia(descendIntoTrivia: true)
+            .Where(IsCommentTrivia)
+            .Where(trivia => trivia.Token.Parent is not null && Retained(trivia.Token.Parent, "readability.comments"))
+            .Select(trivia => (Trivia: trivia, LineStart: source.LastIndexOf('\n', Math.Max(0, trivia.SpanStart - 1)) + 1))
+            .Where(item => source.AsSpan(item.LineStart, item.Trivia.SpanStart - item.LineStart).IndexOfAnyExcept(' ', '\t') < 0)
+            .Select(item => new RetainedCommentIndentation(item.Trivia.ToFullString(), source[item.LineStart..item.Trivia.SpanStart]))
+            .ToArray();
+    }
+
+    internal static string RestoreRetainedCommentIndentation(string source, IReadOnlyList<RetainedCommentIndentation> retained)
+    {
+        if (retained.Count == 0)
+        {
+            return source;
+        }
+
+        var available = retained.GroupBy(item => item.Text, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => new Queue<string>(group.Select(item => item.Indentation)), StringComparer.Ordinal);
+        SyntaxNode root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var changes = new List<(int Start, int Length, string Text)>();
+        foreach (SyntaxTrivia trivia in root.DescendantTrivia(descendIntoTrivia: true).Where(IsCommentTrivia))
+        {
+            if (trivia.Token.Parent is null || !Retained(trivia.Token.Parent, "readability.comments")
+                || !available.TryGetValue(trivia.ToFullString(), out Queue<string>? indentations) || indentations.Count == 0)
+            {
+                continue;
+            }
+
+            string indentation = indentations.Dequeue();
+            int lineStart = source.LastIndexOf('\n', Math.Max(0, trivia.SpanStart - 1)) + 1;
+            ReadOnlySpan<char> prefix = source.AsSpan(lineStart, trivia.SpanStart - lineStart);
+            if (prefix.IndexOfAnyExcept(' ', '\t') < 0 && !prefix.SequenceEqual(indentation.AsSpan()))
+            {
+                changes.Add((lineStart, prefix.Length, indentation));
+            }
+        }
+
+        foreach ((int start, int length, string text) in changes.OrderByDescending(change => change.Start))
+        {
+            source = source[..start] + text + source[(start + length)..];
+        }
+
+        return source;
+    }
+
+    private static bool IsCommentTrivia(SyntaxTrivia trivia) => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
+        || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia) || trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+        || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia);
 
     private static void ValidateRetains(SyntaxNode root, List<string> notices)
     {
@@ -60,16 +121,37 @@ internal static class CSharpCanonicalizer
 
     private static bool Retained(SyntaxNode node, string id)
     {
-        SyntaxTriviaList trivia = node.GetLeadingTrivia();
-        string? text = trivia.LastOrDefault(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia)).ToString();
-        if (text is null)
+        IEnumerable<SyntaxNode> owners = node.AncestorsAndSelf().Where(IsRetainOwner);
+        if (id == "readability.comments")
         {
+            foreach (SyntaxNode owner in owners)
+            {
+                if (HasRetain(owner, id))
+                {
+                    return true;
+                }
+
+                if (owner is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or PropertyDeclarationSyntax
+                    or FieldDeclarationSyntax or BaseTypeDeclarationSyntax)
+                {
+                    break;
+                }
+            }
+
             return false;
         }
 
-        Match match = Regex.Match(text, @"^\s*//\s*autoformat:retain\s+(?<id>[a-z0-9.-]+)\s+--\s+(?<reason>\S.*\S|\S)\s*$", RegexOptions.CultureInvariant);
-        return match.Success && match.Groups["id"].Value == id;
+        SyntaxNode? directOwner = owners.FirstOrDefault();
+        return directOwner is not null && HasRetain(directOwner, id);
     }
+
+    private static bool HasRetain(SyntaxNode owner, string id) => owner.GetLeadingTrivia().Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia))
+            .Select(t => Regex.Match(t.ToString(), @"^\s*//\s*autoformat:retain\s+(?<id>[a-z0-9.-]+)\s+--\s+(?<reason>\S.*\S|\S)\s*$", RegexOptions.CultureInvariant))
+            .Any(match => match.Success && match.Groups["id"].Value == id);
+
+    private static bool IsRetainOwner(SyntaxNode node) => node is StatementSyntax or BaseMethodDeclarationSyntax
+        or PropertyDeclarationSyntax or FieldDeclarationSyntax or EventDeclarationSyntax or BaseTypeDeclarationSyntax
+        or AccessorDeclarationSyntax or LocalFunctionStatementSyntax;
 
     private sealed class CanonicalRewriter(bool supportsCSharp12) : CSharpSyntaxRewriter
     {
@@ -125,7 +207,7 @@ internal static class CSharpCanonicalizer
         {
             node = (ObjectCreationExpressionSyntax)base.VisitObjectCreationExpression(node)!;
             if (supportsCSharp12 && node.Initializer is { Expressions.Count: > 0 } init && !HasComments(node) && !HasUntargetedVar(node) && Retained(node, "modernization.collection-expression") == false
-                && (node.Type.ToString().StartsWith("List<", StringComparison.Ordinal) || node.Type.ToString().EndsWith("[]", StringComparison.Ordinal)))
+                && IsKnownListType(node.Type))
             {
                 return SyntaxFactory.ParseExpression("[" + string.Join(", ", init.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
             }
@@ -136,18 +218,66 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitImplicitObjectCreationExpression(ImplicitObjectCreationExpressionSyntax node)
         {
             node = (ImplicitObjectCreationExpressionSyntax)base.VisitImplicitObjectCreationExpression(node)!;
-            if (supportsCSharp12 && node.Initializer is { Expressions.Count: > 0 } init && !HasComments(node) && !HasUntargetedVar(node) && !Retained(node, "modernization.collection-expression"))
+            TypeSyntax? target = GetDirectTargetType(node);
+            if (supportsCSharp12 && target is not null && IsKnownListType(target)
+                && node.Initializer is { Expressions.Count: > 0 } init && !HasComments(node)
+                && !HasUntargetedVar(node) && !Retained(node, "modernization.collection-expression"))
             {
                 return SyntaxFactory.ParseExpression("[" + string.Join(", ", init.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
             }
 
+            // Target-typed `new()` is converted only when its direct syntactic target identifies List<T>.
+            // Arbitrary DTO/object initializers remain object initializers.
             return node;
+        }
+
+        private static TypeSyntax? GetDirectTargetType(ImplicitObjectCreationExpressionSyntax node)
+        {
+            if (node.Parent is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax variable }
+                && variable.Parent is VariableDeclarationSyntax declaration && !declaration.Type.IsVar)
+            {
+                return declaration.Type;
+            }
+
+            if (node.Parent is EqualsValueClauseSyntax { Parent: PropertyDeclarationSyntax property })
+            {
+                return property.Type;
+            }
+
+            if (node.Parent is ReturnStatementSyntax && node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is MethodDeclarationSyntax method)
+            {
+                return method.ReturnType;
+            }
+
+            if (node.Parent is ArrowExpressionClauseSyntax && node.Parent.Parent is MethodDeclarationSyntax expressionMethod)
+            {
+                return expressionMethod.ReturnType;
+            }
+
+            return null;
+        }
+
+        private static bool IsKnownListType(TypeSyntax type)
+        {
+            SimpleNameSyntax? name = type switch
+            {
+                GenericNameSyntax generic => generic,
+                QualifiedNameSyntax qualified => qualified.Right,
+                AliasQualifiedNameSyntax alias => alias.Name,
+                _ => null
+            };
+            return name is GenericNameSyntax genericName && genericName.Identifier.ValueText == "List";
         }
 
         public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
             node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node)!;
             if (Retained(node, "modernization.expression-body") || node.ExpressionBody is not null || node.Body is null || node.Body.Statements.Count != 1)
+            {
+                return node;
+            }
+
+            if (HasProtectedTrivia(node.Body))
             {
                 return node;
             }
@@ -165,6 +295,11 @@ internal static class CSharpCanonicalizer
             }
 
             AccessorDeclarationSyntax accessor = node.AccessorList.Accessors[0];
+            if (accessor.Body is null || HasProtectedTrivia(accessor.Body))
+            {
+                return node;
+            }
+
             ExpressionSyntax? expression = accessor.Body?.Statements.Count == 1 && accessor.Body.Statements[0] is ReturnStatementSyntax { Expression: not null } ret ? ret.Expression : null;
             if (expression is null || accessor.Keyword.IsKind(SyntaxKind.SetKeyword))
             {
@@ -203,17 +338,48 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitSwitchStatement(SwitchStatementSyntax node)
         {
             node = (SwitchStatementSyntax)base.VisitSwitchStatement(node)!;
-            if (HasComments(node) || Retained(node, "modernization.switch-expression") || node.Sections.Any(s => s.Labels.Count != 1 || s.Statements.Count != 1))
+            if (HasComments(node) || Retained(node, "modernization.switch-expression") || node.Sections.Any(s => s.Labels.Count != 1))
             {
                 return node;
             }
 
             var arms = new List<string>();
-            bool returns = true;
+            string? assignmentTarget = null;
+            bool? returns = null;
             foreach (SwitchSectionSyntax section in node.Sections)
             {
-                string? value = section.Statements[0] switch { ReturnStatementSyntax { Expression: not null } r => r.Expression.ToString(), _ => null };
-                if (value is null)
+                string? value;
+                if (section.Statements.Count == 1 && section.Statements[0] is ReturnStatementSyntax { Expression: not null } r)
+                {
+                    if (returns == false)
+                    {
+                        return node;
+                    }
+
+                    returns = true;
+                    value = r.Expression.ToString();
+                }
+                else if (section.Statements.Count == 2
+                    && section.Statements[0] is ExpressionStatementSyntax { Expression: AssignmentExpressionSyntax assignment }
+                    && assignment.IsKind(SyntaxKind.SimpleAssignmentExpression)
+                    && section.Statements[1] is BreakStatementSyntax)
+                {
+                    if (returns == true)
+                    {
+                        return node;
+                    }
+
+                    returns = false;
+                    string target = assignment.Left.ToString();
+                    if (assignmentTarget is not null && assignmentTarget != target)
+                    {
+                        return node;
+                    }
+
+                    assignmentTarget = target;
+                    value = assignment.Right.ToString();
+                }
+                else
                 {
                     return node;
                 }
@@ -226,8 +392,15 @@ internal static class CSharpCanonicalizer
 
                 arms.Add(label + " => " + value);
             }
+            if (returns is null)
+            {
+                return node;
+            }
             ExpressionSyntax converted = SyntaxFactory.ParseExpression(node.Expression + " switch { " + string.Join(", ", arms) + " }");
-            return returns ? SyntaxFactory.ReturnStatement(converted).WithTriviaFrom(node) : node;
+            StatementSyntax replacement = returns.Value
+                ? SyntaxFactory.ReturnStatement(converted)
+                : SyntaxFactory.ParseStatement($"{assignmentTarget} = {converted};");
+            return replacement.WithTriviaFrom(node);
         }
 
         public override SyntaxNode? VisitBlock(BlockSyntax node)
@@ -335,8 +508,12 @@ internal static class CSharpCanonicalizer
             return type.WithParameterList(SyntaxFactory.ParameterList(ctor.ParameterList.Parameters)).WithMembers(SyntaxFactory.List(members));
         }
 
-        private static bool HasComments(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
-            .Any(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia));
+        private static bool HasComments(SyntaxNode node) => HasProtectedTrivia(node);
+
+        private static bool HasProtectedTrivia(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
+            .Any(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                || t.IsKind(SyntaxKind.DisabledTextTrivia)
+                || t.HasStructure && t.GetStructure() is DocumentationCommentTriviaSyntax or DirectiveTriviaSyntax);
 
         private static bool HasUntargetedVar(SyntaxNode node) => node.Ancestors().OfType<VariableDeclarationSyntax>().Any(v => v.Type.IsVar);
         private static string LeftName(ExpressionSyntax expression) => expression is MemberAccessExpressionSyntax member ? member.Name.Identifier.ValueText : expression is IdentifierNameSyntax identifier ? identifier.Identifier.ValueText : "";
@@ -384,25 +561,35 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitParameterList(ParameterListSyntax node)
         {
             node = (ParameterListSyntax)base.VisitParameterList(node)!;
-            if ((node.Parameters.Count < 3 && node.Parameters.ToString().Length < 100) || HasComments(node))
+            if ((node.Parameters.Count < 3 && node.Parameters.ToString().Length < 100)
+                || HasProtectedTrivia(node) || Retained(node, "readability.parameters"))
             {
                 return node;
             }
 
+            string indentation = new(' ', IndentDepth(node) * 4);
+            string parameterIndentation = indentation + "    ";
+            node = node.WithOpenParenToken(node.OpenParenToken.WithTrailingTrivia(NewLineIndent(parameterIndentation)));
             SeparatedSyntaxList<ParameterSyntax> parameters = node.Parameters;
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                ParameterSyntax parameter = parameters[i];
+                parameters = parameters.Replace(parameter, parameter.WithoutLeadingTrivia().WithoutTrailingTrivia());
+            }
+
             for (int i = 0; i < parameters.SeparatorCount; i++)
             {
                 SyntaxToken separator = parameters.GetSeparator(i);
-                parameters = parameters.ReplaceSeparator(separator, separator.WithTrailingTrivia(IndentTrivia(node, separator.TrailingTrivia)));
+                parameters = parameters.ReplaceSeparator(separator, separator.WithTrailingTrivia(NewLineIndent(parameterIndentation)));
             }
 
-            return node.WithParameters(parameters);
+            return node.WithParameters(parameters).WithCloseParenToken(node.CloseParenToken.WithLeadingTrivia(NewLineIndent(indentation)));
         }
 
         public override SyntaxNode? VisitArgumentList(ArgumentListSyntax node)
         {
             node = (ArgumentListSyntax)base.VisitArgumentList(node)!;
-            if (node.ToString().Length < 120 || HasComments(node))
+            if (node.ToString().Length < 120 || HasProtectedTrivia(node) || Retained(node, "readability.long-line"))
             {
                 return node;
             }
@@ -420,7 +607,7 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitCollectionExpression(CollectionExpressionSyntax node)
         {
             node = (CollectionExpressionSyntax)base.VisitCollectionExpression(node)!;
-            if (node.ToString().Length < 120 || HasComments(node))
+            if (node.ToString().Length < 120 || HasProtectedTrivia(node) || Retained(node, "readability.long-line"))
             {
                 return node;
             }
@@ -438,7 +625,7 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitInitializerExpression(InitializerExpressionSyntax node)
         {
             node = (InitializerExpressionSyntax)base.VisitInitializerExpression(node)!;
-            if (node.ToString().Length < 120 || HasComments(node))
+            if (node.ToString().Length < 120 || HasProtectedTrivia(node) || Retained(node, "readability.long-line"))
             {
                 return node;
             }
@@ -456,7 +643,7 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitBinaryExpression(BinaryExpressionSyntax node)
         {
             node = (BinaryExpressionSyntax)base.VisitBinaryExpression(node)!;
-            if ((!node.IsKind(SyntaxKind.LogicalAndExpression) && !node.IsKind(SyntaxKind.LogicalOrExpression)) || node.Span.Length < 120 || HasComments(node))
+            if ((!node.IsKind(SyntaxKind.LogicalAndExpression) && !node.IsKind(SyntaxKind.LogicalOrExpression)) || node.Span.Length < 120 || HasProtectedTrivia(node) || Retained(node, "readability.long-line"))
             {
                 return node;
             }
@@ -467,7 +654,7 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
             node = (MemberAccessExpressionSyntax)base.VisitMemberAccessExpression(node)!;
-            if (node.Parent is not InvocationExpressionSyntax invocation || invocation.Span.Length < 120 || HasComments(invocation))
+            if (node.Parent is not InvocationExpressionSyntax invocation || invocation.Span.Length < 120 || HasProtectedTrivia(invocation) || Retained(invocation, "readability.long-line"))
             {
                 return node;
             }
@@ -498,8 +685,7 @@ internal static class CSharpCanonicalizer
                     continue;
                 }
 
-                if (statements.Skip(i + 1).SelectMany(s => s.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
-                    .Count(id => id.Identifier.ValueText == variable.Identifier.ValueText) != 1 || HasComments(local) || HasComments(statements[i + 1]))
+                if (HasProtectedTrivia(local) || HasProtectedTrivia(statements[i + 1]))
                 {
                     continue;
                 }
@@ -517,7 +703,10 @@ internal static class CSharpCanonicalizer
                     continue;
                 }
 
-                if (currentFlow || previousFlow)
+                if ((currentFlow || previousFlow)
+                    && !Retained(statements[i], "readability.visual-block")
+                    && !Retained(statements[i - 1], "readability.visual-block")
+                    && !HasDirectiveTrivia(statements[i]) && !HasDirectiveTrivia(statements[i - 1]))
                 {
                     StatementSyntax statement = statements[i];
                     statement = statement.WithLeadingTrivia(SyntaxFactory.TriviaList(SyntaxFactory.EndOfLine(newline)).AddRange(statement.GetLeadingTrivia()));
@@ -530,8 +719,16 @@ internal static class CSharpCanonicalizer
         private static bool IsFlow(StatementSyntax statement) => statement is IfStatementSyntax or SwitchStatementSyntax or ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax or TryStatementSyntax or UsingStatementSyntax or LockStatementSyntax;
         private static bool HasBlankBoundary(StatementSyntax statement) => statement.GetLeadingTrivia().ToFullString().Contains("\n\n", StringComparison.Ordinal) || statement.GetLeadingTrivia().ToFullString().Contains("\r\n\r\n", StringComparison.Ordinal);
 
-        private static bool HasComments(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
-            .Any(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia));
+        private static bool HasProtectedTrivia(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
+            .Any(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                || t.IsKind(SyntaxKind.DisabledTextTrivia)
+                || t.HasStructure && t.GetStructure() is DocumentationCommentTriviaSyntax or DirectiveTriviaSyntax);
+
+        private static bool HasDirectiveTrivia(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
+            .Any(t => t.IsKind(SyntaxKind.DisabledTextTrivia)
+                || t.HasStructure && t.GetStructure() is DirectiveTriviaSyntax);
+
+        private SyntaxTriviaList NewLineIndent(string indentation) => SyntaxFactory.TriviaList(SyntaxFactory.EndOfLine(newline), SyntaxFactory.Whitespace(indentation));
 
         private SyntaxTriviaList IndentTrivia(SyntaxNode node, SyntaxTriviaList existing)
         {
@@ -540,11 +737,12 @@ internal static class CSharpCanonicalizer
                 return existing;
             }
 
-            int depth = node.Ancestors().Count(ancestor => ancestor is TypeDeclarationSyntax or NamespaceDeclarationSyntax
-                or FileScopedNamespaceDeclarationSyntax or BlockSyntax or SwitchSectionSyntax);
-            string indent = new(' ', (depth + 1) * 4);
+            string indent = new(' ', (IndentDepth(node) + 1) * 4);
             return SyntaxFactory.TriviaList(SyntaxFactory.EndOfLine(newline), SyntaxFactory.Whitespace(indent));
         }
+
+        private static int IndentDepth(SyntaxNode node) => node.Ancestors().Count(ancestor => ancestor is TypeDeclarationSyntax or NamespaceDeclarationSyntax
+            or FileScopedNamespaceDeclarationSyntax or BlockSyntax or SwitchSectionSyntax);
     }
 
     private sealed class BlankLineRewriter : CSharpSyntaxRewriter
@@ -552,6 +750,11 @@ internal static class CSharpCanonicalizer
         public override SyntaxToken VisitToken(SyntaxToken token)
         {
             token = base.VisitToken(token);
+            if (token.Parent is not null && Retained(token.Parent, "readability.comments"))
+            {
+                return token;
+            }
+
             return token.WithLeadingTrivia(Compact(token.LeadingTrivia)).WithTrailingTrivia(Compact(token.TrailingTrivia));
         }
 

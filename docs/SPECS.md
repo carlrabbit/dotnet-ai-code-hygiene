@@ -4,14 +4,14 @@
 
 `dotnet-ai-code-hygiene` is the historical repository identity for a .NET AI Workbench monorepo. It ships independent `dotnet autoformat` and transitional `dotnet hygiene` tools. Autoformat is the opinionated C# canonicalizer and sole owner of mechanical `.editorconfig` formatting policy. Hygiene retains its live semantic-review and lifecycle capabilities and calls Autoformat for formatting.
 
-It owns a supported hygiene policy rather than attempting compatibility with arbitrary analyzer stacks.
+The Hygiene tool owns a supported review/profile policy; Autoformat independently owns source canonicalization rather than attempting compatibility with arbitrary analyzer stacks.
 
 The product combines:
 
 ```text
 supported .NET profile
 deterministic bootstrap/update
-deterministic rule-owned format/normalize remediation
+independent Autoformat canonicalization and SDK formatting
 deterministic hygiene findings
 gate-local semantic review/handoff
 ```
