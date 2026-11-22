@@ -52,6 +52,27 @@ Use focused deterministic checks and shared fixtures during broad implementation
 
 Review cost is a separate production constraint. Rule inclusion and gate budgets must consider expensive agent attention, not just fast C# detector execution. A legitimate `acceptable; no code change` outcome is useful evidence, not a failed experiment.
 
+## Local planning ownership and guide adoption
+
+This project uses its pinned agentic guide as shared methodology, while `docs/PROJECT-GUIDANCE.md` and operative engineering/specification documents own **project-specific interpretations and decisions**. Local observations do not become shared guide requirements automatically.
+
+- The **planner/project owner** owns guide adoption, local profile/pin selection, and reconciliation of project-level normative agent/planning authority. Apply straightforward methodology/metadata/routing updates directly in a distinct authorized project change; do not manufacture an implementation milestone and hand methodology interpretation to an ordinary product implementer. Only a substantial, already resolved coordinated migration warrants its own implementation handoff.
+- Keep guide adoption conceptually separate from a product correction or exploratory experiment. The product implementer executes the ready contract and updates directly affected product code, tests, and documentation, but does **not** decide how shared methodology should change or silently reclassify project authority.
+- Historical experiments and completed milestones remain evidence. Promote enduring conclusions into applicable **project-owned** authority for future planning; do not silently expand an existing ready milestone or retroactively rewrite completed obligations.
+
+## Autoformat and SDK-backed validation economics
+
+Autoformat combines **project-owned** Roslyn canonicalization/layout and orchestration with **SDK-owned** formatting and style fixes (including unused-import removal through `IDE0005`). Maintain this ownership boundary: inspect and test our command arguments, project/restore context, phase integration, source safety, and check-versus-mutate behavior; do not independently reproduce the SDK's unused-import algorithm or test its entire ruleset. If SDK behavior fails under our invocation, investigate the SDK execution context first rather than inventing a replacement analyzer.
+
+For each proposed fixture, integration run, real-repository exercise, or test retained in the default suite, ask **what distinct material failure it can reveal beyond checks already planned or performed**, and account for both one-time and recurring cost. Agent-generated tests are not free to execute: repeated `dotnet restore`, MSBuild/Roslyn workspace initialization, analyzer loading, and `dotnet format` subprocesses can dominate normal feedback.
+
+- Prefer fast deterministic tests for our custom transformations, configuration, argument forwarding, and orchestrator decisions. Use a real SDK invocation only where the SDK/project boundary is material to correctness or the implementation is otherwise not credibly established.
+- An explicitly authorized, reproducible real-repository experiment **may supply the milestone's real SDK integration evidence**. Do **not** also require a synthetic SDK-style fixture for substantially the same behavior by default. A separate fixture or permanent integration regression is warranted when it contributes distinct failure isolation, repeatability, future regression detection, or consequence coverage sufficient to justify its continuing cost.
+- Keep exploratory real-repository workloads **outside the default automated suite**. If an existing SDK integration test is expensive, avoid running it unconditionally during every narrow change unless its diagnostic value warrants that cost. Do not split test projects, add categories or create new orchestration infrastructure solely to enforce a conceptual unit/integration/release taxonomy.
+- Package creation, installed `dotnet-autoformat` invocation, and consumer-distribution checks belong to **release qualification** unless the milestone itself changes that boundary or a demonstrated material risk demands earlier testing. A source-project diagnostic build can explain formatter-induced breakage without becoming an unconditional Autoformat runtime or milestone gate.
+
+Future milestone planners must select the **cheapest sufficient non-duplicative evidence** for the actual suspected defects. This guidance applies prospectively; it does not amend the already ready M0029 acceptance contract.
+
 ## Application to the next semantic portfolio milestone
 
 M0025 is a planning candidate, **not declared ready by this document**. Candidate families include abstraction necessity, delegation overhead, mechanism explicitness, type responsibility, duplicated authority, lifecycle boundaries, behavioral contract/error handling, and test evidence quality. Inventory and critically reassess existing rules before expanding; BORINGness may be decomposed, merged with type-responsibility, or removed without compatibility preservation.
