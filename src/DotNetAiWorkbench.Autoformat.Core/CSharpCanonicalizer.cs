@@ -713,17 +713,6 @@ internal static class CSharpCanonicalizer
             return node.WithOperatorToken(node.OperatorToken.WithTrailingTrivia(IndentTrivia(node, node.OperatorToken.TrailingTrivia)));
         }
 
-        public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
-        {
-            node = (MemberAccessExpressionSyntax)base.VisitMemberAccessExpression(node)!;
-            if (node.Parent is not InvocationExpressionSyntax invocation || invocation.Span.Length < 120 || HasProtectedTrivia(invocation) || Retained(invocation, "readability.long-line"))
-            {
-                return node;
-            }
-
-            return node.WithOperatorToken(node.OperatorToken.WithLeadingTrivia(IndentTrivia(node, node.OperatorToken.LeadingTrivia)));
-        }
-
         public override SyntaxNode? VisitBlock(BlockSyntax node)
         {
             node = (BlockSyntax)base.VisitBlock(node)!;

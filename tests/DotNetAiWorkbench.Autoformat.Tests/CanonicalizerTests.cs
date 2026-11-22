@@ -1,5 +1,6 @@
 using DotNetAiWorkbench.Autoformat.Core;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace DotNetAiWorkbench.Autoformat.Tests;
@@ -218,6 +219,47 @@ public class CanonicalizerTests
         await Assert.That(result).Contains("IEnumerable<int> LocalItems() { return [3, 4]; }");
         await Assert.That(result).Contains("Func<object> callback = () => { return new[] { 5, 6 }; }");
         await Assert.That(result).Contains("return [7, 8];");
+    }
+
+    [Test]
+    public async Task LongInvocationsDoNotCreateBlankLinesBeforeMemberAccess()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using System.Linq;
+            class Sample {
+              async Task Run(IEnumerable<string> items) {
+                await ContentPackages.PackInitialAsync("first argument with enough words to make this invocation exceed the soft line target", "second argument with enough words to make this invocation exceed the soft line target");
+                Console.Out.WriteLine("message with enough words to make this invocation exceed the soft line target and exercise the outer member access");
+                var chain = items
+                    // Keep this existing multiline fluent chain and its explanation.
+                    .Select(item => item.Trim())
+                    .Where(item => item.Length > 0)
+                    .ToArray();
+                // autoformat:retain readability.long-line -- Preserve this invocation's chosen layout.
+                await ContentPackages.PackInitialAsync("retained argument with enough words to make the invocation exceed the soft line target", "second retained argument also makes the invocation exceed the soft line target");
+              }
+            }
+            """;
+
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        string finalLayout = CSharpCanonicalizer.NormalizeLayout(first, out _);
+        static bool HasBlankLineBeforeDot(string text)
+        {
+            string[] lines = Regex.Split(text, "\\r\\n|\\r|\\n");
+            return Enumerable.Range(1, lines.Length - 1)
+                .Any(index => string.IsNullOrWhiteSpace(lines[index - 1]) && lines[index].TrimStart().StartsWith('.', StringComparison.Ordinal));
+        }
+
+        await Assert.That(HasBlankLineBeforeDot(first)).IsFalse();
+        await Assert.That(HasBlankLineBeforeDot(finalLayout)).IsFalse();
+        await Assert.That(first).Contains("await ContentPackages.PackInitialAsync");
+        await Assert.That(first).Contains("Console.Out.WriteLine");
+        await Assert.That(first).Contains(".Select(item => item.Trim())");
+        await Assert.That(first).Contains("Keep this existing multiline fluent chain and its explanation.");
+        await Assert.That(first).Contains("autoformat:retain readability.long-line -- Preserve this invocation's chosen layout.");
+        await Assert.That(second).IsEqualTo(first);
     }
 
     [Test]

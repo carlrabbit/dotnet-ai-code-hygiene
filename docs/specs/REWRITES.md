@@ -41,7 +41,7 @@ The annotation must have the form `// autoformat:retain <rule-id> -- <non-empty 
 
 ## Layout and whitespace
 
-The syntax phase adds visual separation around ordinary statements and control-flow statements, places method/signature parameter lists with three or more parameters vertically with the closing delimiter on its own line, and adds stable breaks to long invocation argument lists, collection expressions, initializers, boolean chains and fluent member chains where syntax provides safe boundaries. The 120-character goal is a soft target; identifiers, literals, comments, directives and XML prose are not split. Ordinary SDK whitespace formatting handles indentation, including comments, and the source newline style is carried through custom line breaks.
+The syntax phase adds visual separation around ordinary statements and control-flow statements, places method/signature parameter lists with three or more parameters vertically with the closing delimiter on its own line, and adds stable breaks to long invocation argument lists, collection expressions, initializers and boolean chains where syntax provides safe boundaries. It keeps receiver/member-access pairs together and preserves existing multiline fluent chains without inserting an empty line before `.`. The 120-character goal is a soft target; identifiers, literals, comments, directives and XML prose are not split. Ordinary SDK whitespace formatting handles indentation, including comments, and the source newline style is carried through custom line breaks.
 
 ## SDK style phase
 
