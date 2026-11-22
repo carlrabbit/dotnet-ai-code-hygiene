@@ -89,7 +89,7 @@ Planning authorizes workbench source/tests/docs on a separate implementation bra
 
 ## Completion note
 
-**State:** implementation complete on `implementation/m0030-autoformat-correctness-check-performance`, based at the exact planning commit `f1b4c9d1804ce11a3102451dd2ffcdd2706a9567`. The implementation PR targets the existing `planning/m0030-autoformat-correctness-check-performance` branch.
+**State:** implementation complete in [PR #41](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/41) on `implementation/m0030-autoformat-correctness-check-performance`, based at exact planning commit `f1b4c9d1804ce11a3102451dd2ffcdd2706a9567` and targeting the existing `planning/m0030-autoformat-correctness-check-performance` branch.
 
 Implemented valid rank-only array declaration type synthesis; solution-preserving check-only shadow batching; positional record/signature indentation for file-scoped namespaces; whitespace-only blank-line compaction across member boundaries; and deterministic source-to-source boundaries for all nine modernization families. `format` remains SDK whitespace-only. Updated the Autoformat rewrite specification and recorded the experiment in `docs/research/M0030-autoformat-yadg-revalidation.md`.
 

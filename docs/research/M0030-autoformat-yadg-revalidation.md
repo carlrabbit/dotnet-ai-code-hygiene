@@ -9,7 +9,7 @@ This records the M0030 Autoformat experiment requested by the ready milestone. I
 | YADG baseline and `main` at inspection | `dafa75ab7f4032d8ac85599f7a7c951fec49f6d1` |
 | Existing policy commit | `3e92361417315fa09cdd0808066ef3b77f795b68` |
 | Existing initial raw-output commit | `3f40f1a44d7782925148b16cc3bbcf6502ad41ae` |
-| M0030 formatter source | `TBD: fill with implementation commit` |
+| M0030 formatter source | `87383ad18ee0b9db1cbe98617d8d4fcdd93411fb` |
 | M0030 appended raw-output commit | `f6eea796487418f7679f763d52f632962e2d5794` |
 | Toolchain | Windows; .NET SDK `11.0.100-rc.3.26522.148`; Git `2.56.0.windows.4` |
 | Draft PR | [carlrabbit/yadg#22](https://github.com/carlrabbit/yadg/pull/22), open and **DO NOT MERGE** |

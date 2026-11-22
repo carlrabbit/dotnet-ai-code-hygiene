@@ -4,7 +4,7 @@
 
 **Milestone:** `docs/milestones/M0030-autoformat-correctness-check-performance.md`  
 **Planning base:** workbench `main` at `66ed726b505bac2457e0edabe5cf3b3340650853`  
-**Status:** complete; implementation PR is open against `planning/m0030-autoformat-correctness-check-performance`
+**Status:** complete; [implementation PR #41](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/41) targets `planning/m0030-autoformat-correctness-check-performance`
 **External evidence:** `carlrabbit/yadg` Draft PR #22; keep unmerged
 
 ## Material obligations
