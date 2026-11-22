@@ -49,6 +49,43 @@ public class CanonicalizerTests
     }
 
     [Test]
+    public async Task EngineCanonicalizesCompactFlowBoundariesInOnePass()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "autoformat-flow-convergence-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".git"));
+        string project = Path.Combine(root, "Fixture.csproj");
+        string source = Path.Combine(root, "Flow.cs");
+        await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        const string fixture = "class Sample { static void Run(string[] args) { var count = 0; for (int i = 0; i < args.Length; i++) { if (args[i].Length == 0) { continue; } count++; } if (count > 1) { count--; } } }\n";
+        await File.WriteAllTextAsync(source, fixture);
+        using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
+        {
+            await restore.WaitForExitAsync();
+            await Assert.That(restore.ExitCode).IsEqualTo(0);
+        }
+
+        try
+        {
+            var engine = new RewriteEngine(root, requireCleanCheckpoint: false);
+            RewriteResult first = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            string canonical = await File.ReadAllTextAsync(source);
+            RewriteResult second = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            RewriteResult normalizeCheck = engine.Rewrite("normalize", [source], changed: false, checkOnly: true);
+            RewriteResult formatCheck = engine.Rewrite("format", [source], changed: false, checkOnly: true);
+
+            await Assert.That(first.ChangedCount).IsEqualTo(1);
+            await Assert.That(second.ChangedCount).IsEqualTo(0);
+            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That(formatCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(canonical);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
+        }
+    }
+
+    [Test]
     public async Task AppliesAllNineModernizationFamiliesToRecognizedShapes()
     {
         string source = """

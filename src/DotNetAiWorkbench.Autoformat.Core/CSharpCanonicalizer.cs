@@ -720,7 +720,7 @@ internal static class CSharpCanonicalizer
             for (int i = 1; i < statements.Count; i++)
             {
                 bool previousFlow = IsFlow(statements[i - 1]); bool currentFlow = IsFlow(statements[i]);
-                if (previousFlow == currentFlow || (statements[i] is LocalFunctionStatementSyntax) || HasBlankBoundary(statements[i]))
+                if (previousFlow == currentFlow || (statements[i] is LocalFunctionStatementSyntax) || HasBlankBoundary(statements[i - 1], statements[i]))
                 {
                     continue;
                 }
@@ -739,7 +739,11 @@ internal static class CSharpCanonicalizer
         }
 
         private static bool IsFlow(StatementSyntax statement) => statement is IfStatementSyntax or SwitchStatementSyntax or ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax or TryStatementSyntax or UsingStatementSyntax or LockStatementSyntax;
-        private static bool HasBlankBoundary(StatementSyntax statement) => statement.GetLeadingTrivia().ToFullString().Contains("\n\n", StringComparison.Ordinal) || statement.GetLeadingTrivia().ToFullString().Contains("\r\n\r\n", StringComparison.Ordinal);
+        private static bool HasBlankBoundary(StatementSyntax previous, StatementSyntax current)
+        {
+            string boundaryTrivia = previous.GetTrailingTrivia().ToFullString() + current.GetLeadingTrivia().ToFullString();
+            return Regex.IsMatch(boundaryTrivia, @"(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)", RegexOptions.CultureInvariant);
+        }
 
         private static bool HasProtectedTrivia(SyntaxNode node) => node.DescendantTrivia(descendIntoTrivia: true)
             .Any(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) || t.IsKind(SyntaxKind.MultiLineCommentTrivia)

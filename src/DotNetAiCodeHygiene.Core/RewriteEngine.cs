@@ -12,7 +12,8 @@ public sealed class RewriteEngine
     private readonly AutoRewriteEngine inner;
     public RewriteEngine(string? cwd = null) => inner = new(cwd, requireCleanCheckpoint: false);
     internal RewriteEngine(string? cwd, Func<string, string, string[], string[], bool, string, (int ExitCode, string Output)> phaseRunner)
-        => inner = new(cwd, phaseRunner);
+        => inner = new(cwd, (workspace, phase, files, diagnostics, checkOnly, _, reportDirectory)
+            => phaseRunner(workspace, phase, files, diagnostics, checkOnly, reportDirectory));
     public string Root => inner.Root;
     public RewriteResult Rewrite(string command, string[] paths, bool changed, bool checkOnly)
     {
