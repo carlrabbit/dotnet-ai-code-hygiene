@@ -10,7 +10,7 @@ root.Options.Add(version);
 var paths = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
 foreach (string mode in new[] { "format", "normalize" })
 {
-    var command = mode == "format" ? new Command("format", "Apply SDK whitespace formatting.") : new Command("normalize", "Apply approved SDK style fixes, then whitespace formatting.");
+    var command = mode == "format" ? new Command("format", "Apply SDK whitespace formatting only.") : new Command("normalize", "Canonicalize C# source, apply SDK style fixes, then format whitespace.");
     var check = new Option<bool>("--check") { Description = "Verify without writing." };
     var changed = new Option<bool>("--changed") { Description = "Select staged, unstaged, and untracked C# files; implies --check." };
     command.Arguments.Add(paths);
@@ -42,7 +42,7 @@ static int Render(string mode, string[] paths, bool check, bool changed, string 
     string repo = FindRoot();
     EnsurePolicy(repo);
     RewriteResult result = new RewriteEngine(repo).Rewrite(mode, paths, changed, check);
-    var report = new { status = "complete", mode, checkOnly = result.CheckOnly, targetCount = result.TargetCount, changedCount = result.ChangedCount, selectedPaths = result.SelectedPaths, changedPaths = result.ChangedPaths, selectedRules = result.SelectedRuleIds };
+    var report = new { status = "complete", mode, checkOnly = result.CheckOnly, targetCount = result.TargetCount, changedCount = result.ChangedCount, selectedPaths = result.SelectedPaths, changedPaths = result.ChangedPaths, phases = mode == "format" ? new[] { "sdk-whitespace" } : new[] { "csharp-canonicalization", "sdk-style", "sdk-whitespace" }, selectedRules = result.SelectedRuleIds, notices = result.Notices };
     if (output == "json")
     {
         Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
@@ -50,6 +50,11 @@ static int Render(string mode, string[] paths, bool check, bool changed, string 
     else
     {
         Console.WriteLine($"{mode}: {result.ChangedCount} changed of {result.TargetCount} selected; check-only={result.CheckOnly}.");
+        Console.WriteLine("phases: " + string.Join(", ", mode == "format" ? ["sdk-whitespace"] : ["csharp-canonicalization", "sdk-style", "sdk-whitespace"]));
+        foreach (string notice in result.Notices)
+        {
+            Console.WriteLine("notice: " + notice);
+        }
     }
 
     return 0;
@@ -60,15 +65,14 @@ static int Initialize(string output)
     string repo = FindRoot(), path = Path.Combine(repo, ".editorconfig");
     string before = File.Exists(path) ? File.ReadAllText(path) : "";
     bool hasAutoStart = before.Contains(AutoformatPolicy.StartMarker, StringComparison.Ordinal);
-    bool hasHygieneStart = before.Contains("# hygiene profile:begin", StringComparison.Ordinal);
     bool changed = AutoformatPolicy.EnsureInitialized(repo);
     EnsurePolicy(repo);
-    if (hasAutoStart || hasHygieneStart)
+    if (hasAutoStart)
     {
         EnsurePolicy(repo);
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { status = "ready", adoptedExistingHygienePolicy = hasHygieneStart, changedPaths = changed ? new[] { ".editorconfig" } : Array.Empty<string>() }));
+            Console.WriteLine(JsonSerializer.Serialize(new { status = "ready", changedPaths = changed ? new[] { ".editorconfig" } : Array.Empty<string>() }));
         }
         else
         {
@@ -111,7 +115,7 @@ static void EnsurePolicy(string repo)
         });
         if (!present)
         {
-            throw new ProductException($"The managed SDK formatting policy is missing or has drifted at '{key}'. Repair .editorconfig or rerun 'dotnet hygiene update' before formatting.");
+            throw new ProductException($"The managed Autoformat policy is missing or has drifted at '{key}'. Repair .editorconfig or rerun 'dotnet autoformat init' before formatting.");
         }
     }
     AutoformatPolicy.ValidateEffectiveMechanicalSettings(repo);

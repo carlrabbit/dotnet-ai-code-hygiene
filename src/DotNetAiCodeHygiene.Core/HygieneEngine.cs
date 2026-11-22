@@ -140,7 +140,7 @@ public sealed class HygieneEngine
         get
         {
             Config value = Read(ConfigPath, new Config(1, []));
-            string[] fixedMechanical = [BracesStyleRuleModule.RuleId, AccessibilityStyleRuleModule.RuleId];
+            string[] fixedMechanical = [];
             string[] retired = ["architecture.boringness.review", "readability.type-responsibility.review", "tests.quality.review"];
             if (value.DisabledRules?.Any(retired.Contains) == true)
             {
