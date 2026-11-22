@@ -1,0 +1,80 @@
+# Milestone — Guide 1.0.0 Adoption and Autoformat Field Exploration
+
+**ID:** M0028  
+**State:** ready  
+**Type:** migration / investigation  
+**Implementation owner:** AI-executed; no formal human acceptance gate  
+**Planning baseline:** `carlrabbit/dotnet-ai-code-hygiene` `main` at `3e38b45b33cc6695d5dd096fcad031cbaa17f866`  
+**Guide source:** `carlrabbit/agentic-project-guides`, stable tag `v1.0.0`, peeled commit `6d1ca180d6573decb5c71d96bb6383e2073d342b`  
+**Exploration target:** `carlrabbit/dotnet-nuget-content` `main` observed at `25b28310c7de04426de02e4ac8037b32ed9dbd9e`; record the exact checkout used at execution
+
+## Goal and target capability
+
+Complete only two tightly bounded outcomes:
+
+1. Adopt **Agentic Project Guides 1.0.0** as a complete, immutable-by-policy, locally pinned planning-methodology snapshot in the **workbench repository**. Reconcile the workbench's current planning/agent entrypoints and authority with the effective stable guide. Do not rework product behavior.
+2. Conduct a **one-off exploratory application** of the M0027 `dotnet autoformat` implementation to real C# sources from `carlrabbit/dotnet-nuget-content`, entirely in a **disposable local checkout**, and produce a concise report identifying useful transformations, suspicious or undesirable edits, gaps, convergence behavior, and follow-up recommendations.
+
+This is an adoption-and-learning milestone, **not** an Autoformat correction milestone, an installed-tool release qualification, or a change to the NuGet-content product. Preserve a clean separation between the guide's new normative project planning authority and the exploratory report's non-authoritative observations.
+
+## Architecture and invariants
+
+### Stable guide adoption
+
+The workbench presently has root `AGENTS.md` and project-owned guidance but **no committed `.guide/system/` snapshot or `.guide-profile.json`**. Treat this as a first stable 1.0 adoption from an external/shared-guide workflow, not an update of an existing vendored snapshot.
+
+- Resolve `v1.0.0` to the **peeled commit SHA** above; recheck at execution. Install **the entire, unchanged tagged upstream guide tree** at `.guide/system/`. Prefer a Git subtree `add --squash`; an exact tracked tree copy is permitted. Do not install a subset, copy from moving `main`, add a submodule/live update dependency, or locally edit vendored guide contents.
+- Add schema-version-2 `.guide-profile.json` with `guideSystem.repository`, `version`, `tag`, `revision`, and `localPath`. Select applicable guide profiles with stable `1.0.0` versions and explicit scopes. This workbench is a **capability-provider**, with reusable CLI surfaces, at **implementation-ready** maturity: `base` at repository scope and `cli-tool` at repository scope are the natural starting selection. Do not invent a special profile for .NET 11, TUnit, Windows, or a one-off experiment. Record the real project execution baseline and only claim tested platform/launcher metadata supported by project authority.
+- Reconcile root `AGENTS.md`: planning, research, migrations, release preparation, and documentation synchronization route to `.guide/system/README.md`; ordinary implementers route to the assigned ready milestone, planner-seeded obligation ledger, referenced project truth, and relevant source/tests, **not** upstream guide or planning-only metadata.
+- Inspect the target-version `migrations/guide-system-v0.9.3-to-v1.0.0-rc.1.md` and `migrations/guide-system-v1.0.0-rc.1-to-v1.0.0.md` and the migration chain needed for this repository's actual prior authority. Apply the **effective 1.0 target state**: stable material-obligation IDs and a small planner-seeded completeness ledger for **new substantive milestones**, focused tests and representative integration, no universal evidence-case registries, acceptance-to-test mapping, or mandatory installed-consumer release tests for feature milestones.
+- Preserve `docs/PROJECT-GUIDANCE.md`, operative workbench architecture/specifications, existing useful engineering commands, local project decisions, genuinely project-owned validation requirements, historical milestones, completed ledgers, and research. Resolve only **actual contradictory active instructions**; do not re-template every document, migrate old completed milestones, resurrect retired 0.9 proof infrastructure, or create a new guide-sync daemon.
+- Install the guide snapshot, pin metadata, and necessary project-authority adjustments together in the implementation change. Once installed, the **local** snapshot governs subsequent ordinary planning. Guide release publication and workbench code/tool release are unrelated operations.
+
+### External repository exploration
+
+`dotnet-nuget-content` is a relatively small .NET 11/C# SDK-style repository with a CLI project and tests; it publishes a Windows x64 Native AOT tool, but the **exercise concerns C# source canonicalization**, not tool publication. Its inspected `main` did not contain a root `.editorconfig`; Autoformat's explicit policy initialization is therefore an expected part of the disposable setup.
+
+- **Authorized target:** a locally created **disposable Git clone or worktree copy** of `carlrabbit/dotnet-nuget-content`, at a recorded commit. No mutations, branches, PRs, pushes, configuration files, or Git commits are authorized **in the actual remote target repository**. Do not alter any non-disposable local clone. Do not touch real NuGet feeds, package output, consumer workspaces, or externally managed data.
+- Exercise **the real workbench Autoformat engine and CLI** from the merged M0027 workbench source, without depending on a previously installed global package. Prepare the disposable target's environment as necessary: initialize Autoformat's `.editorconfig` policy, then establish a **disposable Git checkpoint** before a mutating normalization (Autoformat requires a clean worktree and known HEAD). Restoring disposable project dependencies is allowed when needed for project-aware formatting; no persistent machine provisioning.
+- First inspect what files would be selected, then perform one representative **mutating `normalize` run** in the disposable checkout; capture the resulting Git diff and CLI report. Use **`format` whitespace-only and `--check`/check-only** selectively for comparison, without conflating command semantics. Run one second-pass convergence check. Preserve a baseline copy so suspicious results can be inspected and the original state recovered.
+- Critically examine a **small informative sample of actual diff hunks**, including source/comments/directives, API/constructor accessibility, collections versus DTO initializers, expression-body rewrites, retain handling where present, unusual syntax, idempotence, and formatting readability. Classify observable changes by transformation family, unchanged eligible cases, possible defects, and deliberately permitted agent-repair consequences. Do **not** equate successful compilation with semantic equivalence, and do **not** label all uncompilable changes as formatter defects.
+- A focused compile of the **disposable** rewritten C# project may be used **only as diagnostic information** when economical, to expose necessary downstream repair. It is not a formatter runtime gate, milestone precondition, AOT release validation, or instruction to fix the consumer code. No target-project tests, Native AOT publish, package installation, or broad validation suite is required.
+- This experiment may reveal useful product ideas or defects. **Document them; do not fix Autoformat, repair/commit the target source, or expand M0028 into a modernization campaign.** A truly destructive/source-loss discovery may warrant stopping the experiment and reporting it instead of proceeding.
+
+## Scope and exclusions
+
+**In scope:** a complete pinned guide snapshot and metadata, narrowly reconciled workbench agent/project-authority routing, one disposable real-repository formatter exercise, and a durable concise findings report in the **workbench** repository.
+
+**Not in scope:** formatting or upgrading the live `dotnet-nuget-content` repository; opening a target-repository PR; changing its project-specific guide version; publishing either tool; modifying Autoformat's transformations/architecture; adding CI, new eng orchestration, package qualification, cross-platform matrices, whole-repository audit machinery, or a release gate; rewriting completed milestone histories; broad docs/research reconstruction; mandatory human approval.
+
+## Acceptance and material obligations
+
+- **MIG-01:** The workbench contains the **complete, unmodified** `v1.0.0` guide snapshot at `.guide/system/`, with valid matching schema-v2 `.guide-profile.json` source pin, applicable profile scopes/versions and truthful repository execution metadata.
+- **MIG-02:** Root agent routing and directly impacted operative project authority conform to stable 1.0, without requiring ordinary implementers to read the upstream guide; no project-specific truth is lost, completed milestones are not retroactively rewritten, and removed legacy proof/release mandates are not reintroduced.
+- **EXP-01:** The actual M0027 Autoformat CLI/engine has been invoked against a **disposable**, exact-revision clone of `carlrabbit/dotnet-nuget-content` with correctly initialized mechanical policy and a valid Git checkpoint. Record invocation, scope, output and source-diff outcome; the actual target repository remains untouched.
+- **EXP-02:** The experiment compares representative mutating output, a second pass, and check-only behavior; identifies beneficial edits, clearly suspect edits, material exclusions, and relevant permitted consequences from concrete source evidence. Distinguish observations from proven defects; do not implement corrections here.
+- **DOC-01:** Add `docs/research/M0028-autoformat-dotnet-nuget-content-exploration.md` as a **non-authoritative** technical experiment report with source revisions, commands/environment, selected/changed-file counts when available, representative before/after snippets or diff paths, classification and recommended follow-up. Update `docs/MILESTONES.md` with the M0028 reference/status and a concise completion note in this milestone. Do not commit a full regenerated target tree or large raw diff by default.
+
+## Execution obligation ledger
+
+**Ledger:** `.execution/M0028-guide-100-autoformat-field-exploration.md`, seeded during planning with exactly `MIG-01`, `MIG-02`, `EXP-01`, `EXP-02`, and `DOC-01`. The ledger preserves deliverable completeness and optional resume state, **not** one test or receipt per obligation. The implementation agent updates it honestly and reconciles the IDs at completion.
+
+## Validation
+
+**Guide migration:** Verify Git tag and peeled commit, completeness and byte/tree identity of the vendored tagged guide, matching metadata, and navigable `AGENTS.md` routing. Inspect only directly affected active project authority for concrete conflicts; use no fake guide/planner simulation or external live-planner test suite.
+
+**Exploration:** A single disposable target checkout with a known baseline, inspect/report the actual C# diff, a follow-up idempotence run, and check-only consistency are the main high-information checks. A source/byte check or `git status` of the real target (if accessible) establishes no direct modifications; absence of target write operations is mandatory. Avoid counting superficial formatting output as successful code-quality improvement. Capture command failures honestly rather than concealing them with repeated retries.
+
+**Important risks:** mismatched pinned snapshot metadata, unintended replacement of project authority, implicit guide-methodology drift, accidental modification of the real target, policy initialization without a Git checkpoint, source/comment/metadata loss, non-convergent changes, misleading check-only results, misclassifying intentionally aggressive modernization as a defect, and reporting unsupported coverage as successful transformation. Preserve access/security boundaries in analysis.
+
+**Deferred:** installed Autoformat distribution qualification, package/consumer and Native AOT tests, cross-platform release tests, full Hygiene review, broad real-repo dogfood, and any remediation follow-up. No M0028 formal human sign-off is prescribed; a user may separately decide whether to pursue findings or approve a future target-repository change.
+
+## Documentation and other obligations
+
+The workbench is the **only repository to change**. The exploratory report is evidence for future planning, not product authority or a benchmark of semantic equivalence. Promote a confirmed formatter defect into a future independently scoped correction/issue if worthwhile; do not conceal or repair it inside guide migration.
+
+**Implementation handoff:** read this milestone, its planner-seeded ledger, root `AGENTS.md`, current workbench project authority and source. During the expressly authorized guide upgrade, use the **tagged** upstream `v1.0.0` migration/adoption instructions until `.guide/system/` is installed; afterward read the locally pinned copy. The two repositories and exact source commits are identified above. The implementer needs no prior planning conversation.
+
+## Completion note (filled after implementation)
+
+Pending. Record the installed guide pin, changed workbench authority, real experiment target revision/commands, substantial observed results, focused checks and any unimplemented follow-ups. Do not claim that a target PR, tool release, package qualification, or consumer repair occurred.
