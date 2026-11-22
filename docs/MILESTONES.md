@@ -208,3 +208,12 @@ Enabled SDK-native restore by default with explicit `--no-restore` opt-in, corre
 Primary milestone: `docs/milestones/M0029-sdk-restore-and-autoformat-revalidation.md`.
 Execution ledger: `.execution/M0029-sdk-restore-and-autoformat-revalidation.md`.
 Revalidation report: `docs/research/M0029-autoformat-nuget-content-revalidation.md`.
+
+## M0030 — Autoformat Source Safety, Check-Mode Performance, and Rewrite Coverage
+**State:** ready; planning handoff only (no product implementation started)  
+**Mode:** AI-executed; no formal human acceptance gate
+
+Correct YADG-observed invalid sized-array declaration rewrites and focused layout defects, reduce avoidable check-only project/process overhead, and strengthen direct string-to-string coverage across the nine deterministic modernization families. The existing YADG [Draft PR #22](https://github.com/carlrabbit/yadg/pull/22) remains unmerged; implementation will revalidate on a fresh disposable baseline, append only raw formatter output, and record **one execution time per workload** without statistical benchmarking. No full consumer/release gate.
+
+Primary milestone: `docs/milestones/M0030-autoformat-correctness-check-performance.md`.  
+Planner-seeded ledger: `.execution/M0030-autoformat-correctness-check-performance.md`.
