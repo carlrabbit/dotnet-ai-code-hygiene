@@ -95,7 +95,7 @@ Do **not** add synthetic `good code`/`bad code` corpora whose asserted outcome i
 
 Optional real-repository semantic assessments are **investigative**, not ordinary Core/CLI tests or milestone gates unless specifically planned to answer a material policy question. Record real changes, scope, provenance, observed actionable versus legitimate/no-change outcomes, review effort, overlap, uncertainty and evidence limitations; do not claim repeatable model truth or population-wide accuracy. A concrete detector defect discovered during exploration should produce a deterministic regression for that defect, not a frozen LLM judgment.
 
-During broad parallel rule implementation, use focused tests while editing and the required complete milestone gates at completion. Use the existing resumable receipts and sharding without re-running unrelated full validation after every rule. The acceptance ledger must still preserve criterion-specific evidence rather than replacing it with a green aggregate.
+During broad parallel rule implementation, use focused tests while editing and the milestone-declared checks at completion. Use the existing resumable receipts and sharding when the active milestone or release boundary calls for them, without re-running unrelated full validation after every rule. Reconcile planner-seeded material obligations for completeness; focused checks should credibly verify behavior without requiring a separate evidence case for each obligation.
 
 ## Profile fixtures
 
@@ -187,7 +187,7 @@ Validation has four distinct uses; the required evidence comes from the active m
 
 - **Development feedback** is a quick, affected check used to guide the current change. A focused test filter or shard proves only the cases it ran and does not create a complete-suite receipt.
 - **Investigative execution** includes historical simulations, profiling and experiments. Run these only when the investigation calls for them; they are not ordinary regression tests or milestone gates unless the milestone explicitly declares them.
-- **Milestone acceptance** runs each gate declared by the ready milestone and records current, criterion-specific evidence. Completion requires those declared gates, not every historical suite or consumer scenario. If a milestone explicitly requires a full suite or installed-consumer validation, that gate remains mandatory. Reconcile every obligation and evidence case in its ledger; do not infer full-suite validation from focused checks.
+- **Milestone acceptance** performs the checks declared by the ready milestone. Completion requires those declared checks, not every historical suite or consumer scenario. If a milestone explicitly requires a full suite or installed-consumer validation, that check remains mandatory. Reconcile planner-seeded material obligation IDs for completeness and truthful disposition; do not require an evidence-case registry, one test or receipt per obligation, or infer full-suite validation from focused checks.
 - **Full release qualification** remains the comprehensive M0020 path at `./eng/validate.ps1`. Use it when release qualification or the active milestone requires it. Its long duration is acceptable; the implementation reuses only evidence whose recorded provenance still proves it current.
 
 For the canonical M0020 release qualification, discover stable stage IDs and commands with:

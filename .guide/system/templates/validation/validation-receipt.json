@@ -1,0 +1,12 @@
+{
+  "schema": "agentic-project-guides.validation-receipt.v1",
+  "suite": "<suite>",
+  "shard": "<shard>",
+  "status": "passed",
+  "repositoryFingerprint": "<fingerprint>",
+  "suiteFingerprint": "<fingerprint>",
+  "commandFingerprint": "<fingerprint>",
+  "inputFingerprint": "<fingerprint>",
+  "resultFingerprint": "<fingerprint>",
+  "artifacts": []
+}

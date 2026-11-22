@@ -1,0 +1,14 @@
+{
+  "schema": "agentic-project-guides.validation-plan.v1",
+  "suite": "<suite>",
+  "shards": [
+    {
+      "id": "<shard>",
+      "command": "./eng/<suite>.sh --shard <shard>"
+    }
+  ],
+  "verifyCommand": "./eng/<suite>.sh --verify",
+  "estimatedExecutionClass": "bounded",
+  "canRunInParallel": false,
+  "requiresBuild": true
+}
