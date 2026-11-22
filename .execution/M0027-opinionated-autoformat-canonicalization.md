@@ -25,4 +25,4 @@
 
 ## Handoff
 
-Update the existing PR #33 from this branch after committing the review corrections. Keep the target `planning/m0027-opinionated-autoformat-canonicalization` while planning PR #32 remains open.
+Review corrections are committed as `6630774` and pushed to the existing [PR #33](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/33), still targeting `planning/m0027-opinionated-autoformat-canonicalization`. No further implementation action is identified; installed-tool qualification, full Hygiene/release suites and real-repository processing remain deferred.
