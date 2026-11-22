@@ -1,6 +1,6 @@
 # M0028 Autoformat exploration: dotnet-nuget-content
 
-**Status:** Investigative, non-authoritative; target Draft PR not opened because the raw output has a confirmed compile-breaking source-loss defect.
+**Status:** Investigative and non-authoritative. The target Draft PR is open for inspection and prominently marked DO NOT MERGE because the raw output has a confirmed compile-breaking source-loss defect.
 
 ## Question and scope
 
@@ -8,7 +8,7 @@ Does the merged M0027 Autoformat implementation produce useful, readable, conver
 
 ## Provenance and commands
 
-- Target baseline: [`carlrabbit/dotnet-nuget-content` main at `25b28310c7de04426de02e4ac8037b32ed9dbd9e`](https://github.com/carlrabbit/dotnet-nuget-content/commit/25b28310c7de04426de02e4ac8037b32ed9dbd9e). A disposable clone used local branch `experiment/m0028-autoformat-canonicalization`; its raw commits remain local and were not pushed.
+- Target baseline: [`carlrabbit/dotnet-nuget-content` main at `25b28310c7de04426de02e4ac8037b32ed9dbd9e`](https://github.com/carlrabbit/dotnet-nuget-content/commit/25b28310c7de04426de02e4ac8037b32ed9dbd9e). A disposable clone used branch `experiment/m0028-autoformat-canonicalization`; it is now published only for the explicitly requested Draft PR below.
 - Workbench implementation baseline: accepted M0028 commit `02604e340c26f20d25463afa20089d9c870534c7`; M0027 was merged in `3e38b45b33cc6695d5dd096fcad031cbaa17f866`, with the CLI/check-only correction in `c2f91984b2e787551424c5f841f0ecec1faa39dd`. The CLI was run from `src/DotNetAiWorkbench.Autoformat.Cli/DotNetAiWorkbench.Autoformat.Cli.csproj`, not from an installed global tool.
 - Environment: Windows 11, .NET SDK `11.0.100-rc.3.26522.148`, Git `2.56.0.windows.4`.
 - In the disposable target checkout, the relevant invocation sequence was:
@@ -35,7 +35,7 @@ Does the merged M0027 Autoformat implementation produce useful, readable, conver
 - Useful examples include brace insertion for single-line `if` statements (`src/DotnetNugetContent/Program.cs`), explicit local types, and array/list collection expressions in tests. SDK style also removed `using` directives it considered unnecessary.
 - The output is often visually excessive: repeated blank lines around statements, large vertical expansions of dense source, and awkward breaks around member-access/assertion chains appear in `ProjectWorkspace.cs`, `Program.cs`, and `PackageLifecycleTests.cs`. Many long lines remain; the report repeats notices for lines beyond the 120-character soft target. These are observed formatting characteristics, not by themselves compilation defects.
 - The normalized application project failed to build with five unresolved NuGet symbols, including `NuGetVersion`, `NuGetFramework`, `IPackageFile`, and `FrameworkSpecificGroup`. The diff removed `using NuGet.Versioning`, `using NuGet.Frameworks`, and `using NuGet.Packaging` from files that still refer to those symbols. A separate detached worktree at the unmodified baseline built successfully with zero warnings/errors, confirming the failure is introduced by the generated diff.
-- No manual repairs were made. The disposable experiment branch contains policy setup plus the two raw normalization commits; it was not pushed. Target `main` and other target branches were untouched.
+- No manual repairs were made. The disposable experiment branch contains policy setup plus the two raw normalization commits and is the sole target branch pushed. Target `main` and unrelated target branches were untouched.
 
 ## Assessment and limits
 
@@ -45,8 +45,8 @@ Does the merged M0027 Autoformat implementation produce useful, readable, conver
 - **Unsupported or unverified:** this was not a complete semantic review of every hunk. Comment/directive preservation, accessibility/metadata changes, all modernization eligibility boundaries, and downstream test behavior were not exhaustively audited. No target tests, AOT build, package operations, or semantic-equivalence checks were run. The formatter report's long-line notices are informational.
 - **Inferences:** the removal appears to stem from the SDK style phase's unnecessary-using result; the experiment does not isolate which analyzer/project-loading condition caused that result.
 
-## Safety stop and follow-up
+## Draft PR and follow-up
 
-No target Draft PR was opened. The raw formatter diff contains a confirmed source-loss/build defect, so publishing it would violate M0028's instruction not to push unsafe output merely to satisfy the PR deliverable. The exact raw output is preserved only in the disposable local clone at commits `900f73e`, `c20f395`, and `741c795`; it is not available as a remote review artifact. **No target PR URL exists.**
+The explicitly requested target Draft PR is [Experiment: M0028 Autoformat canonicalization — DO NOT MERGE](https://github.com/carlrabbit/dotnet-nuget-content/pull/13), based on target `main` and ending at `741c795e89368b286380daa7168c0514fd03ad55`. Its three commits keep policy initialization (`900f73e`) separate from raw formatter output (`c20f395`, `741c795`). The PR description calls out the confirmed build failure; no source was repaired. It changes only `.editorconfig` and the nine selected C# files. Target `main` and unrelated branches remain untouched.
 
 Recommended follow-up: isolate the `IDE0005` import-removal failure in a separately scoped Autoformat correction milestone, preserve a small project-aware regression for required cross-file NuGet symbols, then repeat this exploration against a newly recorded target revision before opening a raw-output Draft PR. Revalidate whenever the Autoformat engine/SDK style handling or target revision changes. No project authority was changed based on this experiment.

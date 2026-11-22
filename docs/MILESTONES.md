@@ -190,10 +190,10 @@ Primary milestone: `docs/milestones/M0026-workbench-monorepo-autoformat-extracti
 Planning-seeded ledger: `.execution/M0026-workbench-monorepo-autoformat-extraction.md`.
 
 ## M0028 — Guide 1.0.0 Adoption and Autoformat Field Exploration
-**State:** guide migration complete; Autoformat exploration stopped before remote publication after a confirmed compile-breaking source-loss defect
+**State:** complete; target Draft PR #13 open and unmerged with confirmed compile-breaking source-loss warning
 **Mode:** AI-executed; no formal human acceptance gate
 
-Installed the pinned Agentic Project Guides 1.0.0 snapshot and reconciled agent routing and the two inherited unconditional evidence mandates. A disposable Autoformat exploration on `dotnet-nuget-content` converged after two passes, but its raw output removed required NuGet imports and failed a diagnostic build. The raw branch remains local and no target Draft PR was opened because the milestone prohibits publishing unsafe output. The target PR deliverable and linked-PR report condition remain blocked.
+Installed the pinned Agentic Project Guides 1.0.0 snapshot and reconciled agent routing and the two inherited unconditional evidence mandates. A disposable Autoformat exploration on `dotnet-nuget-content` converged after two passes, but its raw output removed required NuGet imports and failed a diagnostic build. The unmodified output and separate policy setup are exposed in the explicitly marked DO NOT MERGE [target Draft PR #13](https://github.com/carlrabbit/dotnet-nuget-content/pull/13). No target tests or release qualification were run.
 
 Primary milestone: `docs/milestones/M0028-guide-100-autoformat-field-exploration.md`.
 Execution ledger: `.execution/M0028-guide-100-autoformat-field-exploration.md`.
