@@ -94,3 +94,9 @@ Only the focused canonicalizer test, CLI build, and target diagnostic build/chec
 ### Nested return-context follow-up
 
 Commit `5d432577450dbd963c771341a794dd484d7a0ff2` makes return target resolution respect the nearest enclosing return owner and treats nested lambdas as a boundary without a reliable declared target. The focused canonicalizer regression and affected Autoformat CLI build passed. A read-only normalize check on existing target PR #14 reported zero changes, so its commits remain unchanged and no full experiment rerun was needed.
+
+### Member-access layout correction
+
+Commit `de87fce65e3e25750ef5b3316b061e5609f6f9b2` removes automatic line breaks before member-access operators. The focused canonicalizer regression reproduced the split-trivia duplicate newline across initial and final custom layout passes: the receiver carried an end-of-line in trailing trivia, the dot token carried only indentation, and the final pass inserted a second end-of-line because it inspected only the dot's leading trivia. `BlankLineRewriter` compacts per-token trivia and left that cross-boundary empty line intact. The initial full M0029 target output had 176 such patterns across seven files; the fresh-baseline regenerated result has zero.
+
+The raw formatter delta is appended to existing [Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14) as commit `131de3a63dcba5b4eb9b9f27470f65bf79f9cb04`; original experiment commits and PR #13 are unchanged. Focused canonicalizer test, Autoformat CLI build, target diagnostic build, second normalization, `normalize --check` and `format --check` passed. No target tests or release qualification were run.
