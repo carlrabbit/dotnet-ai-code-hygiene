@@ -1,5 +1,6 @@
 using DotNetAiWorkbench.Autoformat.Core;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace DotNetAiWorkbench.Autoformat.Tests;
@@ -46,6 +47,43 @@ public class CanonicalizerTests
         RewriteResult dirtyCheck = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: true);
         await Assert.That(dirtyCheck.ChangedCount).IsEqualTo(1);
         await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(violation);
+    }
+
+    [Test]
+    public async Task EngineCanonicalizesCompactFlowBoundariesInOnePass()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "autoformat-flow-convergence-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".git"));
+        string project = Path.Combine(root, "Fixture.csproj");
+        string source = Path.Combine(root, "Flow.cs");
+        await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        const string fixture = "class Sample { static void Run(string[] args) { var count = 0; for (int i = 0; i < args.Length; i++) { if (args[i].Length == 0) { continue; } count++; } if (count > 1) { count--; } } }\n";
+        await File.WriteAllTextAsync(source, fixture);
+        using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
+        {
+            await restore.WaitForExitAsync();
+            await Assert.That(restore.ExitCode).IsEqualTo(0);
+        }
+
+        try
+        {
+            var engine = new RewriteEngine(root, requireCleanCheckpoint: false);
+            RewriteResult first = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            string canonical = await File.ReadAllTextAsync(source);
+            RewriteResult second = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            RewriteResult normalizeCheck = engine.Rewrite("normalize", [source], changed: false, checkOnly: true);
+            RewriteResult formatCheck = engine.Rewrite("format", [source], changed: false, checkOnly: true);
+
+            await Assert.That(first.ChangedCount).IsEqualTo(1);
+            await Assert.That(second.ChangedCount).IsEqualTo(0);
+            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That(formatCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(canonical);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
+        }
     }
 
     [Test]
@@ -130,6 +168,97 @@ public class CanonicalizerTests
         await Assert.That(first).Contains("int[,] grid = new int[,] { { 1, 2 }, { 3, 4 } }");
         await Assert.That(first).Contains("IReadOnlyList<int> items = [5, 6]");
         await Assert.That(first).Contains("int[] vector = [7, 8]");
+        await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task CollectionExpressionsRequireARecognizedTargetTypeContext()
+    {
+        const string source = """
+            using System;
+            using System.Collections.Generic;
+            class Sample {
+              IReadOnlyList<int> Property { get; } = new List<int> { 1, 2 };
+              int[] ArrayProperty => new int[] { 3, 4 };
+              IReadOnlyList<int> Items() { return new List<int> { 5, 6 }; }
+              void Consume(int[] values) { }
+              void Run() {
+                foreach (var name in new[] { "added", "modified", "deleted" }) { }
+                foreach (var values in new[] { new[] { 1 }, new[] { 2 } }) { }
+                foreach (var key in new[] { "alias", "packageId", "version" }) { }
+                Consume(new[] { 7, 8 });
+                var inferred = new[] { 9, 10 };
+                List<int> concrete = new List<int> { 11, 12 };
+                IReadOnlyList<int> collectionInterface = new List<int> { 13, 14 };
+              }
+              IEnumerable<int> Outer() {
+                object Local() { return new[] { 1, 2 }; }
+                IEnumerable<int> LocalItems() { return new[] { 3, 4 }; }
+                Func<object> callback = () => { return new[] { 5, 6 }; };
+                _ = Local();
+                _ = LocalItems();
+                _ = callback();
+                return new[] { 7, 8 };
+              }
+            }
+            """;
+
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+
+        await Assert.That(result).Contains("foreach (var name in new[] { \"added\", \"modified\", \"deleted\" })");
+        await Assert.That(result).Contains("foreach (var values in new[] { new[] { 1 }, new[] { 2 } })");
+        await Assert.That(result).Contains("foreach (var key in new[] { \"alias\", \"packageId\", \"version\" })");
+        await Assert.That(result).Contains("Consume(new[] { 7, 8 })");
+        await Assert.That(result).Contains("int[] inferred = [9, 10]");
+        await Assert.That(result).Contains("IReadOnlyList<int> Property { get; } = [1, 2]");
+        await Assert.That(result).Contains("int[] ArrayProperty => [3, 4]");
+        await Assert.That(result).Contains("IReadOnlyList<int> Items() =>[5, 6]");
+        await Assert.That(result).Contains("List<int> concrete = [11, 12]");
+        await Assert.That(result).Contains("IReadOnlyList<int> collectionInterface = [13, 14]");
+        await Assert.That(result).Contains("object Local() { return new[] { 1, 2 }; }");
+        await Assert.That(result).Contains("IEnumerable<int> LocalItems() { return [3, 4]; }");
+        await Assert.That(result).Contains("Func<object> callback = () => { return new[] { 5, 6 }; }");
+        await Assert.That(result).Contains("return [7, 8];");
+    }
+
+    [Test]
+    public async Task LongInvocationsDoNotCreateBlankLinesBeforeMemberAccess()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using System.Linq;
+            class Sample {
+              async Task Run(IEnumerable<string> items) {
+                await ContentPackages.PackInitialAsync("first argument with enough words to make this invocation exceed the soft line target", "second argument with enough words to make this invocation exceed the soft line target");
+                Console.Out.WriteLine("message with enough words to make this invocation exceed the soft line target and exercise the outer member access");
+                var chain = items
+                    // Keep this existing multiline fluent chain and its explanation.
+                    .Select(item => item.Trim())
+                    .Where(item => item.Length > 0)
+                    .ToArray();
+                // autoformat:retain readability.long-line -- Preserve this invocation's chosen layout.
+                await ContentPackages.PackInitialAsync("retained argument with enough words to make the invocation exceed the soft line target", "second retained argument also makes the invocation exceed the soft line target");
+              }
+            }
+            """;
+
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        string finalLayout = CSharpCanonicalizer.NormalizeLayout(first, out _);
+        static bool HasBlankLineBeforeDot(string text)
+        {
+            string[] lines = Regex.Split(text, "\\r\\n|\\r|\\n");
+            return Enumerable.Range(1, lines.Length - 1)
+                .Any(index => string.IsNullOrWhiteSpace(lines[index - 1]) && lines[index].TrimStart().StartsWith('.', StringComparison.Ordinal));
+        }
+
+        await Assert.That(HasBlankLineBeforeDot(first)).IsFalse();
+        await Assert.That(HasBlankLineBeforeDot(finalLayout)).IsFalse();
+        await Assert.That(first).Contains("await ContentPackages.PackInitialAsync");
+        await Assert.That(first).Contains("Console.Out.WriteLine");
+        await Assert.That(first).Contains(".Select(item => item.Trim())");
+        await Assert.That(first).Contains("Keep this existing multiline fluent chain and its explanation.");
+        await Assert.That(first).Contains("autoformat:retain readability.long-line -- Preserve this invocation's chosen layout.");
         await Assert.That(second).IsEqualTo(first);
     }
 

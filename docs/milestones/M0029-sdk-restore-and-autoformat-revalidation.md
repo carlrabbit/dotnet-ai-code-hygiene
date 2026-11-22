@@ -1,7 +1,7 @@
 # Milestone — M0029: SDK Restore Integration and Autoformat Revalidation
 
 **ID:** M0029  
-**State:** ready — amended correction scope after the M0029 revalidation exposed an untyped collection-expression defect  
+**State:** complete; corrected target output is in Draft PR #14 and the focused diagnostic build passes
 **Type:** Autoformat correction and external integration experiment  
 **Source repository:** `carlrabbit/dotnet-ai-code-hygiene`  
 **Intended planning base:** M0028 implementation head `64781d65997c712e47665f47e5c1d7d10732d00f` (PR #35); M0028 planning PR #34 and implementation PR #35 are not yet merged  
@@ -82,3 +82,21 @@ Use focused existing Autoformat tests and builds only as needed; the added colle
 The ready milestone and seeded ledger are sufficient for a disconnected implementer. Read relevant existing `docs/specs/REWRITES.md`, `docs/ENGINEERING.md`, `AGENTS.md` and Autoformat CLI/Core/tests. No need to load upstream Guide 1.0.0 or the prior planning chat. Implementation begins from the **exact accepted planning commit in the handoff report**; do not record a self-referential commit here. Branch/PR chain is described externally because M0028 implementation and its planning PR are not yet merged.
 
 Before reporting `COMPLETE`, reconcile all five seeded IDs (including the new `COLL-01`), verify target Draft PR #14 remains unmerged, and record what actually compiled, converged and was not evaluated. Formal human sign-off is not a milestone gate; merging the target experimental PR needs a separate decision.
+
+## Completion note
+
+The implementation branch was synchronized to amended planning commit `a9b2846578171298bb459a17282160e919ece213`, preserving the earlier M0029 SDK restore and one-pass convergence fixes. Collection-expression conversion now requires a recognized direct target type. Formatter correction commit: `68f3d7de6a63f48f2d49f5cb178a0a4a80b3c9c0`. The focused canonicalizer regression passes for the three ineligible `foreach` source forms and a comparable untyped invocation, while typed variables, array/property and method returns, `List<T>`, and a collection-interface target still convert.
+
+The fresh rerun used target baseline `25b28310c7de04426de02e4ac8037b32ed9dbd9e` and the existing Autoformat policy. Its raw output delta is appended to existing [Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14) as commit `2edddf2740e09c36bdb1fef879c3fec6ddbb9516`; the earlier output commit `08781f4d3ae7e71bde39bc1e6af9271355ce6b12` remains intact. The three `foreach` sources retain `new[]`, required NuGet imports remain, a second normalize and both check modes report zero changes, and the focused diagnostic application build passes with zero warnings/errors. PR #14 remains **DO NOT MERGE** pending separate review. The updated chronology is in `docs/research/M0029-autoformat-nuget-content-revalidation.md`.
+
+Only the focused canonicalizer test, CLI build, and target diagnostic build/checks were run for the amendment. No target tests, full Hygiene suite, release qualification, package installation, Native AOT, or broad cross-platform checks were run. No additional target failure was observed in the focused build; broader consumer compatibility is unverified.
+
+### Nested return-context follow-up
+
+Commit `5d432577450dbd963c771341a794dd484d7a0ff2` makes return target resolution respect the nearest enclosing return owner and treats nested lambdas as a boundary without a reliable declared target. The focused canonicalizer regression and affected Autoformat CLI build passed. A read-only normalize check on existing target PR #14 reported zero changes, so its commits remain unchanged and no full experiment rerun was needed.
+
+### Member-access layout correction
+
+Commit `de87fce65e3e25750ef5b3316b061e5609f6f9b2` removes automatic line breaks before member-access operators. The focused canonicalizer regression reproduced the split-trivia duplicate newline across initial and final custom layout passes: the receiver carried an end-of-line in trailing trivia, the dot token carried only indentation, and the final pass inserted a second end-of-line because it inspected only the dot's leading trivia. `BlankLineRewriter` compacts per-token trivia and left that cross-boundary empty line intact. The initial full M0029 target output had 176 such patterns across seven files; the fresh-baseline regenerated result has zero.
+
+The raw formatter delta is appended to existing [Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14) as commit `131de3a63dcba5b4eb9b9f27470f65bf79f9cb04`; original experiment commits and PR #13 are unchanged. Focused canonicalizer test, Autoformat CLI build, target diagnostic build, second normalization, `normalize --check` and `format --check` passed. No target tests or release qualification were run.

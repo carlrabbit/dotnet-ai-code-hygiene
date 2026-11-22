@@ -198,3 +198,13 @@ Installed the pinned Agentic Project Guides 1.0.0 snapshot and reconciled agent 
 Primary milestone: `docs/milestones/M0028-guide-100-autoformat-field-exploration.md`.
 Execution ledger: `.execution/M0028-guide-100-autoformat-field-exploration.md`.
 Exploration report: `docs/research/M0028-autoformat-dotnet-nuget-content-exploration.md`.
+
+## M0029 — SDK Restore Integration and Autoformat Revalidation
+**State:** complete; SDK restore, one-pass convergence and collection-expression eligibility corrected; target Draft PR #14 remains DO NOT MERGE for separate review
+**Mode:** AI-executed; no mandatory human acceptance gate
+
+Enabled SDK-native restore by default with explicit `--no-restore` opt-in, corrected one-pass convergence and collection-expression eligibility, and removed automatic breaks before member-access operators. The initial NuGet-content output contained 176 blank-before-dot anomalies across seven files; the fresh-baseline rerun has zero, preserves required imports and collection-expression eligibility, builds in the focused diagnostic, and converges in one pass. Its raw delta is appended to existing [target Draft PR #14](https://github.com/carlrabbit/dotnet-nuget-content/pull/14), which remains DO NOT MERGE for separate review; original Draft PR #13 remains unchanged. No target tests or release qualification were run.
+
+Primary milestone: `docs/milestones/M0029-sdk-restore-and-autoformat-revalidation.md`.
+Execution ledger: `.execution/M0029-sdk-restore-and-autoformat-revalidation.md`.
+Revalidation report: `docs/research/M0029-autoformat-nuget-content-revalidation.md`.
