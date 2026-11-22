@@ -171,6 +171,42 @@ public class CanonicalizerTests
     }
 
     [Test]
+    public async Task CollectionExpressionsRequireARecognizedTargetTypeContext()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            class Sample {
+              IReadOnlyList<int> Property { get; } = new List<int> { 1, 2 };
+              int[] ArrayProperty => new int[] { 3, 4 };
+              IReadOnlyList<int> Items() { return new List<int> { 5, 6 }; }
+              void Consume(int[] values) { }
+              void Run() {
+                foreach (var name in new[] { "added", "modified", "deleted" }) { }
+                foreach (var values in new[] { new[] { 1 }, new[] { 2 } }) { }
+                foreach (var key in new[] { "alias", "packageId", "version" }) { }
+                Consume(new[] { 7, 8 });
+                var inferred = new[] { 9, 10 };
+                List<int> concrete = new List<int> { 11, 12 };
+                IReadOnlyList<int> collectionInterface = new List<int> { 13, 14 };
+              }
+            }
+            """;
+
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+
+        await Assert.That(result).Contains("foreach (var name in new[] { \"added\", \"modified\", \"deleted\" })");
+        await Assert.That(result).Contains("foreach (var values in new[] { new[] { 1 }, new[] { 2 } })");
+        await Assert.That(result).Contains("foreach (var key in new[] { \"alias\", \"packageId\", \"version\" })");
+        await Assert.That(result).Contains("Consume(new[] { 7, 8 })");
+        await Assert.That(result).Contains("int[] inferred = [9, 10]");
+        await Assert.That(result).Contains("IReadOnlyList<int> Property { get; } = [1, 2]");
+        await Assert.That(result).Contains("int[] ArrayProperty => [3, 4]");
+        await Assert.That(result).Contains("IReadOnlyList<int> Items() =>[5, 6]");
+        await Assert.That(result).Contains("List<int> concrete = [11, 12]");
+        await Assert.That(result).Contains("IReadOnlyList<int> collectionInterface = [13, 14]");
+    }
+
+    [Test]
     public async Task KeepsConstructorAttributesAndTriviaWhenPrimaryConstructorCannotRepresentThem()
     {
         const string source = "class Service { private readonly int _value; [Obsolete(\"Use the factory\")] public Service(int value) { _value = value; } }";

@@ -184,7 +184,8 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitArrayCreationExpression(ArrayCreationExpressionSyntax node)
         {
             node = (ArrayCreationExpressionSyntax)base.VisitArrayCreationExpression(node)!;
-            if (!supportsCSharp12 || !IsSupportedArrayCreation(node) || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
+            if (!supportsCSharp12 || !IsSupportedArrayCreation(node) || HasComments(node) || HasUntargetedVar(node)
+                || !HasSupportedCollectionTarget(node) || Retained(node, "modernization.collection-expression"))
             {
                 return node;
             }
@@ -195,7 +196,8 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitImplicitArrayCreationExpression(ImplicitArrayCreationExpressionSyntax node)
         {
             node = (ImplicitArrayCreationExpressionSyntax)base.VisitImplicitArrayCreationExpression(node)!;
-            if (!supportsCSharp12 || !IsSupportedArrayInitializer(node.Initializer) || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
+            if (!supportsCSharp12 || !IsSupportedArrayInitializer(node.Initializer) || HasComments(node) || HasUntargetedVar(node)
+                || !HasSupportedCollectionTarget(node) || Retained(node, "modernization.collection-expression"))
             {
                 return node;
             }
@@ -206,9 +208,10 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
         {
             node = (ObjectCreationExpressionSyntax)base.VisitObjectCreationExpression(node)!;
+            TypeSyntax? target = GetDirectTargetType(node);
             if (supportsCSharp12 && node.Initializer is { Expressions.Count: > 0 } init && IsCollectionInitializer(init)
-                && !HasComments(node) && !HasUntargetedVar(node) && Retained(node, "modernization.collection-expression") == false
-                && IsKnownListType(node.Type))
+                && !HasComments(node) && !HasUntargetedVar(node) && IsSupportedCollectionTarget(target)
+                && !Retained(node, "modernization.collection-expression") && IsKnownListType(node.Type))
             {
                 return SyntaxFactory.ParseExpression("[" + string.Join(", ", init.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
             }
@@ -244,7 +247,24 @@ internal static class CSharpCanonicalizer
             initializer.IsKind(SyntaxKind.CollectionInitializerExpression) && initializer.Expressions.Count > 0
             && initializer.Expressions.All(expression => expression is not InitializerExpressionSyntax);
 
-        private static TypeSyntax? GetDirectTargetType(ImplicitObjectCreationExpressionSyntax node)
+        private static bool HasSupportedCollectionTarget(ExpressionSyntax node) => IsSupportedCollectionTarget(GetDirectTargetType(node));
+
+        private static bool IsSupportedCollectionTarget(TypeSyntax? type)
+        {
+            if (type is ArrayTypeSyntax array)
+            {
+                return array.RankSpecifiers.All(rank => rank.Sizes.Count == 1);
+            }
+
+            if (type is not null && TryGetSimpleTypeName(type) is GenericNameSyntax generic)
+            {
+                return generic.Identifier.ValueText is "List" or "IEnumerable" or "IReadOnlyCollection" or "IReadOnlyList" or "ICollection" or "IList";
+            }
+
+            return false;
+        }
+
+        private static TypeSyntax? GetDirectTargetType(ExpressionSyntax node)
         {
             if (node.Parent is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax variable }
                 && variable.Parent is VariableDeclarationSyntax declaration && !declaration.Type.IsVar)
@@ -262,24 +282,40 @@ internal static class CSharpCanonicalizer
                 return method.ReturnType;
             }
 
-            if (node.Parent is ArrowExpressionClauseSyntax && node.Parent.Parent is MethodDeclarationSyntax expressionMethod)
+            if (node.Parent is ReturnStatementSyntax && node.FirstAncestorOrSelf<LocalFunctionStatementSyntax>() is LocalFunctionStatementSyntax localFunction)
+            {
+                return localFunction.ReturnType;
+            }
+
+            if (node.Parent is ArrowExpressionClauseSyntax { Parent: MethodDeclarationSyntax expressionMethod })
             {
                 return expressionMethod.ReturnType;
+            }
+
+            if (node.Parent is ArrowExpressionClauseSyntax { Parent: PropertyDeclarationSyntax expressionProperty })
+            {
+                return expressionProperty.Type;
+            }
+
+            if (node.Parent is ArrowExpressionClauseSyntax { Parent: LocalFunctionStatementSyntax expressionFunction })
+            {
+                return expressionFunction.ReturnType;
             }
 
             return null;
         }
 
+        private static SimpleNameSyntax? TryGetSimpleTypeName(TypeSyntax type) => type switch
+        {
+            GenericNameSyntax generic => generic,
+            QualifiedNameSyntax qualified => qualified.Right,
+            AliasQualifiedNameSyntax alias => alias.Name,
+            _ => null
+        };
+
         private static bool IsKnownListType(TypeSyntax type)
         {
-            SimpleNameSyntax? name = type switch
-            {
-                GenericNameSyntax generic => generic,
-                QualifiedNameSyntax qualified => qualified.Right,
-                AliasQualifiedNameSyntax alias => alias.Name,
-                _ => null
-            };
-            return name is GenericNameSyntax genericName && genericName.Identifier.ValueText == "List";
+            return TryGetSimpleTypeName(type) is GenericNameSyntax genericName && genericName.Identifier.ValueText == "List";
         }
 
         public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
