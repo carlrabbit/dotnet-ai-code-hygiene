@@ -14,7 +14,7 @@ public class CanonicalizerTests
         string project = Path.Combine(root, "Fixture.csproj");
         string sourcePath = Path.Combine(root, "Sample.cs");
         await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-        string fixtureSource = "using System.Collections.Generic;\nclass Sample { int _value; Sample(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items() { return new List<int> { 1, 2, 3 }; } void Process(int first, string second, bool third) { }\n // autoformat:retain readability.comments -- keep the annotated member's layout\n void KeepComments() {\n // keep this comment's indentation\n Call();\n CallAgain();\n }\n}";
+        string fixtureSource = "using System.Collections.Generic;\nclass Sample { int _value; public Sample(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items() { return new List<int> { 1, 2, 3 }; } void Process(int first, string second, bool third) { }\n // autoformat:retain readability.comments -- keep the annotated member's layout\n void KeepComments() {\n // keep this comment's indentation\n Call();\n CallAgain();\n }\n}";
         await File.WriteAllTextAsync(sourcePath, fixtureSource);
         using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
         {
@@ -38,6 +38,14 @@ public class CanonicalizerTests
         string normalizedSecond = await File.ReadAllTextAsync(sourcePath);
         await Assert.That(normalizedSecond).IsEqualTo(normalized);
         await Assert.That(second.ChangedCount).IsEqualTo(0);
+
+        RewriteResult cleanCheck = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: true);
+        await Assert.That(cleanCheck.ChangedCount).IsEqualTo(0);
+        string violation = normalized.Replace("int Value", "int  Value", StringComparison.Ordinal);
+        await File.WriteAllTextAsync(sourcePath, violation);
+        RewriteResult dirtyCheck = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: true);
+        await Assert.That(dirtyCheck.ChangedCount).IsEqualTo(1);
+        await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(violation);
     }
 
     [Test]
@@ -47,7 +55,7 @@ public class CanonicalizerTests
             using System.Collections.Generic;
             class Sample {
               int _value;
-              Sample(int value) { _value = value; }
+              public Sample(int value) { _value = value; }
               int Get(int x) { return x + 1; }
               int Pick(int x) {
                 switch (x) { case 0: return 10; default: return 20; }
@@ -133,6 +141,17 @@ public class CanonicalizerTests
         await Assert.That(result).Contains("[Obsolete(\"Use the factory\")]");
         await Assert.That(result).Contains("public Service(int value)");
         await Assert.That(result).DoesNotContain("class Service(int value)");
+    }
+
+    [Test]
+    public async Task KeepsRestrictedConstructorsExplicitButModernizesPublicConstructors()
+    {
+        const string source = "public class Restricted { private readonly int _value; private Restricted(int value) { _value = value; } } public class Eligible { private readonly int _value; public Eligible(int value) { _value = value; } }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("private Restricted(int value)");
+        await Assert.That(result).DoesNotContain("class Restricted(int value)");
+        await Assert.That(result).Contains("class Eligible(int value)");
+        await Assert.That(result).DoesNotContain("public Eligible(int value)");
     }
 
     [Test]

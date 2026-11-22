@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace DotNetAiWorkbench.Autoformat.Core;
@@ -41,6 +42,14 @@ public sealed class RewriteEngine
         if (eligible.Length == 0)
         {
             return new(command, checkOnly, 0, 0, 0, [], [], selectedRules, []);
+        }
+
+        // Check normalization against the exact mutating pipeline in an isolated source
+        // snapshot. SDK style/whitespace edits and the final syntax/comment passes can
+        // otherwise disagree with verify-only reports from an intermediate phase.
+        if (checkOnly && command == "normalize")
+        {
+            return PreviewNormalization(session, eligible, assigned, selectedRules);
         }
 
         var bytes = eligible.ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
@@ -192,6 +201,109 @@ public sealed class RewriteEngine
         finally
         {
             try { Directory.Delete(reportDirectory, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    private RewriteResult PreviewNormalization(RepositorySession session, string[] eligible,
+        Dictionary<string, (Project Project, Document Document)> assigned, string[] selectedRules)
+    {
+        string shadowRoot = Path.Combine(Path.GetTempPath(), "autoformat-preview-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(shadowRoot);
+            Directory.CreateDirectory(Path.Combine(shadowRoot, ".git"));
+            CopyPreviewWorkspace(shadowRoot, assigned.Values.Select(value => value.Project.FilePath!)
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            string[] shadowTargets = eligible
+                .Select(path => Path.Combine(shadowRoot, Path.GetRelativePath(root, path)))
+                .ToArray();
+            var preview = phaseRunner is null
+                ? new RewriteEngine(shadowRoot, requireCleanCheckpoint: false)
+                : new RewriteEngine(shadowRoot, phaseRunner);
+            RewriteResult result = preview.Rewrite("normalize", shadowTargets, changed: false, checkOnly: false);
+            return result with
+            {
+                CheckOnly = true,
+                SelectedPaths = eligible.Select(session.Relative).ToArray(),
+                ChangedPaths = result.ChangedPaths,
+                SelectedRuleIds = selectedRules
+            };
+        }
+        finally
+        {
+            try { Directory.Delete(shadowRoot, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles)
+    {
+        string[] rootSettings = [".editorconfig", ".globalconfig", "global.json", "NuGet.Config", "nuget.config",
+            "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props"];
+        var pending = new Stack<string>(projectFiles);
+        var copiedProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var copiedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (pending.Count > 0)
+        {
+            string projectFile = Path.GetFullPath(pending.Pop());
+            if (!copiedProjects.Add(projectFile) || !File.Exists(projectFile))
+            {
+                continue;
+            }
+
+            string projectDirectory = Path.GetDirectoryName(projectFile)!;
+            string relativeProjectDirectory = Path.GetRelativePath(root, projectDirectory);
+            string shadowDirectory = Path.GetFullPath(Path.Combine(shadowRoot, relativeProjectDirectory));
+            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories);
+
+            string? ancestor = projectDirectory;
+            while (ancestor is not null && (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)
+                || ancestor.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            {
+                foreach (string setting in rootSettings)
+                {
+                    string settingPath = Path.Combine(ancestor, setting);
+                    if (File.Exists(settingPath))
+                    {
+                        string relative = Path.GetRelativePath(root, settingPath);
+                        string destination = Path.Combine(shadowRoot, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                        File.Copy(settingPath, destination, overwrite: true);
+                    }
+                }
+
+                if (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)) { break; }
+                ancestor = Directory.GetParent(ancestor)?.FullName;
+            }
+
+            XDocument document = XDocument.Load(projectFile);
+            foreach (XElement reference in document.Descendants().Where(element => element.Name.LocalName == "ProjectReference"))
+            {
+                string? include = (string?)reference.Attribute("Include");
+                if (string.IsNullOrWhiteSpace(include) || include.Contains("$(", StringComparison.Ordinal)) { continue; }
+                string referencedProject = Path.GetFullPath(Path.Combine(projectDirectory, include));
+                if (referencedProject.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    pending.Push(referencedProject);
+                }
+            }
+        }
+    }
+
+    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories)
+    {
+        if (!copiedDirectories.Add(source)) { return; }
+        Directory.CreateDirectory(destination);
+        foreach (string file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+        }
+
+        foreach (string directory in Directory.EnumerateDirectories(source))
+        {
+            string name = Path.GetFileName(directory);
+            if (name is ".git" or ".execution" or ".review" or ".vs" or "bin" or "TestResults" or "node_modules") { continue; }
+            CopyProjectDirectory(directory, Path.Combine(destination, name), copiedDirectories);
         }
     }
 

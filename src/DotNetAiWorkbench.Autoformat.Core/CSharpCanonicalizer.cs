@@ -470,7 +470,12 @@ internal static class CSharpCanonicalizer
             }
 
             ConstructorDeclarationSyntax ctor = type.Members.OfType<ConstructorDeclarationSyntax>().Single();
+            SyntaxTriviaList nameTrailingTrivia = type.Identifier.TrailingTrivia;
             if (Retained(type, "modernization.primary-constructor") || Retained(ctor, "modernization.primary-constructor")
+                // A primary constructor is publicly callable. Keep a restricted explicit
+                // constructor when its access boundary cannot be represented by that form.
+                || !ctor.Modifiers.Any(SyntaxKind.PublicKeyword)
+                || nameTrailingTrivia.Any(trivia => !trivia.IsKind(SyntaxKind.WhitespaceTrivia) && !trivia.IsKind(SyntaxKind.EndOfLineTrivia))
                 || ctor.AttributeLists.Count > 0 || HasComments(ctor) || ctor.Initializer is not null
                 || ctor.Modifiers.Any(SyntaxKind.StaticKeyword) || ctor.Body is null || ctor.Body.Statements.Count == 0)
             {
@@ -519,7 +524,10 @@ internal static class CSharpCanonicalizer
                 members[fieldIndex] = updated;
             }
             members.Remove(ctor);
-            return type.WithParameterList(SyntaxFactory.ParameterList(ctor.ParameterList.Parameters)).WithMembers(SyntaxFactory.List(members));
+            ParameterListSyntax parameterList = SyntaxFactory.ParameterList(ctor.ParameterList.Parameters).WithTrailingTrivia(nameTrailingTrivia);
+            return type.WithIdentifier(type.Identifier.WithTrailingTrivia(default(SyntaxTriviaList)))
+                .WithParameterList(parameterList)
+                .WithMembers(SyntaxFactory.List(members));
         }
 
         private static bool HasComments(SyntaxNode node) => HasProtectedTrivia(node);

@@ -4,7 +4,7 @@
 
 `dotnet autoformat` is an independent source canonicalizer. `init` establishes or validates Autoformat's fixed mechanical `.editorconfig` block. It does not read Hygiene profiles, review state, approvals or audit state. Transitional `dotnet hygiene` delegates formatting to the same engine and retains its semantic-review/lifecycle host.
 
-`format` runs SDK whitespace formatting only. Default mode and `normalize` apply source modernizations and readability layout, run approved SDK style diagnostics and SDK whitespace formatting, then reapply the syntax layout rules so the SDK formatter cannot undo opinionated layouts. Explicit paths select supported SDK-project C# source. `--changed` selects staged, unstaged and untracked C# files and implies check-only. `--check` and `--changed` do not write source or policy state.
+`format` runs SDK whitespace formatting only. Default mode and `normalize` apply source modernizations and readability layout, run approved SDK style diagnostics and SDK whitespace formatting, then reapply the syntax layout rules so the SDK formatter cannot undo opinionated layouts. Explicit paths select supported SDK-project C# source. `--changed` selects staged, unstaged and untracked C# files and implies check-only. Check-only normalization runs that same complete pipeline against a temporary copy of the selected project context and reports final source differences without writing to the repository.
 
 Mutating runs require a clean Git worktree/index and known `HEAD`; the engine records and verifies `HEAD` and the index. It never builds or tests the target project, checks semantic equivalence, commits, pushes, resets or rolls back. A failure leaves partial edits inspectable for the implementing agent to repair.
 
@@ -17,7 +17,7 @@ Mutating runs require a clean Git worktree/index and known `HEAD`; the engine re
 | `modernization.var-style` | Prefer an explicit type when syntax gives a direct type; leave `var` for anonymous/unknown cases. |
 | `modernization.expression-body` | Convert single-expression methods and getter-only properties to expression bodies. |
 | `modernization.collection-expression` | Convert eligible arrays and list initializers to C# 12 collection expressions, including interface targets even when concrete runtime type changes. |
-| `modernization.primary-constructor` | Convert a single constructor that only copies parameters into fields on eligible classes/structs. |
+| `modernization.primary-constructor` | Convert a single explicitly public constructor that only copies parameters into fields on eligible classes/structs. |
 | `modernization.switch-expression` | Convert simple return-valued or same-target assignment switches with constant labels and a default arm. |
 | `modernization.conditional` | Convert simple return and assignment `if/else` forms, including single-statement blocks. |
 | `modernization.object-initializer` | Merge a local construction and its following simple member assignment when comments and invocation side effects are absent. |
@@ -26,7 +26,7 @@ Mutating runs require a clean Git worktree/index and known `HEAD`; the engine re
 
 The canonicalizer is syntax-directed and uses the SDK project's parse options. It does not load a semantic model or require successful compilation. It skips source-comment/directive-bearing constructs when a rewrite would lose trivia. Target-typed `new()` with an initializer converts only when its direct declared target is syntactically `List<T>`; arbitrary DTO/object initializers remain object initializers. Array conversions require rank-one array levels and flat array-initializer entries. List conversions require a flat collection initializer; object/member assignments and nested brace initializers are left unchanged. Unsupported patterns remain unchanged; reports include invalid retain annotations and remaining lines over the long-line target.
 
-Primary-constructor conversion skips constructors with attributes, comments, directives, constructor initializers, or other syntax outside the direct field-assignment shape. Type-level `autoformat:retain modernization.primary-constructor` annotations suppress only that type's conversion.
+Primary-constructor conversion skips constructors whose accessibility is not explicitly public, or which have attributes, comments, directives, constructor initializers, or other syntax outside the direct field-assignment shape. This avoids changing restricted construction to public construction. Type-level `autoformat:retain modernization.primary-constructor` annotations suppress only that type's conversion.
 
 ## Source-local retain annotations
 
