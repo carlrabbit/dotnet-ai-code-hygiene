@@ -30,4 +30,4 @@
 
 ## Handoff
 
-Current corrections are ready for commit and push to the existing [PR #33](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/33), still targeting `planning/m0027-opinionated-autoformat-canonicalization`. Installed-tool qualification, full Hygiene/release suites and real-repository processing remain deferred.
+Accessibility and exact check-only corrections were committed as `c2f9198` and pushed to the existing [PR #33](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/33), still targeting `planning/m0027-opinionated-autoformat-canonicalization`. Installed-tool qualification, full Hygiene/release suites and real-repository processing remain deferred.
