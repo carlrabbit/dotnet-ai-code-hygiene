@@ -1,39 +1,33 @@
 # M0027 — Optional Execution Progress
 
-> **Operational resume notes only.** The authoritative product contract is [M0027](../docs/milestones/M0027-opinionated-autoformat-canonicalization.md). Update this file at meaningful checkpoints or when stopping; it is **not** an acceptance ledger, evidence register, or checklist of mandatory test gates.
+> Operational resume notes only. The authoritative product contract is [M0027](../docs/milestones/M0027-opinionated-autoformat-canonicalization.md).
 
-**Milestone:** `docs/milestones/M0027-opinionated-autoformat-canonicalization.md`  
-**Starting implementation state:** Not started; planning ready on PR #32  
-**Last updated:** 2026-11-22 (planning handoff)
+**Milestone:** `docs/milestones/M0027-opinionated-autoformat-canonicalization.md`
+**Implementation branch:** `codex/m0027-opinionated-autoformat-canonicalization`
+**Last updated:** 2026-11-22 (accessibility and check-only corrections verified)
 
-## Completed capability work
+## Completed work
 
-- Planning only: ready M0027 defines the Autoformat-only ownership boundary, all nine modernization families, readability canonicalization, localized exceptions, idempotence, and agent-owned build/repair.
-- No M0027 implementation or verification is claimed.
+- Implemented an Autoformat-owned Roslyn canonicalizer covering all nine modernization families, retain annotations, visual-block spacing, vertical parameters, syntax-aware line wrapping and redundant blank-line cleanup.
+- Corrected expression-body comment preservation, owner-resolved exceptions across modernization/layout/retained comment indentation, DTO versus collection detection, full vertical parameter delimiters, reusable `out` locals, and the current Hygiene capability specification.
+- Fresh review added same-target assignment switch conversion and a post-SDK layout stabilization pass; the disposable SDK engine test now exercises retained comments and two-pass stability.
+- Final source-integrity pass restricts collection expressions to flat supported collection/array initializer forms, preserves rectangular arrays and DTO member initializers, skips primary-constructor conversions that would discard attributes or protected trivia, and honors retain annotations on the containing type.
+- Final review correction preserves non-public constructors instead of exposing them through public primary constructors. Explicitly public eligible constructors still modernize. Check-only `normalize` now snapshots selected project context to a temporary directory and runs the actual mutating pipeline there, so its changed-path result reflects final SDK style/whitespace, layout stabilization and retained-comment restoration without touching the original files.
+- Removed Hygiene-aware Autoformat policy hooks, duplicate formatter catalog modules and unused copied repository session state while retaining live semantic-review modules.
+- Simplified normal Autoformat validation and updated operative policy, architecture, engineering and readability docs. Added the M0027 completion note.
+- Aggressive collection-expression conversion applies to eligible array/list initializers without protecting downstream concrete `List<T>` assumptions. Runtime target compilation and semantic equivalence are not gates.
 
-## Remaining work
+## Checks and remaining work
 
-The implementer may reorder, combine, replace or discard implementation approaches while preserving the milestone contract. These are **progress areas**, not additional acceptance obligations:
+- `dotnet test tests/DotNetAiWorkbench.Autoformat.Tests/DotNetAiWorkbench.Autoformat.Tests.csproj -c Release --no-restore` — passed after final source-integrity corrections, 24/24.
+- `dotnet build src/DotNetAiWorkbench.Autoformat.Core/DotNetAiWorkbench.Autoformat.Core.csproj -c Release --no-restore`, `dotnet build tests/DotNetAiWorkbench.Autoformat.Tests/DotNetAiWorkbench.Autoformat.Tests.csproj -c Release --no-restore`, and `dotnet build src/DotNetAiWorkbench.Autoformat.Cli/DotNetAiWorkbench.Autoformat.Cli.csproj -c Release --no-restore` — passed with existing SDK/style warnings only.
+- The corrected engine integration test exercises a disposable SDK project, retained comment indentation, vertical parameters and byte-stable second normalization.
+- Added focused fixture assertions that clean check-only agrees with a stable mutating pass and that check-only detects a whitespace violation while leaving the original source bytes unchanged. Public versus private constructor eligibility is covered directly.
+- `dotnet test tests/DotNetAiWorkbench.Autoformat.Tests/DotNetAiWorkbench.Autoformat.Tests.csproj -c Release --no-restore` — passed (25/25).
+- `dotnet build src/DotNetAiWorkbench.Autoformat.Core/DotNetAiWorkbench.Autoformat.Core.csproj -c Release --no-restore` and `dotnet build src/DotNetAiWorkbench.Autoformat.Cli/DotNetAiWorkbench.Autoformat.Cli.csproj -c Release --no-restore` — passed (0 warnings, 0 errors; preview SDK notice only).
+- Installed-tool/package qualification, aggregate/self-host checks, real-repository processing and full Hygiene suites remain deferred release checks.
+- Known syntax-shape coverage limits are listed in the milestone completion note. Consumer projects may need agent-owned repair after canonicalization.
 
-- Clean formatter architecture and inherited Hygiene compatibility surfaces without removing live Hygiene semantic review.
-- Implement actual automatic rewriting for all nine modernization families; preserve the intentionally aggressive `IReadOnlyList<T>` collection-expression policy.
-- Implement visual-block, signature/parameter, long-line, ordinary comment and whitespace canonicalization.
-- Integrate source-local `autoformat:retain <rule-id> -- <reason>` exceptions and stable second-pass behavior across transformations.
-- Simplify everyday Autoformat engineering checks; synchronize directly affected operative documentation.
-- Review the result against the milestone, run proportionate focused tests/a few disposable SDK integration fixtures, and write the milestone completion note.
+## Handoff
 
-## Checks / known risks
-
-- **No M0027 tests run yet.** During implementation, record only useful latest focused checks/results and material open defects here.
-- Key risks to watch: source/comment/directive loss; unstable or oscillating layouts; misleading unsupported-candidate reports; Autoformat accidentally coupled back to Hygiene; policy initialization overwriting unrelated content.
-- **Do not validate the changed consumer project by building it inside Autoformat.** The implementing agent may build the workbench itself and subsequently fix errors in transformed projects; compilation/semantic equivalence of transformed targets is not an Autoformat gate.
-- The existing `eng/autoformat/validate.ps1` currently runs package/installed-consumer qualification. That is **not** the default M0027 validation command. Use direct affected-project builds, focused tests and small engine-level fixtures, or simplify the script accordingly.
-- Packaging/shim, real-repository dogfood, self-host and full release validation remain deferred.
-
-## Resume point
-
-1. Re-read the ready milestone and inspect the live branch, relevant source and changed files; do not infer implementation progress from this initial ledger.
-2. Choose a coherent implementation sequence based on actual dependencies and keep work-in-progress changes on the implementation branch.
-3. Before interruption, replace these starter notes with a concise account of completed behavior, unresolved defect(s), commands/results actually observed, and **the next concrete action**. Preserve truthfulness; do not manufacture green checks or a proof matrix.
-
-Do not create additional progress bureaucracy, fingerprinted receipts, AC/EC ID tables, or formal human-review ceremony for this milestone.
+Accessibility and exact check-only corrections were committed as `c2f9198` and pushed to the existing [PR #33](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/33), still targeting `planning/m0027-opinionated-autoformat-canonicalization`. Installed-tool qualification, full Hygiene/release suites and real-repository processing remain deferred.

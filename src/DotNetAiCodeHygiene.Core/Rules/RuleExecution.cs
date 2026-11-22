@@ -144,11 +144,6 @@ internal interface IRuleModule
     public RuleModuleResult Evaluate(RuleContext context);
 }
 
-internal interface IEditorConfigProjectionRule
-{
-    public IReadOnlyList<KeyValuePair<string, string>> EditorConfigEntries { get; }
-}
-
 /// <summary>Executes explicitly registered production rules; the host owns materialization and persistence.</summary>
 internal sealed class RuleModuleRunner(IReadOnlyList<IRuleModule> modules)
 {
@@ -161,12 +156,10 @@ internal static class RuleCatalog
 {
     internal static IReadOnlyList<IRuleModule> Modules { get; } =
     [
-        new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(), new BracesStyleRuleModule(), new AccessibilityStyleRuleModule(),
-        .. FixedMechanicalRuleModule.All,
+        new ProfileAnalysisRuleModule(), new ProfileStyleCopRuleModule(),
         new DocumentationSummaryRequiredRuleModule(), new DocumentationXmlConsistencyRuleModule(), new DocumentationSentenceRuleModule(),
         new ModernizationSourceExceptionRuleModule(),
         .. ModernizationReviewRuleModule.All,
-        new LongLineReviewRuleModule(), new ControlFlowVisualBlockRuleModule(),
         new AbstractionNecessityReviewRuleModule(), new IndirectionValueReviewRuleModule(), new ResponsibilityCohesionReviewRuleModule(),
         new BoundaryOwnershipReviewRuleModule(), new AuthorityUniquenessReviewRuleModule(), new LifecycleBindingReviewRuleModule(), new MechanismExplicitnessReviewRuleModule(),
         new BehaviorErrorContractReviewRuleModule(), new BehaviorValidationBoundaryReviewRuleModule(), new BehaviorStateConsistencyReviewRuleModule(), new BehaviorResourceOwnershipReviewRuleModule(),
@@ -178,7 +171,7 @@ internal static class RuleCatalog
     {
         FormatRemediate = false,
         NormalizeRemediate = false,
-        EditorConfigProject = module is IEditorConfigProjectionRule
+        EditorConfigProject = false
     }).ToArray();
     internal static Rule Get(string id) => All.Single(rule => rule.Id == id);
     internal static RuleModuleRunner Runner { get; } = new(Modules);

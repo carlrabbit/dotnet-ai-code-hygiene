@@ -2,11 +2,12 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace DotNetAiWorkbench.Autoformat.Core;
 
-public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> SelectedPaths, IReadOnlyList<string> ChangedPaths, IReadOnlyList<string> SelectedRuleIds);
+public sealed record RewriteResult(string Command, bool CheckOnly, int TargetCount, int ChangedCount, int UnchangedCount, IReadOnlyList<string> SelectedPaths, IReadOnlyList<string> ChangedPaths, IReadOnlyList<string> SelectedRuleIds, IReadOnlyList<string> Notices);
 
 /// <summary>Runs the supported SDK formatter in repository-wide batches and reports its actual source changes.</summary>
 public sealed class RewriteEngine
@@ -36,11 +37,19 @@ public sealed class RewriteEngine
         string[] diagnostics = command == "normalize" ? ApprovedDiagnostics.ToArray() : [];
         string[] selectedRules = command == "format"
             ? ["format.csharp.sdk.whitespace"]
-            : ["format.csharp.sdk.whitespace", .. ApprovedDiagnostics.Select(id => "sdk." + id)];
+            : ["canonicalize.csharp", .. CSharpCanonicalizer.Rules, "format.csharp.sdk.whitespace", .. ApprovedDiagnostics.Select(id => "sdk." + id)];
 
         if (eligible.Length == 0)
         {
-            return new(command, checkOnly, 0, 0, 0, [], [], selectedRules);
+            return new(command, checkOnly, 0, 0, 0, [], [], selectedRules, []);
+        }
+
+        // Check normalization against the exact mutating pipeline in an isolated source
+        // snapshot. SDK style/whitespace edits and the final syntax/comment passes can
+        // otherwise disagree with verify-only reports from an intermediate phase.
+        if (checkOnly && command == "normalize")
+        {
+            return PreviewNormalization(session, eligible, assigned, selectedRules);
         }
 
         var bytes = eligible.ToDictionary(path => path, File.ReadAllBytes, StringComparer.OrdinalIgnoreCase);
@@ -52,13 +61,54 @@ public sealed class RewriteEngine
         string head = checkOnly ? "" : TryGit(root, "rev-parse", "--verify", "HEAD").Trim();
         if (!checkOnly && requireCleanCheckpoint && head.Length == 0) { throw new ProductException("Mutating Autoformat runs require a known Git HEAD checkpoint."); }
         string index = checkOnly || head.Length == 0 ? "" : Git(root, "diff", "--cached", "--binary");
-        string reportDirectory = Path.Combine(Path.GetTempPath(), "hygiene-dotnet-format-" + Guid.NewGuid().ToString("N"));
+        string reportDirectory = Path.Combine(Path.GetTempPath(), "autoformat-dotnet-format-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(reportDirectory);
         int styleExit = 0, whitespaceExit = 0, batchIndex = 0;
         var reportDirectories = new List<string>();
         string log = "";
+        var canonicalChanges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var notices = new List<string>();
+        var retainedCommentIndentation = new Dictionary<string, IReadOnlyList<CSharpCanonicalizer.RetainedCommentIndentation>>(StringComparer.OrdinalIgnoreCase);
         try
         {
+            if (command == "normalize")
+            {
+                foreach (string path in eligible)
+                {
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    string source;
+                    System.Text.Encoding sourceEncoding;
+                    using (var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true))
+                    {
+                        source = reader.ReadToEnd();
+                        sourceEncoding = reader.CurrentEncoding;
+                    }
+                    retainedCommentIndentation[path] = CSharpCanonicalizer.CaptureRetainedCommentIndentation(source);
+
+                    bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
+                    string normalized = CSharpCanonicalizer.Normalize(source, assigned[path].Project.ParseOptions as Microsoft.CodeAnalysis.CSharp.CSharpParseOptions, out IReadOnlyList<string> fileNotices);
+                    notices.AddRange(fileNotices.Select(message => session.Relative(path) + ": " + message));
+                    if (!string.Equals(source, normalized, StringComparison.Ordinal))
+                    {
+                        canonicalChanges.Add(path);
+                        if (!checkOnly)
+                        {
+                            byte[] body = sourceEncoding.GetBytes(normalized);
+                            byte[] encoded = hadBom ? sourceEncoding.GetPreamble().Concat(body).ToArray() : body;
+                            File.WriteAllBytes(path, encoded);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (string path in eligible)
+                {
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    using var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true);
+                    retainedCommentIndentation[path] = CSharpCanonicalizer.CaptureRetainedCommentIndentation(reader.ReadToEnd());
+                }
+            }
             IReadOnlyList<(string Workspace, string[] Files)> batches = FindBatches(session, assigned);
             if (command == "normalize")
             {
@@ -80,8 +130,63 @@ public sealed class RewriteEngine
                 if (whitespaceExit != 0 && !(checkOnly && whitespaceExit == 2)) { throw Failure("whitespace", whitespaceExit, output, eligible, bytes); }
             }
 
+            // Reapply only syntax layout after SDK whitespace so the SDK formatter cannot undo
+            // opinionated layouts such as a complete vertical parameter list.
+            if (command == "normalize" && !checkOnly)
+            {
+                foreach (string path in eligible)
+                {
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    string source;
+                    System.Text.Encoding sourceEncoding;
+                    using (var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true))
+                    {
+                        source = reader.ReadToEnd();
+                        sourceEncoding = reader.CurrentEncoding;
+                    }
+
+                    bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
+                    string normalized = CSharpCanonicalizer.NormalizeLayout(source, out IReadOnlyList<string> fileNotices);
+                    notices.AddRange(fileNotices.Select(message => session.Relative(path) + ": " + message));
+                    if (!string.Equals(source, normalized, StringComparison.Ordinal))
+                    {
+                        byte[] body = sourceEncoding.GetBytes(normalized);
+                        byte[] encoded = hadBom ? sourceEncoding.GetPreamble().Concat(body).ToArray() : body;
+                        File.WriteAllBytes(path, encoded);
+                    }
+                }
+            }
+
+            if (!checkOnly)
+            {
+                foreach (string path in eligible)
+                {
+                    if (retainedCommentIndentation[path].Count == 0)
+                    {
+                        continue;
+                    }
+
+                    byte[] sourceBytes = File.ReadAllBytes(path);
+                    string source;
+                    System.Text.Encoding sourceEncoding;
+                    using (var reader = new StreamReader(new MemoryStream(sourceBytes), detectEncodingFromByteOrderMarks: true))
+                    {
+                        source = reader.ReadToEnd();
+                        sourceEncoding = reader.CurrentEncoding;
+                    }
+
+                    string restored = CSharpCanonicalizer.RestoreRetainedCommentIndentation(source, retainedCommentIndentation[path]);
+                    if (!string.Equals(source, restored, StringComparison.Ordinal))
+                    {
+                        bool hadBom = sourceEncoding.GetPreamble().Length > 0 && sourceBytes.AsSpan().StartsWith(sourceEncoding.GetPreamble());
+                        byte[] body = sourceEncoding.GetBytes(restored);
+                        File.WriteAllBytes(path, hadBom ? sourceEncoding.GetPreamble().Concat(body).ToArray() : body);
+                    }
+                }
+            }
+
             string[] changedPaths = checkOnly
-                ? ReadReportedChanges(reportDirectories, log).Where(candidate => eligible.Any(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(candidate), StringComparison.OrdinalIgnoreCase))).Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
+                ? ReadReportedChanges(reportDirectories, log).Where(candidate => eligible.Any(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(candidate), StringComparison.OrdinalIgnoreCase))).Concat(canonicalChanges).Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
                 : eligible.Where(path => !bytes[path].AsSpan().SequenceEqual(File.ReadAllBytes(path)))
                     .Select(session.Relative).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             string afterHead = checkOnly || head.Length == 0 ? "" : Git(root, "rev-parse", "--verify", "HEAD").Trim();
@@ -91,11 +196,114 @@ public sealed class RewriteEngine
                 throw new ProductException("Git HEAD or index changed during formatting. The run is incomplete; inspect the worktree and preserve the current edits before recovery.");
             }
             int changedCount = changedPaths.Length;
-            return new(command, checkOnly, eligible.Length, changedCount, Math.Max(0, eligible.Length - changedCount), eligible.Select(session.Relative).ToArray(), changedPaths, selectedRules);
+            return new(command, checkOnly, eligible.Length, changedCount, Math.Max(0, eligible.Length - changedCount), eligible.Select(session.Relative).ToArray(), changedPaths, selectedRules, notices);
         }
         finally
         {
             try { Directory.Delete(reportDirectory, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    private RewriteResult PreviewNormalization(RepositorySession session, string[] eligible,
+        Dictionary<string, (Project Project, Document Document)> assigned, string[] selectedRules)
+    {
+        string shadowRoot = Path.Combine(Path.GetTempPath(), "autoformat-preview-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(shadowRoot);
+            Directory.CreateDirectory(Path.Combine(shadowRoot, ".git"));
+            CopyPreviewWorkspace(shadowRoot, assigned.Values.Select(value => value.Project.FilePath!)
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            string[] shadowTargets = eligible
+                .Select(path => Path.Combine(shadowRoot, Path.GetRelativePath(root, path)))
+                .ToArray();
+            var preview = phaseRunner is null
+                ? new RewriteEngine(shadowRoot, requireCleanCheckpoint: false)
+                : new RewriteEngine(shadowRoot, phaseRunner);
+            RewriteResult result = preview.Rewrite("normalize", shadowTargets, changed: false, checkOnly: false);
+            return result with
+            {
+                CheckOnly = true,
+                SelectedPaths = eligible.Select(session.Relative).ToArray(),
+                ChangedPaths = result.ChangedPaths,
+                SelectedRuleIds = selectedRules
+            };
+        }
+        finally
+        {
+            try { Directory.Delete(shadowRoot, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles)
+    {
+        string[] rootSettings = [".editorconfig", ".globalconfig", "global.json", "NuGet.Config", "nuget.config",
+            "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props"];
+        var pending = new Stack<string>(projectFiles);
+        var copiedProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var copiedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (pending.Count > 0)
+        {
+            string projectFile = Path.GetFullPath(pending.Pop());
+            if (!copiedProjects.Add(projectFile) || !File.Exists(projectFile))
+            {
+                continue;
+            }
+
+            string projectDirectory = Path.GetDirectoryName(projectFile)!;
+            string relativeProjectDirectory = Path.GetRelativePath(root, projectDirectory);
+            string shadowDirectory = Path.GetFullPath(Path.Combine(shadowRoot, relativeProjectDirectory));
+            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories);
+
+            string? ancestor = projectDirectory;
+            while (ancestor is not null && (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)
+                || ancestor.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            {
+                foreach (string setting in rootSettings)
+                {
+                    string settingPath = Path.Combine(ancestor, setting);
+                    if (File.Exists(settingPath))
+                    {
+                        string relative = Path.GetRelativePath(root, settingPath);
+                        string destination = Path.Combine(shadowRoot, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                        File.Copy(settingPath, destination, overwrite: true);
+                    }
+                }
+
+                if (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)) { break; }
+                ancestor = Directory.GetParent(ancestor)?.FullName;
+            }
+
+            XDocument document = XDocument.Load(projectFile);
+            foreach (XElement reference in document.Descendants().Where(element => element.Name.LocalName == "ProjectReference"))
+            {
+                string? include = (string?)reference.Attribute("Include");
+                if (string.IsNullOrWhiteSpace(include) || include.Contains("$(", StringComparison.Ordinal)) { continue; }
+                string referencedProject = Path.GetFullPath(Path.Combine(projectDirectory, include));
+                if (referencedProject.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    pending.Push(referencedProject);
+                }
+            }
+        }
+    }
+
+    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories)
+    {
+        if (!copiedDirectories.Add(source)) { return; }
+        Directory.CreateDirectory(destination);
+        foreach (string file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+        }
+
+        foreach (string directory in Directory.EnumerateDirectories(source))
+        {
+            string name = Path.GetFileName(directory);
+            if (name is ".git" or ".execution" or ".review" or ".vs" or "bin" or "TestResults" or "node_modules") { continue; }
+            CopyProjectDirectory(directory, Path.Combine(destination, name), copiedDirectories);
         }
     }
 
