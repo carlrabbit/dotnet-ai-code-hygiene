@@ -24,7 +24,9 @@ Mutating runs require a clean Git worktree/index and known `HEAD`; the engine re
 | `modernization.readonly-field` | Mark fields readonly when every recognized assignment is constructor-owned. |
 | `modernization.inline-declaration` | Inline an uninitialized local into the next eligible `out` argument, retaining subsequent variable uses in scope. |
 
-The canonicalizer is syntax-directed and uses the SDK project's parse options. It does not load a semantic model or require successful compilation. It skips source-comment-bearing constructs when a rewrite would lose trivia. Target-typed `new()` with an initializer converts only when its direct declared target is syntactically `List<T>`; arbitrary DTO/object initializers remain object initializers. Supported collection forms include arrays and `List<T>`. Unsupported patterns remain unchanged; reports include invalid retain annotations and remaining lines over the long-line target.
+The canonicalizer is syntax-directed and uses the SDK project's parse options. It does not load a semantic model or require successful compilation. It skips source-comment/directive-bearing constructs when a rewrite would lose trivia. Target-typed `new()` with an initializer converts only when its direct declared target is syntactically `List<T>`; arbitrary DTO/object initializers remain object initializers. Array conversions require rank-one array levels and flat array-initializer entries. List conversions require a flat collection initializer; object/member assignments and nested brace initializers are left unchanged. Unsupported patterns remain unchanged; reports include invalid retain annotations and remaining lines over the long-line target.
+
+Primary-constructor conversion skips constructors with attributes, comments, directives, constructor initializers, or other syntax outside the direct field-assignment shape. Type-level `autoformat:retain modernization.primary-constructor` annotations suppress only that type's conversion.
 
 ## Source-local retain annotations
 

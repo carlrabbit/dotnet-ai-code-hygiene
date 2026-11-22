@@ -113,6 +113,54 @@ public class CanonicalizerTests
     }
 
     [Test]
+    public async Task RestrictsCollectionExpressionsToSupportedInitializerShapes()
+    {
+        const string source = "class Sample { List<int> values = new List<int> { Capacity = 10 }; int[,] grid = new int[,] { { 1, 2 }, { 3, 4 } }; IReadOnlyList<int> items = new List<int> { 5, 6 }; int[] vector = new int[] { 7, 8 }; }";
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        await Assert.That(first).Contains("List<int> values = new List<int> { Capacity = 10 }");
+        await Assert.That(first).Contains("int[,] grid = new int[,] { { 1, 2 }, { 3, 4 } }");
+        await Assert.That(first).Contains("IReadOnlyList<int> items = [5, 6]");
+        await Assert.That(first).Contains("int[] vector = [7, 8]");
+        await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task KeepsConstructorAttributesAndTriviaWhenPrimaryConstructorCannotRepresentThem()
+    {
+        const string source = "class Service { private readonly int _value; [Obsolete(\"Use the factory\")] public Service(int value) { _value = value; } }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("[Obsolete(\"Use the factory\")]");
+        await Assert.That(result).Contains("public Service(int value)");
+        await Assert.That(result).DoesNotContain("class Service(int value)");
+    }
+
+    [Test]
+    public async Task KeepsDirectiveBearingConstructorIntact()
+    {
+        const string source = "class Service { private readonly int _value; public Service(int value) {\n#if DEBUG\n_value = value;\n#endif\n} }";
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        await Assert.That(result).Contains("#if DEBUG");
+        await Assert.That(result).Contains("#endif");
+        await Assert.That(result).Contains("public Service(int value)");
+        await Assert.That(result).DoesNotContain("class Service(int value)");
+    }
+
+    [Test]
+    public async Task TypeLevelPrimaryConstructorRetainSuppressesOnlyThatModernization()
+    {
+        const string source = "// autoformat:retain modernization.primary-constructor -- Preserve explicit construction contract.\nclass Service { private readonly int _value; public Service(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items = new List<int> { 2, 3 }; }";
+        string first = CSharpCanonicalizer.Normalize(source, null, out _);
+        string second = CSharpCanonicalizer.Normalize(first, null, out _);
+        await Assert.That(first).Contains("// autoformat:retain modernization.primary-constructor -- Preserve explicit construction contract.");
+        await Assert.That(first).Contains("public Service(int value)");
+        await Assert.That(first).DoesNotContain("class Service(int value)");
+        await Assert.That(first).Contains("int Value() =>1;");
+        await Assert.That(first).Contains("IReadOnlyList<int> Items = [2, 3]");
+        await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
     public async Task FormatsTheWholeParameterListVerticallyAndConverges()
     {
         const string source = "class Sample {\n    public void Process(Customer customer, ProcessingOptions options, CancellationToken cancellationToken) { }\n}";

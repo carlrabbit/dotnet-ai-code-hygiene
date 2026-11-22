@@ -184,18 +184,18 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitArrayCreationExpression(ArrayCreationExpressionSyntax node)
         {
             node = (ArrayCreationExpressionSyntax)base.VisitArrayCreationExpression(node)!;
-            if (!supportsCSharp12 || node.Initializer is null || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
+            if (!supportsCSharp12 || !IsSupportedArrayCreation(node) || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
             {
                 return node;
             }
 
-            return SyntaxFactory.ParseExpression("[" + string.Join(", ", node.Initializer.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
+            return SyntaxFactory.ParseExpression("[" + string.Join(", ", node.Initializer!.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
         }
 
         public override SyntaxNode? VisitImplicitArrayCreationExpression(ImplicitArrayCreationExpressionSyntax node)
         {
             node = (ImplicitArrayCreationExpressionSyntax)base.VisitImplicitArrayCreationExpression(node)!;
-            if (!supportsCSharp12 || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
+            if (!supportsCSharp12 || !IsSupportedArrayInitializer(node.Initializer) || HasComments(node) || HasUntargetedVar(node) || Retained(node, "modernization.collection-expression"))
             {
                 return node;
             }
@@ -206,7 +206,8 @@ internal static class CSharpCanonicalizer
         public override SyntaxNode? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
         {
             node = (ObjectCreationExpressionSyntax)base.VisitObjectCreationExpression(node)!;
-            if (supportsCSharp12 && node.Initializer is { Expressions.Count: > 0 } init && !HasComments(node) && !HasUntargetedVar(node) && Retained(node, "modernization.collection-expression") == false
+            if (supportsCSharp12 && node.Initializer is { Expressions.Count: > 0 } init && IsCollectionInitializer(init)
+                && !HasComments(node) && !HasUntargetedVar(node) && Retained(node, "modernization.collection-expression") == false
                 && IsKnownListType(node.Type))
             {
                 return SyntaxFactory.ParseExpression("[" + string.Join(", ", init.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
@@ -220,7 +221,7 @@ internal static class CSharpCanonicalizer
             node = (ImplicitObjectCreationExpressionSyntax)base.VisitImplicitObjectCreationExpression(node)!;
             TypeSyntax? target = GetDirectTargetType(node);
             if (supportsCSharp12 && target is not null && IsKnownListType(target)
-                && node.Initializer is { Expressions.Count: > 0 } init && !HasComments(node)
+                && node.Initializer is { Expressions.Count: > 0 } init && IsCollectionInitializer(init) && !HasComments(node)
                 && !HasUntargetedVar(node) && !Retained(node, "modernization.collection-expression"))
             {
                 return SyntaxFactory.ParseExpression("[" + string.Join(", ", init.Expressions.Select(e => e.ToString())) + "]").WithTriviaFrom(node);
@@ -230,6 +231,18 @@ internal static class CSharpCanonicalizer
             // Arbitrary DTO/object initializers remain object initializers.
             return node;
         }
+
+        private static bool IsSupportedArrayCreation(ArrayCreationExpressionSyntax node) =>
+            node.Type.RankSpecifiers.Count > 0 && node.Type.RankSpecifiers.All(rank => rank.Sizes.Count == 1)
+            && IsSupportedArrayInitializer(node.Initializer);
+
+        private static bool IsSupportedArrayInitializer(InitializerExpressionSyntax? initializer) =>
+            initializer is { Expressions.Count: > 0 } && initializer.IsKind(SyntaxKind.ArrayInitializerExpression)
+            && initializer.Expressions.All(expression => expression is not InitializerExpressionSyntax);
+
+        private static bool IsCollectionInitializer(InitializerExpressionSyntax initializer) =>
+            initializer.IsKind(SyntaxKind.CollectionInitializerExpression) && initializer.Expressions.Count > 0
+            && initializer.Expressions.All(expression => expression is not InitializerExpressionSyntax);
 
         private static TypeSyntax? GetDirectTargetType(ImplicitObjectCreationExpressionSyntax node)
         {
@@ -457,7 +470,8 @@ internal static class CSharpCanonicalizer
             }
 
             ConstructorDeclarationSyntax ctor = type.Members.OfType<ConstructorDeclarationSyntax>().Single();
-            if (Retained(ctor, "modernization.primary-constructor") || HasComments(ctor) || ctor.Initializer is not null
+            if (Retained(type, "modernization.primary-constructor") || Retained(ctor, "modernization.primary-constructor")
+                || ctor.AttributeLists.Count > 0 || HasComments(ctor) || ctor.Initializer is not null
                 || ctor.Modifiers.Any(SyntaxKind.StaticKeyword) || ctor.Body is null || ctor.Body.Statements.Count == 0)
             {
                 return type;
