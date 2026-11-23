@@ -1,32 +1,38 @@
 # Execution Obligation Ledger — M0032
 
-> Planner-seeded completeness inventory. The ready milestone is authoritative; this is not an evidence registry or per-criterion test matrix.
+> Planner-seeded completeness inventory for the **amended event-only** M0032 contract. The milestone is authoritative. This is not an evidence registry, validation matrix, or a record of the superseded implementation's completion.
 
 **Milestone:** `docs/milestones/M0032-agent-cli-session-tracing.md`  
 **Planning base:** `main` `2cea53e3184026c4ff96f4ce5dd3351bbae3325b`  
-**Status:** pending
+**Status:** pending under amended milestone; implementation PR #45 requires reconciliation with the new planning commit
 
 ## Planned obligations
 
-| ID | Material outcome (same meaning as milestone) | Status | Brief result / blocker |
+| ID | Material outcome (same meaning as amended milestone) | Status | Brief result / blocker |
 |---|---|---|---|
-| CLI-01 | Independent agenttrace CLI, noninteractive recording/read commands and stable process/exit surface, without integrations or Autoformat/Hygiene coupling | pending | |
-| SES-01 | Durable, explicit-ID session lifecycle, list, pause/resume/stop, invalid transitions, concurrent session isolation, unfinished states | pending | |
-| RUN-01 | Actual child-process wrapper with faithful argv/cwd/streams/exit status, pre-launch start persistence, launch failure and interruption behavior | pending | |
-| DECL-01 | Optional declared external/MCP begin/end spans and point-in-time marks, with honest provenance and IDs | pending | |
-| CFG-01 | Optional root .agenttrace.json, root discovery, JSONL default, SQLite option, path/invalid-config behavior and Git ignore | pending | |
-| STORE-01 | Equivalent, durable JSONL/SQLite session/event semantics under concurrent CLI processes, including partial records | pending | |
-| TIME-01 | Monotonic command timings, UTC chronology, interval-union coverage, paused time, declared time, and honestly unattributed intervals | pending | |
-| REPORT-01 | Console/file human report in text/Markdown with timelines, summaries, failures, repeats and provenance | pending | |
-| EXPORT-01 | Pure, versioned machine-readable JSON/JSONL session export and machine-usable session discovery, consistent across providers | pending | |
-| SAFE-01 | No default stream/environment capture, sensitive-argument suppression, scoped writes, truthful incomplete state, no neighboring tool regression | pending | |
-| TEST-01 | Focused deterministic tests and representative real-process CLI fixtures across failures, concurrency, storage modes and reporting | pending | |
-| DOC-01 | Current README, architecture, engineering, help/examples, milestone index and completion notes accurately describe independent AgentTrace | pending | |
+| CLI-01 | Independent recording-only CLI, noninteractive commands, truthful diagnostics and structured output, no subprocess execution or tool integrations | pending | |
+| SES-01 | Caller-selected session key and optional actor; lifecycle as append-only start/pause/resume/stop markers without registration, state gating or generated IDs | pending | |
+| RUN-01 | Exact command-text begin/end events; content-hash-plus-label matching, reported result, concurrent identical-command FIFO/ambiguity, no generated run key | pending | |
+| DECL-01 | Optional agent-declared external/MCP start/end and timestamped marks with the same caller-keyed matching and truthful provenance | pending | |
+| CFG-01 | Optional root .agenttrace.json, default JSONL, configured SQLite/JSONL, explicit absolute external paths and relative paths, valid diagnostics and ignored defaults | pending | |
+| STORE-01 | Equivalent JSONL and SQLite WAL append-only event model, safe concurrent CLI writes to a shared session, duplicate/unmatched event preservation | pending | |
+| TIME-01 | Honest cross-invocation UTC duration estimates, FIFO overlap/ambiguity, per-actor pause annotations and qualified unattributed gaps without model-thinking claims | pending | |
+| REPORT-01 | Human text/Markdown chronological reporting of session/actor data, paired commands, repeated executions, sensitive labels, anomalies and timing coverage | pending | |
+| EXPORT-01 | Complete versioned agent-oriented JSON/JSONL raw event export with clearly distinct derived fields, clean stdout and JSON session discovery | pending | |
+| SAFE-01 | Unkeyed SHA-256 sensitive correlation retaining safe command name but no secret-bearing parameters, no stdout/stderr/env capture, safe explicit storage writes, unchanged other tools | pending | |
+| TEST-01 | Focused unit and real CLI-process tests verifying no command execution, shared-session concurrency, duplicate FIFO ambiguity, pause semantics, storage parity and privacy | pending | |
+| DOC-01 | Current README, architecture, engineering/help, milestone index and completion note reflect event-only design and documented timing/privacy limitations | pending | |
+
+## Amended planning decision
+
+All **twelve obligation IDs are preserved**. Their meanings were explicitly updated because the original planning contract incorrectly required `agenttrace run` to supervise subprocesses, generated IDs, session state gating and confined SQLite paths. The previous completion ledger inside PR #45 describes **the superseded contract**, not completed obligations under this amendment. The implementer owns reconciling that branch with this updated ready milestone and may retain correct infrastructure/tests while removing obsolete behavior.
+
+No independent ADR exists or is needed for this new tool: the amended milestone is the operative product design decision; repository architecture documentation is updated during implementation.
 
 ## Implementation progress / resume context (when useful)
 
-No implementation started. Read the ready milestone, this ledger, relevant project authority and live source; the implementer owns decomposition and internal mechanics.
+No work against this **amended** contract is accepted yet. Reuse existing implementation PR #45 as the correction workstream, refresh from the exact new planning commit, then update this ledger from actual outcomes. Do not add evidence registries or validation gates.
 
 ## Completion accounting
 
-Before `COMPLETE`, reconcile the twelve milestone/ledger IDs and inspect real delivered outcomes. Mark each row truthfully; record a concise milestone completion note and focused results. No evidence-case IDs, test-by-obligation registry, receipts or installed-consumer release gate are required.
+Before `COMPLETE`, reconcile exactly these twelve IDs against the revised milestone and delivered source, not against the original implementation's old completion report. Record a short milestone completion note, focused tests actually run, and release-only deferrals.
