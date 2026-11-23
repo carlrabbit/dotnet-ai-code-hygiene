@@ -8,6 +8,8 @@ The repository is English. `.hygiene/config.json` disables only `docs.summary.la
 
 The root solution is `DotNetAiWorkbench.slnx` and includes independent `DotNetAiWorkbench.Autoformat.Core`/CLI plus the transitional hygiene Core/CLI. Autoformat owns the mechanical policy, C# canonicalizer and SDK formatting phases; Hygiene depends on Autoformat for formatting while retaining semantic review. Ordinary Autoformat development feedback is `./eng/autoformat/validate.ps1` (affected build and focused tests). Package and installed-consumer qualification is explicitly deferred to `./eng/autoformat/validate-release.ps1`.
 
+AgentTrace is a third independent executable and focused TUnit test project. Its implementation does not reference Autoformat or Hygiene. For focused source validation, build `src/DotNetAiWorkbench.AgentTrace.Cli/DotNetAiWorkbench.AgentTrace.Cli.csproj` and run `tests/DotNetAiWorkbench.AgentTrace.Tests/DotNetAiWorkbench.AgentTrace.Tests.csproj`; the tests launch short-lived CLI invocations against disposable local repositories and record harmless command text without executing it. Installed tool packaging and consumer qualification remain release work.
+
 ## Baseline
 
 ```text

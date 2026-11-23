@@ -1,9 +1,9 @@
 # Milestone — M0032: Local Agent Session Tracing CLI
 
 **ID:** M0032  
-**State:** ready (amended planning contract; implementation PR #45 must be reconciled)  
+**State:** complete (implementation PR #45 updated; awaiting review)
 **Type:** feature  
-**Planning base:** `carlrabbit/dotnet-ai-code-hygiene` `main` at `2cea53e3184026c4ff96f4ce5dd3351bbae3325b` (M0031 already merged)  
+**Planning base:** amended planning commit `6439d4411b96dd05491a058c1e32c085ea74b16a` (PR #44; M0031 already merged)
 **Methodology:** repository-pinned Agentic Project Guides 1.0.0 in `.guide/system/`, including the `cli-tool` profile; project `docs/PROJECT-GUIDANCE.md`
 
 ## Goal and target capability
@@ -147,4 +147,8 @@ Authorized implementation/test writes are restricted to the existing implementat
 
 ## Completion note (implementer fills after delivery)
 
-<Actual event-only CLI and store/report behavior, focused checks/results, explicit limitations, and deferred installed-package/release qualification.>
+Implemented the event-only `agenttrace` CLI with caller-selected session/actor keys, append-only lifecycle annotations, exact command-content SHA-256 correlation, FIFO matching and ambiguity disclosure, optional labels, declared external/MCP spans, marks, JSONL and SQLite WAL stores, text/Markdown reports, and versioned JSON/JSONL exports. Sensitive command events retain only the safe start name, unkeyed fingerprint, sensitivity marker and end outcome; neither command side persists secret-bearing parameters. Configured absolute local stores can be shared across repositories. The recorder never executes command text.
+
+Focused validation on Windows 11 with .NET SDK `11.0.100-rc.3.26522.148`: the AgentTrace test project build succeeded, and `dotnet test tests/DotNetAiWorkbench.AgentTrace.Tests/DotNetAiWorkbench.AgentTrace.Tests.csproj -c Release --no-restore` passed **11/11** focused tests. Real CLI processes covered nonexecution of a complex PowerShell command, ordinary and sensitive pairing, distinct command correlation across actors with out-of-order completion, identical command/operation FIFO ambiguity, label disambiguation, annotation-only lifecycle and actor pauses, JSONL/SQLite logical parity, external absolute SQLite storage, simultaneous JSONL and SQLite writers, partial trailing JSONL recovery, invalid configuration and refusal to overwrite an unrelated destination. The build emitted the repository analyzer advisory about `EnableGenerateDocumentationFile`; there were no build errors.
+
+Limitations remain explicit: timestamps are cross-process UTC estimates, hashes are guessable equality fingerprints rather than confidentiality, absent actors share an undifferentiated stream, and event gaps do not establish inactivity. Installed package/manifest behavior, final-consumer launch, other-platform qualification and consumer-repository trials remain deferred to release qualification. No aggregate Autoformat/Hygiene validation or package publication was performed.

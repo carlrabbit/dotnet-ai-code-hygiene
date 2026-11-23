@@ -5,7 +5,8 @@
 ```text
 DotNetAiWorkbench.slnx
 ├── dotnet autoformat -> Autoformat engine -> SDK project/Git services
-└── dotnet hygiene (transitional) -> review/profile host -> Autoformat engine
+├── dotnet hygiene (transitional) -> review/profile host -> Autoformat engine
+└── agenttrace -> append-only event stores -> deterministic pairing/report projections
 
 legacy check/bootstrap/update
 -> explicit RuleCatalog
@@ -24,6 +25,8 @@ Autoformat format/normalize
 The GitHub repository name is historical; the root solution is the workbench monorepo. Autoformat is independently executable and has no reference to Hygiene profile, review, audit or index code. Transitional Hygiene delegates formatting to Autoformat and retains its semantic-review capabilities.
 
 The workbench solution is `DotNetAiWorkbench.slnx`; the historical GitHub repository name remains unchanged. `dotnet autoformat` owns its fixed mechanical policy and source transforms. `dotnet hygiene` delegates formatting to Autoformat and keeps its independent profile/lifecycle and semantic-review host. The Autoformat command session contains only target discovery, SDK project context, source syntax and Git checkpoint operations; it does not construct compilations or semantic-review facts.
+
+`agenttrace` is a separate local event-only CLI with no references to Autoformat or Hygiene and no process execution path. Each recording call appends one caller-keyed event with UTC time, session and optional actor. Session/actor lifecycle labels are annotations, not state. Command starts preserve exact ordinary command text and SHA-256 fingerprints; sensitive starts preserve only a safe name and the unkeyed hash. Ends carry the same fingerprint and reported outcome. Read-time pairing matches by session, actor, fingerprint or operation name, and optional caller label; overlapping identical starts pair FIFO with ambiguity disclosed. Default per-session JSONL and configured SQLite WAL retain the same raw event schema, while explicitly configured local absolute paths allow repositories to share a store. Reports and exports distinguish stored events from pairing/timing interpretations and label all command activity as agent-reported.
 
 ## Repository session
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>DotNetAiWorkbench.AgentTrace.Cli</AssemblyName>
+    <RootNamespace>DotNetAiWorkbench.AgentTrace</RootNamespace>
+    <Version>0.1.0</Version>
+    <InformationalVersion>$(Version)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <PackageId>DotNetAiWorkbench.AgentTrace.Tool</PackageId>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>agenttrace</ToolCommandName>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+    <Description>Local agent-operated session tracing CLI.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.0" />
+    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="2.1.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetAiWorkbench.AgentTrace.Tests" />
+  </ItemGroup>
+</Project>

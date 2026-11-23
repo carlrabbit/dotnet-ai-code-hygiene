@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>DotNetAiWorkbench.AgentTrace.Tests</AssemblyName>
+    <RootNamespace>DotNetAiWorkbench.AgentTrace.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.72.16" />
+    <ProjectReference Include="..\..\src\DotNetAiWorkbench.AgentTrace.Cli\DotNetAiWorkbench.AgentTrace.Cli.csproj" />
+  </ItemGroup>
+</Project>
