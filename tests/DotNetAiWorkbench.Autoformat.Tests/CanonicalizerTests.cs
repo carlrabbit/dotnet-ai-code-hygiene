@@ -14,7 +14,9 @@ public class CanonicalizerTests
         Directory.CreateDirectory(Path.Combine(root, ".git"));
         string project = Path.Combine(root, "Fixture.csproj");
         string sourcePath = Path.Combine(root, "Sample.cs");
-        await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(project, """
+            <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>
+            """);
         string fixtureSource = "using System.Collections.Generic;\nclass Sample { int _value; public Sample(int value) { _value = value; } int Value() { return 1; } IReadOnlyList<int> Items() { return new List<int> { 1, 2, 3 }; } void Process(int first, string second, bool third) { }\n // autoformat:retain readability.comments -- keep the annotated member's layout\n void KeepComments() {\n // keep this comment's indentation\n Call();\n CallAgain();\n }\n}";
         await File.WriteAllTextAsync(sourcePath, fixtureSource);
         using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
@@ -56,7 +58,9 @@ public class CanonicalizerTests
         Directory.CreateDirectory(Path.Combine(root, ".git"));
         string project = Path.Combine(root, "Fixture.csproj");
         string source = Path.Combine(root, "Flow.cs");
-        await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(project, """
+            <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>
+            """);
         const string fixture = "class Sample { static void Run(string[] args) { var count = 0; for (int i = 0; i < args.Length; i++) { if (args[i].Length == 0) { continue; } count++; } if (count > 1) { count--; } } }\n";
         await File.WriteAllTextAsync(source, fixture);
         using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
@@ -83,6 +87,128 @@ public class CanonicalizerTests
         finally
         {
             if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
+        }
+    }
+
+    [Test]
+    public async Task NormalizePreviewUsesSelectedProjectAndPreservesCheckMutationParity()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "autoformat-preview-batching-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".git"));
+        string appDirectory = Path.Combine(root, "App");
+        Directory.CreateDirectory(appDirectory);
+        string project = Path.Combine(appDirectory, "Fixture.csproj");
+        string unrelatedProject = Path.Combine(appDirectory, "Unrelated.csproj");
+        string source = Path.Combine(appDirectory, "Sample.cs");
+        await File.WriteAllTextAsync(project, """
+            <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>
+            """);
+        await File.WriteAllTextAsync(unrelatedProject, "<Project><invalid");
+        await File.WriteAllTextAsync(Path.Combine(root, "Fixture.slnx"), "<Solution><Project Path=\"App/Fixture.csproj\" /><Project Path=\"App/Unrelated.csproj\" /></Solution>");
+        const string original = "class Sample { int Value() { return 1; } }\n";
+        await File.WriteAllTextAsync(source, original);
+        using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
+        {
+            await restore.WaitForExitAsync();
+            await Assert.That(restore.ExitCode).IsEqualTo(0);
+        }
+
+        try
+        {
+            var calls = new List<(string Workspace, string Phase)>();
+            bool unrelatedProjectCopiedToPreview = false;
+            var engine = new RewriteEngine(root, (workspace, phase, _, _, _, _, _) =>
+            {
+                calls.Add((workspace, phase));
+                unrelatedProjectCopiedToPreview |= File.Exists(Path.Combine(Path.GetDirectoryName(workspace)!, Path.GetFileName(unrelatedProject)));
+                return (0, string.Empty);
+            });
+            RewriteResult preview = engine.Rewrite("normalize", [source], changed: false, checkOnly: true);
+
+            await Assert.That(calls.Count).IsEqualTo(2);
+            await Assert.That(calls.Select(call => call.Phase)).IsEquivalentTo(new[] { "style", "whitespace" });
+            await Assert.That(calls.All(call => call.Workspace.EndsWith("Fixture.csproj", StringComparison.OrdinalIgnoreCase))).IsTrue();
+            await Assert.That(unrelatedProjectCopiedToPreview).IsFalse();
+            await Assert.That(preview.ChangedCount).IsEqualTo(1);
+            await Assert.That(preview.ChangedPaths).IsEquivalentTo(new[] { "App/Sample.cs" });
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(original);
+
+            var mutationCalls = new List<string>();
+            var mutating = new RewriteEngine(root, (workspace, phase, _, _, _, _, _) =>
+            {
+                mutationCalls.Add(phase);
+                return (0, string.Empty);
+            });
+            RewriteResult mutation = mutating.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            await Assert.That(mutation.ChangedPaths).IsEquivalentTo(preview.ChangedPaths);
+            await Assert.That(mutationCalls.Count).IsEqualTo(2);
+            await Assert.That(await File.ReadAllTextAsync(source)).IsNotEqualTo(original);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
+        }
+    }
+
+    [Test]
+    public async Task NormalizePreviewRejectsExternalSolutionProjectsBeforeCopyingOutsidePreview()
+    {
+        string testParent = Path.Combine(Path.GetTempPath(), "autoformat-preview-containment-" + Guid.NewGuid().ToString("N"));
+        string root = Path.Combine(testParent, "repository");
+        string externalName = "autoformat-preview-external-" + Guid.NewGuid().ToString("N");
+        string external = Path.Combine(testParent, externalName);
+        string escapedDestination = Path.Combine(Path.GetTempPath(), externalName);
+        Directory.CreateDirectory(Path.Combine(root, ".git"));
+        Directory.CreateDirectory(external);
+        string appDirectory = Path.Combine(root, "App");
+        string otherDirectory = Path.Combine(root, "Other");
+        Directory.CreateDirectory(appDirectory);
+        Directory.CreateDirectory(otherDirectory);
+        string appProject = Path.Combine(appDirectory, "App.csproj");
+        string otherProject = Path.Combine(otherDirectory, "Other.csproj");
+        string appSource = Path.Combine(appDirectory, "App.cs");
+        string otherSource = Path.Combine(otherDirectory, "Other.cs");
+        string externalProject = Path.Combine(external, "Shared.csproj");
+        string externalMarker = Path.Combine(external, "keep.txt");
+        await File.WriteAllTextAsync(appProject, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(otherProject, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+        const string externalProjectContents = "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>";
+        await File.WriteAllTextAsync(externalProject, externalProjectContents);
+        string externalProjectRelative = Path.GetRelativePath(root, externalProject).Replace('\\', '/');
+        await File.WriteAllTextAsync(Path.Combine(root, "App.slnx"), $"<Solution><Project Path=\"App/App.csproj\" /><Project Path=\"Other/Other.csproj\" /><Project Path=\"{externalProjectRelative}\" /></Solution>");
+        const string appOriginal = "class App { int Value() { return 1; } }\n";
+        const string otherOriginal = "class Other { int Value() { return 1; } }\n";
+        const string marker = "outside workspace must remain unchanged";
+        await File.WriteAllTextAsync(appSource, appOriginal);
+        await File.WriteAllTextAsync(otherSource, otherOriginal);
+        await File.WriteAllTextAsync(externalMarker, marker);
+
+        try
+        {
+            int phaseCalls = 0;
+            var engine = new RewriteEngine(root, (workspace, _, _, _, _, _, _) =>
+            {
+                phaseCalls++;
+                return (0, string.Empty);
+            });
+            ProductException? error = null;
+            try { engine.Rewrite("normalize", [appSource, otherSource], changed: false, checkOnly: true); }
+            catch (ProductException observed) { error = observed; }
+
+            await Assert.That(error).IsNotNull();
+            await Assert.That(error!.Message).Contains("external project");
+            await Assert.That(error.Message).Contains("normalize without --check");
+            await Assert.That(phaseCalls).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(appSource)).IsEqualTo(appOriginal);
+            await Assert.That(await File.ReadAllTextAsync(otherSource)).IsEqualTo(otherOriginal);
+            await Assert.That(await File.ReadAllTextAsync(externalProject)).IsEqualTo(externalProjectContents);
+            await Assert.That(await File.ReadAllTextAsync(externalMarker)).IsEqualTo(marker);
+            await Assert.That(Directory.Exists(escapedDestination)).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(testParent)) { Directory.Delete(testParent, recursive: true); }
+            if (Directory.Exists(escapedDestination)) { Directory.Delete(escapedDestination, recursive: true); }
         }
     }
 
@@ -123,6 +249,75 @@ public class CanonicalizerTests
         await Assert.That(result).Contains("out int found");
         await Assert.That(result.Replace(" ", "", StringComparison.Ordinal)).Contains("answer=answer>0?2:3;");
         await Assert.That(CSharpSyntaxTree.ParseText(result).GetDiagnostics().Any(diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)).IsFalse();
+    }
+
+    [Test]
+    public async Task VarStyleUsesValidArrayTypesAndKeepsUnknownShapesImplicit()
+    {
+        const string source = """
+            class Sample {
+              void Run() {
+                var vector = new int[3] { 1, 2, 3 };
+                var matrix = new bool[2, 4];
+                var jagged = new string[2][];
+                var inferred = new[] { 4, 5 };
+                var instance = new Sample();
+                var number = 7;
+                var unknown = Make();
+              }
+              static object Make() => new();
+            }
+            """;
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+
+        await Assert.That(result).Contains("int[] vector = [1, 2, 3]");
+        await Assert.That(result).Contains("bool[,] matrix = new bool[2, 4]");
+        await Assert.That(result).Contains("string[][] jagged = new string[2][]");
+        await Assert.That(result).Contains("int[] inferred = [4, 5]");
+        await Assert.That(result).Contains("Sample instance = new Sample()");
+        await Assert.That(result).Contains("int number = 7");
+        await Assert.That(result).Contains("var unknown = Make()");
+        await Assert.That(CSharpSyntaxTree.ParseText(result).GetDiagnostics().Any(diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)).IsFalse();
+    }
+
+    [Test]
+    public async Task ModernizationBoundariesPreserveCommentsAndUnsupportedNeighbors()
+    {
+        const string source = """
+            class Sample {
+              int Value() { // keep rationale
+                return 1;
+              }
+              int KeepSwitch(int x) {
+                switch (x) { case 0: return 1; default: Work(); return 2; }
+              }
+              int KeepConditional(bool x) {
+                if (x) { Work(); return 1; } else { return 2; }
+              }
+              void Run() {
+                var item = new Sample();
+                item.Value = Make();
+                int result;
+                Use(result);
+              }
+              int _field;
+              void Change() { _field = 1; }
+              static int Make() => 2;
+              static void Work() { }
+              static void Use(int value) { }
+            }
+            """;
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+
+        await Assert.That(result).Contains("int Value() {");
+        await Assert.That(result).Contains("// keep rationale");
+        await Assert.That(result).Contains("switch (x)");
+        await Assert.That(result).Contains("if (x)");
+        await Assert.That(result).Contains("Sample item = new Sample()");
+        await Assert.That(result).Contains("item.Value = Make()");
+        await Assert.That(result).Contains("int result;");
+        await Assert.That(result).Contains("_field = 1");
+        await Assert.That(result).DoesNotContain("readonly int _field");
     }
 
     [Test]
@@ -316,6 +511,33 @@ public class CanonicalizerTests
         string second = CSharpCanonicalizer.Normalize(first, null, out _);
         await Assert.That(first).Contains("Process(\n        Customer customer,\n        ProcessingOptions options,\n        CancellationToken cancellationToken\n    )");
         await Assert.That(second).IsEqualTo(first);
+    }
+
+    [Test]
+    public async Task AlignsRecordPositionalParametersWithTheirDeclarationInFileScopedNamespaces()
+    {
+        const string source = """
+            namespace Example;
+            public sealed record Workspace(string Root, IReadOnlyList<string> Sources, IReadOnlyList<string> Templates, Document Document, Values Values, IReadOnlyList<string> Diagnostics);
+            public sealed class Service { public void Process(string first, string second, string third) { } }
+            """;
+        string result = CSharpCanonicalizer.Normalize(source, null, out _);
+        string normalized = result.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        await Assert.That(normalized).Contains("public sealed record Workspace(\n    string Root,\n    IReadOnlyList<string> Sources,\n    IReadOnlyList<string> Templates,\n    Document Document,\n    Values Values,\n    IReadOnlyList<string> Diagnostics\n)");
+        await Assert.That(normalized).Contains("Process(\n        string first,\n        string second,\n        string third\n    )");
+    }
+
+    [Test]
+    public async Task ReducesOnlyExcessWhitespaceBeforeMethods()
+    {
+        const string source = "class Sample {\n    void First() { }\n\n\n    // preserve the comment and its attachment\n    void Second() { }\n    void Third() { }\n\n\n    void Fourth() { }\n}";
+        string result = CSharpCanonicalizer.NormalizeLayout(source, out _).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        await Assert.That(result).Contains("class Sample {\n    void First()");
+        await Assert.That(result).Contains("// preserve the comment and its attachment\n    void Second()");
+        await Assert.That(result).Contains("void Third() { }\n\n    void Fourth()");
+        await Assert.That(result).DoesNotContain("\n\n\n");
     }
 
     [Test]
