@@ -116,6 +116,50 @@ internal sealed class RepositorySession : IDisposable
             .Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var assigned = new Dictionary<string, (Project Project, Document Document)>(StringComparer.OrdinalIgnoreCase);
 
+        // An explicit single-file command normally belongs to the nearest SDK project.
+        // Load that project first so check-only previews do not evaluate every unrelated
+        // project in a large solution. If the file is linked or otherwise omitted from
+        // that project, fall back to the complete repository search below.
+        if (inputPaths.Length == 1 && targets.Length == 1 && File.Exists(inputPaths[0]))
+        {
+            string target = targets[0];
+            string? directory = Path.GetDirectoryName(target);
+            while (directory is not null && WithinRoot(directory))
+            {
+                string[] candidates = Directory.EnumerateFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly)
+                    .Order(StringComparer.Ordinal).ToArray();
+                if (candidates.Length > 0)
+                {
+                    foreach (string projectPath in candidates)
+                    {
+                        try
+                        {
+                            XDocument projectDocument = XDocument.Load(projectPath);
+                            if (!SdkProjectDetection.IsSdkStyle(projectDocument)) { continue; }
+                            Project opened = Workspace.OpenProjectAsync(projectPath).GetAwaiter().GetResult();
+                            Project project = Workspace.CurrentSolution.GetProject(opened.Id)!;
+                            Document? document = project.Documents.FirstOrDefault(candidate => candidate.FilePath is not null
+                                && Path.GetFullPath(candidate.FilePath).Equals(target, StringComparison.OrdinalIgnoreCase));
+                            if (document is not null)
+                            {
+                                assigned[target] = (project, document);
+                                return assigned;
+                            }
+                        }
+                        catch (Exception error) when (error is not OperationCanceledException)
+                        {
+                            // Preserve the established full discovery/error path for unusual
+                            // or linked-file project layouts.
+                            break;
+                        }
+                    }
+                    break;
+                }
+                if (string.Equals(directory, Root, StringComparison.OrdinalIgnoreCase)) { break; }
+                directory = Directory.GetParent(directory)?.FullName;
+            }
+        }
+
         foreach (string path in targets)
         {
             var match = Projects.SelectMany(p => p.Documents.Select(d => (Project: p, Document: d)))

@@ -208,3 +208,12 @@ Enabled SDK-native restore by default with explicit `--no-restore` opt-in, corre
 Primary milestone: `docs/milestones/M0029-sdk-restore-and-autoformat-revalidation.md`.
 Execution ledger: `.execution/M0029-sdk-restore-and-autoformat-revalidation.md`.
 Revalidation report: `docs/research/M0029-autoformat-nuget-content-revalidation.md`.
+
+## M0030 — Autoformat Source Safety, Check-Mode Performance, and Rewrite Coverage
+**State:** implementation complete in [PR #41](https://github.com/carlrabbit/dotnet-ai-code-hygiene/pull/41) on `implementation/m0030-autoformat-correctness-check-performance`, targeting `planning/m0030-autoformat-correctness-check-performance`  
+**Mode:** AI-executed; no formal human acceptance gate
+
+Corrected invalid sized-array declaration rewrites and the observed YADG layout defects, restored solution-aware batching in check-only previews, and strengthened direct source-to-source coverage across the nine modernization families. The fresh-baseline YADG raw output is appended to the existing [Draft PR #22](https://github.com/carlrabbit/yadg/pull/22), which remains open and DO NOT MERGE. One execution time per workload is recorded; the full check and no-restore workloads improved materially while single-file check time did not. The diagnostic build exposed one baseline-existing nullable assignment error. No target tests or release qualification were run.
+
+Primary milestone: `docs/milestones/M0030-autoformat-correctness-check-performance.md`.  
+Planner-seeded ledger: `.execution/M0030-autoformat-correctness-check-performance.md`.
