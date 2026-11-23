@@ -226,3 +226,12 @@ Remove formatter `--check` and `--changed` across standalone Autoformat and the 
 
 Primary milestone: `docs/milestones/M0031-mutation-only-autoformat.md`.  
 Planner-seeded ledger: `.execution/M0031-mutation-only-autoformat.md`.
+
+## M0032 — Local Agent Session Tracing CLI
+**State:** ready for implementation
+**Mode:** AI-executed; no formal human acceptance gate
+
+Introduce an independent agent-operated `agenttrace` CLI in the workbench to record session lifecycles, actual wrapped commands, optionally declared external/MCP spans, and honest timing coverage. Support both repository-configured JSONL (default without config) and SQLite, a human chronological report, and complete machine-readable data export. No hooks, model/MCP/OTel integration, services, dashboards or automatic inference of model thinking. Development uses focused real-process validation; installed-tool consumer qualification remains a release concern.
+
+Primary milestone: `docs/milestones/M0032-agent-cli-session-tracing.md`.  
+Planner-seeded ledger: `.execution/M0032-agent-cli-session-tracing.md`.
