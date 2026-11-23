@@ -1,0 +1,80 @@
+# Milestone — M0031: Mutation-Only Autoformat Execution
+
+**ID:** M0031  
+**State:** ready  
+**Type:** migration (intentional pre-1.0 command and architecture break)  
+**Planning base:** `carlrabbit/dotnet-ai-code-hygiene` `main` at `49f4361063bbca17690f0c1ed80a187040c97a7a`, containing merged M0030/PR #41  
+**Methodology:** pinned Agentic Project Guides 1.0.0 (`.guide/system/`); project `docs/PROJECT-GUIDANCE.md`
+
+## Goal and target capability
+
+Make Autoformat an **agent-oriented, opinionated source mutator with one direct execution path**, not a formatter-compliance service with its own read-only simulation. Remove formatter `--check` and formatter `--changed` from both independent Autoformat and transitional Hygiene formatting routes, delete the shadow/preview workspace machinery, and keep the actual normalization pipeline, its SDK batching, source integrity, clear reporting, and Git-based recovery.
+
+This intentionally reverses M0027–M0030's check-only implementation decision. Their historical evidence remains valid for its time; it is not current execution authority after M0031. There are no compatibility-dependent pre-1.0 Autoformat consumers requiring the removed options or report fields. A caller needing nonmutating inspection can use the separate Hygiene semantic-review `check` command; a CI job can run the *real* mutator in a disposable clean checkout and inspect its Git diff without requiring Autoformat to simulate a dry run.
+
+## Architecture and invariants
+
+### 1. One mutation path and explicit Git ownership
+
+- The default Autoformat command and `normalize` perform the same in-place canonicalization. `format` remains in-place SDK **whitespace-only**. `init` continues independently to establish/validate Autoformat's mechanical `.editorconfig` policy; it does **not** normalize source.
+- Normalization resolves eligible C# targets and project parse context, applies custom Roslyn modernizations and initial readability rules directly to selected files, executes approved SDK style fixers **batched by covering solution/project set**, runs batched SDK whitespace formatting, and reapplies necessary final custom layout/comment stabilization. Preserve the fixed eight-ID SDK diagnostic allowlist and all nine existing custom modernization families and their source-local retain annotations; no per-rule SDK subprocesses or formatter replacement.
+- There is no shadow source checkout, copied project tree, second `RepositorySession`, preview normalization, check/mutate parity simulator, or verification-only SDK formatter invocation in the Autoformat rewrite path. Ordinary SDK report directories and restore artifacts are **not** shadow source workspaces; they may remain where needed. Remove dead copy/isolation/symlink/reparse-point protections **specific to the deleted preview**, not source-target containment and Git safety checks used by real mutation.
+- The existing Git contract is mandatory for the standalone mutator: known `HEAD`, clean relevant worktree **and index** at entry, record/verify `HEAD` and index stability, never auto-commit, stage, reset, clean, revert or roll back. On failure or cancellation, report incomplete and leave any partial edits inspectable for the agent. A new clean checkpoint (or expressly scoped internal disposable-fixture control) is needed before a subsequent CLI mutation. Preserve relevant read/write protection for selected files; do not use mutation permission to clobber unrelated source or metadata.
+
+### 2. Deliberately break the formatter CLI surface
+
+- Remove `--check` from the root/default `dotnet autoformat`, `normalize`, and `format` commands. Remove `--changed` from those commands as well; **do not silently reinterpret it as a mutating selection**. Its existing meaning selects staged/unstaged/untracked files in a dirty working tree and implicitly requests read-only behavior, which contradicts the clean-checkpoint mutator. There is no replacement Git-diff target selector in M0031.
+- A valid Autoformat `normalize`/`format` invocation always applies edits. Continue to support no-argument whole-repository selection and existing explicit paths (individual files/directories), supported project eligibility/exclusions, policy verification, `--output text|json`, and `--no-restore` as explicit SDK opt-in; SDK-native restore remains the default. Do not narrow full-repository selection inadvertently.
+- Removed flags must be rejected clearly by the CLI **before starting any mutation**, including in root/default mode. Do not preserve `checkOnly` in the Autoformat engine API or JSON/console rewrite reports as a meaningless always-false compatibility field. Preserve truthful command/mode, selected/changed file counts and paths, rules/phases, notices, error and incomplete status. Exact old pre-1.0 JSON shape is not protected.
+- Intentionally remove any `--verify-no-changes` argument or check-only forwarding from **Autoformat's** SDK rewrite phases. This does not authorize removing unrelated SDK verification used independently by the transitional Hygiene profile/review/lifecycle implementation where it still serves that product's own contract.
+
+### 3. Transitional Hygiene and neighboring behavior
+
+- The transitional `dotnet hygiene format` and `dotnet hygiene normalize` commands delegate the same **mutation-only** Autoformat engine. Remove their formatter `--check` and formatter `--changed` options, obsolete `CheckOnly` bridge/report fields and check-only test expectations. Ensure their manual formatting path enforces its clean-entry policy and that its autonomous bootstrap/update/normal gate flows still invoke the shared engine with their existing outer checkpoint/authorization sequence. Do not blindly impose the standalone CLI's checkpoint at a point where the outer Hygiene lifecycle legitimately has already made managed changes.
+- **Preserve** the independent read-only `dotnet hygiene check` command, its `--changed`, `--base`, explicit path and review routing, `--review-all`, and the separate `--yolo-all` audit authorization and semantics. These are semantic-review capabilities, **not** formatter preview modes. Preserve Hygiene's profile, baseline approval, handoff, persistence and current agent gate behavior.
+- Preserve source-local retain annotations, .NET SDK project context/restore, correct selected-file SDK `--include` behavior, default full-population coverage, distinct `format`/ `normalize` semantics and one-pass convergence. Do not introduce a new scanner, workspace index, daemon, transaction, cache, dependency DAG or arbitrary formatter configuration.
+
+### 4. Consequences and boundaries
+
+Intentional incompatibilities: commands/docs/scripts that call formatter `--check` or formatter `--changed` must be updated; callers that expect an Autoformat `checkOnly` JSON property must be updated; check-only preview source-copy code and its dedicated fixtures disappear. The YADG Draft PR #22 remains an **unmerged historical experiment** and must not be regenerated simply for this command-surface migration.
+
+Protected: no silent source mutation when a removed option is supplied; no unclean-worktree overwrite; no source edits outside authorized selection; source encoding/BOM/comments/directives/retain exceptions; error diagnostics and partial-edit visibility; SDK batching and diagnostic allowlist; source modernization and readability outcomes; independent read-only *semantic* review functionality. No successful compilation or semantic equivalence of an opinionated transformation is required at Autoformat runtime, consistent with M0027; agent owns build/test/repair.
+
+## Scope and exclusions
+
+**In scope:** Autoformat CLI and Core `RewriteEngine` and related target/session helpers as needed; transitional Hygiene formatting adapter/CLI/report call sites; directly affected focused tests and illustrative scripts, including obsolete release-consumer scenarios; corresponding operative architecture/specifications, README/agent help and direct `eng/` usage; milestone index, execution ledger and completion note.
+
+**Out of scope:** a standalone formatter lint/check/preview replacement; `--changed` mutation semantics or a Git merge-base selector; new source canonicalization rules or refactoring of all nine families; SDK formatter replacement or speculative phase consolidation; faster project discovery as an independent performance project; semantic Hygiene review/audit redesign; guide snapshot/upstream-guide changes; CI workflow creation; tool package publication, installed-tool qualification, real-repository YADG rerun, cross-platform tests or broad release readiness.
+
+## Acceptance and material obligations
+
+- **CLI-01 — Mutation-only independent Autoformat.** Root/default, `normalize`, and `format` operate directly in the repository, retain explicit/full target selection and output/restore controls, and expose neither `--check` nor `--changed`. Removed options in any entrypoint fail before edits. `init` remains separate. Obsolete `checkOnly` result and JSON fields are removed without losing truthful changed-file reporting.
+- **PIPE-01 — Single canonical formatting pipeline.** Eliminate `PreviewNormalization`, `CopyPreviewWorkspace`, shadow source/workspace loading and check-only SDK/reporting branches. Mutating `normalize` keeps the custom → batched approved SDK style → batched SDK whitespace → final custom layout sequence; `format` remains SDK whitespace-only. No per-diagnostic SDK invocations, extra normal-path builds, or general formatting redesign.
+- **SAFE-01 — Git and selection safety.** Standalone mutation requires clean known Git checkpoint and verifies HEAD/index; selected-file runs affect only permitted sources, unsupported/outside paths reject, and failures remain partial/inspectable without destructive automatic cleanup. Preserve original SDK restore behavior, source integrity and clean-run reporting.
+- **HYG-01 — Coherent transitional Hygiene integration.** Remove formatter-only check/changed options/fields from Hygiene's `format`/`normalize` and its Autoformat adapter while keeping the autonomous delegated normalization path operational. Retain read-only `hygiene check --changed`, base/reference and review/audit workflows unchanged, with no accidental extra clean-entry requirement inside a legitimate outer Hygiene mutation.
+- **TEST-01 — Focused direct-path assurance.** Replace obsolete shadow/check-only tests with cheap deterministic and focused direct-mutation checks: removed switches cannot edit source; actual SDK phase batching/restore forwarding is correct; a clean input can be normalized to reported source changes, checkpointed and normalized again with zero edits; explicit-file selection and dirty-checkpoint rejection work. Preserve/reuse existing canonicalizer in-memory regressions. Do not construct a new validation or performance framework.
+- **DOC-01 — Align active documentation and scripts.** Update `docs/ARCHITECTURE.md`, `docs/specs/REWRITES.md`, directly affected Autoformat/Hygiene README/help/spec text, and existing `eng/` consumer/validation scripts that call removed modes. State explicitly why Autoformat has no check-only operation and how disposable-checkout/agent-Git-diff verification works. Preserve historical milestone/research records as historical; do not make those earlier decisions appear current. Update `docs/MILESTONES.md`, this completion note, the ledger and implementation PR description accurately.
+
+## Execution obligation ledger
+
+**Planner-seeded:** `.execution/M0031-mutation-only-autoformat.md` contains exactly the six material obligation IDs above, each initially pending. It is a completeness inventory, not a per-acceptance test/evidence registry.
+
+## Validation
+
+**During implementation:** build the affected Autoformat Core/CLI and transitional Hygiene projects as needed; run focused in-memory transformation regressions and narrow tests for CLI parsing, direct RewriteEngine behavior, delegated path and Git safety. Remove obsolete preview-only tests instead of preserving them as hidden infrastructure.
+
+**At milestone completion:** one small disposable **Git + SDK-style C# project** through actual Autoformat CLI/SDK phases (not a packed/installed tool): establish `.editorconfig` via `init`, commit a clean source checkpoint, demonstrate in-place `format` or `normalize` change and trustworthy JSON changed paths, commit resulting output, then demonstrate a second `normalize` makes zero source changes. Exercise one removed-option rejection with before/after source bytes; ensure explicit selection stays within scope and a dirty checkpoint refuses mutation. Where a lightweight existing Hygiene delegation fixture already covers the live path, reuse it with targeted updates; run only the focused relevant segment/tests. SDK restore must preserve the formerly observed required imports where that relevant existing regression is still exercised. No mandated time measurements, no repeated YADG work, no release consumer fixture at milestone completion.
+
+**Important risks to discriminate:** removed flags silently ignored leading to writes; manual Hygiene rewrite unexpectedly able to mutate a dirty tree; autonomous Hygiene flow blocked by an internal overstrict checkpoint; unscoped SDK formatting accidentally omitting projects/files; selected-file SDK `--include` leaking to other files; success being reported after a partial failed SDK phase; no-op second run failing because the first output was not checkpointed; redirection of unrelated `hygiene check --changed` to formatter normalization. A few contrasting focused checks and code review suffice; do not create one test per sentence.
+
+**Deferred to release:** packed/installed Autoformat and Hygiene tool consumer scripts, current-package invocation, broader consumer repositories, all-Hygiene validation and cross-platform qualification. **Update their existing script definitions now** so the next release will not call removed switches; do not execute the installed-tool stages as part of this milestone.
+
+## Documentation, handoff and authorization
+
+Project authority: `AGENTS.md`, `docs/PROJECT-GUIDANCE.md`, `docs/ARCHITECTURE.md`, `docs/specs/REWRITES.md`, `docs/specs/AUTONOMOUS-WORKFLOW.md`, `docs/specs/HYGIENE.md`, `docs/ENGINEERING.md`, plus live Autoformat and transitional Hygiene CLI/adapter source and affected tests/scripts. Historical M0024/M0027/M0030 and YADG PR #22 explain *why* batching, Git recovery and shadow previews existed; the operative architectural choice **is settled here** and must be reflected in current docs during implementation.
+
+Implement on a **separate implementation branch based on the exact accepted M0031 planning commit**; target the M0031 planning branch until merged/reconciled. Authorized mutation targets during implementation are the workbench implementation branch and disposable local test/checkouts. Do not edit or merge YADG PR #22, alter YADG `main`, change GitHub workflow CI or modify external shared consumer state. No formal human acceptance gate or guide migration is introduced.
+
+## Completion note (implementer fills after delivery)
+
+Record the actual code/doc/command changes, focused checks run and results, behavior of standalone and transitional Hygiene rewrite paths, important residual issues and deferred installed-package/consumer checks. Reconcile all six obligations with the ledger before marking `COMPLETE`; no evidence matrix, receipt cache or exhaustive acceptance suite.
