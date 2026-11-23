@@ -26,7 +26,7 @@ public class CanonicalizerTests
         }
 
         var engine = new RewriteEngine(root, requireCleanCheckpoint: false);
-        RewriteResult first = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: false);
+        RewriteResult first = engine.Rewrite("normalize", [sourcePath]);
         string normalized = await File.ReadAllTextAsync(sourcePath);
         await Assert.That(first.ChangedCount).IsEqualTo(1);
         await Assert.That(normalized).Contains("class Sample(int value)");
@@ -37,18 +37,12 @@ public class CanonicalizerTests
         await Assert.That(normalizedLines).Contains("\n // autoformat:retain readability.comments -- keep the annotated member's layout\n");
         await Assert.That(normalizedLines).Contains("void KeepComments()");
         await Assert.That(normalizedLines).Contains("\n // keep this comment's indentation\n");
-        RewriteResult second = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: false);
+        RewriteResult second = engine.Rewrite("normalize", [sourcePath]);
         string normalizedSecond = await File.ReadAllTextAsync(sourcePath);
         await Assert.That(normalizedSecond).IsEqualTo(normalized);
         await Assert.That(second.ChangedCount).IsEqualTo(0);
 
-        RewriteResult cleanCheck = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: true);
-        await Assert.That(cleanCheck.ChangedCount).IsEqualTo(0);
-        string violation = normalized.Replace("int Value", "int  Value", StringComparison.Ordinal);
-        await File.WriteAllTextAsync(sourcePath, violation);
-        RewriteResult dirtyCheck = engine.Rewrite("normalize", [sourcePath], changed: false, checkOnly: true);
-        await Assert.That(dirtyCheck.ChangedCount).IsEqualTo(1);
-        await Assert.That(await File.ReadAllTextAsync(sourcePath)).IsEqualTo(violation);
+
     }
 
     [Test]
@@ -72,143 +66,19 @@ public class CanonicalizerTests
         try
         {
             var engine = new RewriteEngine(root, requireCleanCheckpoint: false);
-            RewriteResult first = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
+            RewriteResult first = engine.Rewrite("normalize", [source]);
             string canonical = await File.ReadAllTextAsync(source);
-            RewriteResult second = engine.Rewrite("normalize", [source], changed: false, checkOnly: false);
-            RewriteResult normalizeCheck = engine.Rewrite("normalize", [source], changed: false, checkOnly: true);
-            RewriteResult formatCheck = engine.Rewrite("format", [source], changed: false, checkOnly: true);
+            RewriteResult second = engine.Rewrite("normalize", [source]);
+            RewriteResult formatStable = engine.Rewrite("format", [source]);
 
             await Assert.That(first.ChangedCount).IsEqualTo(1);
             await Assert.That(second.ChangedCount).IsEqualTo(0);
-            await Assert.That(normalizeCheck.ChangedCount).IsEqualTo(0);
-            await Assert.That(formatCheck.ChangedCount).IsEqualTo(0);
+            await Assert.That(formatStable.ChangedCount).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(canonical);
         }
         finally
         {
             if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
-        }
-    }
-
-    [Test]
-    public async Task NormalizePreviewUsesSelectedProjectAndPreservesCheckMutationParity()
-    {
-        string root = Path.Combine(Path.GetTempPath(), "autoformat-preview-batching-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(root, ".git"));
-        string appDirectory = Path.Combine(root, "App");
-        Directory.CreateDirectory(appDirectory);
-        string project = Path.Combine(appDirectory, "Fixture.csproj");
-        string unrelatedProject = Path.Combine(appDirectory, "Unrelated.csproj");
-        string source = Path.Combine(appDirectory, "Sample.cs");
-        await File.WriteAllTextAsync(project, """
-            <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>
-            """);
-        await File.WriteAllTextAsync(unrelatedProject, "<Project><invalid");
-        await File.WriteAllTextAsync(Path.Combine(root, "Fixture.slnx"), "<Solution><Project Path=\"App/Fixture.csproj\" /><Project Path=\"App/Unrelated.csproj\" /></Solution>");
-        const string original = "class Sample { int Value() { return 1; } }\n";
-        await File.WriteAllTextAsync(source, original);
-        using (Process restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "--ignore-failed-sources"]) { WorkingDirectory = root, UseShellExecute = false })!)
-        {
-            await restore.WaitForExitAsync();
-            await Assert.That(restore.ExitCode).IsEqualTo(0);
-        }
-
-        try
-        {
-            var calls = new List<(string Workspace, string Phase)>();
-            bool unrelatedProjectCopiedToPreview = false;
-            var engine = new RewriteEngine(root, (workspace, phase, _, _, _, _, _) =>
-            {
-                calls.Add((workspace, phase));
-                unrelatedProjectCopiedToPreview |= File.Exists(Path.Combine(Path.GetDirectoryName(workspace)!, Path.GetFileName(unrelatedProject)));
-                return (0, string.Empty);
-            });
-            RewriteResult preview = engine.Rewrite("normalize", [source], changed: false, checkOnly: true);
-
-            await Assert.That(calls.Count).IsEqualTo(2);
-            await Assert.That(calls.Select(call => call.Phase)).IsEquivalentTo(new[] { "style", "whitespace" });
-            await Assert.That(calls.All(call => call.Workspace.EndsWith("Fixture.csproj", StringComparison.OrdinalIgnoreCase))).IsTrue();
-            await Assert.That(unrelatedProjectCopiedToPreview).IsFalse();
-            await Assert.That(preview.ChangedCount).IsEqualTo(1);
-            await Assert.That(preview.ChangedPaths).IsEquivalentTo(new[] { "App/Sample.cs" });
-            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(original);
-
-            var mutationCalls = new List<string>();
-            var mutating = new RewriteEngine(root, (workspace, phase, _, _, _, _, _) =>
-            {
-                mutationCalls.Add(phase);
-                return (0, string.Empty);
-            });
-            RewriteResult mutation = mutating.Rewrite("normalize", [source], changed: false, checkOnly: false);
-            await Assert.That(mutation.ChangedPaths).IsEquivalentTo(preview.ChangedPaths);
-            await Assert.That(mutationCalls.Count).IsEqualTo(2);
-            await Assert.That(await File.ReadAllTextAsync(source)).IsNotEqualTo(original);
-        }
-        finally
-        {
-            if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
-        }
-    }
-
-    [Test]
-    public async Task NormalizePreviewRejectsExternalSolutionProjectsBeforeCopyingOutsidePreview()
-    {
-        string testParent = Path.Combine(Path.GetTempPath(), "autoformat-preview-containment-" + Guid.NewGuid().ToString("N"));
-        string root = Path.Combine(testParent, "repository");
-        string externalName = "autoformat-preview-external-" + Guid.NewGuid().ToString("N");
-        string external = Path.Combine(testParent, externalName);
-        string escapedDestination = Path.Combine(Path.GetTempPath(), externalName);
-        Directory.CreateDirectory(Path.Combine(root, ".git"));
-        Directory.CreateDirectory(external);
-        string appDirectory = Path.Combine(root, "App");
-        string otherDirectory = Path.Combine(root, "Other");
-        Directory.CreateDirectory(appDirectory);
-        Directory.CreateDirectory(otherDirectory);
-        string appProject = Path.Combine(appDirectory, "App.csproj");
-        string otherProject = Path.Combine(otherDirectory, "Other.csproj");
-        string appSource = Path.Combine(appDirectory, "App.cs");
-        string otherSource = Path.Combine(otherDirectory, "Other.cs");
-        string externalProject = Path.Combine(external, "Shared.csproj");
-        string externalMarker = Path.Combine(external, "keep.txt");
-        await File.WriteAllTextAsync(appProject, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-        await File.WriteAllTextAsync(otherProject, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-        const string externalProjectContents = "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>";
-        await File.WriteAllTextAsync(externalProject, externalProjectContents);
-        string externalProjectRelative = Path.GetRelativePath(root, externalProject).Replace('\\', '/');
-        await File.WriteAllTextAsync(Path.Combine(root, "App.slnx"), $"<Solution><Project Path=\"App/App.csproj\" /><Project Path=\"Other/Other.csproj\" /><Project Path=\"{externalProjectRelative}\" /></Solution>");
-        const string appOriginal = "class App { int Value() { return 1; } }\n";
-        const string otherOriginal = "class Other { int Value() { return 1; } }\n";
-        const string marker = "outside workspace must remain unchanged";
-        await File.WriteAllTextAsync(appSource, appOriginal);
-        await File.WriteAllTextAsync(otherSource, otherOriginal);
-        await File.WriteAllTextAsync(externalMarker, marker);
-
-        try
-        {
-            int phaseCalls = 0;
-            var engine = new RewriteEngine(root, (workspace, _, _, _, _, _, _) =>
-            {
-                phaseCalls++;
-                return (0, string.Empty);
-            });
-            ProductException? error = null;
-            try { engine.Rewrite("normalize", [appSource, otherSource], changed: false, checkOnly: true); }
-            catch (ProductException observed) { error = observed; }
-
-            await Assert.That(error).IsNotNull();
-            await Assert.That(error!.Message).Contains("external project");
-            await Assert.That(error.Message).Contains("normalize without --check");
-            await Assert.That(phaseCalls).IsEqualTo(0);
-            await Assert.That(await File.ReadAllTextAsync(appSource)).IsEqualTo(appOriginal);
-            await Assert.That(await File.ReadAllTextAsync(otherSource)).IsEqualTo(otherOriginal);
-            await Assert.That(await File.ReadAllTextAsync(externalProject)).IsEqualTo(externalProjectContents);
-            await Assert.That(await File.ReadAllTextAsync(externalMarker)).IsEqualTo(marker);
-            await Assert.That(Directory.Exists(escapedDestination)).IsFalse();
-        }
-        finally
-        {
-            if (Directory.Exists(testParent)) { Directory.Delete(testParent, recursive: true); }
-            if (Directory.Exists(escapedDestination)) { Directory.Delete(escapedDestination, recursive: true); }
         }
     }
 

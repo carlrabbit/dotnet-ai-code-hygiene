@@ -89,7 +89,7 @@ Rule-version matching remains part of occurrence identity. `docs.summary.require
 
 ## Target behavior
 
-Existing M0002/M0004 repository discovery, project-aware Roslyn context, target de-duplication, broad exclusions, explicit target containment, and `--changed` behavior remain unchanged for normal source/rewrite commands.
+Existing M0002/M0004 repository discovery, project-aware Roslyn context, target de-duplication, broad exclusions, and explicit target containment remain unchanged. `--changed` is supported by the read-only semantic `check` command. Transitional `format` and `normalize` mutate directly and accept explicit paths only; manual invocations require a valid commit-valued Git `HEAD` plus a clean worktree/index before mutation. They do not expose formatter `--check` or `--changed` options.
 
 Bootstrap/update are repository-wide profile commands and do not accept source targets or `--changed`.
 
@@ -120,6 +120,8 @@ Review handoff artifacts remain `.hygiene/reviews/` and are not profile state.
 `dotnet hygiene --yolo-all` is separate from the autonomous correction lifecycle and bounded `check --review-all`. Without `--attest-explicit-task`, it reports `authorization-required` and starts no scan; `--deny-explicit-task` reports `authorization-denied`. An affirmative flag is a calling-agent assertion, not user authentication. A valid initialized supported profile and valid accepted baseline are required; missing, pending, stale, or malformed baseline state stops the audit without preparing or approving a baseline. The audit does not bootstrap/update profile or tool state, run formatting/normalization, change source, Git/index, ignored decisions, normal latest-run/gate-review state, or request remediation.
 
 An authorized audit diagnoses all enabled deterministic rules over the complete eligible repository population. Existing ignore records annotate but do not suppress deterministic findings. Enabled semantic rules enumerate all eligible rule/subject pairs, regardless of normal sampling limits or accepted-review history. Semantic outcomes come only from external caller judgment: `acceptable`, `problem`, or `uncertain`; problem/uncertain require rationale. The CLI never calls an AI provider or writes normal review acceptance.
+
+Deterministic audit output reports findings emitted by deterministic rules; it does not report hypothetical formatter/normalizer source deltas or `rewriteProposals`. The audit does not invoke Autoformat, simulate canonicalization, or measure formatter drift. This is an intentional pre-1.0 contract change authorized by M0031: the exhaustive audit is for semantic obligations and deterministic-rule findings, not a formatter verifier. M0019's original criteria and evidence remain historical and unchanged.
 
 The report-local protocol is:
 

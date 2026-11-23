@@ -48,10 +48,8 @@ try {
             Set-Content -Path Sample.cs -Value 'using System; public class Sample{public object Create(){return new object();}}' -NoNewline
             git add Sample.cs; git commit -m 'manual format input' | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Could not checkpoint Hygiene format input.' }
-            $formatCheck = & $shim format --check --output json | ConvertFrom-Json
-            if ($LASTEXITCODE -ne 0 -or $formatCheck.changedPaths -notcontains 'Sample.cs') { throw 'Installed Hygiene format check failed.' }
-            & $shim format
-            if ($LASTEXITCODE -ne 0) { throw 'Installed Hygiene delegated format failed.' }
+            $formatResult = & $shim format --output json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $formatResult.changedPaths -notcontains 'Sample.cs') { throw 'Installed Hygiene format mutation failed.' }
             git add Sample.cs; git commit -m 'format via hygiene adapter' | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Could not checkpoint Hygiene formatting.' }
             Set-Content -Path Sample.cs -Value 'public class Sample{public object Create = new object();}' -NoNewline
@@ -63,6 +61,6 @@ try {
     $evidence = Join-Path $root '.execution/validation/hygiene-consumer-provenance.json'
     New-Item -ItemType Directory -Force -Path (Split-Path $evidence) | Out-Null
     $packageSha256 = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
-    [pscustomobject]@{ schemaVersion=1; milestone='M0026'; product='hygiene'; package=$id; version=$version; packageSha256=$packageSha256; installedShimSha256=$shimSha256; consumerScenarios=@('exact-current-install','version','help','fresh-bootstrap','explicit-baseline-acceptance','update','check','semantic-review-discovery','delegated-format-check-and-write','delegated-normalize-write') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidence -Encoding utf8
+    [pscustomobject]@{ schemaVersion=1; milestone='M0026'; product='hygiene'; package=$id; version=$version; packageSha256=$packageSha256; installedShimSha256=$shimSha256; consumerScenarios=@('exact-current-install','version','help','fresh-bootstrap','explicit-baseline-acceptance','update','check','semantic-review-discovery','delegated-format-mutation','delegated-normalize-write') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidence -Encoding utf8
     Write-Output "PASS installed exact-current Hygiene package $id $version ($packageSha256); shim $shimSha256"
 } finally { $env:NUGET_PACKAGES = $old }

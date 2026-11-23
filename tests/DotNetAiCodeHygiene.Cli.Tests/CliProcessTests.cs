@@ -821,150 +821,79 @@ public sealed class CliProcessTests
         ProcessResult help = await RunCliAsync("help", "--agent");
         await Assert.That(help.ExitCode).IsEqualTo(0);
         await Assert.That(help.StandardOutput).Contains("Workflow:");
-        foreach (string required in new[] { "Targets:", "--base", "--review-all", "Exit 0", "--output text|json", "non-mutating", "--changed", "check-only", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "17 focused", ".hygiene", "no model/provider", "dotnet hygiene" })
+        foreach (string required in new[] { "Semantic check targets:", "--base", "--review-all", "Exit 0", "--output text|json", "without mutation", "--changed", "mutate source", "formatter preview", "disposable clean checkout", "valid Git HEAD recovery checkpoint", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "17 focused", ".hygiene", "no model/provider", "dotnet hygiene" })
         {
             await Assert.That(help.StandardOutput).Contains(required);
         }
     }
 
     [Test]
-    public async Task RewriteCliJsonTextCheckModesAndPersistentStateBoundaries()
+    public async Task FormatterSwitchesAreRemovedAndHygieneRewriteMutatesDirectly()
     {
-        string repo = Path.Combine(Path.GetTempPath(), "hygiene-rewrite-cli-" + Guid.NewGuid().ToString("N"));
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-mutation-only-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "src"));
-        Directory.CreateDirectory(Path.Combine(repo, "broken"));
         try
         {
-            await RunProcessAsync("git", repo, "init", "-q");
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Fixture.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            string file = Path.Combine(repo, "src", "Fixture.cs");
-            const string original = "using System; static public class Fixture{public object Value = new object(); public int Read(int value){if(value>0)return (int)1;return 0;} public (int,int) Pair(int value,int count)=>(value: value,count: count); public object Anonymous(int value)=>new { value = value };} class Internal{}";
+            await InitGitAsync(repo, "main");
+            string project = Path.Combine(repo, "src", "Fixture.csproj"), file = Path.Combine(repo, "src", "Fixture.cs");
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            const string original = "public class Fixture{public void Run(){}}";
             await File.WriteAllTextAsync(file, original);
-            await File.WriteAllTextAsync(Path.Combine(repo, "src", "Other.cs"), "public class Other { }\n");
-            await File.WriteAllTextAsync(Path.Combine(repo, "broken", "Broken.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
-            string broken = Path.Combine(repo, "broken", "Broken.cs");
-            await File.WriteAllTextAsync(broken, "public class Broken{void Run(){MissingType value=null;}}\n");
-
-            ProcessResult formatWithCompilerError = await RunCliInAsync(repo, "format", broken, "--check", "--output", "json");
-            await Assert.That(formatWithCompilerError.ExitCode).IsEqualTo(0);
-            await Assert.That(formatWithCompilerError.StandardError).IsEmpty();
-            using (JsonDocument.Parse(formatWithCompilerError.StandardOutput)) { }
-
-            string hygiene = Path.Combine(repo, ".hygiene");
-            Directory.CreateDirectory(Path.Combine(hygiene, ".state"));
-            string config = Path.Combine(hygiene, "config.json");
-            string decisions = Path.Combine(hygiene, "decisions.json");
-            string latest = Path.Combine(hygiene, ".state", "latest-run.json");
-            await File.WriteAllTextAsync(config, "{\"schemaVersion\":1,\"disabledRules\":[\"docs.summary.required\"]}");
-            await File.WriteAllTextAsync(decisions, "{\"schemaVersion\":1,\"decisions\":[]}");
-            await File.WriteAllTextAsync(latest, "rewrite-state-sentinel");
-            await RunProcessAsync("git", repo, "config", "user.email", "hygiene@example.invalid");
-            await RunProcessAsync("git", repo, "config", "user.name", "Hygiene Tests");
-            _ = new ProfileManager(repo).Bootstrap();
-            string nestedEditorConfig = Path.Combine(repo, "src", ".editorconfig");
-            await File.WriteAllTextAsync(nestedEditorConfig, "[*.cs]\ncsharp_style_implicit_object_creation_when_type_is_apparent = false\n");
-            await CommitAllAsync(repo, "SDK formatter baseline");
-            ProcessResult nestedFalse = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
-            await Assert.That(nestedFalse.ExitCode).IsEqualTo(0);
-            await Assert.That(await File.ReadAllTextAsync(file)).Contains("new object()");
-            await File.WriteAllTextAsync(nestedEditorConfig, "[*.cs]\ncsharp_style_implicit_object_creation_when_type_is_apparent = true\n");
-            await CommitAllAsync(repo, "effective IDE0090 preference");
-            string configBefore = await File.ReadAllTextAsync(config);
-            string decisionsBefore = await File.ReadAllTextAsync(decisions);
-            string latestBefore = await File.ReadAllTextAsync(latest);
-
-            string sourceBeforeFormat = await File.ReadAllTextAsync(file);
-            ProcessResult formatCheck = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--check", "--output", "json");
-            await Assert.That(formatCheck.ExitCode).IsEqualTo(0);
-            await Assert.That(formatCheck.StandardError).IsEmpty();
-            using JsonDocument json = JsonDocument.Parse(formatCheck.StandardOutput);
-            JsonElement format = json.RootElement;
-            await Assert.That(format.GetProperty("schemaVersion").GetInt32()).IsEqualTo(1);
-            await Assert.That(format.GetProperty("checkOnly").GetBoolean()).IsTrue();
-            await Assert.That(format.GetProperty("targetCount").GetInt32()).IsEqualTo(1);
-            await Assert.That(format.GetProperty("changedPaths").GetArrayLength()).IsEqualTo(format.GetProperty("changedCount").GetInt32());
-            await Assert.That(format.GetProperty("selectedRuleIds")[0].GetString()).IsEqualTo("format.csharp.sdk.whitespace");
-            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(sourceBeforeFormat);
-            ProcessResult invalidOutput = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "yaml");
-            await Assert.That(invalidOutput.ExitCode).IsEqualTo(2);
-            await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(sourceBeforeFormat);
-            ProcessResult formatMutation = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "json");
-            await Assert.That(formatMutation.ExitCode).IsEqualTo(0);
-            using JsonDocument formatMutationJson = JsonDocument.Parse(formatMutation.StandardOutput);
-            await Assert.That(formatMutationJson.RootElement.GetProperty("changedPaths").ToString()).IsEqualTo(format.GetProperty("changedPaths").ToString());
-            await CommitAllAsync(repo, "formatted baseline");
-            ProcessResult cleanJson = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--check", "--output", "json");
-            using JsonDocument cleanFormat = JsonDocument.Parse(cleanJson.StandardOutput);
-            await Assert.That(cleanFormat.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
-            ProcessResult cleanText = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "text");
-            await Assert.That(cleanText.ExitCode).IsEqualTo(0);
-            await Assert.That(cleanText.StandardOutput).Contains("0 changed");
-
-            byte[] sourceBeforeNormalize = await File.ReadAllBytesAsync(file);
-            ProcessResult normalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
-            await Assert.That(normalizeCheck.ExitCode).IsEqualTo(0);
-            using JsonDocument normalizeCheckJson = JsonDocument.Parse(normalizeCheck.StandardOutput);
-            string paths = normalizeCheckJson.RootElement.GetProperty("changedPaths").ToString();
-            await Assert.That(normalizeCheckJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()!).ToArray()).IsEquivalentTo(AutoformatRuleIds());
-            await Assert.That(normalizeCheckJson.RootElement.GetProperty("changedCount").GetInt32()).IsGreaterThan(0);
-            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeNormalize)).IsTrue();
-            ProcessResult normalizeMutation = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--output", "json");
-            await Assert.That(normalizeMutation.ExitCode).IsEqualTo(0);
-            using JsonDocument normalizeMutationJson = JsonDocument.Parse(normalizeMutation.StandardOutput);
-            await Assert.That(normalizeMutationJson.RootElement.GetProperty("changedPaths").ToString()).IsEqualTo(paths);
-            string normalized = await File.ReadAllTextAsync(file);
-            await Assert.That(normalized).Contains("public object Value = new();");
-            await Assert.That(normalized).DoesNotContain("new object()");
-            await Assert.That(normalized).Contains("public static class Fixture");
-            await Assert.That(normalized).Contains("internal class Internal");
-            await Assert.That(normalized).DoesNotContain("using System;");
-            await Assert.That(normalized).Contains("if (value > 0) {");
-            await Assert.That(normalized).DoesNotContain("(int)1");
-            await Assert.That(normalized).Contains("(value, count)");
-            await Assert.That(normalized).Contains("new { value }");
-            await CommitAllAsync(repo, "normalized baseline");
-            await Assert.That(await File.ReadAllTextAsync(config)).IsEqualTo(configBefore);
-            await Assert.That(await File.ReadAllTextAsync(decisions)).IsEqualTo(decisionsBefore);
-            await Assert.That(await File.ReadAllTextAsync(latest)).IsEqualTo(latestBefore);
-
-            await File.WriteAllTextAsync(file, "public static class Fixture{public object Value = new object();}");
-            byte[] sourceBeforeChangedMode = await File.ReadAllBytesAsync(file);
-            ProcessResult changedMode = await RunCliInAsync(repo, "normalize", "--changed", "--output", "json");
-            await Assert.That(changedMode.ExitCode).IsEqualTo(0);
-            using (JsonDocument changedJson = JsonDocument.Parse(changedMode.StandardOutput))
+            await CommitAllAsync(repo, "clean fixture");
+            foreach (string[] args in new[] { new[] { "format", "--check" }, new[] { "normalize", "--changed" } })
             {
-                await Assert.That(changedJson.RootElement.GetProperty("checkOnly").GetBoolean()).IsTrue();
-                await Assert.That(changedJson.RootElement.GetProperty("changedPaths").EnumerateArray().Select(value => value.GetString()!).ToArray()).IsEquivalentTo(["src/Fixture.cs"]);
+                ProcessResult removed = await RunCliInAsync(repo, args);
+                await Assert.That(removed.ExitCode).IsNotEqualTo(0);
+                await Assert.That(await File.ReadAllTextAsync(file)).IsEqualTo(original);
             }
-            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeChangedMode)).IsTrue();
-            await RunProcessAsync("git", repo, "checkout", "--", "src/Fixture.cs");
-
-            await File.WriteAllTextAsync(file, "public class Fixture{public int Value=>1;}");
-            await CommitAllAsync(repo, "source for final read-only diagnostics");
-            byte[] sourceBeforeDisabledNormalize = await File.ReadAllBytesAsync(file);
-            ProcessResult disableThis = await RunCliInAsync(repo, "rules", "disable", "style.qualification.this.unnecessary");
-            await Assert.That(disableThis.ExitCode).IsEqualTo(3);
-            await Assert.That(disableThis.StandardError).Contains("mandatory");
-            ProcessResult disableRedundant = await RunCliInAsync(repo, "rules", "disable", "style.qualification.redundant");
-            await Assert.That(disableRedundant.ExitCode).IsEqualTo(3);
-            ProcessResult disabledNormalizeCheck = await RunCliInAsync(repo, "normalize", "src/Fixture.cs", "--check", "--output", "json");
-            await Assert.That(disabledNormalizeCheck.ExitCode).IsEqualTo(0);
-            using JsonDocument disabledNormalizeJson = JsonDocument.Parse(disabledNormalizeCheck.StandardOutput);
-            await Assert.That(disabledNormalizeJson.RootElement.GetProperty("selectedRuleIds").EnumerateArray().Select(item => item.GetString()!).ToArray()).IsEquivalentTo(AutoformatRuleIds());
-            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(sourceBeforeDisabledNormalize)).IsTrue();
-
-            ProcessResult conflictingTargets = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--changed");
-            await Assert.That(conflictingTargets.ExitCode).IsEqualTo(2);
-            ProcessResult unsupported = await RunCliInAsync(repo, "format", "src/Fixture.csproj");
-            await Assert.That(unsupported.ExitCode).IsEqualTo(3);
-            ProcessResult outside = await RunCliInAsync(repo, "format", Path.GetTempPath());
-            await Assert.That(outside.ExitCode).IsEqualTo(3);
+            ProcessResult format = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "json");
+            await Assert.That(format.ExitCode).IsEqualTo(0);
+            using JsonDocument formatted = JsonDocument.Parse(format.StandardOutput);
+            await Assert.That(formatted.RootElement.TryGetProperty("checkOnly", out _)).IsFalse();
+            await Assert.That(formatted.RootElement.GetProperty("changedPaths").EnumerateArray().Any(path => path.GetString() == "src/Fixture.cs")).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(file)).IsNotEqualTo(original);
+            await CommitAllAsync(repo, "formatted fixture");
+            ProcessResult repeat = await RunCliInAsync(repo, "format", "src/Fixture.cs", "--output", "json");
+            using JsonDocument repeated = JsonDocument.Parse(repeat.StandardOutput);
+            await Assert.That(repeated.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
+            await File.AppendAllTextAsync(file, "\n");
+            byte[] dirty = await File.ReadAllBytesAsync(file);
+            ProcessResult rejected = await RunCliInAsync(repo, "normalize");
+            await Assert.That(rejected.ExitCode).IsNotEqualTo(0);
+            await Assert.That((await File.ReadAllBytesAsync(file)).AsSpan().SequenceEqual(dirty)).IsTrue();
         }
         finally { DeleteTree(repo); }
     }
 
     [Test]
-    public async Task NormalizeAggregatesStyleAndWhitespaceReportsAcrossProjectBatchesWithoutCheckOnlyWrites()
+    public async Task ManualNormalizeRequiresValidHeadEvenWhenUnbornRepositoryIsClean()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-unborn-format-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await RunGitRawAsync(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".git", "info", "exclude"), "*\n");
+            string project = Path.Combine(repo, "Fixture.csproj");
+            string source = Path.Combine(repo, "Fixture.cs");
+            const string original = "public class Fixture{public void Run(){}}\n";
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(source, original);
+
+            await Assert.That(await GitTextAsync(repo, "status", "--porcelain=v1", "--untracked-files=all")).IsEmpty();
+            byte[] before = await File.ReadAllBytesAsync(source);
+            ProcessResult rejected = await RunCliInAsync(repo, "normalize", "Fixture.cs");
+
+            await Assert.That(rejected.ExitCode).IsNotEqualTo(0);
+            await Assert.That(rejected.StandardError).Contains("valid Git HEAD recovery checkpoint");
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(original);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
+    public async Task NormalizeMutatesAcrossBatchedProjectsAndReportsActualChanges()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-normalize-batches-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(repo, "one"));
@@ -987,27 +916,18 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(whitespace, "public class Space{ public void Run(){ } }\n");
             await File.WriteAllTextAsync(both, "static public class Both{ public object Value=new object(); }\n");
             await File.WriteAllTextAsync(otherBatchStyle, "public class OtherStyle { public int Value = default(int); }\n");
-            await File.WriteAllTextAsync(clean, "public class Clean { public string Greeting => $\"hello\"; public string Display(int value) => $\"{value.ToString()}\"; }\n");
+            await File.WriteAllTextAsync(clean, "using System.Collections.Generic;\npublic class Clean { public IReadOnlyList<string> Values => new List<string>(); public string Greeting => $\"hello\"; public string Display(int value) => $\"{value.ToString()}\"; }\n");
             await File.WriteAllTextAsync(modern, "sealed file class Modern { required public string Name { get; init; } }\n");
             _ = new ProfileManager(repo).Bootstrap();
             await CommitAllAsync(repo, "normalization batch fixture");
 
             string[] sourcePaths = [style, whitespace, both, otherBatchStyle, clean, modern];
-            byte[][] before = await Task.WhenAll(sourcePaths.Select(path => File.ReadAllBytesAsync(path)));
-            ProcessResult check = await RunCliInAsync(repo, "normalize", "--check", "--output", "json");
-            await Assert.That(check.ExitCode).IsEqualTo(0);
-            using JsonDocument checkJson = JsonDocument.Parse(check.StandardOutput);
-            string[] checkedPaths = checkJson.RootElement.GetProperty("changedPaths").EnumerateArray().Select(value => value.GetString()!).ToArray();
-            await Assert.That(checkedPaths).IsEquivalentTo(["one/Style.cs", "one/Whitespace.cs", "one/Both.cs", "two/OtherStyle.cs", "two/Modern.cs"]);
-            for (int index = 0; index < sourcePaths.Length; index++)
-            {
-                await Assert.That((await File.ReadAllBytesAsync(sourcePaths[index])).AsSpan().SequenceEqual(before[index])).IsTrue();
-            }
-
             ProcessResult normalize = await RunCliInAsync(repo, "normalize", "--output", "json");
             await Assert.That(normalize.ExitCode).IsEqualTo(0);
             using JsonDocument normalizeJson = JsonDocument.Parse(normalize.StandardOutput);
-            await Assert.That(normalizeJson.RootElement.GetProperty("changedPaths").EnumerateArray().Select(value => value.GetString()!).ToArray()).IsEquivalentTo(checkedPaths);
+            string[] changedPaths = normalizeJson.RootElement.GetProperty("changedPaths").EnumerateArray().Select(value => value.GetString()!).ToArray();
+            await Assert.That(changedPaths).IsEquivalentTo(["one/Style.cs", "one/Whitespace.cs", "one/Both.cs", "two/OtherStyle.cs", "two/Modern.cs"]);
+            await Assert.That(normalizeJson.RootElement.TryGetProperty("checkOnly", out _)).IsFalse();
             await Assert.That(await File.ReadAllTextAsync(style)).Contains("new();");
             await Assert.That(await File.ReadAllTextAsync(whitespace)).Contains("class Space {");
             await Assert.That(await File.ReadAllTextAsync(both)).Contains("public static class Both");
@@ -1016,13 +936,15 @@ public sealed class CliProcessTests
             await Assert.That(modernAfterNormalize).Contains("file sealed class Modern");
             await Assert.That(modernAfterNormalize).Contains("public required string Name");
             string cleanAfterNormalize = await File.ReadAllTextAsync(clean);
+            await Assert.That(cleanAfterNormalize).Contains("using System.Collections.Generic;");
+            await Assert.That(cleanAfterNormalize).Contains("IReadOnlyList<string>");
             await Assert.That(cleanAfterNormalize).Contains("$\"hello\"");
             await Assert.That(cleanAfterNormalize).Contains("$\"{value.ToString()}\"");
             await CommitAllAsync(repo, "normalized batch fixture");
             await RunProcessAsync("dotnet", repo, "restore", "two/two.csproj");
             await RunProcessAsync("dotnet", repo, "build", "two/two.csproj", "--no-restore");
 
-            ProcessResult noChange = await RunCliInAsync(repo, "normalize", "--check", "--output", "json");
+            ProcessResult noChange = await RunCliInAsync(repo, "normalize", "--output", "json");
             using JsonDocument noChangeJson = JsonDocument.Parse(noChange.StandardOutput);
             await Assert.That(noChangeJson.RootElement.GetProperty("changedCount").GetInt32()).IsEqualTo(0);
             ProcessResult repeat = await RunCliInAsync(repo, "normalize", "--output", "json");
@@ -1310,8 +1232,7 @@ public sealed class CliProcessTests
             await Assert.That(coverage.GetProperty("problem").GetInt32() + coverage.GetProperty("uncertain").GetInt32()).IsGreaterThan(0);
             await Assert.That(reportJson.RootElement.GetProperty("source").GetProperty("dirtyAtStart").GetString()).IsEqualTo("dirty");
             await Assert.That(reportJson.RootElement.GetProperty("findings").EnumerateArray().Any(finding => finding.GetProperty("wasIgnored").GetBoolean() && finding.GetProperty("finding").GetProperty("ruleId").GetString() == "docs.summary.required")).IsTrue();
-            await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Single(proposal => proposal.GetProperty("command").GetString() == "format").GetProperty("changedPaths").EnumerateArray().Any(path => path.GetString() == "src/Fixture.cs")).IsTrue();
-            await Assert.That(reportJson.RootElement.GetProperty("rewriteProposals").EnumerateArray().Any(proposal => proposal.GetProperty("command").GetString() == "normalize")).IsTrue();
+            await Assert.That(reportJson.RootElement.TryGetProperty("rewriteProposals", out _)).IsFalse();
             JsonElement reportRules = reportJson.RootElement.GetProperty("rules");
             int ruleFindingTotal = reportRules.EnumerateArray().Where(rule => rule.GetProperty("evaluationKind").GetString() == "deterministic-evaluation").Sum(rule => rule.GetProperty("deterministicFindings").GetInt32());
             await Assert.That(ruleFindingTotal).IsEqualTo(coverage.GetProperty("deterministicFindings").GetInt32());

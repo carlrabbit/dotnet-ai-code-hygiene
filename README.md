@@ -17,13 +17,13 @@ Install the standalone formatter from a trusted source after it is available the
 ```powershell
 dotnet tool install --global DotNetAiWorkbench.Autoformat.Tool --version 0.1.0
 dotnet autoformat init
-dotnet autoformat --check
-dotnet autoformat format src/Example.cs --check
-dotnet autoformat normalize --changed --output json
-dotnet autoformat normalize --no-restore --check
+dotnet autoformat
+dotnet autoformat format src/Example.cs
+dotnet autoformat normalize src/Example.cs --output json
+dotnet autoformat normalize --no-restore
 ```
 
-`init` establishes or validates Autoformat's fixed .NET 11 mechanical EditorConfig policy. Default mode and `normalize` apply the nine opinionated modernization families and readability layout, run SDK style and whitespace passes, then reapply syntax layout so the SDK formatter cannot undo canonical layouts. Source-local retain exceptions are respected throughout. `format` remains SDK whitespace-only. SDK formatting performs its normal implicit dependency restore by default; pass `--no-restore` to skip that restore explicitly. The option applies to `format`, `normalize`, and check-only runs. `--changed` selects staged, unstaged and untracked C# files and always checks without writing. Autoformat does not read Hygiene profiles, approvals or review state. Mutating runs require a clean Git checkpoint; inspect partial changes after formatter failures. If initialization reports conflicting or malformed policy, resolve the `.editorconfig` ownership conflict without deleting unrelated settings.
+`init` establishes or validates Autoformat's fixed .NET 11 mechanical EditorConfig policy and does not normalize source. Default mode and `normalize` apply the nine opinionated modernization families and readability layout, run SDK style and whitespace passes, then reapply final syntax layout. Source-local retain exceptions are respected throughout. `format` remains SDK whitespace-only. SDK formatting performs its normal implicit dependency restore by default; pass `--no-restore` to skip it explicitly. Every formatter invocation mutates source in place; `--check` and `--changed` are rejected. Autoformat has no check-only command because a simulated formatter duplicates SDK/project execution and can drift from the real write path. To verify without changing a working repository, run Autoformat in a disposable clean checkout and inspect its Git diff. Autoformat does not read Hygiene profiles, approvals or review state. Mutating runs require a clean Git checkpoint; inspect partial edits after formatter failures. If initialization reports conflicting or malformed policy, resolve the `.editorconfig` ownership conflict without deleting unrelated settings.
 ## First Bootstrap
 
 In a Git repository with a known, clean `HEAD`, ask an implementation agent to run `dotnet hygiene` and follow the emitted steps. On first use, the tool initializes Autoformat's mechanical policy, installs the Hygiene `dotnet-11` v3 analysis profile, and applies Autoformat normalization over eligible repository C# projects. It writes a baseline report under `.hygiene/reports/` with changed paths and observed validation. The report remains **approval-required** until an authorized external approver reviews and accepts the baseline. The tool cannot determine who has that authority.
@@ -67,11 +67,11 @@ dotnet hygiene rules --output json
 dotnet hygiene explain <finding-handle>
 dotnet hygiene review expand <batch-handle>
 dotnet hygiene review handoff <batch-handle> --output json
-dotnet hygiene format --check
-dotnet hygiene normalize --check
+dotnet hygiene format
+dotnet hygiene normalize
 ```
 
-Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Explicit paths, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. `format --check`, `normalize --check`, and rewrite `--changed` use the SDK's nonmutating verification mode; `--changed` selects staged, unstaged, and untracked source paths and always implies check-only. Normal autonomous cleanup runs SDK format across all eligible project sources. Mutating commands require a clean Git checkpoint; failures leave edits inspectable and recovery is explicit from Git. The tool does not roll back, commit, reset, or clean.
+Use `review handoff` for negative or uncertain items that need the rule's designated reviewer. Its report is `escalation-required`; handed-off items remain outstanding until a reviewer decision returns. Semantic `check` targets `paths`, `--changed`, `--base`, and `--review-all` are mutually exclusive. If gate context is ambiguous, provide a trusted base; the tool does not fetch or invent a remote. Hygiene `format` and `normalize` mutate through Autoformat and require a clean checkpoint. They reject formatter `--check` and `--changed`; `hygiene check --changed` remains read-only semantic review. Normal autonomous cleanup runs SDK format across all eligible project sources. Failures leave edits inspectable and recovery is explicit from Git. The tool does not roll back, commit, reset, or clean.
 
 ## Exhaustive read-only audit
 

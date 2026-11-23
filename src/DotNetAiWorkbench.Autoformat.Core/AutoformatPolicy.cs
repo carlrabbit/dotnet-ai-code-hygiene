@@ -101,7 +101,7 @@ public static class AutoformatPolicy
         var findings = new List<(string Path, string Key, string? Actual)>();
         string fullRoot = Path.GetFullPath(root);
         using var session = new RepositorySession(fullRoot);
-        string[] targets = session.ResolveTargets([], false);
+        string[] targets = session.ResolveTargets([]);
         Dictionary<string, (Project Project, Document Document)> eligible = session.AssignTargets(targets, []);
         foreach (var (source, assignment) in eligible)
         {

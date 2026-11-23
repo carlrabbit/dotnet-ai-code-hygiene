@@ -75,19 +75,14 @@ try {
         git add Sample.cs; git commit -m 'manual format input' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean manual format input.' }
         $formatBefore = Get-Content -LiteralPath Sample.cs -Raw
-        $formatCheck = dotnet hygiene format --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $formatCheck.targetCount -ne 1 -or $formatCheck.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $formatBefore) { throw 'Installed format --check did not report exact changes without writing.' }
-        dotnet hygiene format | Out-Null
-        if ($LASTEXITCODE -ne 0 -or (Get-Content -LiteralPath Sample.cs -Raw) -ceq $formatBefore) { throw 'Installed SDK whitespace mutation failed or made no change.' }
+        $formatResult = dotnet hygiene format --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $formatResult.targetCount -ne 1 -or $formatResult.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -ceq $formatBefore) { throw 'Installed Hygiene format did not mutate and report the selected source.' }
         git add Sample.cs; git commit -m 'formatted sample' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean formatted source.' }
 
         Set-Content -NoNewline -Path Sample.cs -Value 'public class Sample{public object Create = new object();}'
         git add Sample.cs; git commit -m 'manual normalize input' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean manual normalize input.' }
-        $normalizeBefore = Get-Content -LiteralPath Sample.cs -Raw
-        $normalizeCheck = dotnet hygiene normalize --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $normalizeCheck.selectedRuleIds -notcontains 'sdk.IDE0090' -or $normalizeCheck.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $normalizeBefore) { throw 'Installed normalize --check did not report the approved SDK diagnostic without writing.' }
         dotnet hygiene normalize | Out-Null
         if ($LASTEXITCODE -ne 0 -or (Get-Content -Raw Sample.cs) -notmatch 'Create = new\(\);') { throw 'Installed SDK style normalization did not apply IDE0090.' }
         git add Sample.cs; git commit -m 'normalized sample' | Out-Null
@@ -107,9 +102,6 @@ public class Sample
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit clean native suppression fixture.' }
         $nativeCheck = dotnet hygiene check --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or @($nativeCheck.findings | Where-Object { $_.ruleId -eq 'modernization.source-exception' }).Count -ne 0) { throw 'The valid installed IDE0090 suppression was reported stale or malformed.' }
-        $nativeBefore = Get-Content -LiteralPath Sample.cs -Raw
-        $nativeCheckOnly = dotnet hygiene normalize --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $nativeCheckOnly.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $nativeBefore) { throw 'Installed normalize --check did not preserve the suppressed source while reporting unrelated SDK fixes.' }
         dotnet hygiene normalize | Out-Null
         $nativeNormalized = Get-Content -LiteralPath Sample.cs -Raw
         if ($LASTEXITCODE -ne 0 -or $nativeNormalized -notmatch 'Explicit = new object\(\)' -or $nativeNormalized -notmatch 'Ordinary = new\(\)' -or $nativeNormalized -notmatch 'Count = default;') { throw 'The IDE0090 suppression affected unrelated fixes or allowed its intended diagnostic through.' }
@@ -164,12 +156,11 @@ public class Closing
         $dirtyBefore = Get-Content -LiteralPath Sample.cs -Raw
         Set-Content -NoNewline -Path Sample.cs -Value ($dirtyBefore + "`npublic object Dirty(){return new object();}`n")
         $dirtySource = Get-Content -LiteralPath Sample.cs -Raw
-        $changedMode = dotnet hygiene normalize --changed --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $changedMode.checkOnly -or $changedMode.changedPaths -notcontains 'Sample.cs' -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $dirtySource) { throw 'Installed --changed normalization was not a nonmutating check-only selection.' }
+        $beforeRemovedCheck = (Get-FileHash -LiteralPath Sample.cs -Algorithm SHA256).Hash
+        $removedCheck = dotnet hygiene format --check --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0 -or (Get-FileHash -LiteralPath Sample.cs -Algorithm SHA256).Hash -ne $beforeRemovedCheck) { throw 'Removed Hygiene formatter --check was accepted or changed source.' }
         $dirtyMutation = dotnet hygiene format --output json 2>&1
         if ($LASTEXITCODE -ne 3 -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $dirtySource) { throw 'A dirty mutating formatter did not stop without changing source.' }
-        $readOnly = dotnet hygiene format --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or (Get-Content -LiteralPath Sample.cs -Raw) -cne $dirtySource) { throw 'Read-only formatter check mutated a dirty worktree.' }
         git checkout -- Sample.cs
         if ($LASTEXITCODE -ne 0) { throw 'Could not restore the isolated dirty consumer fixture.' }
     }
@@ -284,7 +275,7 @@ public class Closing
         git add -A; git commit -m 'consumer source baseline' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not commit Autoformat consumer source baseline.' }
         $beforePolicyRun = Get-Content Sample.cs -Raw
-        $missingPolicy = dotnet autoformat normalize --check --output json 2>&1 | Out-String
+        $missingPolicy = dotnet autoformat normalize --output json 2>&1 | Out-String
         if ($LASTEXITCODE -ne 2 -or $missingPolicy -notmatch 'dotnet autoformat init' -or (Get-Content Sample.cs -Raw) -cne $beforePolicyRun) { throw 'Autoformat source run did not fail safely with an actionable init instruction.' }
         $init = dotnet autoformat init --output json | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $init.status -ne 'initialized') { throw 'Independent Autoformat init failed.' }
@@ -295,26 +286,21 @@ public class Closing
         if ($LASTEXITCODE -ne 0 -or $repeatInit.status -ne 'ready' -or (Get-FileHash -LiteralPath .editorconfig -Algorithm SHA256).Hash -ne $policyHash) { throw 'Autoformat init was not idempotent.' }
         git add .editorconfig; git commit -m 'initialize Autoformat policy' | Out-Null
 
-        $formatBefore = Get-Content FormatOnly.cs -Raw
-        $formatCheck = dotnet autoformat format FormatOnly.cs --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $formatCheck.checkOnly -or $formatCheck.selectedPaths.Count -ne 1 -or $formatCheck.selectedPaths[0] -ne 'FormatOnly.cs' -or $formatCheck.changedPaths -notcontains 'FormatOnly.cs' -or (Get-Content FormatOnly.cs -Raw) -cne $formatBefore) { throw 'Installed whitespace-only format check did not report the explicit file without writing.' }
-        dotnet autoformat format FormatOnly.cs --output json | Out-Null
+        $formatResult = dotnet autoformat format FormatOnly.cs --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $formatResult.selectedPaths.Count -ne 1 -or $formatResult.selectedPaths[0] -ne 'FormatOnly.cs' -or $formatResult.changedPaths -notcontains 'FormatOnly.cs') { throw 'Installed whitespace-only format did not mutate and report the explicit file.' }
         if ($LASTEXITCODE -ne 0 -or (Get-Content FormatOnly.cs -Raw) -notmatch 'Value = new object\(\)') { throw 'Whitespace-only format unexpectedly applied SDK style fixes or failed to format.' }
         git add FormatOnly.cs; git commit -m 'format whitespace fixture' | Out-Null
 
         Set-Content -NoNewline -Path Sample.cs 'using System; public class Sample{public object Value=new object();}'
         git add Sample.cs; git commit -m 'normalize fixture' | Out-Null
-        $before = Get-Content Sample.cs -Raw
-        $checked = dotnet autoformat normalize --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $checked.checkOnly -or $checked.changedPaths -notcontains 'Sample.cs' -or (Get-Content Sample.cs -Raw) -cne $before) { throw 'Installed Autoformat check-only changed source or returned an invalid report.' }
-        $pathCheck = dotnet autoformat normalize Sample.cs --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $pathCheck.selectedPaths.Count -ne 1 -or $pathCheck.selectedPaths[0] -ne 'Sample.cs') { throw 'Explicit path selection did not narrow Autoformat targets.' }
-        $unscopedCheck = dotnet autoformat normalize --check --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $unscopedCheck.selectedPaths -notcontains 'Second/Second.cs' -or $unscopedCheck.targetCount -lt 3) { throw 'Unscoped Autoformat did not cover both SDK projects in the solution.' }
+        $pathResult = dotnet autoformat normalize Sample.cs --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $pathResult.selectedPaths.Count -ne 1 -or $pathResult.selectedPaths[0] -ne 'Sample.cs' -or $pathResult.changedPaths -notcontains 'Sample.cs') { throw 'Explicit path selection did not mutate only its target.' }
+        if ((Get-Content Second\Second.cs -Raw) -notmatch 'Value=new object\(\)') { throw 'Explicit normalization changed an unselected project.' }
+        git add Sample.cs; git commit -m 'explicit normalized fixture' | Out-Null
         dotnet autoformat | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Installed Autoformat default normalize mode failed.' }
         $normalized = Get-Content Sample.cs -Raw
-        if ($normalized -ceq $before -or $normalized -notmatch 'Value = new\(\);') { throw 'Installed Autoformat default did not apply the approved SDK normalization.' }
+        if ($normalized -notmatch 'Value = new\(\);') { throw 'Installed Autoformat explicit normalization did not apply the approved SDK normalization.' }
         if ((Get-Content Second\Second.cs -Raw) -notmatch 'Value = new\(\);') { throw 'Unscoped Autoformat did not normalize the second SDK project.' }
         git add Sample.cs FormatOnly.cs Second\Second.cs; git commit -m 'normalized fixture' | Out-Null
         dotnet autoformat normalize | Out-Null
@@ -326,9 +312,9 @@ public class Closing
         Set-Content -NoNewline -Path Untracked.cs 'public class Untracked { public int Value = default(int); }'
         $dirtyFiles = @('Sample.cs','Staged.cs','Untracked.cs')
         $beforeChanged = @{}; foreach ($file in $dirtyFiles) { $beforeChanged[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash }
-        $changedRun = dotnet autoformat --changed --output json | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $changedRun.checkOnly -or @($changedRun.selectedPaths | Where-Object { $_ -in $dirtyFiles }).Count -ne 3) { throw 'Autoformat --changed did not select staged, unstaged, and untracked C# paths read-only.' }
-        foreach ($file in $dirtyFiles) { if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Autoformat --changed modified '$file'." } }
+        $changedRun = dotnet autoformat --changed --output json 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0) { throw 'Removed Autoformat --changed was accepted.' }
+        foreach ($file in $dirtyFiles) { if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Rejected Autoformat --changed modified '$file'." } }
         $dirtyMutation = dotnet autoformat normalize --output json 2>&1 | Out-String
         if ($LASTEXITCODE -ne 2 -or $dirtyMutation -notmatch 'clean Git worktree') { throw 'Autoformat mutation did not reject the dirty checkpoint.' }
         foreach ($file in $dirtyFiles) { if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Rejected mutation changed '$file'." } }
@@ -337,7 +323,8 @@ public class Closing
         $nested = Join-Path $autoConsumer 'nested'; New-Item -ItemType Directory -Force $nested | Out-Null
         Set-Content -NoNewline -Path (Join-Path $nested '.editorconfig') "[*.cs]`ncsharp_style_implicit_object_creation_when_type_is_apparent = false`n"
         $nestedBefore = Get-Content Sample.cs -Raw
-        $nestedConflict = dotnet autoformat format --check --output json 2>&1 | Out-String
+        git add nested/.editorconfig; git commit -m 'nested policy override' | Out-Null
+        $nestedConflict = dotnet autoformat format --output json 2>&1 | Out-String
         if ($LASTEXITCODE -ne 2 -or $nestedConflict -notmatch 'Conflicting mechanical setting' -or (Get-Content Sample.cs -Raw) -cne $nestedBefore) { throw 'Nested mechanical policy conflict was not reported safely.' }
         Remove-Item -LiteralPath $nested -Recurse -Force
 
@@ -352,7 +339,7 @@ public class Closing
     $gitVersion = (& git --version).Trim()
     $provenancePath = Join-Path $PSScriptRoot '..\.execution\validation\consumer-provenance.json'
     New-Item -ItemType Directory -Force (Split-Path -Parent $provenancePath) | Out-Null
-    [pscustomobject]@{ schemaVersion = 4; milestone = 'M0026'; package = $package.Name; packageSha256 = $packageSha256; installedShimSha256 = $installedShimSha256; autoformatPackage = $autoPackage.Name; autoformatPackageSha256 = $autoPackageSha256; autoformatShimSha256 = $autoShimSha256; installedCommand = 'dotnet-autoformat'; installedVersion = '0.1.0'; legacyCommand = 'dotnet-hygiene'; legacyVersion = '0.12.0'; sdk = $version; git = $gitVersion; scenarios = @('autoformat-independent-installed-consumer-init-check-normalize-idempotence','autoformat-help-explicit-format-default-and-path-selection','autoformat-staged-unstaged-untracked-check-only-and-dirty-rejection','autoformat-fresh-init-idempotence-nested-conflict-and-malformed-marker-safety','autoformat-adoption-of-hygiene-managed-policy','bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-check-and-mutation', 'manual-normalize-check-and-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'changed-check-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration', 'cross-project-related-evidence', 'shared-semantic-budget', 'same-gate-acceptance-without-refill', 'attested-exhaustive-read-only-audit') } |
+    [pscustomobject]@{ schemaVersion = 4; milestone = 'M0026'; package = $package.Name; packageSha256 = $packageSha256; installedShimSha256 = $installedShimSha256; autoformatPackage = $autoPackage.Name; autoformatPackageSha256 = $autoPackageSha256; autoformatShimSha256 = $autoShimSha256; installedCommand = 'dotnet-autoformat'; installedVersion = '0.1.0'; legacyCommand = 'dotnet-hygiene'; legacyVersion = '0.12.0'; sdk = $version; git = $gitVersion; scenarios = @('autoformat-independent-installed-consumer-init-mutation-idempotence','autoformat-help-explicit-format-default-and-path-selection','autoformat-removed-flags-and-dirty-rejection','autoformat-fresh-init-idempotence-nested-conflict-and-malformed-marker-safety','autoformat-adoption-of-hygiene-managed-policy','bootstrap-correct-ide0090-and-modern-modifier-profile', 'manual-format-mutation', 'manual-normalize-mutation', 'native-suppression-check-mutation-and-stale-detection', 'source-owned-exception-exact-subject-and-diagnostic-identity', 'unattached-closing-brace-exception', 'semantic-check-changed-read-only', 'dirty-checkpoint-rejection', 'v2-to-v3-migration', 'cross-project-related-evidence', 'shared-semantic-budget', 'same-gate-acceptance-without-refill', 'attested-exhaustive-read-only-audit') } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $provenancePath -Encoding utf8
     Write-Output "Installed-consumer M0026 dual-tool evidence passed; package SHA-256 $packageSha256."
 }

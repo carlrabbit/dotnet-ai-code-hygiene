@@ -213,7 +213,7 @@ RewriteEngine
   report syntax proposals, SDK changes, paths and notices
 ```
 
-`dotnet autoformat format` runs SDK whitespace formatting only. `dotnet autoformat normalize` applies all nine opinionated modernization families and readability rules, runs SDK style/whitespace, then reapplies syntax layout rules so SDK whitespace cannot undo canonical layouts. It does not request target compilations, run builds/tests or require equivalence; the implementing agent repairs build consequences. Check-only reports proposed syntax edits and SDK changes without writing source or policy state.
+`dotnet autoformat format` runs SDK whitespace formatting only. The default command and `normalize` apply all nine opinionated modernization families and readability rules, run approved SDK style and whitespace phases in solution/project batches, then reapply final syntax layout and retained-comment stabilization. It does not request target compilations, run builds/tests or require equivalence; the implementing agent repairs build consequences. Autoformat has one direct mutation path and no formatter check-only or changed-files mode. For read-only semantic inspection use `dotnet hygiene check`; for CI verification use a disposable clean checkout and inspect the mutator's Git diff.
 
 Mutating operations use a clean Git checkpoint and leave an inspectable worktree on failure:
 
