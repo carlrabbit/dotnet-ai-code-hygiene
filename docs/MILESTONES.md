@@ -231,7 +231,7 @@ Planner-seeded ledger: `.execution/M0031-mutation-only-autoformat.md`.
 **State:** ready for implementation
 **Mode:** AI-executed; no formal human acceptance gate
 
-Introduce an independent agent-operated `agenttrace` CLI in the workbench to record session lifecycles, actual wrapped commands, optionally declared external/MCP spans, and honest timing coverage. Support both repository-configured JSONL (default without config) and SQLite, a human chronological report, and complete machine-readable data export. No hooks, model/MCP/OTel integration, services, dashboards or automatic inference of model thinking. Development uses focused real-process validation; installed-tool consumer qualification remains a release concern.
+Amended planning contract: implement an independent **append-only, event-only** `agenttrace` CLI. Caller-chosen session and optional actor keys group concurrent agents (for example PR work); start/pause/resume/stop are non-gating event annotations. The agent executes commands itself and records exact command begin/end text and results; no process runner or generated session/run/event handles. Concurrent same-command spans correlate by deterministic fingerprint and optional caller label, with FIFO/ambiguity disclosure. Sensitive commands retain a safe name and flagged unkeyed hash, not their parameters. Support default JSONL and configured SQLite WAL (including external absolute paths), human reports and complete agent-readable export. No hooks or model/MCP/OTel integration. Focused CLI/store tests are milestone evidence; installed-tool qualification remains a release concern.
 
 Primary milestone: `docs/milestones/M0032-agent-cli-session-tracing.md`.  
 Planner-seeded ledger: `.execution/M0032-agent-cli-session-tracing.md`.
