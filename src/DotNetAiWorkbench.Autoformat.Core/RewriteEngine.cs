@@ -207,16 +207,23 @@ public sealed class RewriteEngine
     private RewriteResult PreviewNormalization(RepositorySession session, string[] eligible,
         Dictionary<string, (Project Project, Document Document)> assigned, string[] selectedRules, bool noRestore)
     {
-        string shadowRoot = Path.Combine(Path.GetTempPath(), "autoformat-preview-" + Guid.NewGuid().ToString("N"));
+        string tempRoot = Path.GetFullPath(Path.GetTempPath());
+        EnsureNoReparsePoint(Path.GetPathRoot(tempRoot)!, tempRoot);
+        string shadowRoot = Path.Combine(tempRoot, "autoformat-preview-" + Guid.NewGuid().ToString("N"));
+        EnsureOwnedDestination(tempRoot, shadowRoot);
         try
         {
             Directory.CreateDirectory(shadowRoot);
+            EnsureNoReparsePoint(Path.GetPathRoot(shadowRoot)!, shadowRoot);
             Directory.CreateDirectory(Path.Combine(shadowRoot, ".git"));
-            CopyPreviewWorkspace(shadowRoot, assigned.Values.Select(value => value.Project.FilePath!)
-                .Distinct(StringComparer.OrdinalIgnoreCase), copyRestoreArtifacts: noRestore);
+            string[] selectedProjects = assigned.Values.Select(value => value.Project.FilePath!)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            bool useSolution = selectedProjects.Length > 1;
+            CopyPreviewWorkspace(shadowRoot, ReferencedProjectFiles(session, assigned),
+                copyRestoreArtifacts: noRestore, includeSolution: useSolution);
 
             string[] shadowTargets = eligible
-                .Select(path => Path.Combine(shadowRoot, Path.GetRelativePath(root, path)))
+                .Select(path => SafeDestination(shadowRoot, Path.GetRelativePath(root, path)))
                 .ToArray();
             var preview = phaseRunner is null
                 ? new RewriteEngine(shadowRoot, requireCleanCheckpoint: false)
@@ -236,54 +243,123 @@ public sealed class RewriteEngine
         }
     }
 
-    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles, bool copyRestoreArtifacts)
+    private static IEnumerable<string> ReferencedProjectFiles(RepositorySession session,
+        Dictionary<string, (Project Project, Document Document)> assigned)
+    {
+        var pending = new Stack<Project>(assigned.Values.Select(value => value.Project));
+        var visited = new HashSet<ProjectId>();
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (pending.Count > 0)
+        {
+            Project project = pending.Pop();
+            if (!visited.Add(project.Id)) { continue; }
+            if (project.FilePath is null)
+            {
+                throw new ProductException("Check-only normalization cannot safely preserve a project without a filesystem path.");
+            }
+            files.Add(project.FilePath);
+            foreach (Document document in project.Documents.Concat(project.AdditionalDocuments))
+            {
+                if (document.FilePath is not null && !session.WithinRoot(document.FilePath))
+                {
+                    throw new ProductException($"Check-only normalization cannot safely preserve external project input '{document.FilePath}'. Move it under the repository or run normalize without --check.");
+                }
+            }
+            foreach (ProjectReference reference in project.ProjectReferences)
+            {
+                Project? referenced = session.Workspace.CurrentSolution.GetProject(reference.ProjectId);
+                if (referenced is null)
+                {
+                    throw new ProductException($"Check-only normalization cannot safely resolve project reference '{reference.ProjectId}'. Run normalize without --check or make the project reference resolvable.");
+                }
+                pending.Push(referenced);
+            }
+        }
+        return files;
+    }
+
+    private void CopyPreviewWorkspace(string shadowRoot, IEnumerable<string> projectFiles, bool copyRestoreArtifacts, bool includeSolution)
     {
         string[] rootSettings = [".editorconfig", ".globalconfig", "global.json", "NuGet.Config", "nuget.config",
             "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props"];
-        string[] solutions = Directory.EnumerateFiles(root, "*.sln*", SearchOption.TopDirectoryOnly)
-            .Where(path => Path.GetExtension(path) is ".sln" or ".slnx").ToArray();
+        EnsureNoReparsePoint(Path.GetPathRoot(root)!, root);
+        EnsureNoReparsePoint(Path.GetPathRoot(shadowRoot)!, shadowRoot);
+        EnsureOwnedDestination(shadowRoot, shadowRoot);
+        string[] solutions = includeSolution
+            ? Directory.EnumerateFiles(root, "*.sln*", SearchOption.TopDirectoryOnly)
+                .Where(path => Path.GetExtension(path) is ".sln" or ".slnx").ToArray()
+            : [];
         foreach (string solution in solutions)
         {
-            File.Copy(solution, Path.Combine(shadowRoot, Path.GetFileName(solution)), overwrite: true);
+            EnsureNoReparsePoint(root, solution);
+            File.Copy(solution, SafeDestination(shadowRoot, Path.GetFileName(solution)), overwrite: true);
         }
 
         var pending = new Stack<string>(projectFiles);
         foreach (string solution in solutions)
         {
             (int exit, string output) = RunSimple("sln", solution, "list");
-            if (exit != 0) { continue; }
+            if (exit != 0) { throw new ProductException($"Unable to inspect solution project references for isolated check-only preview: {output.Trim()}"); }
             foreach (string project in output.Split(new[] { (char)13, (char)10 }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(line => line.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
             {
-                pending.Push(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, project.Trim())));
+                string projectPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, project.Trim()));
+                RequireProjectInsideRepository(projectPath, solution);
+                pending.Push(projectPath);
             }
         }
         var copiedProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var copiedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var projectsToCopy = new List<string>();
         while (pending.Count > 0)
         {
             string projectFile = Path.GetFullPath(pending.Pop());
-            if (!copiedProjects.Add(projectFile) || !File.Exists(projectFile))
+            RequireProjectInsideRepository(projectFile, root);
+            if (!copiedProjects.Add(projectFile)) { continue; }
+            if (!File.Exists(projectFile))
             {
-                continue;
+                throw new ProductException($"A required project for the isolated check-only preview is missing: {Path.GetRelativePath(root, projectFile)}. Restore the project or remove the stale reference, then rerun.");
             }
+            EnsureNoReparsePoint(root, projectFile);
+            projectsToCopy.Add(projectFile);
+            string projectDirectory = Path.GetDirectoryName(projectFile)!;
+            XDocument document = XDocument.Load(projectFile);
+            foreach (XElement reference in document.Descendants().Where(element => element.Name.LocalName == "ProjectReference"))
+            {
+                string? include = (string?)reference.Attribute("Include");
+                if (string.IsNullOrWhiteSpace(include)) { continue; }
+                if (include.Contains("$(", StringComparison.Ordinal) || include.Contains('*') || include.Contains(';'))
+                {
+                    throw new ProductException($"The isolated check-only preview cannot safely resolve ProjectReference '{include}' in '{Path.GetRelativePath(root, projectFile)}'. Use a literal in-repository project path or run normalize without --check.");
+                }
+                string referencedProject = Path.GetFullPath(Path.Combine(projectDirectory, include));
+                RequireProjectInsideRepository(referencedProject, projectFile);
+                if (!File.Exists(referencedProject))
+                {
+                    throw new ProductException($"The isolated check-only preview cannot find referenced project '{include}' from '{Path.GetRelativePath(root, projectFile)}'. Restore the project or correct the reference, then rerun.");
+                }
+                pending.Push(referencedProject);
+            }
+        }
 
+        var copiedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string projectFile in projectsToCopy)
+        {
             string projectDirectory = Path.GetDirectoryName(projectFile)!;
             string relativeProjectDirectory = Path.GetRelativePath(root, projectDirectory);
-            string shadowDirectory = Path.GetFullPath(Path.Combine(shadowRoot, relativeProjectDirectory));
-            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories, copyRestoreArtifacts);
+            string shadowDirectory = SafeDestination(shadowRoot, relativeProjectDirectory);
+            CopyProjectDirectory(projectDirectory, shadowDirectory, copiedDirectories, copiedProjects, copyRestoreArtifacts);
 
             string? ancestor = projectDirectory;
-            while (ancestor is not null && (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)
-                || ancestor.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            while (ancestor is not null && IsWithin(root, ancestor))
             {
                 foreach (string setting in rootSettings)
                 {
                     string settingPath = Path.Combine(ancestor, setting);
                     if (File.Exists(settingPath))
                     {
+                        EnsureNoReparsePoint(root, settingPath);
                         string relative = Path.GetRelativePath(root, settingPath);
-                        string destination = Path.Combine(shadowRoot, relative);
+                        string destination = SafeDestination(shadowRoot, relative);
                         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                         File.Copy(settingPath, destination, overwrite: true);
                     }
@@ -292,28 +368,22 @@ public sealed class RewriteEngine
                 if (string.Equals(ancestor, root, StringComparison.OrdinalIgnoreCase)) { break; }
                 ancestor = Directory.GetParent(ancestor)?.FullName;
             }
-
-            XDocument document = XDocument.Load(projectFile);
-            foreach (XElement reference in document.Descendants().Where(element => element.Name.LocalName == "ProjectReference"))
-            {
-                string? include = (string?)reference.Attribute("Include");
-                if (string.IsNullOrWhiteSpace(include) || include.Contains("$(", StringComparison.Ordinal)) { continue; }
-                string referencedProject = Path.GetFullPath(Path.Combine(projectDirectory, include));
-                if (referencedProject.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                {
-                    pending.Push(referencedProject);
-                }
-            }
         }
     }
 
-    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories, bool copyRestoreArtifacts)
+    private void CopyProjectDirectory(string source, string destination, HashSet<string> copiedDirectories,
+        HashSet<string> requiredProjects, bool copyRestoreArtifacts)
     {
+        EnsureNoReparsePoint(root, source);
+        EnsureOwnedDestination(Path.GetTempPath(), destination);
         if (!copiedDirectories.Add(source)) { return; }
         Directory.CreateDirectory(destination);
         foreach (string file in Directory.EnumerateFiles(source))
         {
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+            if (Path.GetExtension(file).Equals(".csproj", StringComparison.OrdinalIgnoreCase)
+                && !requiredProjects.Contains(Path.GetFullPath(file))) { continue; }
+            EnsureNoReparsePoint(root, file);
+            File.Copy(file, SafeDestination(Path.GetTempPath(), Path.Combine(destination, Path.GetFileName(file))), overwrite: true);
         }
 
         foreach (string directory in Directory.EnumerateDirectories(source))
@@ -321,8 +391,95 @@ public sealed class RewriteEngine
             string name = Path.GetFileName(directory);
             if (name is ".git" or ".execution" or ".review" or ".vs" or "bin" or "TestResults" or "node_modules"
                 || name == "obj" && !copyRestoreArtifacts) { continue; }
-            CopyProjectDirectory(directory, Path.Combine(destination, name), copiedDirectories, copyRestoreArtifacts);
+            EnsureNoReparsePoint(root, directory);
+            CopyProjectDirectory(directory, SafeDestination(Path.GetTempPath(), Path.Combine(destination, name)),
+                copiedDirectories, requiredProjects, copyRestoreArtifacts);
         }
+    }
+
+    private void RequireProjectInsideRepository(string projectPath, string referringPath)
+    {
+        string fullPath = Path.GetFullPath(projectPath);
+        if (!IsWithin(root, fullPath))
+        {
+            throw new ProductException($"Check-only normalization cannot safely preview external project '{projectPath}' referenced by '{referringPath}'. Move the project under the repository or run normalize without --check.");
+        }
+        EnsureNoReparsePoint(root, fullPath);
+    }
+
+    private static string SafeDestination(string ownedRoot, string relativeOrFullPath)
+    {
+        string destination = Path.GetFullPath(Path.IsPathRooted(relativeOrFullPath)
+            ? relativeOrFullPath
+            : Path.Combine(ownedRoot, relativeOrFullPath));
+        EnsureOwnedDestination(ownedRoot, destination);
+        return destination;
+    }
+
+    private static void EnsureOwnedDestination(string ownedRoot, string destination)
+    {
+        string rootPath = NormalizeBoundary(ownedRoot);
+        string destinationPath = Path.GetFullPath(destination);
+        if (!IsWithin(rootPath, destinationPath))
+        {
+            throw new ProductException($"The isolated check-only preview refused a destination outside its disposable workspace: '{destinationPath}'.");
+        }
+
+        string current = rootPath;
+        string relative = Path.GetRelativePath(rootPath, destinationPath);
+        foreach (string segment in relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!File.Exists(current) && !Directory.Exists(current)) { continue; }
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new ProductException($"The isolated check-only preview refused a reparse point inside its disposable workspace: '{current}'.");
+            }
+        }
+    }
+
+    private static void EnsureNoReparsePoint(string boundary, string path)
+    {
+        string fullBoundary = NormalizeBoundary(boundary);
+        string fullPath = Path.GetFullPath(path);
+        if (!IsWithin(fullBoundary, fullPath))
+        {
+            throw new ProductException($"Check-only normalization cannot safely inspect a path outside the repository: '{fullPath}'.");
+        }
+
+        string current = fullBoundary;
+        if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new ProductException($"Check-only normalization does not support filesystem roots that are reparse points: '{current}'.");
+        }
+        foreach (string segment in Path.GetRelativePath(fullBoundary, fullPath).Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!File.Exists(current) && !Directory.Exists(current)) { continue; }
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new ProductException($"Check-only normalization does not support reparse points in copied project context: '{current}'. Remove the link or move the project inside the repository, then rerun.");
+            }
+        }
+    }
+
+    private static bool IsWithin(string boundary, string path)
+    {
+        string fullBoundary = NormalizeBoundary(boundary);
+        string fullPath = Path.GetFullPath(path);
+        return fullPath.Equals(fullBoundary, StringComparison.OrdinalIgnoreCase)
+            || (fullBoundary.EndsWith(Path.DirectorySeparatorChar) || fullBoundary.EndsWith(Path.AltDirectorySeparatorChar)
+                ? fullPath.StartsWith(fullBoundary, StringComparison.OrdinalIgnoreCase)
+                : fullPath.StartsWith(fullBoundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeBoundary(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        string? volumeRoot = Path.GetPathRoot(fullPath);
+        return string.Equals(fullPath, volumeRoot, StringComparison.OrdinalIgnoreCase)
+            ? fullPath
+            : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
     private static string CreatePhaseReportDirectory(string root, string phase, int index)
