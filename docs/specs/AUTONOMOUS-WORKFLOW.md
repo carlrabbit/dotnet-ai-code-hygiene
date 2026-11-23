@@ -30,7 +30,7 @@ The tool evaluates deterministic findings and normal gate-local semantic selecti
 
 ### Manual diagnostics
 
-Explicit path, rule discovery, explain, `--base`, `--changed`, and `--review-all` inspection remain available in a coherent redesigned `dotnet hygiene` subcommand hierarchy. Manual checking remains nonmutating unless the user/agent explicitly executes an approved remediation operation. It is advanced/debugging functionality, not required knowledge for normal delegation. `--review-all` remains bounded; it must not silently mean exhaustive inspection.
+Explicit path, rule discovery, explain, `--base`, `--changed`, and `--review-all` semantic inspection remain available in a coherent redesigned `dotnet hygiene` subcommand hierarchy. `dotnet hygiene check` remains read-only. Manual `format` and `normalize` delegate the mutation-only Autoformat engine and require a clean checkpoint; they do not accept formatter preview options. For CI inspection, use the mutator in a disposable clean checkout and review its Git diff. `--review-all` remains bounded; it must not silently mean exhaustive inspection.
 
 ### Release updates
 

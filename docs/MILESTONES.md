@@ -219,7 +219,7 @@ Primary milestone: `docs/milestones/M0030-autoformat-correctness-check-performan
 Planner-seeded ledger: `.execution/M0030-autoformat-correctness-check-performance.md`.
 
 ## M0031 — Mutation-Only Autoformat Execution
-**State:** ready for independent implementation; no product implementation started  
+**State:** complete on `planning/m0031-mutation-only-autoformat`
 **Mode:** AI-executed; no formal human acceptance gate
 
 Remove formatter `--check` and `--changed` across standalone Autoformat and the transitional Hygiene formatting adapter, and delete shadow/preview workspace execution. Preserve direct Git-checkpointed source edits, actual SDK-batched style/whitespace phases, all nine opinionated canonicalization families, explicit/full source selection, truthful output and source safety. The separate read-only `dotnet hygiene check --changed` semantic-review workflow remains intact. CI or agents can run the mutator in a disposable clean checkout and inspect Git differences; there is no Autoformat-specific verifier. No new formatter or release qualification.

@@ -39,29 +39,27 @@ try {
             if ($LASTEXITCODE -ne 0 -or $repeatInit.status -ne 'ready' -or (Get-FileHash .editorconfig -Algorithm SHA256).Hash -ne $policyHash) { throw 'Installed Autoformat init was not byte-stable on repeat.' }
             git add -A; git commit -m baseline | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Autoformat consumer baseline commit failed.' }
-            $formatCheck = & $shim format FormatOnly.cs --check --output json | ConvertFrom-Json
-            if ($LASTEXITCODE -ne 0 -or $formatCheck.changedPaths -notcontains 'FormatOnly.cs') { throw 'Installed Autoformat whitespace check failed.' }
-            & $shim format FormatOnly.cs
-            if ($LASTEXITCODE -ne 0) { throw 'Installed Autoformat whitespace mutation failed.' }
+            $formatResult = & $shim format FormatOnly.cs --output json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $formatResult.selectedPaths.Count -ne 1 -or $formatResult.changedPaths -notcontains 'FormatOnly.cs') { throw 'Installed Autoformat whitespace mutation did not report the explicit changed file.' }
             git add FormatOnly.cs; git commit -m 'format source' | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Could not checkpoint formatted source.' }
-            $normalizeCheck = & $shim normalize --check --output json | ConvertFrom-Json
-            if ($LASTEXITCODE -ne 0 -or $normalizeCheck.changedPaths -notcontains 'Sample.cs') { throw 'Installed Autoformat style and whitespace check failed.' }
-            $explicitCheck = & $shim normalize Sample.cs --check --output json | ConvertFrom-Json
-            if ($LASTEXITCODE -ne 0 -or $explicitCheck.selectedPaths.Count -ne 1 -or $explicitCheck.selectedPaths[0] -ne 'Sample.cs') { throw 'Installed Autoformat explicit path did not narrow selection.' }
-            & $shim normalize
-            if ($LASTEXITCODE -ne 0) { throw 'Installed Autoformat normalize mutation failed.' }
+            $normalizeResult = & $shim normalize Sample.cs --output json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $normalizeResult.selectedPaths.Count -ne 1 -or $normalizeResult.changedPaths -notcontains 'Sample.cs') { throw 'Installed Autoformat explicit normalization did not mutate the selected path.' }
             git add Sample.cs; git commit -m 'normalize source' | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Could not checkpoint normalized source.' }
-            & $shim normalize
-            if ($LASTEXITCODE -ne 0 -or (git status --porcelain).Length -ne 0) { throw 'Installed Autoformat normalize was not idempotent.' }
+            $beforeRepeat = Get-FileHash Sample.cs -Algorithm SHA256
+            $repeat = & $shim normalize Sample.cs --output json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $repeat.changedCount -ne 0 -or (Get-FileHash Sample.cs -Algorithm SHA256).Hash -ne $beforeRepeat.Hash) { throw 'Installed Autoformat normalization was not stable on a clean repeat.' }
+            $beforeRemovedFlag = Get-FileHash Sample.cs -Algorithm SHA256
+            $removedCheck = & $shim normalize --check --output json 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0 -or (Get-FileHash Sample.cs -Algorithm SHA256).Hash -ne $beforeRemovedFlag.Hash) { throw 'Removed Autoformat --check was accepted or changed source.' }
             Set-Content Staged.cs 'public class Staged { }'; git add Staged.cs
             Set-Content Unstaged.cs 'public class Unstaged { }'
             Set-Content Untracked.cs 'public class Untracked { }'
-            $beforeChanged = @{}; foreach ($file in @('Staged.cs','Unstaged.cs','Untracked.cs')) { $beforeChanged[$file] = (Get-FileHash $file -Algorithm SHA256).Hash }
-            $changed = & $shim --changed --output json | ConvertFrom-Json
-            if ($LASTEXITCODE -ne 0 -or -not $changed.checkOnly -or @($changed.selectedPaths | Where-Object { $_ -in @('Staged.cs','Unstaged.cs','Untracked.cs') }).Count -ne 3) { throw 'Installed Autoformat --changed did not select staged, unstaged and untracked C# files read-only.' }
-            foreach ($file in $beforeChanged.Keys) { if ((Get-FileHash $file -Algorithm SHA256).Hash -ne $beforeChanged[$file]) { throw "Autoformat --changed modified '$file'." } }
+            $beforeRemovedChanged = @{}; foreach ($file in @('Staged.cs','Unstaged.cs','Untracked.cs')) { $beforeRemovedChanged[$file] = (Get-FileHash $file -Algorithm SHA256).Hash }
+            $removedChanged = & $shim --changed --output json 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0) { throw 'Removed Autoformat --changed was accepted.' }
+            foreach ($file in $beforeRemovedChanged.Keys) { if ((Get-FileHash $file -Algorithm SHA256).Hash -ne $beforeRemovedChanged[$file]) { throw "Rejected Autoformat --changed modified '$file'." } }
             $dirtyMutation = & $shim format 2>&1 | Out-String
             if ($LASTEXITCODE -ne 2 -or $dirtyMutation -notmatch 'clean Git worktree') { throw 'Installed Autoformat mutation did not reject the dirty checkpoint.' }
         } finally { Pop-Location }
@@ -83,6 +81,6 @@ try {
     $evidence = Join-Path $root '.execution/validation/autoformat-consumer-provenance.json'
     New-Item -ItemType Directory -Force -Path (Split-Path $evidence) | Out-Null
     $packageSha256 = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
-    [pscustomobject]@{ schemaVersion=1; milestone='M0026'; product='autoformat'; package=$id; version=$version; packageSha256=$packageSha256; installedShimSha256=$shimSha256; consumerScenarios=@('exact-current-install','version','help','fresh-init','explicit-path','format-check-and-write','normalize-check-and-write','normalize-idempotence','changed-staged-unstaged-untracked-read-only','dirty-mutation-rejection','hygiene-policy-adoption') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidence -Encoding utf8
+    [pscustomobject]@{ schemaVersion=1; milestone='M0026'; product='autoformat'; package=$id; version=$version; packageSha256=$packageSha256; installedShimSha256=$shimSha256; consumerScenarios=@('exact-current-install','version','help','fresh-init','explicit-path','format-write','normalize-write','normalize-idempotence','removed-switch-rejection','dirty-mutation-rejection','hygiene-policy-adoption') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidence -Encoding utf8
     Write-Output "PASS installed exact-current Autoformat package $id $version ($packageSha256); shim $shimSha256"
 } finally { $env:NUGET_PACKAGES = $old }

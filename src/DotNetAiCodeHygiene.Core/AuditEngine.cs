@@ -13,12 +13,11 @@ public sealed record AuditNextWork(string AuditId, bool Complete, int Remaining,
 public sealed record AuditWorkItem(string ObligationId, string RuleId, int RuleVersion, string SubjectId, IReadOnlyList<ReviewQuestion> Questions, ReviewItem Subject, string SourcePath, string SourceContent);
 public sealed record AuditSemanticObligation(string ObligationId, string RuleId, int RuleVersion, string SubjectId, IReadOnlyList<ReviewQuestion> Questions, ReviewItem Subject, string SourcePath);
 public sealed record AuditFinding(string RuleId, int RuleVersion, Finding Finding, bool WasIgnored);
-public sealed record AuditRewriteProposal(string Command, IReadOnlyList<string> RuleIds, IReadOnlyList<string> ChangedPaths, int TargetCount, int UnchangedCount);
 
 internal sealed record AuditManifest(int SchemaVersion, string AuditId, string Status, DateTimeOffset StartedAt, string SourceRoot, string SourceHead, string SourceDirtyState, string ToolVersion, string Authorization, string InventorySha256);
 internal sealed record AuditSource(string Path, string Content);
 internal sealed record AuditSourceExclusions(int GeneratedFiles, int UnsupportedOrUnprojectedFiles);
-internal sealed record AuditInventory(int SchemaVersion, string AuditId, string SourceRoot, IReadOnlyList<AuditRuleFact> Rules, IReadOnlyList<AuditSemanticObligation> Obligations, IReadOnlyList<AuditFinding> Findings, IReadOnlyList<AuditRewriteProposal> RewriteProposals, IReadOnlyList<AuditSource> Sources, AuditSourceExclusions SourceExclusions, string SnapshotLimitation);
+internal sealed record AuditInventory(int SchemaVersion, string AuditId, string SourceRoot, IReadOnlyList<AuditRuleFact> Rules, IReadOnlyList<AuditSemanticObligation> Obligations, IReadOnlyList<AuditFinding> Findings, IReadOnlyList<AuditSource> Sources, AuditSourceExclusions SourceExclusions, string SnapshotLimitation);
 internal sealed record StoredAuditJudgment(string ObligationId, string RuleId, string Outcome, string? Rationale, DateTimeOffset RecordedAt);
 internal sealed record AuditJudgmentBatch(int SchemaVersion, string AuditId, IReadOnlyList<StoredAuditJudgment> Judgments);
 
@@ -57,10 +56,9 @@ public sealed class ReadOnlyAuditEngine
         string dirtyState = ReadDirtyState(root);
         (CheckResult check, int sourceDocuments, int projects) = hygiene.CheckExhaustiveAuditSnapshot();
         (IReadOnlyList<AuditRuleFact> ruleFacts, IReadOnlyList<AuditSemanticObligation> obligations, IReadOnlyList<AuditFinding> findings, IReadOnlyList<AuditSource> sources) = BuildInventory(auditId, check, sourceDocuments, projects);
-        AuditRewriteProposal[] rewriteProposals = [ObserveRewrite("format"), ObserveRewrite("normalize")];
         AuditSourceExclusions exclusions = MeasureSourceExclusions(sourceDocuments);
         string sourceRoot = CanonicalRoot(root);
-        var inventory = new AuditInventory(2, auditId, sourceRoot, ruleFacts, obligations, findings, rewriteProposals, sources, exclusions,
+        var inventory = new AuditInventory(2, auditId, sourceRoot, ruleFacts, obligations, findings, sources, exclusions,
             "The audit captures one finite observed inventory. Source changes during collection are not tracked; findings may span a mixed time interval and no atomic repository snapshot is claimed.");
         string inventoryJson = JsonSerializer.Serialize(inventory, Json);
         string inventoryHash = Hash(inventoryJson);
@@ -209,7 +207,6 @@ public sealed class ReadOnlyAuditEngine
                 .Select(obligation => new { obligation.RuleId, obligation.SourcePath, obligation.Subject.Line, reason = obligation.Subject.Occurrences!.First(occurrence => occurrence.SourceExceptionReason is not null).SourceExceptionReason }),
             rules,
             findings = inventory.Findings,
-            rewriteProposals = inventory.RewriteProposals,
             semanticProblems = inventory.Obligations.Where(x => judgments.TryGetValue(x.ObligationId, out StoredAuditJudgment? j) && j.Outcome == "problem").Select(x => new { obligation = x, judgment = judgments[x.ObligationId] }),
             semanticUncertainties = inventory.Obligations.Where(x => judgments.TryGetValue(x.ObligationId, out StoredAuditJudgment? j) && j.Outcome == "uncertain").Select(x => new { obligation = x, judgment = judgments[x.ObligationId] }),
             continuation = unassessed == 0 ? null : $"dotnet hygiene audit next --run \"{auditDirectory}\"; then record validated judgments and run audit finish again."
@@ -283,12 +280,6 @@ public sealed class ReadOnlyAuditEngine
             enabled && !semantic ? deterministicFindings : null);
     }
 
-    private AuditRewriteProposal ObserveRewrite(string command)
-    {
-        RewriteResult result = new RewriteEngine(root).Rewrite(command, [], false, checkOnly: true);
-        return new AuditRewriteProposal(command, result.SelectedRuleIds, result.ChangedPaths, result.TargetCount, result.UnchangedCount);
-    }
-
     private AuditSourceExclusions MeasureSourceExclusions(int supportedSourceDocuments)
     {
         int generated = 0;
@@ -342,13 +333,6 @@ public sealed class ReadOnlyAuditEngine
         foreach (AuditFinding finding in inventory.Findings)
         {
             b.AppendLine($"- `{finding.RuleId}` `{finding.Finding.Path}:{finding.Finding.Line}:{finding.Finding.Column}`{(finding.WasIgnored ? " (normal ignore recorded)" : "")} — {finding.Finding.Message}");
-        }
-
-        b.AppendLine().AppendLine("## Check-only rewrite proposals").AppendLine();
-        foreach (AuditRewriteProposal proposal in inventory.RewriteProposals)
-        {
-            b.AppendLine($"- `{proposal.Command}`: {proposal.ChangedPaths.Count} would-change path(s) of {proposal.TargetCount} target(s); enabled rules: {string.Join(", ", proposal.RuleIds)}.");
-            foreach (string path in proposal.ChangedPaths) { b.AppendLine($"  - `{path}`"); }
         }
 
         b.AppendLine().AppendLine("## Semantic problems and uncertainties").AppendLine();

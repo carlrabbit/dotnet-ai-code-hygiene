@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -40,21 +39,11 @@ internal sealed class RepositorySession : IDisposable
     internal IReadOnlyList<Project> Projects => projects.Value;
 /// <inheritdoc/>
 /// <inheritdoc/>
-    internal string[] ResolveTargets(string[] paths, bool changed)
+    internal string[] ResolveTargets(string[] paths)
     {
-        if (changed && paths.Length > 0)
-        {
-            throw new ArgumentException("Explicit paths and --changed are mutually exclusive.");
-        }
-
         IEnumerable<string> files;
 
-        if (changed)
-        {
-            try { files = GitChanged().ToArray(); }
-            catch (Exception e) when (e is Win32Exception or IOException) { throw new EnvironmentException("Git is unavailable."); }
-        }
-        else if (paths.Length == 0)
+        if (paths.Length == 0)
         {
             files = Directory.EnumerateFiles(Root, "*.cs", SearchOption.AllDirectories);
         }
@@ -117,8 +106,8 @@ internal sealed class RepositorySession : IDisposable
         var assigned = new Dictionary<string, (Project Project, Document Document)>(StringComparer.OrdinalIgnoreCase);
 
         // An explicit single-file command normally belongs to the nearest SDK project.
-        // Load that project first so check-only previews do not evaluate every unrelated
-        // project in a large solution. If the file is linked or otherwise omitted from
+        // Load that project first to avoid evaluating every unrelated project in a large
+        // solution. If the file is linked or otherwise omitted from
         // that project, fall back to the complete repository search below.
         if (inputPaths.Length == 1 && targets.Length == 1 && File.Exists(inputPaths[0]))
         {
@@ -187,32 +176,6 @@ internal sealed class RepositorySession : IDisposable
     internal bool WithinRoot(string path) => Path.GetFullPath(path).Equals(Root, StringComparison.OrdinalIgnoreCase)
         || Path.GetFullPath(path).StartsWith(Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     private bool Excluded(string path) => Path.GetRelativePath(Root, path).Split(Path.DirectorySeparatorChar).Any(x => x is ".git" or "bin" or "obj");
-
-    private IEnumerable<string> GitChanged()
-    {
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string[] entries = Git("status", "--porcelain", "-z", "--untracked-files=all").Split('\0', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < entries.Length; i++)
-        {
-            string entry = entries[i];
-            if (entry.Length < 4 || entry.StartsWith(" D", StringComparison.Ordinal) || entry.StartsWith("D ", StringComparison.Ordinal)) { continue; }
-            string relative = entry[3..];
-            if (entry.StartsWith("R", StringComparison.Ordinal) || entry.StartsWith("C", StringComparison.Ordinal)) { i++; }
-            paths.Add(Path.GetFullPath(Path.Combine(Root, relative)));
-        }
-        return paths.Where(File.Exists).Order(StringComparer.Ordinal);
-    }
-
-    private string Git(params string[] arguments)
-    {
-        var psi = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string argument in arguments) { psi.ArgumentList.Add(argument); }
-        using var process = System.Diagnostics.Process.Start(psi) ?? throw new IOException();
-        Task<string> outputTask = process.StandardOutput.ReadToEndAsync(); Task<string> errorTask = process.StandardError.ReadToEndAsync(); process.WaitForExit();
-        Task.WaitAll(outputTask, errorTask); string output = outputTask.Result; string error = errorTask.Result;
-        if (process.ExitCode != 0) { throw new IOException(error); }
-        return output;
-    }
 
     private MSBuildWorkspace CreateWorkspace()
     {

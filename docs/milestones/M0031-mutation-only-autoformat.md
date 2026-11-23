@@ -1,7 +1,7 @@
 # Milestone — M0031: Mutation-Only Autoformat Execution
 
 **ID:** M0031  
-**State:** ready  
+**State:** complete
 **Type:** migration (intentional pre-1.0 command and architecture break)  
 **Planning base:** `carlrabbit/dotnet-ai-code-hygiene` `main` at `49f4361063bbca17690f0c1ed80a187040c97a7a`, containing merged M0030/PR #41  
 **Methodology:** pinned Agentic Project Guides 1.0.0 (`.guide/system/`); project `docs/PROJECT-GUIDANCE.md`
@@ -77,4 +77,8 @@ Implement on a **separate implementation branch based on the exact accepted M003
 
 ## Completion note (implementer fills after delivery)
 
-Record the actual code/doc/command changes, focused checks run and results, behavior of standalone and transitional Hygiene rewrite paths, important residual issues and deferred installed-package/consumer checks. Reconcile all six obligations with the ledger before marking `COMPLETE`; no evidence matrix, receipt cache or exhaustive acceptance suite.
+Implemented the mutation-only command surface on `planning/m0031-mutation-only-autoformat`, based directly on planning commit `57e70643a493a7e1b42edd474ebdd941c1989422`. Autoformat root/default, `normalize`, and `format` now write selected source; formatter `--check`/`--changed`, `CheckOnly` engine/report fields, verify-only SDK phase arguments, Git-diff target selection, and the shadow workspace copier/guards are removed. The direct pipeline keeps custom canonicalization, batched approved SDK style, batched SDK whitespace, final layout/comment stabilization, source-byte change reporting, `init`, full/explicit selection, restore defaults, and clean Git/HEAD/index protections. Transitional Hygiene formatting delegates mutation-only and keeps its manual clean-entry check. Hygiene `check --changed`, review, and exhaustive semantic audit remain read-only; audit no longer invokes formatter preview to publish rewrite proposals.
+
+Updated the operative architecture, rewrite, Hygiene, autonomous-workflow, engineering and public documentation, README/agent help, and Autoformat/Hygiene consumer scripts. Release consumer scripts parse as PowerShell but were not executed. Historical M0024–M0030 records and YADG PR #22 were not rewritten or touched.
+
+Validation performed: affected Autoformat and Hygiene CLI/Core test projects built; all 31 Autoformat tests passed, then the added concurrent HEAD/index stability regression passed; focused Hygiene formatter-removal/delegation and batched-mutation tests passed; exhaustive semantic audit preservation test passed. One disposable SDK-style Git fixture used actual Autoformat CLI/SDK phases and passed `init`, removed-flag no-write, explicit-file scope, in-place normalization with changed-path JSON, checkpointed zero-edit repeat, and dirty-checkpoint refusal. Updated consumer scripts passed PowerShell syntax parsing. Release qualification, installed-package consumer runs, aggregate validation, and cross-platform validation remain deferred by milestone scope.

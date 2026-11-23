@@ -237,7 +237,7 @@ Architecture/refactoring work must preserve:
 
 - target/finding/ignore/explain behavior;
 - semantic-review population, independent batches, expansion, and handoff behavior;
-- format/normalize/check-only and clean Git checkpoint, concurrency, and agent-owned recovery behavior;
+- mutation-only format/normalize and clean Git checkpoint, concurrency, and agent-owned recovery behavior;
 - profile/bootstrap/update/documentation behavior;
 - fixed-rule/toggle-only policy and repository German-rule disablement;
 - exact public rule IDs, versions, order, descriptor metadata, and established interface text unless a milestone explicitly changes them.

@@ -89,7 +89,7 @@ Rule-version matching remains part of occurrence identity. `docs.summary.require
 
 ## Target behavior
 
-Existing M0002/M0004 repository discovery, project-aware Roslyn context, target de-duplication, broad exclusions, explicit target containment, and `--changed` behavior remain unchanged for normal source/rewrite commands.
+Existing M0002/M0004 repository discovery, project-aware Roslyn context, target de-duplication, broad exclusions, and explicit target containment remain unchanged. `--changed` is supported by the read-only semantic `check` command. Transitional `format` and `normalize` mutate directly and accept explicit paths only; they do not expose formatter `--check` or `--changed` options.
 
 Bootstrap/update are repository-wide profile commands and do not accept source targets or `--changed`.
 
