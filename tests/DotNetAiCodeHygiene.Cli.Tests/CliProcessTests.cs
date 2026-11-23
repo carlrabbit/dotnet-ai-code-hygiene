@@ -821,7 +821,7 @@ public sealed class CliProcessTests
         ProcessResult help = await RunCliAsync("help", "--agent");
         await Assert.That(help.ExitCode).IsEqualTo(0);
         await Assert.That(help.StandardOutput).Contains("Workflow:");
-        foreach (string required in new[] { "Semantic check targets:", "--base", "--review-all", "Exit 0", "--output text|json", "without mutation", "--changed", "mutate source", "formatter preview", "disposable clean checkout", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "17 focused", ".hygiene", "no model/provider", "dotnet hygiene" })
+        foreach (string required in new[] { "Semantic check targets:", "--base", "--review-all", "Exit 0", "--output text|json", "without mutation", "--changed", "mutate source", "formatter preview", "disposable clean checkout", "valid Git HEAD recovery checkpoint", "findings", "review accept", "hygiene:retain modernization.", "review expand", "review handoff", "17 focused", ".hygiene", "no model/provider", "dotnet hygiene" })
         {
             await Assert.That(help.StandardOutput).Contains(required);
         }
@@ -866,6 +866,33 @@ public sealed class CliProcessTests
     }
 
     [Test]
+    public async Task ManualNormalizeRequiresValidHeadEvenWhenUnbornRepositoryIsClean()
+    {
+        string repo = Path.Combine(Path.GetTempPath(), "hygiene-unborn-format-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repo);
+        try
+        {
+            await RunGitRawAsync(repo, "init", "-q");
+            await File.WriteAllTextAsync(Path.Combine(repo, ".git", "info", "exclude"), "*\n");
+            string project = Path.Combine(repo, "Fixture.csproj");
+            string source = Path.Combine(repo, "Fixture.cs");
+            const string original = "public class Fixture{public void Run(){}}\n";
+            await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
+            await File.WriteAllTextAsync(source, original);
+
+            await Assert.That(await GitTextAsync(repo, "status", "--porcelain=v1", "--untracked-files=all")).IsEmpty();
+            byte[] before = await File.ReadAllBytesAsync(source);
+            ProcessResult rejected = await RunCliInAsync(repo, "normalize", "Fixture.cs");
+
+            await Assert.That(rejected.ExitCode).IsNotEqualTo(0);
+            await Assert.That(rejected.StandardError).Contains("valid Git HEAD recovery checkpoint");
+            await Assert.That((await File.ReadAllBytesAsync(source)).AsSpan().SequenceEqual(before)).IsTrue();
+            await Assert.That(await File.ReadAllTextAsync(source)).IsEqualTo(original);
+        }
+        finally { DeleteTree(repo); }
+    }
+
+    [Test]
     public async Task NormalizeMutatesAcrossBatchedProjectsAndReportsActualChanges()
     {
         string repo = Path.Combine(Path.GetTempPath(), "hygiene-normalize-batches-" + Guid.NewGuid().ToString("N"));
@@ -889,7 +916,7 @@ public sealed class CliProcessTests
             await File.WriteAllTextAsync(whitespace, "public class Space{ public void Run(){ } }\n");
             await File.WriteAllTextAsync(both, "static public class Both{ public object Value=new object(); }\n");
             await File.WriteAllTextAsync(otherBatchStyle, "public class OtherStyle { public int Value = default(int); }\n");
-            await File.WriteAllTextAsync(clean, "public class Clean { public string Greeting => $\"hello\"; public string Display(int value) => $\"{value.ToString()}\"; }\n");
+            await File.WriteAllTextAsync(clean, "using System.Collections.Generic;\npublic class Clean { public IReadOnlyList<string> Values => new List<string>(); public string Greeting => $\"hello\"; public string Display(int value) => $\"{value.ToString()}\"; }\n");
             await File.WriteAllTextAsync(modern, "sealed file class Modern { required public string Name { get; init; } }\n");
             _ = new ProfileManager(repo).Bootstrap();
             await CommitAllAsync(repo, "normalization batch fixture");
@@ -909,6 +936,8 @@ public sealed class CliProcessTests
             await Assert.That(modernAfterNormalize).Contains("file sealed class Modern");
             await Assert.That(modernAfterNormalize).Contains("public required string Name");
             string cleanAfterNormalize = await File.ReadAllTextAsync(clean);
+            await Assert.That(cleanAfterNormalize).Contains("using System.Collections.Generic;");
+            await Assert.That(cleanAfterNormalize).Contains("IReadOnlyList<string>");
             await Assert.That(cleanAfterNormalize).Contains("$\"hello\"");
             await Assert.That(cleanAfterNormalize).Contains("$\"{value.ToString()}\"");
             await CommitAllAsync(repo, "normalized batch fixture");

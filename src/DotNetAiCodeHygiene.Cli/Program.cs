@@ -1044,7 +1044,7 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     }
     private const string AgentGuidance = """
         The only supported command is dotnet hygiene. Run it from a Git repository; no arguments starts the autonomous lifecycle.
-        Workflow: bootstrap and approve the baseline -> implement/change code -> run relevant tests -> deterministic formatting/normalization -> resolve selected findings/review work -> rerun dotnet hygiene. Semantic check targets: paths, --changed, --base <ref>, and --review-all are mutually exclusive. Manual format and normalize mutate source and require a clean Git checkpoint.
+        Workflow: bootstrap and approve the baseline -> implement/change code -> run relevant tests -> deterministic formatting/normalization -> resolve selected findings/review work -> rerun dotnet hygiene. Semantic check targets: paths, --changed, --base <ref>, and --review-all are mutually exclusive. Manual format and normalize mutate source and require a valid Git HEAD recovery checkpoint plus a clean worktree and index.
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
@@ -1060,7 +1060,20 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             throw new ArgumentException("--output must be text or json.");
         }
 
-        if (GitLines(engine.Root, "status", "--porcelain=v1", "--untracked-files=all").Length > 0)
+        // Manual formatter calls are the recovery boundary. Autonomous lifecycle
+        // formatting uses the adapter directly after its own checkpoint/authorization.
+        if (string.IsNullOrWhiteSpace(GitLine(engine.Root, "rev-parse", "--verify", "HEAD^{commit}")))
+        {
+            throw new ProductException("Manual format and normalize commands require a valid Git HEAD recovery checkpoint. Create an initial commit or restore a valid HEAD, then rerun.");
+        }
+
+        (int statusExitCode, string statusOutput, _) = RunProcess("git", engine.Root, "status", "--porcelain=v1", "--untracked-files=all");
+        if (statusExitCode != 0)
+        {
+            throw new ProductException("Manual format and normalize commands could not verify Git worktree/index cleanliness for the recovery checkpoint. Repair Git status and rerun.");
+        }
+
+        if (statusOutput.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length > 0)
         {
             throw new ProductException("Mutating format and normalize commands require a clean Git worktree and index. Commit or explicitly restore the intended changes, then rerun.");
         }
