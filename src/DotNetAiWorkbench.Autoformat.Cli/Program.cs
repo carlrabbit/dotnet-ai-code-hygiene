@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using DotNetAiWorkbench.Autoformat.Core;
 
-var root = new RootCommand("Independent .NET source formatting tool.");
+var root = new RootCommand("Independent .NET source formatting tool. format and normalize mutate selected files and require a clean Git checkpoint; use a disposable checkout to inspect proposed changes.");
 var output = new Option<string>("--output") { DefaultValueFactory = _ => "text" };
 var version = new Option<bool>("--version") { Description = "Show the Autoformat package version." };
 root.Options.Add(version);
@@ -11,15 +11,11 @@ var paths = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore }
 foreach (string mode in new[] { "format", "normalize" })
 {
     var command = mode == "format" ? new Command("format", "Apply SDK whitespace formatting only.") : new Command("normalize", "Canonicalize C# source, apply SDK style fixes, then format whitespace.");
-    var check = new Option<bool>("--check") { Description = "Verify without writing." };
-    var changed = new Option<bool>("--changed") { Description = "Select staged, unstaged, and untracked C# files; implies --check." };
     var noRestore = new Option<bool>("--no-restore") { Description = "Skip the SDK formatter's normal implicit dependency restore." };
     command.Arguments.Add(paths);
-    command.Options.Add(check);
-    command.Options.Add(changed);
     command.Options.Add(noRestore);
     command.Options.Add(output);
-    command.SetAction(parse => Run(() => Render(mode, parse.GetValue(paths) ?? [], parse.GetValue(check), parse.GetValue(changed), parse.GetValue(noRestore), parse.GetValue(output) ?? "text")));
+    command.SetAction(parse => Run(() => Render(mode, parse.GetValue(paths) ?? [], parse.GetValue(noRestore), parse.GetValue(output) ?? "text")));
     root.Subcommands.Add(command);
 }
 var init = new Command("init", "Establish or validate the fixed SDK mechanical formatting policy.");
@@ -27,33 +23,29 @@ init.Options.Add(output);
 init.SetAction(parse => Run(() => Initialize(parse.GetValue(output) ?? "text")));
 root.Subcommands.Add(init);
 var defaultPaths = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
-var defaultCheck = new Option<bool>("--check") { Description = "Verify without writing." };
-var defaultChanged = new Option<bool>("--changed") { Description = "Select staged, unstaged, and untracked C# files; implies --check." };
 var defaultNoRestore = new Option<bool>("--no-restore") { Description = "Skip the SDK formatter's normal implicit dependency restore." };
 root.Arguments.Add(defaultPaths);
-root.Options.Add(defaultCheck);
-root.Options.Add(defaultChanged);
 root.Options.Add(defaultNoRestore);
 root.Options.Add(output);
-root.SetAction(parse => Run(() => parse.GetValue(version) ? ShowVersion() : Render("normalize", parse.GetValue(defaultPaths) ?? [], parse.GetValue(defaultCheck), parse.GetValue(defaultChanged), parse.GetValue(defaultNoRestore), parse.GetValue(output) ?? "text")));
+root.SetAction(parse => Run(() => parse.GetValue(version) ? ShowVersion() : Render("normalize", parse.GetValue(defaultPaths) ?? [], parse.GetValue(defaultNoRestore), parse.GetValue(output) ?? "text")));
 return await root.Parse(args).InvokeAsync();
 
 static int ShowVersion() { Console.WriteLine(Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0"); return 0; }
 static int Run(Func<int> action) { try { return action(); } catch (Exception e) { Console.Error.WriteLine(e.Message); return 2; } }
-static int Render(string mode, string[] paths, bool check, bool changed, bool noRestore, string output)
+static int Render(string mode, string[] paths, bool noRestore, string output)
 {
     ValidateOutput(output);
     string repo = FindRoot();
     EnsurePolicy(repo);
-    RewriteResult result = new RewriteEngine(repo).Rewrite(mode, paths, changed, check, noRestore);
-    var report = new { status = "complete", mode, checkOnly = result.CheckOnly, targetCount = result.TargetCount, changedCount = result.ChangedCount, selectedPaths = result.SelectedPaths, changedPaths = result.ChangedPaths, phases = mode == "format" ? new[] { "sdk-whitespace" } : new[] { "csharp-canonicalization", "sdk-style", "sdk-whitespace" }, selectedRules = result.SelectedRuleIds, notices = result.Notices };
+    RewriteResult result = new RewriteEngine(repo).Rewrite(mode, paths, noRestore);
+    var report = new { status = "complete", mode, targetCount = result.TargetCount, changedCount = result.ChangedCount, selectedPaths = result.SelectedPaths, changedPaths = result.ChangedPaths, phases = mode == "format" ? new[] { "sdk-whitespace" } : new[] { "csharp-canonicalization", "sdk-style", "sdk-whitespace", "final-csharp-layout" }, selectedRules = result.SelectedRuleIds, notices = result.Notices };
     if (output == "json")
     {
         Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
     }
     else
     {
-        Console.WriteLine($"{mode}: {result.ChangedCount} changed of {result.TargetCount} selected; check-only={result.CheckOnly}.");
+        Console.WriteLine($"{mode}: {result.ChangedCount} changed of {result.TargetCount} selected.");
         Console.WriteLine("phases: " + string.Join(", ", mode == "format" ? ["sdk-whitespace"] : ["csharp-canonicalization", "sdk-style", "sdk-whitespace"]));
         foreach (string notice in result.Notices)
         {

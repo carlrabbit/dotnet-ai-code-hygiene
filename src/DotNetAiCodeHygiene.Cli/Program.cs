@@ -90,9 +90,8 @@ internal static class Program
         {
             var command = new Command(name, name == "format" ? "Apply the SDK whitespace formatter to selected eligible C# source." : "Apply the approved SDK style fixes and finish with SDK whitespace formatting.");
             var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.ZeroOrMore };
-            var changedOpt = new Option<bool>("--changed") { Description = "Select staged, unstaged, and untracked C# changes; this mode is always check-only." }; var checkOpt = new Option<bool>("--check");
-            command.Arguments.Add(pathsArg); command.Options.Add(changedOpt); command.Options.Add(checkOpt); command.Options.Add(output);
-            command.SetAction(parse => Run(() => RenderRewrite(new RewriteEngine(), name, parse.GetValue(pathsArg) ?? [], parse.GetValue(changedOpt), parse.GetValue(checkOpt), parse.GetValue(output) ?? "text")));
+            command.Arguments.Add(pathsArg); command.Options.Add(output);
+            command.SetAction(parse => Run(() => RenderRewrite(new RewriteEngine(), name, parse.GetValue(pathsArg) ?? [], parse.GetValue(output) ?? "text")));
             root.Subcommands.Add(command);
         }
         var agentHelp = new Command("help", "Show coding-agent workflow guidance."); var agent = new Option<bool>("--agent") { Description = "Show stable coding-agent guidance." }; agentHelp.Options.Add(agent);
@@ -453,9 +452,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                 WriteLifecycle(failed, output, "Bootstrap failed during restricted formatting. No baseline was accepted or installed as complete.");
                 return 0;
             }
-            RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+            RewriteResult normalized = new RewriteEngine().Rewrite("normalize", []);
             transaction.Verify();
-            RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+            RewriteResult formatted = new("format", normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
             transaction.Verify();
             string baselineStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, baselineStatus);
@@ -551,9 +550,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
                 WriteLifecycle(failed, output, "Profile update failed during restricted formatting. No new baseline was accepted.");
                 return 0;
             }
-            RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+            RewriteResult normalized = new RewriteEngine().Rewrite("normalize", []);
             transaction.Verify();
-            RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+            RewriteResult formatted = new("format", normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
             transaction.Verify();
             string updateStatus = restrictedStyle.Any(item => item.Status == "failed") ? "incomplete" : "approval-required";
             string reportPath = SaveBaselineReport(engine.Root, priorFormatting, reconciliation, restrictedStyle, normalized, formatted, updateStatus);
@@ -572,9 +571,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             WriteLifecycle(failed, output, "Gate failed during restricted formatting. The gate is incomplete.");
             return 0;
         }
-        RewriteResult normalizedGate = new RewriteEngine().Rewrite("normalize", [], false, false);
+        RewriteResult normalizedGate = new RewriteEngine().Rewrite("normalize", []);
         transaction.Verify();
-        RewriteResult formattedGate = new("format", false, normalizedGate.TargetCount, 0, normalizedGate.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+        RewriteResult formattedGate = new("format", normalizedGate.TargetCount, 0, normalizedGate.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
         transaction.Verify();
         string[] changedPaths = normalizedGate.ChangedPaths.Concat(formattedGate.ChangedPaths).Distinct(StringComparer.Ordinal).ToArray();
         string[] changedSources = GitLines(engine.Root, "status", "--porcelain", "--", "*.cs");
@@ -657,9 +656,9 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
             WriteLifecycle(new { schemaVersion = 1, status = "incomplete", lifecycle, action = "Resolve formatter failures and rerun dotnet hygiene bootstrap; baseline changes remain inspectable for explicit recovery.", rolledBack = false, recovery = "Partial work remains inspectable; recovery is explicit and agent-owned.", failedFormatterSteps = restrictedStyle }, output, "Baseline preparation failed during restricted formatting.");
             return 0;
         }
-        RewriteResult normalized = new RewriteEngine().Rewrite("normalize", [], false, false);
+        RewriteResult normalized = new RewriteEngine().Rewrite("normalize", []);
         transaction.Verify();
-        RewriteResult formatted = new("format", false, normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
+        RewriteResult formatted = new("format", normalized.TargetCount, 0, normalized.TargetCount, [], ["format.csharp.sdk.whitespace (included in normalize pass)"]);
         transaction.Verify();
         string reportPath = SaveBaselineReport(engine.Root, preFormat, profile, restrictedStyle, normalized, formatted, "approval-required");
         transaction.Verify();
@@ -1045,36 +1044,48 @@ Remove-Item -LiteralPath $request.tempRoot -Recurse -Force -ErrorAction Silently
     }
     private const string AgentGuidance = """
         The only supported command is dotnet hygiene. Run it from a Git repository; no arguments starts the autonomous lifecycle.
-        Workflow: bootstrap and approve the baseline -> implement/change code -> run relevant tests -> deterministic formatting/normalization -> resolve selected findings/review work -> rerun dotnet hygiene. Targets: paths, --changed, --base <ref>, and --review-all are mutually exclusive. Manual --check is non-mutating; rewrite --changed always selects check-only behavior.
+        Workflow: bootstrap and approve the baseline -> implement/change code -> run relevant tests -> deterministic formatting/normalization -> resolve selected findings/review work -> rerun dotnet hygiene. Semantic check targets: paths, --changed, --base <ref>, and --review-all are mutually exclusive. Manual format and normalize mutate source and require a valid Git HEAD recovery checkpoint plus a clean worktree and index.
         First use assesses existing formatting without mutation, bootstraps every eligible repository project, applies hygiene-owned formatting and normalization, and writes an approval-required baseline report. Inspect the diff and report. Only an authorized external approver may accept with dotnet hygiene baseline accept --approver <identity>; this command records the caller's assertion and does not verify authority.
         On an approved repository, dotnet hygiene formats and normalizes, detects a trusted source-change gate, runs deterministic checks, and prints selected-only semantic work grouped by file. Inspect each rule independently, remediate in context, and rerun dotnet hygiene after source changes. A complete status covers selected obligations only, not the entire repository population.
         When a feature-branch comparison is unambiguous, the lifecycle uses local origin/main; otherwise it uses actual worktree source changes. If the intended base is ambiguous, use dotnet hygiene check --base <trusted-ref>. The tool never fetches, pushes, commits, invents a remote, or calls a model/provider.
-        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format --check; dotnet hygiene format --changed; dotnet hygiene normalize --check; dotnet hygiene normalize --changed; dotnet hygiene review expand <batch> [--offset <0,50,...>], dotnet hygiene review handoff <batch> [--offset <0,50,...>] --output json, dotnet hygiene review accept <batch> <item>.... Expansion and handoff return at most 50 obligations per page; JSON includes nextPageOffset. Handoff returns escalation-required and keeps those items outstanding. Rewrite --changed selects staged, unstaged, and untracked C# paths and is always non-mutating. Format runs SDK whitespace; normalize runs the fixed SDK style diagnostic allowlist and whitespace. --review-all remains bounded.
+        Manual diagnostics: dotnet hygiene check [paths...], --changed, --base <ref>, --review-all; dotnet hygiene rules; dotnet hygiene explain; dotnet hygiene format [paths...]; dotnet hygiene normalize [paths...]; dotnet hygiene review expand <batch> [--offset <0,50,...>], dotnet hygiene review handoff <batch> [--offset <0,50,...>] --output json, dotnet hygiene review accept <batch> <item>.... Expansion and handoff return at most 50 obligations per page; JSON includes nextPageOffset. Handoff returns escalation-required and keeps those items outstanding. --changed belongs to read-only semantic check. There is no formatter preview because it duplicates SDK/project execution; use a disposable clean checkout and inspect the Git diff. Format runs SDK whitespace; normalize runs the fixed SDK style diagnostic allowlist and whitespace. --review-all remains bounded.
         Exhaustive audit: dotnet hygiene --yolo-all first asks whether the user explicitly tasked the calling agent. Proceed only with --attest-explicit-task; otherwise stop or pass --deny-explicit-task. A valid supported profile and accepted baseline are required; the audit will not create either. Continue with dotnet hygiene audit next --run <audit-dir>, record only external acceptable/problem/uncertain judgments with dotnet hygiene audit record --run <audit-dir> --file <judgments.json>, then create report.json and report.md with dotnet hygiene audit finish --run <audit-dir>. Problem/uncertain judgments require rationale. The audit is report-only: no source changes, formatting, normalization, normal acceptance, handoff, bootstrap, tool update, or provider call. Reports disclose that source changes during collection are not tracked. Source context stays in the chosen local audit directory.
         The 17 focused architecture, behavior, test, summary-documentation and comment rules share at most ten independently judged rule-subject obligations per normal gate. Changed subjects have priority; at most two slots may go to genuinely context-affected subjects, and unrelated background work is not selected. Explicit paths and --review-all remain within the ten-slot limit. Each selected item includes its fixed question, source-backed signal, legitimate-case boundary, stable anchors and up to eight excerpts/24,000 UTF-8 bytes; missing or truncated context is explicit. Expansion and handoff can inspect larger populations in bounded pages. The nine modernization families retain their separate five-package budget. Modern syntax is preferred; retain an occurrence with a meaningful native pragma for an SDK-suppressible diagnostic or a narrow `// hygiene:retain modernization.<rule-id> -- <reason>` source comment for hygiene-only candidates. Previous local modernization verdicts are not approval and are not migrated. Each independent semantic question is judged on its own evidence; the CLI never decides semantic quality. Acceptance revalidates source identity; changed evidence becomes new work. Visual-block is a contextual review candidate, never an automatic formatting request. Review batches are opportunities, not findings or population certification.
         Output: --output text|json. Exit 0 means command execution succeeded; inspect the lifecycle or audit status. An incomplete audit report returns exit 5; exit 2 means invalid invocation, 3 authorization or unusable input/state/safety prerequisite, 4 missing required dependency. Normal review state is under .hygiene/.state; audit checkpoints are separate under .hygiene/audits. The CLI invokes no model/provider. The old bare hygiene command and former CLI shapes have no pre-1.0 compatibility guarantee.
         """;
-    private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, bool changed, bool checkOnly, string output)
+    private static int RenderRewrite(RewriteEngine engine, string command, string[] paths, string output)
     {
-        checkOnly |= changed;
         if (output is not ("text" or "json"))
         {
             throw new ArgumentException("--output must be text or json.");
         }
 
-        if (!checkOnly && GitLines(engine.Root, "status", "--porcelain=v1", "--untracked-files=all").Length > 0)
+        // Manual formatter calls are the recovery boundary. Autonomous lifecycle
+        // formatting uses the adapter directly after its own checkpoint/authorization.
+        if (string.IsNullOrWhiteSpace(GitLine(engine.Root, "rev-parse", "--verify", "HEAD^{commit}")))
+        {
+            throw new ProductException("Manual format and normalize commands require a valid Git HEAD recovery checkpoint. Create an initial commit or restore a valid HEAD, then rerun.");
+        }
+
+        (int statusExitCode, string statusOutput, _) = RunProcess("git", engine.Root, "status", "--porcelain=v1", "--untracked-files=all");
+        if (statusExitCode != 0)
+        {
+            throw new ProductException("Manual format and normalize commands could not verify Git worktree/index cleanliness for the recovery checkpoint. Repair Git status and rerun.");
+        }
+
+        if (statusOutput.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries).Length > 0)
         {
             throw new ProductException("Mutating format and normalize commands require a clean Git worktree and index. Commit or explicitly restore the intended changes, then rerun.");
         }
 
-        RewriteResult r = engine.Rewrite(command, paths, changed, checkOnly);
+        RewriteResult r = engine.Rewrite(command, paths);
         if (output == "json")
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.CheckOnly, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths, r.SelectedRuleIds }, Json));
+            Console.WriteLine(JsonSerializer.Serialize(new { schemaVersion = 1, r.Command, r.TargetCount, r.ChangedCount, r.UnchangedCount, r.ChangedPaths, r.SelectedRuleIds }, Json));
         }
         else if (output == "text")
         {
-            Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s){(r.CheckOnly ? " (check only)" : "")}");
+            Console.WriteLine($"{r.Command}: {r.ChangedCount} changed, {r.UnchangedCount} unchanged of {r.TargetCount} target(s)");
             Console.WriteLine("Rules: " + string.Join(", ", r.SelectedRuleIds)); foreach (string path in r.ChangedPaths)
             {
                 Console.WriteLine($"  {path}");
