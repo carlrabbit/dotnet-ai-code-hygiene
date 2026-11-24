@@ -1,6 +1,33 @@
 # .NET AI Workbench
 
-This repository keeps the historical GitHub name `carlrabbit/dotnet-ai-code-hygiene` and builds the `DotNetAiWorkbench.slnx` monorepo. It ships independent `dotnet autoformat` (`DotNetAiWorkbench.Autoformat.Tool` 0.1.0) and transitional `dotnet hygiene` (`DotNetAiCodeHygiene.Tool` 0.12.0). Autoformat owns the mechanical `.editorconfig` block and canonicalizes C# syntax, readability layout and SDK whitespace. Hygiene retains its live semantic-review and lifecycle functions and delegates formatting to Autoformat. Supported consumers use Windows 11 and the .NET 11 SDK line. No public feed publication is claimed.
+This repository keeps the historical GitHub name `carlrabbit/dotnet-ai-code-hygiene` and builds the `DotNetAiWorkbench.slnx` monorepo. It includes independent `dotnet autoformat` (`DotNetAiWorkbench.Autoformat.Tool` 0.1.0), transitional `dotnet hygiene` (`DotNetAiCodeHygiene.Tool` 0.12.0), and the standalone local `agenttrace` CLI. Autoformat owns the mechanical `.editorconfig` block and canonicalizes C# syntax, readability layout and SDK whitespace. Hygiene retains its live semantic-review and lifecycle functions and delegates formatting to Autoformat. Supported consumers use Windows 11 and the .NET 11 SDK line. No public feed publication is claimed; AgentTrace packaging and installed-consumer qualification remain deferred.
+
+## Local AgentTrace
+
+`agenttrace` is an independent local append-only event recorder. It has no agent hooks, process runner, transcript/model integration, MCP client, background service, or Autoformat/Hygiene dependency. The caller chooses a shared work key and optional actor key; lifecycle markers do not register or gate sessions:
+
+```powershell
+agenttrace start --session PR-45 --actor agent-a
+agenttrace command start --session PR-45 --actor agent-a --command "dotnet test --no-restore"
+# Run the command yourself using your normal shell or tool.
+agenttrace command end --session PR-45 --actor agent-a --command "dotnet test --no-restore" --exit-code 1 --status failed
+agenttrace operation start --session PR-45 --actor agent-a --kind mcp --name github.create_pull_request
+agenttrace operation end --session PR-45 --actor agent-a --kind mcp --name github.create_pull_request --status complete
+agenttrace mark --session PR-45 --actor agent-b --note "Investigating a failure"
+agenttrace pause --session PR-45 --actor agent-a
+agenttrace resume --session PR-45 --actor agent-a
+agenttrace stop --session PR-45 --actor agent-a
+agenttrace report --session PR-45 --format markdown --out trace-report.md
+agenttrace export --session PR-45 --format json
+```
+
+`command start` records the exact command text and SHA-256 fingerprint; it never runs it. `command end` supplies the same command text so the event can be correlated by session, actor, fingerprint, and optional matching `--label`. Identical overlapping commands pair FIFO and are reported as ambiguous; labels can disambiguate them. `start`, `pause`, `resume`, and `stop` are ordinary annotations, so repeated or late recording remains valid. If agents omit `--actor`, their events share an undifferentiated stream.
+
+For a sensitive command, pass `--sensitive` on both start and end. A `--label` is optional and may identify or disambiguate the event; AgentTrace stores only the unkeyed SHA-256 fingerprint, sensitivity flag, optional label and end outcome. It does not store command text, parameters, executable names or inferred names. The hash supports equality matching but does not protect low-entropy secrets against guessing; command text may also appear in shell history or process listings. The `--name` option belongs only to declared `operation` events, not commands.
+
+With no config, events append to JSONL under ignored `.agenttrace/sessions/`. Optional root `.agenttrace.json` can select JSONL or SQLite. Repository-relative and explicit absolute paths are supported; a shared local SQLite example is `{"schemaVersion":1,"storage":{"provider":"sqlite","path":"C:/AgentTrace/traces.db"}}`. Changing stores does not migrate or combine previous events. SQLite WAL is intended for a local database, not a shared network filesystem.
+
+Command durations are differences between separate UTC event timestamps; they include the interval between the agent's start and end logging calls and are not precise process-runtime measurements. Actor pauses are annotations that affect only that actor's interpreted coverage. Reports show observed event windows, pairing anomalies and unattributed gaps; these gaps are not model thinking time and do not prove no work occurred.
 
 The next local package target is `0.12.0`; public-feed publication is not claimed. Install from a trusted NuGet source after the package is available there:
 

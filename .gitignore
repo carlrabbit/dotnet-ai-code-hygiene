@@ -3,6 +3,7 @@
 artifacts/
 TestResults/
 **/.hygiene/.state/
+**/.agenttrace/
 **/bin/
 **/obj/
 .execution/validation/
