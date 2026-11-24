@@ -6,7 +6,7 @@ namespace DotNetAiWorkbench.AgentTrace;
 internal interface ITraceStore
 {
     public IReadOnlyList<StoredEvent> ReadAll();
-    public void Append(TraceEvent item);
+    public bool Append(TraceEvent item);
     public string Provider { get; }
     public string Location { get; }
     public string LockDirectory { get; }
@@ -153,12 +153,93 @@ internal sealed class JsonlTraceStore : ITraceStore
         return all;
     }
 
-    public void Append(TraceEvent item)
+    public bool Append(TraceEvent item)
     {
+        // TraceService holds this session's cross-process lock across repair and append.
         byte[] data = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(item, TraceJson.Options) + "\n");
-        using var stream = new FileStream(FileFor(item.Session), FileMode.Append, FileAccess.Write, FileShare.ReadWrite, 4096, FileOptions.WriteThrough);
+        using var stream = new FileStream(FileFor(item.Session), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.WriteThrough);
+        bool recoveredTail = RecoverUnterminatedTail(stream);
+        stream.Position = stream.Length;
         stream.Write(data);
         stream.Flush(true);
+        return recoveredTail;
+    }
+
+    private static bool RecoverUnterminatedTail(FileStream stream)
+    {
+        if (stream.Length == 0)
+        {
+            return false;
+        }
+
+        stream.Position = stream.Length - 1;
+        if (stream.ReadByte() == '\n')
+        {
+            return false;
+        }
+
+        long tailStart = stream.Length;
+        for (long position = stream.Length - 1; position >= 0; position--)
+        {
+            stream.Position = position;
+            if (stream.ReadByte() == '\n')
+            {
+                tailStart = position + 1;
+                break;
+            }
+
+            tailStart = position;
+        }
+
+        long tailLength = stream.Length - tailStart;
+        if (tailLength > int.MaxValue)
+        {
+            throw new TraceException("The unterminated JSONL tail is too large to recover safely.");
+        }
+
+        byte[] tailBytes = new byte[(int)tailLength];
+        stream.Position = tailStart;
+        stream.ReadExactly(tailBytes);
+
+        string tail;
+        try
+        {
+            tail = new System.Text.UTF8Encoding(false, true).GetString(tailBytes);
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            stream.SetLength(tailStart);
+            stream.Flush(true);
+            return true;
+        }
+
+        try
+        {
+            using (JsonDocument.Parse(tail)) { }
+        }
+        catch (JsonException)
+        {
+            // A syntactically partial final record is discarded; prior newline-terminated records stay intact.
+            stream.SetLength(tailStart);
+            stream.Flush(true);
+            return true;
+        }
+
+        try
+        {
+            _ = JsonSerializer.Deserialize<TraceEvent>(tail, TraceJson.Options)
+                ?? throw new TraceException("A valid unterminated JSONL record is not a trace event.");
+        }
+        catch (JsonException ex)
+        {
+            throw new TraceException("A valid unterminated JSONL record is not a trace event; refusing to alter it.", ex);
+        }
+
+        // Valid JSON without its line terminator remains a complete record; separate it before appending.
+        stream.Position = stream.Length;
+        stream.WriteByte((byte)'\n');
+        stream.Flush(true);
+        return false;
     }
 
     internal static string SessionFileName(string session)
@@ -309,7 +390,7 @@ internal sealed class SqliteTraceStore : ITraceStore
         return events;
     }
 
-    public void Append(TraceEvent item)
+    public bool Append(TraceEvent item)
     {
         using var connection = Connect();
         using var transaction = connection.BeginTransaction();
@@ -320,6 +401,7 @@ internal sealed class SqliteTraceStore : ITraceStore
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(item, TraceJson.Options));
         command.ExecuteNonQuery();
         transaction.Commit();
+        return false;
     }
 }
 

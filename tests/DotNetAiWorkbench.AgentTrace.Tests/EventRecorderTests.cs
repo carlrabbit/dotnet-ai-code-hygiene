@@ -122,10 +122,12 @@ public sealed class EventRecorderTests
     }
 
     [Test]
-    public async Task SensitiveCommandUsesSafeNameAndUnkeyedSha256AcrossStores()
+    public async Task SensitiveCommandsWithAndWithoutLabelsStoreOnlyHashFlagAndOptionalLabelAcrossStores()
     {
-        const string secretCommand = "dotnet nuget push package.nupkg --api-key secret-token-xyz";
-        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secretCommand))).ToLowerInvariant();
+        const string labeledSecret = "dotnet nuget push package.nupkg --api-key labeled-secret-xyz";
+        const string unlabeledSecret = "dotnet nuget push private.nupkg --api-key unlabeled-secret-xyz";
+        string labeledHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(labeledSecret))).ToLowerInvariant();
+        string unlabeledHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(unlabeledSecret))).ToLowerInvariant();
         using var jsonl = new TemporaryRepository();
         using var sqlite = new TemporaryRepository();
         string externalDbRoot = Path.Combine(Path.GetTempPath(), "agenttrace-external-" + Guid.NewGuid().ToString("N"));
@@ -135,8 +137,10 @@ public sealed class EventRecorderTests
 
         foreach (TemporaryRepository repo in new[] { jsonl, sqlite })
         {
-            await repo.Cli("command", "start", "--session", "PR-45", "--actor", "publisher", "--command", secretCommand, "--sensitive", "--name", "dotnet nuget push", "--label", "release");
-            await repo.Cli("command", "end", "--session", "PR-45", "--actor", "publisher", "--command", secretCommand, "--sensitive", "--label", "release", "--exit-code", "0");
+            await repo.Cli("command", "start", "--session", "PR-45", "--actor", "publisher", "--command", labeledSecret, "--sensitive", "--label", "release");
+            await repo.Cli("command", "end", "--session", "PR-45", "--actor", "publisher", "--command", labeledSecret, "--sensitive", "--label", "release", "--exit-code", "0");
+            await repo.Cli("command", "start", "--session", "PR-45", "--actor", "publisher", "--command", unlabeledSecret, "--sensitive");
+            await repo.Cli("command", "end", "--session", "PR-45", "--actor", "publisher", "--command", unlabeledSecret, "--sensitive", "--status", "complete");
         }
 
         ProcessResult[] exportResults = await Task.WhenAll(jsonl.Cli("export", "--session", "PR-45"), sqlite.Cli("export", "--session", "PR-45"));
@@ -147,32 +151,69 @@ public sealed class EventRecorderTests
         string[] jsonlExports = jsonlExportResults.Select(result => result.Stdout).ToArray();
         foreach (string raw in exports)
         {
-            await Assert.That(raw).DoesNotContain("secret-token-xyz");
-            await Assert.That(raw).Contains("dotnet nuget push");
-            await Assert.That(raw).Contains(hash);
+            await Assert.That(raw).DoesNotContain("labeled-secret-xyz");
+            await Assert.That(raw).DoesNotContain("unlabeled-secret-xyz");
+            await Assert.That(raw).DoesNotContain("package.nupkg");
+            await Assert.That(raw).DoesNotContain("private.nupkg");
+            await Assert.That(raw).Contains(labeledHash);
+            await Assert.That(raw).Contains(unlabeledHash);
             using JsonDocument export = JsonDocument.Parse(raw);
-            await Assert.That(export.RootElement.GetProperty("events")[0].GetProperty("sensitive").GetBoolean()).IsTrue();
-            await Assert.That(export.RootElement.GetProperty("events")[0].TryGetProperty("commandText", out _)).IsFalse();
+            JsonElement events = export.RootElement.GetProperty("events");
+            await Assert.That(events.GetArrayLength()).IsEqualTo(4);
+            foreach (JsonElement item in events.EnumerateArray())
+            {
+                await Assert.That(item.GetProperty("sensitive").GetBoolean()).IsTrue();
+                await Assert.That(item.TryGetProperty("commandText", out _)).IsFalse();
+                await Assert.That(item.TryGetProperty("commandName", out _)).IsFalse();
+            }
+
+            await Assert.That(events[0].GetProperty("label").GetString()).IsEqualTo("release");
+            await Assert.That(events[1].GetProperty("label").GetString()).IsEqualTo("release");
+            await Assert.That(events[2].TryGetProperty("label", out _)).IsFalse();
+            await Assert.That(events[3].TryGetProperty("label", out _)).IsFalse();
+            JsonElement pairs = export.RootElement.GetProperty("derived").GetProperty("commands");
+            await Assert.That(pairs.GetArrayLength()).IsEqualTo(2);
+            await Assert.That(pairs[0].GetProperty("startIndex").GetInt32()).IsEqualTo(0);
+            await Assert.That(pairs[0].GetProperty("endIndex").GetInt32()).IsEqualTo(1);
+            await Assert.That(pairs[1].GetProperty("startIndex").GetInt32()).IsEqualTo(2);
+            await Assert.That(pairs[1].GetProperty("endIndex").GetInt32()).IsEqualTo(3);
+            await Assert.That(pairs.EnumerateArray().All(pair => pair.GetProperty("sensitive").GetBoolean() && !pair.GetProperty("ambiguous").GetBoolean())).IsTrue();
+            await Assert.That(export.RootElement.GetProperty("derived").GetProperty("unmatchedCommandStarts").GetArrayLength()).IsEqualTo(0);
+            await Assert.That(export.RootElement.GetProperty("derived").GetProperty("unmatchedCommandEnds").GetArrayLength()).IsEqualTo(0);
         }
 
         foreach (string raw in jsonlExports)
         {
-            await Assert.That(raw).DoesNotContain("secret-token-xyz");
-            await Assert.That(raw).Contains(hash);
-            await Assert.That(raw).Contains("dotnet nuget push");
+            await Assert.That(raw).DoesNotContain("labeled-secret-xyz");
+            await Assert.That(raw).DoesNotContain("unlabeled-secret-xyz");
+            await Assert.That(raw).DoesNotContain("package.nupkg");
+            await Assert.That(raw).DoesNotContain("private.nupkg");
+            await Assert.That(raw).Contains(labeledHash);
+            await Assert.That(raw).Contains(unlabeledHash);
         }
 
         using JsonDocument one = JsonDocument.Parse(exports[0]);
         using JsonDocument two = JsonDocument.Parse(exports[1]);
-        string[] rawFields(JsonDocument doc) => doc.RootElement.GetProperty("events").EnumerateArray().Select(item => string.Join("|", item.GetProperty("type").GetString(), item.GetProperty("actor").GetString(), item.GetProperty("commandFingerprint").GetString(), item.TryGetProperty("commandName", out JsonElement name) ? name.GetString() : "", item.GetProperty("sensitive").GetBoolean(), item.TryGetProperty("exitCode", out JsonElement code) ? code.ToString() : "")).ToArray();
+        string[] rawFields(JsonDocument doc) => doc.RootElement.GetProperty("events").EnumerateArray().Select(item => string.Join("|", item.GetProperty("type").GetString(), item.GetProperty("actor").GetString(), item.GetProperty("commandFingerprint").GetString(), item.TryGetProperty("label", out JsonElement label) ? label.GetString() : "", item.GetProperty("sensitive").GetBoolean(), item.TryGetProperty("exitCode", out JsonElement code) ? code.ToString() : "", item.TryGetProperty("status", out JsonElement status) ? status.GetString() : "")).ToArray();
         await Assert.That(rawFields(one)).IsEquivalentTo(rawFields(two));
         await Assert.That(File.Exists(Path.Combine(externalDbRoot, "shared.db"))).IsTrue();
         string sensitiveReport = (await jsonl.Cli("report", "--session", "PR-45")).Stdout;
         string sqliteReport = (await sqlite.Cli("report", "--session", "PR-45")).Stdout;
-        await Assert.That(sensitiveReport).DoesNotContain("secret-token-xyz");
-        await Assert.That(sqliteReport).DoesNotContain("secret-token-xyz");
-        await Assert.That(sensitiveReport).Contains("agent-reported");
-        await Assert.That(sqliteReport).Contains("1 paired commands");
+        await Assert.That(sensitiveReport).DoesNotContain("labeled-secret-xyz");
+        await Assert.That(sensitiveReport).DoesNotContain("unlabeled-secret-xyz");
+        await Assert.That(sensitiveReport).Contains("label=release");
+        await Assert.That(sensitiveReport).Contains(unlabeledHash);
+        await Assert.That(sqliteReport).DoesNotContain("labeled-secret-xyz");
+        await Assert.That(sqliteReport).DoesNotContain("unlabeled-secret-xyz");
+        await Assert.That(sqliteReport).Contains("2 paired commands");
+        ProcessResult rejectedName = await jsonl.Cli("command", "start", "--session", "reject-name", "--command", labeledSecret, "--sensitive", "--name", "publish");
+        await Assert.That(rejectedName.ExitCode).IsNotEqualTo(0);
+        ProcessResult rejectedEndName = await jsonl.Cli("command", "end", "--session", "reject-name", "--command", labeledSecret, "--exit-code", "0", "--name", "publish");
+        await Assert.That(rejectedEndName.ExitCode).IsNotEqualTo(0);
+        ProcessResult commandHelp = await jsonl.Cli("command", "start", "--help");
+        await Assert.That(commandHelp.Stdout).DoesNotContain("--name");
+        ProcessResult commandEndHelp = await jsonl.Cli("command", "end", "--help");
+        await Assert.That(commandEndHelp.Stdout).DoesNotContain("--name");
     }
 
     [Test]
@@ -231,16 +272,46 @@ public sealed class EventRecorderTests
     }
 
     [Test]
-    public async Task TruncatedJsonlTailIsIgnoredAndBadConfigurationFailsClearly()
+    public async Task JsonlReadAppendExportRecoversTornTailAndPreservesValidUnterminatedRecord()
     {
-        using var repo = new TemporaryRepository();
-        await repo.Cli("mark", "--session", "tail", "--note", "complete-record");
-        string eventFile = Directory.EnumerateFiles(Path.Combine(repo.Path, ".agenttrace", "sessions"), "*.jsonl").Single();
-        await File.AppendAllTextAsync(eventFile, "{\"partial\":");
-        ProcessResult sessions = await repo.Cli("sessions", "--format", "json");
+        using var tornRepo = new TemporaryRepository();
+        await tornRepo.Cli("mark", "--session", "tail", "--note", "complete-record");
+        string tornFile = Directory.EnumerateFiles(Path.Combine(tornRepo.Path, ".agenttrace", "sessions"), "*.jsonl").Single();
+        await File.AppendAllTextAsync(tornFile, "{\"partial\":");
+        ProcessResult sessions = await tornRepo.Cli("sessions", "--format", "json");
         await Assert.That(sessions.ExitCode).IsEqualTo(0);
         await Assert.That(sessions.Stdout).Contains("tail");
+        ProcessResult appendAfterRecovery = await tornRepo.Cli("mark", "--session", "tail", "--note", "after-recovery");
+        await Assert.That(appendAfterRecovery.ExitCode).IsEqualTo(0);
+        await Assert.That(appendAfterRecovery.Stdout).IsEqualTo("");
+        await Assert.That(appendAfterRecovery.Stderr).Contains("discarded an incomplete malformed JSONL tail");
+        using JsonDocument recovered = JsonDocument.Parse((await tornRepo.Cli("export", "--session", "tail")).Stdout);
+        await Assert.That(recovered.RootElement.GetProperty("events").GetArrayLength()).IsEqualTo(2);
+        await Assert.That(recovered.RootElement.GetProperty("events")[0].GetProperty("note").GetString()).IsEqualTo("complete-record");
+        await Assert.That(recovered.RootElement.GetProperty("events")[1].GetProperty("note").GetString()).IsEqualTo("after-recovery");
 
+        using var unterminatedRepo = new TemporaryRepository();
+        await unterminatedRepo.Cli("mark", "--session", "unterminated", "--note", "valid-json");
+        string unterminatedFile = Directory.EnumerateFiles(Path.Combine(unterminatedRepo.Path, ".agenttrace", "sessions"), "*.jsonl").Single();
+        byte[] completeLine = await File.ReadAllBytesAsync(unterminatedFile);
+        await Assert.That(completeLine[^1]).IsEqualTo((byte)'\n');
+        await File.WriteAllBytesAsync(unterminatedFile, completeLine[..^1]);
+        ProcessResult validSessions = await unterminatedRepo.Cli("sessions", "--format", "json");
+        await Assert.That(validSessions.ExitCode).IsEqualTo(0);
+        await Assert.That(validSessions.Stdout).Contains("unterminated");
+        ProcessResult appendAfterValid = await unterminatedRepo.Cli("mark", "--session", "unterminated", "--note", "next-record");
+        await Assert.That(appendAfterValid.ExitCode).IsEqualTo(0);
+        await Assert.That(appendAfterValid.Stderr).IsEqualTo("");
+        using JsonDocument validRecovered = JsonDocument.Parse((await unterminatedRepo.Cli("export", "--session", "unterminated")).Stdout);
+        await Assert.That(validRecovered.RootElement.GetProperty("events").GetArrayLength()).IsEqualTo(2);
+        await Assert.That(validRecovered.RootElement.GetProperty("events")[0].GetProperty("note").GetString()).IsEqualTo("valid-json");
+        await Assert.That(validRecovered.RootElement.GetProperty("events")[1].GetProperty("note").GetString()).IsEqualTo("next-record");
+    }
+
+    [Test]
+    public async Task BadConfigurationFailsClearly()
+    {
+        using var repo = new TemporaryRepository();
         await File.WriteAllTextAsync(Path.Combine(repo.Path, ".agenttrace.json"), "{bad json");
         ProcessResult rejected = await repo.Cli("sessions");
         await Assert.That(rejected.ExitCode).IsNotEqualTo(0);

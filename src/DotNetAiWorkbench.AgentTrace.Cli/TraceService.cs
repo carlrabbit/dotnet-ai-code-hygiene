@@ -18,18 +18,12 @@ internal sealed class TraceService(string? repo)
         Append(NewEvent(session, actor, type) with { Note = note });
     }
 
-    public void RecordCommandStart(string session, string? actor, string command, string? label, bool sensitive, string? safeName)
+    public void RecordCommandStart(string session, string? actor, string command, string? label, bool sensitive)
     {
-        if (sensitive && string.IsNullOrWhiteSpace(safeName))
-        {
-            throw new TraceException("Sensitive command starts require a safe nonsecret --name.");
-        }
-
         Append(NewEvent(session, actor, "command-start") with
         {
             CommandText = sensitive ? null : command,
             CommandFingerprint = CommandFingerprint.Compute(command),
-            CommandName = sensitive ? safeName : null,
             Sensitive = sensitive,
             Label = label
         });
@@ -83,7 +77,10 @@ internal sealed class TraceService(string? repo)
     private void Append(TraceEvent item)
     {
         using var sessionLock = new SessionLock(_repository.Store.LockDirectory, item.Session);
-        _repository.Store.Append(item);
+        if (_repository.Store.Append(item))
+        {
+            Console.Error.WriteLine("AgentTrace warning: discarded an incomplete malformed JSONL tail before appending; prior complete records were preserved.");
+        }
     }
 
     private static void ValidateCallerKey(string value, string option)
@@ -296,7 +293,7 @@ internal sealed class TraceService(string? repo)
         string label = LabelText(item.Label);
         return item.Type switch
         {
-            "command-start" => $"command start: {DisplayCommand(item)}; fingerprint={item.CommandFingerprint}; actor={actor}{label}{(item.Sensitive ? "; sensitive" : "")}",
+            "command-start" => $"command start: {DisplayCommand(item)}{(item.Sensitive ? "" : $"; fingerprint={item.CommandFingerprint}")}; actor={actor}{label}{(item.Sensitive ? "; sensitive" : "")}",
             "command-end" => $"command end: {FingerprintLabel(item)}; actor={actor}{label}; {item.Status ?? (item.ExitCode is int code ? $"reported exit {code}" : "outcome unspecified")}{(item.ExitCode is int exitCode ? $" (exit {exitCode})" : "")}{(item.Sensitive ? "; sensitive" : "")}",
             "operation-start" => $"declared {item.Kind} start: {item.Name}; actor={actor}{label} (agent-reported)",
             "operation-end" => $"declared {item.Kind} end: {item.Name}; actor={actor}{label}; {item.Status} (agent-reported)",
@@ -325,7 +322,7 @@ internal sealed class TraceService(string? repo)
 
     private sealed record RepeatedCommand(string Identity, int Count, double DurationMilliseconds, string? Actor, string? Label);
 
-    private static string DisplayCommand(TraceEvent item) => item.Sensitive ? item.CommandName ?? "(sensitive command)" : item.CommandText ?? FingerprintLabel(item);
+    private static string DisplayCommand(TraceEvent item) => item.Sensitive ? FingerprintLabel(item) : item.CommandText ?? FingerprintLabel(item);
     private static string FingerprintLabel(TraceEvent item) => $"sha256:{item.CommandFingerprint}{(item.Sensitive ? " (sensitive)" : "")}";
     private static string ActorLabel(string? actor) => actor ?? "(unspecified)";
     private static string LabelText(string? label) => label is null ? "" : $" label={label}";

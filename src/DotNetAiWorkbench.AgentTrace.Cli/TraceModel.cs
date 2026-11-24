@@ -14,7 +14,6 @@ internal sealed record TraceEvent
     public required DateTimeOffset TimestampUtc { get; init; }
     public string? CommandText { get; init; }
     public string? CommandFingerprint { get; init; }
-    public string? CommandName { get; init; }
     public bool Sensitive { get; init; }
     public string? Label { get; init; }
     public string? Kind { get; init; }

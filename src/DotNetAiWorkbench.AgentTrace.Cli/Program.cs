@@ -45,10 +45,9 @@ var commandStart = new Command("start", "Append the exact command text and its d
     var session = Session(); var actor = Actor(); var repo = Repo();
     var text = Required("--command", "Exact full command text; this command is recorded but never executed.");
     var label = Optional("--label", "Optional safe disambiguating label, repeated on the matching end.");
-    var sensitive = new Option<bool>("--sensitive") { Description = "Store only the unkeyed SHA-256 fingerprint and required safe --name." };
-    var safeName = Optional("--name", "Safe command name required for a sensitive command.");
-    commandStart.Options.Add(session); commandStart.Options.Add(actor); commandStart.Options.Add(repo); commandStart.Options.Add(text); commandStart.Options.Add(label); commandStart.Options.Add(sensitive); commandStart.Options.Add(safeName);
-    Handle(commandStart, p => Record(() => new TraceService(p.GetValue(repo)).RecordCommandStart(p.GetValue(session)!, p.GetValue(actor), p.GetValue(text)!, p.GetValue(label), p.GetValue(sensitive), p.GetValue(safeName))));
+    var sensitive = new Option<bool>("--sensitive") { Description = "Store only the unkeyed SHA-256 fingerprint and sensitivity flag; --label is optional." };
+    commandStart.Options.Add(session); commandStart.Options.Add(actor); commandStart.Options.Add(repo); commandStart.Options.Add(text); commandStart.Options.Add(label); commandStart.Options.Add(sensitive);
+    Handle(commandStart, p => Record(() => new TraceService(p.GetValue(repo)).RecordCommandStart(p.GetValue(session)!, p.GetValue(actor), p.GetValue(text)!, p.GetValue(label), p.GetValue(sensitive))));
 }
 var commandEnd = new Command("end", "Append a command result and correlate by exact text fingerprint, actor and optional label.");
 {
